@@ -19,10 +19,7 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
-<<<<<<< HEAD
-=======
 import android.bluetooth.le.ScanResult
->>>>>>> rebase/test-1.0.4-merge
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -638,13 +635,10 @@ class ICanHealthBleManager(
         provisionalSensorIdForAdoption = null
     }
 
-<<<<<<< HEAD
-=======
     override fun removeManagedPersistence(context: Context) {
         ICanHealthRegistry.removeSensor(context, SerialNumber)
     }
 
->>>>>>> rebase/test-1.0.4-merge
     override fun hasNativeSensorBacking(): Boolean {
         if (SerialNumber.isBlank() || ICanHealthConstants.isProvisionalSensorId(SerialNumber)) {
             return false
@@ -1080,9 +1074,6 @@ class ICanHealthBleManager(
         super.close()
     }
 
-<<<<<<< HEAD
-    override fun getService(): UUID = ICanHealthConstants.CGM_SERVICE
-=======
     override fun onBluetoothAdapterUnavailable() {
         resetConnectionAttemptState()
         clearGattTransportState()
@@ -1098,7 +1089,6 @@ class ICanHealthBleManager(
     // every delivered advertisement, so use the existing unfiltered scan path.
     override fun getService(): UUID? =
         if (mActiveDeviceAddress.isNullOrBlank()) null else ICanHealthConstants.CGM_SERVICE
->>>>>>> rebase/test-1.0.4-merge
 
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
         val trimmedName = deviceName?.trim()?.takeIf { it.isNotEmpty() } ?: return false
@@ -1120,8 +1110,6 @@ class ICanHealthBleManager(
         return ICanHealthConstants.isICanHealthDevice(trimmedName)
     }
 
-<<<<<<< HEAD
-=======
     override fun matchScanResult(result: ScanResult): Boolean {
         val address = result.device?.address?.trim()?.uppercase(Locale.US)
         if (address != null && address in rejectedOnboardingAddresses) {
@@ -1140,7 +1128,6 @@ class ICanHealthBleManager(
         return advertisesCgmService || carriesCgmServiceData
     }
 
->>>>>>> rebase/test-1.0.4-merge
     override fun reconnect(now: Long): Boolean {
         if (stop || uiPaused) {
             return true

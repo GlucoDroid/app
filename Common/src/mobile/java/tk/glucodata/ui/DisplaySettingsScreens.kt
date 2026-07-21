@@ -93,15 +93,12 @@ fun NotificationSettingsScreen(
         context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
     }
     val notificationChartEnabled by viewModel.notificationChartEnabled.collectAsState()
-<<<<<<< HEAD
-=======
     val rangeColorsEnabled by viewModel.glucoseValueRangeColorsEnabled.collectAsState()
     val arrowForecastEnabled by viewModel.glucoseArrowForecastColorsEnabled.collectAsState()
     val chartRangeColorsEnabled by viewModel.glucoseChartRangeColorsEnabled.collectAsState()
     val appChartRangeColorsEnabled by viewModel.glucoseAppChartRangeColorsEnabled.collectAsState()
     val dashboardDeltaEnabled by viewModel.dashboardShowDelta.collectAsState()
     val deltaIntervalMinutes by viewModel.deltaIntervalMinutes.collectAsState()
->>>>>>> rebase/test-1.0.4-merge
 
     var fontSize by rememberSaveable { mutableFloatStateOf(prefs.getFloat("notification_font_size", 1.0f)) }
     var fontType by rememberSaveable { mutableIntStateOf(prefs.getInt("notification_font_family", 0)) }
@@ -110,14 +107,11 @@ fun NotificationSettingsScreen(
     var arrowSize by rememberSaveable { mutableFloatStateOf(prefs.getFloat("notification_arrow_size", 1.0f)) }
     var collapsedChart by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_chart_collapsed", false)) }
     var showTargetRange by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_chart_target_range", true)) }
-<<<<<<< HEAD
-=======
     var showIob by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_show_iob", false)) }
     var showCob by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_show_cob", false)) }
     var showDelta by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_show_delta", false)) }
     var iobCobRiskColored by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_iob_cob_risk_colored", false)) }
     var iobRiskWithoutCob by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_iob_risk_without_cob", false)) }
->>>>>>> rebase/test-1.0.4-merge
     var statusIconScale by rememberSaveable { mutableFloatStateOf(prefs.getFloat("notification_status_icon_scale", 1.0f)) }
 
     fun save() {
@@ -129,10 +123,6 @@ fun NotificationSettingsScreen(
             .putFloat("notification_arrow_size", arrowSize)
             .putBoolean("notification_chart_collapsed", collapsedChart)
             .putBoolean("notification_chart_target_range", showTargetRange)
-<<<<<<< HEAD
-            .putFloat("notification_status_icon_scale", statusIconScale)
-            .apply()
-=======
             .putBoolean("notification_show_iob", showIob)
             .putBoolean("notification_show_cob", showCob)
             .putBoolean("notification_show_delta", showDelta)
@@ -141,7 +131,6 @@ fun NotificationSettingsScreen(
             .putFloat("notification_status_icon_scale", statusIconScale)
             .apply()
         viewModel.refreshNotificationSurfaces()
->>>>>>> rebase/test-1.0.4-merge
     }
 
     LegacySettingsScaffold(
@@ -250,9 +239,6 @@ fun NotificationSettingsScreen(
                 checked = showTargetRange,
                 onCheckedChange = { showTargetRange = it; save() },
                 icon = null,
-<<<<<<< HEAD
-                position = CardPosition.BOTTOM
-=======
                 position = CardPosition.MIDDLE
             )
             SettingsSwitchItem(
@@ -363,7 +349,6 @@ fun NotificationSettingsScreen(
                 icon = null,
                 position = CardPosition.BOTTOM,
                 enabled = (showIob || showCob) && iobCobRiskColored
->>>>>>> rebase/test-1.0.4-merge
             )
         }
 

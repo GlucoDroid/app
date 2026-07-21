@@ -6,8 +6,6 @@ import org.junit.Test
 class DashboardChartRangeTests {
 
     @Test
-<<<<<<< HEAD
-=======
     fun manualRangeUsesTotalDragFromItsStartingRange() {
         val range = manuallyAdjustedChartYRange(
             startMin = 0f,
@@ -122,7 +120,6 @@ class DashboardChartRangeTests {
     }
 
     @Test
->>>>>>> rebase/test-1.0.4-merge
     fun coerceChartYToDrawableRangeUsesInsetWhenThereIsRoom() {
         assertEquals(12f, coerceChartYToDrawableRange(12f, chartHeight = 100f, edgeInset = 6f), 0.001f)
         assertEquals(6f, coerceChartYToDrawableRange(-20f, chartHeight = 100f, edgeInset = 6f), 0.001f)

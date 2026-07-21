@@ -2,20 +2,6 @@ package tk.glucodata
 
 import kotlin.math.abs
 
-<<<<<<< HEAD
-object TrendAccess {
-    private const val CLASS_NAME = "tk.glucodata.logic.TrendEngine"
-
-    private val holder by lazy { runCatching { Class.forName(CLASS_NAME) }.getOrNull() }
-    private val instance by lazy { runCatching { holder?.getField("INSTANCE")?.get(null) }.getOrNull() }
-    private val calculateTrendMethod by lazy {
-        runCatching {
-            holder?.getMethod("calculateTrend", List::class.java, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
-        }.getOrNull()
-    }
-    private val velocityMethod by lazy {
-        runCatching { Class.forName("tk.glucodata.logic.TrendEngine\$TrendResult").getMethod("getVelocity") }.getOrNull()
-=======
 /**
  * Bridge from the shared code to the app's trend estimator.
  *
@@ -64,21 +50,10 @@ object TrendAccess {
             }
         }
         return Resolution(fallbackVelocity(points, useRaw), usedFallback = true)
->>>>>>> rebase/test-1.0.4-merge
     }
 
     @JvmStatic
     fun calculateVelocity(points: List<GlucosePoint>, useRaw: Boolean, isMmol: Boolean): Float {
-<<<<<<< HEAD
-        val reflected = runCatching {
-            val result = calculateTrendMethod?.invoke(instance, points, useRaw, isMmol)
-            velocityMethod?.invoke(result) as? Float
-        }.getOrNull()
-        if (reflected != null && reflected.isFinite()) {
-            return reflected
-        }
-        return fallbackVelocity(points, useRaw)
-=======
         val resolution = resolve(provider, points, useRaw, isMmol)
         if (resolution.usedFallback) {
             // Deliberately not behind doLog: without the provider every arrow and every outgoing
@@ -87,7 +62,6 @@ object TrendAccess {
             Log.e(LOG_ID, "TrendVelocityProvider missing or unusable - degraded to two-point slope")
         }
         return resolution.velocity
->>>>>>> rebase/test-1.0.4-merge
     }
 
     private fun fallbackVelocity(points: List<GlucosePoint>, useRaw: Boolean): Float {

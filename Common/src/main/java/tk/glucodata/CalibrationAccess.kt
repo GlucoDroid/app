@@ -25,8 +25,6 @@ object CalibrationAccess {
     private val shouldHideInitialMethod by lazy {
         runCatching { holder?.getMethod("shouldHideInitialWhenCalibrated") }.getOrNull()
     }
-<<<<<<< HEAD
-=======
     private val notifyExternalPipelineMethod by lazy {
         runCatching { holder?.getMethod("notifyExternalCalibrationPipelineChanged") }.getOrNull()
     }
@@ -39,14 +37,10 @@ object CalibrationAccess {
             )
         }.getOrNull()
     }
->>>>>>> rebase/test-1.0.4-merge
     private val shouldOverwriteSensorValuesMethod by lazy {
         runCatching { holder?.getMethod("shouldOverwriteSensorValues") }.getOrNull()
     }
     private val getRevisionMethod by lazy {
-<<<<<<< HEAD
-        runCatching { holder?.getMethod("getRevision") }.getOrNull()
-=======
         runCatching {
             holder?.methods?.firstOrNull { method ->
                 method.name == "getRevision" &&
@@ -85,7 +79,6 @@ object CalibrationAccess {
                 String::class.java,
             )
         }.getOrNull()
->>>>>>> rebase/test-1.0.4-merge
     }
 
     @JvmStatic
@@ -124,8 +117,6 @@ object CalibrationAccess {
     }
 
     @JvmStatic
-<<<<<<< HEAD
-=======
     fun notifyExternalCalibrationPipelineChanged() {
         runCatching { notifyExternalPipelineMethod?.invoke(instance) }
     }
@@ -138,7 +129,6 @@ object CalibrationAccess {
     }
 
     @JvmStatic
->>>>>>> rebase/test-1.0.4-merge
     fun shouldOverwriteSensorValues(): Boolean {
         return runCatching {
             shouldOverwriteSensorValuesMethod?.invoke(instance) as? Boolean
@@ -155,8 +145,6 @@ object CalibrationAccess {
             }
         }.getOrNull() ?: 0L
     }
-<<<<<<< HEAD
-=======
 
     @JvmStatic
     fun getIntegratedCalibratedSeries(
@@ -210,5 +198,4 @@ object CalibrationAccess {
             )
         }
     }
->>>>>>> rebase/test-1.0.4-merge
 }

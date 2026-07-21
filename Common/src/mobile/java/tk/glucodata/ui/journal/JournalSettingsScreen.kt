@@ -173,10 +173,7 @@ fun JournalSettingsScreen(
     val journalDoseCalculatorEnabled by viewModel.journalDoseCalculatorEnabled.collectAsState()
     val journalFoodMacrosEnabled by viewModel.journalFoodMacrosEnabled.collectAsState()
     val journalFoodLibraryEnabled by viewModel.journalFoodLibraryEnabled.collectAsState()
-<<<<<<< HEAD
-=======
     val journalEiobDisplayEnabled by viewModel.journalEiobDisplayEnabled.collectAsState()
->>>>>>> rebase/test-1.0.4-merge
     val journalHealthConnectActivityEnabled by viewModel.journalHealthConnectActivityEnabled.collectAsState()
     val aapsJournalImportEnabled by viewModel.aapsJournalImportEnabled.collectAsState()
     val allPresets by viewModel.journalInsulinPresets.collectAsState()
@@ -261,8 +258,6 @@ fun JournalSettingsScreen(
                         position = CardPosition.MIDDLE,
                         enabled = journalEnabled
                     )
-<<<<<<< HEAD
-=======
                     SettingsSwitchItem(
                         title = stringResource(R.string.journal_eiob_display_title),
                         subtitle = stringResource(R.string.journal_eiob_display_desc),
@@ -273,7 +268,6 @@ fun JournalSettingsScreen(
                         position = CardPosition.MIDDLE,
                         enabled = journalEnabled
                     )
->>>>>>> rebase/test-1.0.4-merge
                     SettingsItem(
                         title = stringResource(R.string.journal_import_health_activity),
                         onClick = if (journalEnabled) {

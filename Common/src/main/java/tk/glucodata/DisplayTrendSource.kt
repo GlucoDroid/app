@@ -57,8 +57,6 @@ object DisplayTrendSource {
         return merged
     }
 
-<<<<<<< HEAD
-=======
     /**
      * The one point list every trend arrow regresses over: recent history plus
      * the live reading, cut to [TREND_WINDOW_MS] anchored at the newest point.
@@ -86,7 +84,6 @@ object DisplayTrendSource {
         return augmented.filter { it.timestamp >= cutoff }
     }
 
->>>>>>> rebase/test-1.0.4-merge
     @JvmStatic
     @JvmOverloads
     fun resolveArrowRate(

@@ -37,11 +37,6 @@ public class JugglucoSend   {
 	private static final String TREND_NAME = "glucodata.Minute.TrendName";
     private static final String ALARM = "glucodata.Minute.Alarm";
     private static final String TIME = "glucodata.Minute.Time";
-<<<<<<< HEAD
-private static final String LOG_ID="JugglucoSend";
-
-private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayload payload, int alarm) {
-=======
     // GDH-standard extras: classic remaining-action IOB and COB, plus the
     // computation timestamp GDH uses for its obsolescence check.
     private static final String IOB = "glucodata.Minute.IOB";
@@ -52,7 +47,6 @@ private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayloa
 private static final String LOG_ID="JugglucoSend";
 
 private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayload payload, int alarm, float[] iobcob, long iobComputedAt) {
->>>>>>> rebase/test-1.0.4-merge
       Bundle extras = new Bundle();
         extras.putString(SERIAL,SerialNumber);
 	extras.putInt(MGDL,payload.primaryMgdl);
@@ -62,8 +56,6 @@ private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayloa
         extras.putString(TREND_NAME,payload.trendName);
         extras.putInt(ALARM,alarm);
         extras.putLong(TIME,payload.timeMillis);
-<<<<<<< HEAD
-=======
 	if(iobcob!=null&&iobcob.length>=3) {
 		boolean any=false;
 		if(!Float.isNaN(iobcob[0])) { extras.putFloat(IOB,iobcob[0]); any=true; }
@@ -71,7 +63,6 @@ private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayloa
 		if(!Float.isNaN(iobcob[2])) { extras.putFloat(COB,iobcob[2]); any=true; }
 		if(any) extras.putLong(IOBCOBTIME,iobComputedAt);
 		}
->>>>>>> rebase/test-1.0.4-merge
 	return extras;
 	  }
 
@@ -79,15 +70,6 @@ private static String[] names=null;
 public static  void setreceivers() {
 	names=Natives.glucodataRecepters();
 	}
-<<<<<<< HEAD
-static void broadcastglucose(String SerialNumber, ExchangeGlucosePayload payload, int alarm) {
-	if(names==null)
-		return;
-	{if(doLog) {Log.i(LOG_ID,"broadcastglucose "+payload.primaryDisplayValue+" rate="+payload.rate);};};
-        final Context context=Applic.app;
-        Intent intent = new Intent(ACTION);
-	intent.putExtras(mkGlucosebundle(SerialNumber, payload, alarm));
-=======
 private static volatile String lastSerial=null;
 private static volatile ExchangeGlucosePayload lastPayload=null;
 private static volatile int lastAlarm=0;
@@ -114,7 +96,6 @@ static void broadcastglucose(String SerialNumber, ExchangeGlucosePayload payload
         Intent intent = new Intent(ACTION);
 	final long iobComputedAt=System.currentTimeMillis();
 	intent.putExtras(mkGlucosebundle(SerialNumber, payload, alarm, JournalIobAccess.snapshot(iobComputedAt), iobComputedAt));
->>>>>>> rebase/test-1.0.4-merge
 	intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
 	for(var name:names) {
 		if(name!=null) {

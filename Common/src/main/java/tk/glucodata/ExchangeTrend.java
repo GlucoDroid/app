@@ -15,14 +15,11 @@ public final class ExchangeTrend {
     private static final long NATIVE_MATCH_WINDOW_MS = 2L * 60L * 1000L;
     private static final long CACHE_MATCH_WINDOW_MS = 30L * 1000L;
 
-<<<<<<< HEAD
-=======
     /** Shortest sample separation {@link #deriveRate} will accept, in milliseconds. */
     public static final long MIN_DERIVE_GAP_MS = 4L * 60L * 1000L;
     /** Longest sample separation {@link #deriveRate} will accept, in milliseconds. */
     public static final long MAX_DERIVE_GAP_MS = 20L * 60L * 1000L;
 
->>>>>>> rebase/test-1.0.4-merge
     private static final String[] NAMES = {
             "",
             "DoubleUp",
@@ -96,8 +93,6 @@ public final class ExchangeTrend {
         return fromRate(rateMgdlPerMinute, "rate");
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Rate of change derived from two glucose samples, in mg/dL per minute.
      *
@@ -138,7 +133,6 @@ public final class ExchangeTrend {
         return Float.isNaN(rate) ? unknown() : fromRate(rate, "derived");
     }
 
->>>>>>> rebase/test-1.0.4-merge
     public static String nameForIndex(int index) {
         return NAMES[normalizeIndex(index)];
     }

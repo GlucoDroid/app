@@ -7,12 +7,6 @@ import tk.glucodata.drivers.ManagedSensorIdentityRegistry
 
 object SensorIdentity {
     private const val NULL_SENTINEL = "\u0000"
-<<<<<<< HEAD
-    private val nativeCanonicalCache = ConcurrentHashMap<String, String>()
-
-    private fun normalized(sensorId: String?): String? {
-        return sensorId?.trim()?.takeIf { it.isNotEmpty() }
-=======
     private const val UNKNOWN_SENSOR_SENTINEL = "?"
     private val nativeCanonicalCache = ConcurrentHashMap<String, String>()
 
@@ -29,7 +23,6 @@ object SensorIdentity {
         return value.isNotEmpty() &&
             value != UNKNOWN_SENSOR_SENTINEL &&
             value.none { it.isISOControl() }
->>>>>>> rebase/test-1.0.4-merge
     }
 
     private fun managedMatches(left: String?, right: String?): Boolean {

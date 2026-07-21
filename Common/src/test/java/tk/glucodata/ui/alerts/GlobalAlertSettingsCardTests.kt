@@ -52,8 +52,6 @@ class GlobalAlertSettingsCardTests {
         )
     }
 
-<<<<<<< HEAD
-=======
     @Test
     fun applyIsEnabledWhenOnlySoundDelayChanged() {
         // Guards that soundDelayEnabled/soundDelaySeconds are part of
@@ -70,7 +68,6 @@ class GlobalAlertSettingsCardTests {
         )
     }
 
->>>>>>> rebase/test-1.0.4-merge
     private fun soundOnlyDraft(): AlertConfig {
         return AlertConfig(
             type = AlertType.LOW,

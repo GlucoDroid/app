@@ -1,9 +1,6 @@
 package tk.glucodata
 
-<<<<<<< HEAD
-=======
 import org.junit.Assert.assertArrayEquals
->>>>>>> rebase/test-1.0.4-merge
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,8 +45,6 @@ class AlertVibrationPatternTests {
     }
 
     @Test
-<<<<<<< HEAD
-=======
     fun leadInExtendsPatternAcrossSoundDelay() {
         // Sound delay 45s + duration 25s: the pattern must span all 70s so the
         // vibration does not run out before the delayed sound starts.
@@ -132,7 +127,6 @@ class AlertVibrationPatternTests {
     }
 
     @Test
->>>>>>> rebase/test-1.0.4-merge
     fun negativeBaseTimingsNeverProduceNegativeSegments() {
         val pattern = AlertVibrationPattern.buildFinite(
             longArrayOf(0, -100, 200),

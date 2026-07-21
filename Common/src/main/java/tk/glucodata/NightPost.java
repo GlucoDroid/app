@@ -42,12 +42,9 @@ import static tk.glucodata.util.getlabel;
 import androidx.appcompat.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
-<<<<<<< HEAD
-=======
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
->>>>>>> rebase/test-1.0.4-merge
 import android.os.Build;
 import android.text.InputType;
 import android.text.method.PasswordTransformationMethod;
@@ -270,8 +267,6 @@ static public boolean uploadJournalTreatments(boolean useV3) {
         }
     }
 
-<<<<<<< HEAD
-=======
 /**
  * Phone battery charge as a percentage, or -1 when it cannot be read.
  *
@@ -300,7 +295,6 @@ static public int batteryPercent() {
         }
     }
 
->>>>>>> rebase/test-1.0.4-merge
 @Keep
 static public int upload(String httpurl,byte[] postdata,String secret,boolean put) {
     patch();

@@ -59,9 +59,6 @@ object ExportPackageExporter {
         val journalFoods: Int,
         val insulinPresets: Int,
         val calibrations: Int,
-<<<<<<< HEAD
-        val restartRequired: Boolean
-=======
         val restartRequired: Boolean,
         // Serial to display on the dashboard for the imported glucose (may be a
         // synthetic "imported"/"__imported_csv__" id when the file had no serial).
@@ -72,19 +69,14 @@ object ExportPackageExporter {
     data class HistoryOnlyImport(
         val readings: Int,
         val displaySerial: String?
->>>>>>> rebase/test-1.0.4-merge
     )
 
     private data class HistoryImportSummary(
         val readings: Int = 0,
         val journalEntries: Int = 0,
         val journalFoods: Int = 0,
-<<<<<<< HEAD
-        val insulinPresets: Int = 0
-=======
         val insulinPresets: Int = 0,
         val displaySerial: String? = null
->>>>>>> rebase/test-1.0.4-merge
     )
 
     suspend fun exportToUri(
@@ -145,19 +137,13 @@ object ExportPackageExporter {
                     journalFoods = historySummary.journalFoods,
                     insulinPresets = historySummary.insulinPresets,
                     calibrations = calibrationCount,
-<<<<<<< HEAD
-                    restartRequired = settingsResult != null
-=======
                     restartRequired = settingsResult != null,
                     historyDisplaySerial = historySummary.displaySerial
->>>>>>> rebase/test-1.0.4-merge
                 )
             }
         }
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Import only the glucose/history section from an export package, ignoring
      * settings and calibrations. Returns the number of imported glucose readings,
@@ -180,7 +166,6 @@ object ExportPackageExporter {
         }
     }
 
->>>>>>> rebase/test-1.0.4-merge
     suspend fun writeToCache(
         context: Context,
         request: ExportRequest
@@ -429,23 +414,16 @@ object ExportPackageExporter {
             database.journalDao().upsertEntries(entries)
         }
 
-<<<<<<< HEAD
-=======
         // Serial to key the dashboard on: the newest reading's serial (already
         // normalized to "imported" by toHistoryReadings() when the file had none).
         val displaySerial = readings.maxByOrNull { it.timestamp }?.sensorSerial
 
->>>>>>> rebase/test-1.0.4-merge
         return HistoryImportSummary(
             readings = readings.size,
             journalEntries = entries.size,
             journalFoods = foods.size,
-<<<<<<< HEAD
-            insulinPresets = insulinPresets.size
-=======
             insulinPresets = insulinPresets.size,
             displaySerial = displaySerial
->>>>>>> rebase/test-1.0.4-merge
         )
     }
 

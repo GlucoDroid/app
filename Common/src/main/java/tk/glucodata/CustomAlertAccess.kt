@@ -2,36 +2,6 @@ package tk.glucodata
 
 import android.content.Context
 
-<<<<<<< HEAD
-object CustomAlertAccess {
-    private const val CLASS_NAME = "tk.glucodata.logic.CustomAlertManager"
-
-    private val holder by lazy { runCatching { Class.forName(CLASS_NAME) }.getOrNull() }
-    private val instance by lazy { runCatching { holder?.getField("INSTANCE")?.get(null) }.getOrNull() }
-    private val checkAndTriggerMethod by lazy {
-        runCatching {
-            holder?.getMethod(
-                "checkAndTrigger",
-                Context::class.java,
-                Float::class.javaPrimitiveType,
-                Float::class.javaPrimitiveType,
-                Long::class.javaPrimitiveType
-            )
-        }.getOrNull()
-    }
-    private val checkAndTriggerWithSensorMethod by lazy {
-        runCatching {
-            holder?.getMethod(
-                "checkAndTrigger",
-                Context::class.java,
-                Float::class.javaPrimitiveType,
-                Float::class.javaPrimitiveType,
-                Long::class.javaPrimitiveType,
-                String::class.java,
-                Int::class.javaPrimitiveType
-            )
-        }.getOrNull()
-=======
 /**
  * Bridge from the shared code to the app's custom-alert engine.
  *
@@ -60,16 +30,11 @@ object CustomAlertAccess {
     @JvmStatic
     fun register(controller: CustomAlertController) {
         this.controller = controller
->>>>>>> rebase/test-1.0.4-merge
     }
 
     @JvmStatic
     fun checkAndTrigger(context: Context, glucose: Float, rate: Float, timestampMillis: Long) {
-<<<<<<< HEAD
-        runCatching { checkAndTriggerMethod?.invoke(instance, context, glucose, rate, timestampMillis) }
-=======
         checkAndTrigger(context, glucose, rate, timestampMillis, null, 0)
->>>>>>> rebase/test-1.0.4-merge
     }
 
     @JvmStatic
@@ -81,16 +46,6 @@ object CustomAlertAccess {
         sensorId: String?,
         sensorGen: Int
     ) {
-<<<<<<< HEAD
-        runCatching {
-            val method = checkAndTriggerWithSensorMethod
-            if (method != null) {
-                method.invoke(instance, context, glucose, rate, timestampMillis, sensorId, sensorGen)
-            } else {
-                checkAndTriggerMethod?.invoke(instance, context, glucose, rate, timestampMillis)
-            }
-        }
-=======
         val target = controller
         if (target == null) {
             warnMissing("checkAndTrigger")
@@ -118,6 +73,5 @@ object CustomAlertAccess {
     // all. That is precisely the failure that went unnoticed for as long as this was reflection.
     private fun warnMissing(what: String) {
         Log.e(LOG_ID, "CustomAlertController not registered - custom alerts inert ($what)")
->>>>>>> rebase/test-1.0.4-merge
     }
 }

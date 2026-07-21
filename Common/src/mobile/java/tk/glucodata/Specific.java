@@ -26,14 +26,11 @@ import android.content.IntentFilter;
 
 public class Specific {
 	static void start(Application context) {
-<<<<<<< HEAD
-=======
 		// Hand the shared code this variant's implementations before anything can draw an
 		// arrow, evaluate a reading or broadcast a rate. Explicit registration, not a runtime
 		// name lookup: R8 renames these in release builds (see TrendAccess/CustomAlertAccess).
 		TrendAccess.register(tk.glucodata.logic.TrendEngineVelocityProvider.INSTANCE);
 		CustomAlertAccess.register(tk.glucodata.logic.CustomAlertManagerController.INSTANCE);
->>>>>>> rebase/test-1.0.4-merge
 		watchdrip.set(Natives.getwatchdrip());
 		SuperGattCallback.doGadgetbridge = Natives.getgadgetbridge();
 	}

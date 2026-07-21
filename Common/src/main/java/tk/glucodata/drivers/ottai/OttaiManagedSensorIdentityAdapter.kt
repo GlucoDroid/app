@@ -63,13 +63,9 @@ object OttaiManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
         resolveCanonicalSensorId(sensorId)?.let { OttaiRegistry.findRecord(Applic.app, it) }?.let { 0L }
 
     override fun persistedSensorIds(context: Context): List<String> =
-<<<<<<< HEAD
-        OttaiRegistry.persistedRecords(context).map { it.sensorId }
-=======
         OttaiRegistry.persistedRecords(context)
             .map { OttaiRegistry.resolveCanonicalSensorId(context, it.sensorId) ?: it.sensorId }
             .distinct()
->>>>>>> rebase/test-1.0.4-merge
 
     override fun createManagedCallback(context: Context, sensorId: String, dataptr: Long): SuperGattCallback? {
         OttaiRegistry.createRestoredCallback(context, sensorId, dataptr)?.let { return it }

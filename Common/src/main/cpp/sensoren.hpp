@@ -972,9 +972,6 @@ public:
     if (ind < 0) {
       ind = last();
       if (ind < 0) {
-<<<<<<< HEAD
-        LOGSTRING("getSensorData last()<0\n");
-=======
         static time_t nextlog = 0;
         static uint32_t suppressed = 0;
         const time_t now = time(nullptr);
@@ -989,7 +986,6 @@ public:
         } else {
           ++suppressed;
         }
->>>>>>> rebase/test-1.0.4-merge
         return nullptr;
       }
     }

@@ -155,13 +155,9 @@ fun AlertSettingsScreen(
     val predictiveAlerts = remember {
         listOf(
             AlertType.PRE_LOW,
-<<<<<<< HEAD
-            AlertType.PRE_HIGH,
-=======
             AlertType.FALLING_FAST,
             AlertType.PRE_HIGH,
             AlertType.RISING_FAST,
->>>>>>> rebase/test-1.0.4-merge
             AlertType.PERSISTENT_HIGH
         )
     }
@@ -245,11 +241,8 @@ fun AlertSettingsScreen(
                                 retryEnabled = draft.retryEnabled,
                                 retryIntervalMinutes = draft.retryIntervalMinutes,
                                 retryCount = draft.retryCount,
-<<<<<<< HEAD
-=======
                                 soundDelayEnabled = draft.soundDelayEnabled,
                                 soundDelaySeconds = draft.soundDelaySeconds,
->>>>>>> rebase/test-1.0.4-merge
                                 defaultSnoozeMinutes = draft.defaultSnoozeMinutes
                             )
                             persistConfigIfChanged(updated)
@@ -965,15 +958,12 @@ private fun AlertCard(
                             if (isNotEmpty()) append(" • ")
                             append(stringResource(R.string.minutes_short_format, it))
                         }
-<<<<<<< HEAD
-=======
                         config.deltaThreshold?.let { dt ->
                             if (isNotEmpty()) append(" • ")
                             append(formatThreshold(dt, isMmol))
                             append(" ×")
                             append(config.deltaCount ?: AlertDefaults.DELTA_COUNT_DEFAULT)
                         }
->>>>>>> rebase/test-1.0.4-merge
                         // Add time range if enabled
                         if (config.timeRangeEnabled) {
                             if (isNotEmpty()) append(" • ")
@@ -1065,8 +1055,6 @@ private fun AlertSettingsExpanded(
             onPickSound = { onPickSound() },
             onTest = onTest,
             headerContent = {
-<<<<<<< HEAD
-=======
                 // === Delta-counter Section (FALLING_FAST / RISING_FAST) ===
                 if (config.type == AlertType.FALLING_FAST || config.type == AlertType.RISING_FAST) {
                     DeltaAlarmSettings(
@@ -1076,7 +1064,6 @@ private fun AlertSettingsExpanded(
                     )
                 }
 
->>>>>>> rebase/test-1.0.4-merge
                  // === Threshold Section (If applicable) ===
                 if (config.threshold != null) {
                     ThresholdSlider(
@@ -1120,9 +1107,6 @@ private fun AlertSettingsExpanded(
                     }
                 }
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
                 // === Sensor-expiry pre-warnings (multi-select, this type only) ===
                 if (config.type == AlertType.SENSOR_EXPIRY) {
                     SensorExpiryThresholdSelector(
@@ -1136,8 +1120,8 @@ private fun AlertSettingsExpanded(
                             onConfigChange(config.copy(expiryWarningMinutes = next))
                         }
                     )
-=======
->>>>>>> rebase/test-1.0.4-merge
+                }
+
                 // === Sustained Low Toggle (LOW / VERY_LOW only) ===
                 if (config.type == AlertType.LOW || config.type == AlertType.VERY_LOW) {
                     val sustainedEnabled = config.durationMinutes != null
@@ -1181,18 +1165,11 @@ private fun AlertSettingsExpanded(
                             )
                         }
                     }
-<<<<<<< HEAD
-=======
->>>>>>> 01da0d0ec (feat(alerts): sustained-low gate for LOW/VERY_LOW (#7))
->>>>>>> rebase/test-1.0.4-merge
                 }
             }
         )
     }
 }
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -1249,16 +1226,11 @@ private fun SensorExpiryThresholdSelector(
         }
     }
 }
-=======
->>>>>>> 01da0d0ec (feat(alerts): sustained-low gate for LOW/VERY_LOW (#7))
->>>>>>> rebase/test-1.0.4-merge
-        
+
 //        HorizontalDivider()
         
 
 
-<<<<<<< HEAD
-=======
 /**
  * Type-specific inputs for the GDH-style delta alarms: how big a change per interval counts as
  * steep, how many consecutive intervals are needed, the value past which it may alarm, and the
@@ -1370,7 +1342,6 @@ private fun DeltaAlarmSettings(
     )
 }
 
->>>>>>> rebase/test-1.0.4-merge
 @Composable
 private fun ThresholdSlider(
     label: String,
@@ -2162,11 +2133,8 @@ private fun getAlertIconAndColor(type: AlertType, isDark: Boolean): Pair<ImageVe
         AlertType.VERY_HIGH -> Icons.Default.Warning to Color(GlucoseRangeColors.veryHigh(isDark))
         AlertType.PRE_LOW -> Icons.AutoMirrored.Filled.TrendingDown to Color(GlucoseRangeColors.low(isDark))
         AlertType.PRE_HIGH -> Icons.AutoMirrored.Filled.TrendingUp to Color(GlucoseRangeColors.high(isDark))
-<<<<<<< HEAD
-=======
         AlertType.FALLING_FAST -> Icons.AutoMirrored.Filled.TrendingDown to Color(GlucoseRangeColors.veryLow(isDark))
         AlertType.RISING_FAST -> Icons.AutoMirrored.Filled.TrendingUp to Color(GlucoseRangeColors.veryHigh(isDark))
->>>>>>> rebase/test-1.0.4-merge
         AlertType.PERSISTENT_HIGH -> Icons.Default.Timer to Color(GlucoseRangeColors.veryHigh(isDark))
         AlertType.MISSED_READING -> Icons.Default.SignalWifiOff to Color(0xFF78909C)
         AlertType.LOSS -> Icons.Default.BluetoothDisabled to Color(0xFF90A4AE)

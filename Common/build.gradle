@@ -1,0 +1,795 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+    id 'com.google.devtools.ksp' version '2.2.21-2.0.4'
+//    id "io.freefair.lombok" version "8.0.0-rc2"
+}
+
+def task = gradle.startParameter.taskNames[0] ?: ""
+
+//def MINSDK = 19
+int MINSDK=19
+
+//if(task.contains("LibreOldNosi")&&!task.contains("Wear")) {
+if(false) {
+    ndkver = '25.2.9519653'
+   APPCOMPAT = '1.6.1'
+     GMSBASE = '18.4.0'
+   GMSWEAR = '18.1.0'
+    TARGETSDK = 35
+     MINSDK = 19
+   CPPSTD = "-std=gnu++2b"
+
+   }
+else {
+      ndkver = '29.0.14206865'
+      APPCOMPAT = '1.7.1'
+      GMSWEAR = '19.0.0'
+     GMSBASE = '18.9.0'
+      MINSDK = 21
+    TARGETSDK = 35
+   CPPSTD = "-std=gnu++26"
+       }
+
+CMAKEVERSION = "3.22.1"
+android {
+ buildFeatures.buildConfig = true
+ namespace "tk.glucodata"
+    externalNativeBuild {
+        cmake {
+            version "$CMAKEVERSION"
+        }
+
+    }
+//Can be defined in ~/.gradle/gradle.properties by setting for example:
+//thepassword = IDontKnow
+//thekeyalias = thealias
+//thekeypassword = IDontKnow
+//thekeyfile = everyone.keystore
+
+        if(project.hasProperty('thekeypassword')&& "$thekeypassword" != "") {
+        signingConfigs {
+        alg {
+            storeFile file("$thekeyfile")
+            storePassword "$thepassword"
+            keyAlias "$thekeyalias"
+            keyPassword "$thekeypassword"
+        }
+        }
+    }
+    else {
+
+        signingConfigs {
+            alg {
+                storeFile file("everyone.keystore")
+                storePassword "IDontKnow"
+                keyAlias "thealias"
+                keyPassword "IDontKnow"
+            }
+        }
+
+
+    }
+
+
+    defaultConfig {
+ //       minSdk        MINSDK
+//        minSdkVersion MINSDK
+
+        targetSdk  TARGETSDK
+//        targetSdk 24
+        buildConfigField 'int', 'targetSDK', "$targetSdk"
+  //      buildConfigField 'int', 'minSDK', "$minSdk"
+        manifestPlaceholders["minSDK"] = "$minSdk"
+        manifestPlaceholders["targetSDK"] = "$targetSdk"
+
+    //    buildConfigField 'int', 'noZXing', '1'
+        //compileSdk 36
+        applicationId "tk.glucodata.ng"
+
+         versionName '1.0.4-Alpha'
+//    multiDexEnabled true
+
+        buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
+        buildConfigField 'int', 'isRelease', '0'
+        buildConfigField 'int', 'isReleaseID', '0'
+
+        externalNativeBuild {
+            cmake {
+                version "$CMAKEVERSION"
+                cppFlags  " -DAPPID=\"quotes($applicationId)\"   -DAPPVERSION=\"quotes($versionName)\" "
+                cFlags  " -DAPPID=\"quotes($applicationId)\"   -DAPPVERSION=\"quotes($versionName)\" "
+                arguments "-DJUGGLUCO_APP=TRUE -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=TRUE"
+
+
+            }
+        }
+//    resourceConfigurations += ["en", "nl", "fr","it", "de", "pl", "pt","be","uk"]
+    //ndk { abiFilters  'armeabi-v7a' }
+     //  ndk { abiFilters  'arm64-v8a' }
+        signingConfig signingConfigs.alg
+    //buildToolsVersion '33.0.0'
+    }
+
+flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
+//    flavorDimensions 'wearos','libreVersion','SiBionics', 'DexCom'
+
+    productFlavors {
+        google {
+            minSdk 26
+            minSdkVersion 26
+            buildConfigField 'int', 'minSDK', "$minSdk"
+            manifestPlaceholders["minSDK"] = "$minSdk"
+            dimension 'Google'
+            versionNameSuffix '-g'
+            buildConfigField 'int', 'Google', '1'
+            buildConfigField 'int', 'noZXing', '0'
+             manifestPlaceholders["debuggable"] = "false"
+             manifestPlaceholders["requireWatch"] = "true"
+        }
+        nogoogle {
+            dimension 'Google'
+            versionNameSuffix '-nog'
+            minSdk MINSDK
+            minSdkVersion MINSDK
+            //targetSdk 28 
+            targetSdk  TARGETSDK
+            buildConfigField 'int', 'targetSDK', "$targetSdk"
+            manifestPlaceholders["targetSDK"] = "$targetSdk"
+            buildConfigField 'int', 'minSDK', "$minSdk"
+            buildConfigField 'int', 'Google', '0'
+            buildConfigField 'int', 'noZXing', '0'
+             manifestPlaceholders["debuggable"] = "true"
+             manifestPlaceholders["requireWatch"] = "false"
+        }
+
+        dex {
+            dimension 'DexCom'
+            versionNameSuffix '-x'
+            buildConfigField 'int', 'DexCom', '1'
+            externalNativeBuild.cmake {
+                arguments "-DDEXCOM=TRUE"
+                cppFlags "   -DDEXCOM=1 "
+                cFlags "   -DDEXCOM=1 "
+            }
+        }
+        nodex {
+            dimension 'DexCom'
+            versionNameSuffix '-nox'
+            buildConfigField 'int', 'DexCom', '0'
+            externalNativeBuild.cmake {
+            }
+        }
+
+        libreOld {
+    //******  Zet op rollout op 100% ******
+            dimension 'libreVersion'
+            versionCode 1004 //LIBRE2ONLY
+         //    versionName '10.3.10-no3'
+            versionNameSuffix '-no3'
+            buildConfigField 'int', 'libreVersion', '2'
+            externalNativeBuild.cmake {
+
+                }
+           }
+        libre3 {
+            // targetSdk 26
+       //ndkver = '27.0.11718014 rc1'
+//       minSdk 23
+            dimension 'libreVersion'
+        versionNameSuffix '-li3'
+        versionCode 1004 //LIBRE3
+    //******  Zet op rollout op 100% ******
+
+               buildConfigField 'int', 'libreVersion', '3'
+            externalNativeBuild.cmake {
+            arguments "-Dlibre3=TRUE"
+            cppFlags "   -DLIBRE3=1 "
+            cFlags "   -DLIBRE3=1 "
+
+            }
+
+        }
+        si {
+      dimension 'SiBionics'
+        versionNameSuffix '-si'
+        versionCode 1004
+       buildConfigField 'int', 'SiBionics', '1'
+       externalNativeBuild.cmake {
+         cppFlags "   -DSIBIONICS=1 "
+         cFlags "   -DSIBIONICS=1 "
+            }
+        }
+        nosi {
+            dimension 'SiBionics'
+         versionCode 1004
+         versionNameSuffix '-nosi'
+          buildConfigField 'int', 'SiBionics', '0'
+          externalNativeBuild.cmake {
+                 }
+        }
+
+        wear {
+          // targetSdk 26
+//           targetSdk 31
+
+            // targetSdk 30
+
+            dimension 'wearos'
+        minSdk 26
+        minSdkVersion 26
+        buildConfigField 'int', 'minSDK', "$minSdk"
+        manifestPlaceholders["minSDK"] = "$minSdk"
+        versionCode 1004 //WATCH
+    //******  Zet op rollout op 100% ******
+        //versionName '10.3.10-wear'
+        versionNameSuffix '-wear'
+        signingConfig signingConfigs.alg
+
+//            buildConfigField 'int', 'targetSDK', "$targetSdk"
+           buildConfigField 'int', 'isWear', '1'
+            externalNativeBuild.cmake {
+            arguments "-DWEAROS=TRUE"
+                cppFlags " -DWEAROS=1  -DUSEDIN=1   "
+                cFlags " -DWEAROS=1  -DUSEDIN=1   "
+
+                }
+
+      buildFeatures {
+        viewBinding true
+        }
+        }
+
+        small {
+
+//        minSdk 19
+            dimension 'wearos'
+        versionCode 820 //WATCH
+        //versionName '10.3.10-small'
+        versionNameSuffix '-small'
+        signingConfig signingConfigs.alg
+
+           buildConfigField 'int', 'isWear', '1'
+            externalNativeBuild.cmake {
+            arguments "-DWEAROS=TRUE"
+                cppFlags " -DWEAROS=1  -DUSEDIN=1   "
+                cFlags " -DWEAROS=1  -DUSEDIN=1   "
+
+                }
+
+      buildFeatures {
+        viewBinding true
+        }
+        }
+       mobile {
+//        minSdk 19
+            dimension 'wearos'
+           versionNameSuffix '-phone'
+           buildConfigField 'int', 'isWear', '0'
+        }
+    }
+
+buildTypes {
+
+
+        release {
+            signingConfig signingConfigs.alg
+            minifyEnabled true
+        shrinkResources true
+            resValue "string", "app_name", "GlucoDroid"
+
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
+
+            buildConfigField 'int', 'isRelease', '1'
+        buildConfigField 'int', 'isReleaseID', '1'
+        buildConfigField 'int', 'doLog', '1'
+
+            jniDebuggable false
+            debuggable false
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1"
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1"
+
+
+                }
+        }
+        releaselog {
+            versionNameSuffix '-log'
+            signingConfig signingConfigs.alg
+            minifyEnabled true
+        shrinkResources true
+            resValue "string", "app_name", "GlucoDroid"
+
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
+
+        buildConfigField 'int', 'doLog', '1'
+            buildConfigField 'int', 'isRelease', '1'
+        buildConfigField 'int', 'isReleaseID', '1'
+
+            jniDebuggable false
+            debuggable false
+            externalNativeBuild.cmake {
+//                 arguments "-DANDROID_SANITIZE=hwaddress"
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DSCANLOG=1"
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DSCANLOG=1"
+
+
+                }
+        }
+        releasedub {
+            versionNameSuffix 'DUB'
+        applicationIdSuffix ".dub"
+            resValue "string", "app_name", "JugglucoNG Dub"
+            signingConfig signingConfigs.alg
+            minifyEnabled true
+        shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
+            jniDebuggable false
+            debuggable false
+
+
+        buildConfigField 'int', 'doLog', '1'
+            buildConfigField 'int', 'isRelease', '1'
+        buildConfigField 'int', 'isReleaseID', '1'
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
+//                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DNOLOG=1"         //, "-DSCANLOG=1" , "-DNOLOG=1"
+
+
+                }
+        }
+        releasedub2 {
+            versionNameSuffix 'DUB2'
+        applicationIdSuffix ".dub2"
+            resValue "string", "app_name", "JugglucoNG Dub 2"
+            signingConfig signingConfigs.alg
+            minifyEnabled true
+        shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
+            jniDebuggable false
+            debuggable false
+
+
+        buildConfigField 'int', 'doLog', '1'
+            buildConfigField 'int', 'isRelease', '1'
+        buildConfigField 'int', 'isReleaseID', '1'
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\" "
+
+
+                }
+        }
+        debugdub {
+         manifestPlaceholders["requireWatch"] = "false"
+         manifestPlaceholders["debuggable"] = "true"
+            signingConfig signingConfigs.alg
+            minifyEnabled  false
+            jniDebuggable true
+            buildConfigField 'int', 'isReleaseID', '0'
+            versionNameSuffix 'DUBDEBUG'
+        applicationIdSuffix ".dub"
+        buildConfigField 'int', 'doLog', '1'
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
+                cFlags  "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
+
+            }
+            debuggable true
+        }
+        release2 {
+         manifestPlaceholders["requireWatch"] = "false"
+         manifestPlaceholders["debuggable"] = "true"
+            versionNameSuffix 'release2'
+        applicationIdSuffix ".debug"
+
+            buildConfigField 'int', 'isReleaseID', '1'
+            buildConfigField 'int', 'doLog', '0'
+
+            jniDebuggable false
+            debuggable false
+
+            signingConfig signingConfigs.alg
+            minifyEnabled true 
+        shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
+           // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my'
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD","-DDEBUG=1", "-DSCANLOG=1",  "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
+                cFlags "-DDEBUG=1", "-DSCANLOG=1",  "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
+//               arguments " -DCMAKE_CXX_FLAGS=' -DCMAKE_VERBOSE_MAKEFILE=1 -DDEBUG=1 -DSCANLOG=1 -DRELEASEDIR=1'"
+                }
+            }
+        release2log {
+         manifestPlaceholders["requireWatch"] = "false"
+         manifestPlaceholders["debuggable"] = "true"
+            versionNameSuffix 'release2log'
+        applicationIdSuffix ".debug"
+
+            buildConfigField 'int', 'isReleaseID', '1'
+             buildConfigField 'int', 'doLog', '1'
+
+            jniDebuggable false
+            debuggable false
+
+            signingConfig signingConfigs.alg
+
+            minifyEnabled  false
+        shrinkResources false 
+
+            externalNativeBuild.cmake {
+//                 arguments "-DANDROID_SANITIZE=hwaddress"
+                cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
+                cFlags "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\""
+
+                }
+            }
+        debug {
+         manifestPlaceholders["requireWatch"] = "false"
+         manifestPlaceholders["debuggable"] = "true"
+        applicationIdSuffix ".debug"
+            versionNameSuffix 'DEBUG'
+            resValue "string", "app_name", "GlucoDroid Debug"
+
+            buildConfigField 'int', 'isReleaseID', '0'
+             buildConfigField 'int', 'doLog', '1'
+
+            jniDebuggable true 
+            debuggable true
+
+            signingConfig signingConfigs.alg
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\"","-DNDK_DEBUG=1","-UNDEBUG"
+                cFlags "-DDEBUG=1", "-DSCANLOG=1", "-DAPPSUFFIX=\"quotes($applicationIdSuffix)\"","-DNDK_DEBUG=1","-UNDEBUG"
+
+
+            }
+            minifyEnabled  false
+        }
+        releasedebug {
+         manifestPlaceholders["requireWatch"] = "false"
+         manifestPlaceholders["debuggable"] = "true"
+            versionNameSuffix 'releasedebug'
+            signingConfig signingConfigs.alg
+            minifyEnabled true 
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
+            jniDebuggable false
+        buildConfigField 'int', 'doLog', '1'
+            buildConfigField 'int', 'isRelease', '1'
+        buildConfigField 'int', 'isReleaseID', '0'
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD","-DRELEASEID=0","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=0" 
+                cFlags "-DRELEASEID=0","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=0" 
+
+//         cppFlags "$CPPSTD","-DRELEASE=1", "-DRELEASEDIR=1","-DNORAWSTREAM=1" //, "-DNOLOG=1"
+//             cppFlags "$CPPSTD","-DRELEASE=1", "-DRELEASEDIR=1","-DNORAWSTREAM=1", "-DNOLOG=1"
+//                arguments " -DCMAKE_VERBOSE_MAKEFILE=1  -DCMAKE_CXX_FLAGS=' -DRELEASE=1 -DNORAWSTREAM=1 -DNOLOG=1'" 
+
+                }
+        }
+        debug2 {
+         manifestPlaceholders["requireWatch"] = "false"
+         manifestPlaceholders["debuggable"] = "true"
+            versionNameSuffix 'debug2'
+      //  debuggable true        
+           // jniDebuggable true
+            signingConfig signingConfigs.alg
+            minifyEnabled true 
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my'
+        zipAlignEnabled true
+            buildConfigField 'int', 'isReleaseID', '1'
+        buildConfigField 'int', 'doLog', '1'
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD","-DRELEASEID=1", "-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1"
+                cFlags "-DRELEASEID=1", "-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1"
+               // cppFlags "$CPPSTD", "-DDEBUG=1", "-DSCANLOG=1"
+            }
+        }
+        debug3 {
+         manifestPlaceholders["requireWatch"] = "false"
+         manifestPlaceholders["debuggable"] = "true"
+            signingConfig signingConfigs.alg
+            minifyEnabled  false
+            buildConfigField 'int', 'isReleaseID', '1'
+        buildConfigField 'int', 'doLog', '1'
+            externalNativeBuild.cmake {
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1","-DNDK_DEBUG=1","-UNDEBUG"
+                cFlags "-DRELEASEID=1","-DDEBUG=1", "-DSCANLOG=1", "-DRELEASEDIR=1","-DNDK_DEBUG=1","-UNDEBUG"
+        }
+
+            versionNameSuffix 'DEBUGRELEASE'
+            jniDebuggable true
+            debuggable true
+
+
+
+
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "$CMAKEVERSION"
+        }
+    }
+ compileOptions {
+      coreLibraryDesugaringEnabled true
+
+      sourceCompatibility JavaVersion.VERSION_17
+      targetCompatibility JavaVersion.VERSION_17
+
+    }
+
+
+   ndkVersion "${ndkver}"
+
+    kotlinOptions {
+        jvmTarget =  JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        pickFirst 'lib/arm64-v8a/libg.so'
+        jniLibs {
+            useLegacyPackaging = true
+            doNotStrip '**/libcalibrate.so'
+            doNotStrip '**/libcalibrat2.so'
+            doNotStrip '**/libinit.so'
+         //  doNotStrip '**/lib??*.so'
+           doNotStrip '**/lib[A-Za-mo-z]?*.so'
+//           doNotStrip '**/*.so'
+        }
+       }
+    lint {
+        abortOnError false
+    }
+    dependenciesInfo {
+        includeInApk true
+        includeInBundle true
+    }
+    compileSdkVersion 'android-36.1'
+    buildToolsVersion '36.1.0'
+    buildFeatures {
+        aidl true
+        compose true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.15" // Compatible with Kotlin 2.0.21 used in project? Actually project uses 2.0.21, so compose compiler is built-in.
+        // Wait, for Kotlin 2.0+, we don't need kotlinCompilerExtensionVersion here if using the new plugin, but this project uses 'org.jetbrains.kotlin.android'.
+        // Let's stick to standard configuration for AGP 8.13
+    }
+       sourceSets {
+       mobileLibre3SiDexGoogle {
+            java.srcDirs = ['src/mobileSi/java', 'src/mobileSiGoogle/java']
+            jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
+            manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
+            res.srcDirs= ['src/mobileSi/res']
+            }
+       mobileLibre3SiDexNogoogle {
+            java.srcDirs = ['src/mobileSi/java', 'src/mobileSiNogoogle/java']
+            jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
+            manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
+            res.srcDirs= ['src/mobileSi/res', 'src/mobileSiNogoogle/res']
+            }
+           mobileLibreOldNosiNodexNogoogle {
+               java.srcDirs = ['src/mobileNosi/java']
+               res.srcDirs= ['src/mobileNosi/res']
+           }
+
+           wearLibre3SiDexNogoogle{
+               java.srcDirs = ['src/wearSi/java']
+               jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
+           }
+           wearLibre3SiDexGoogle{
+               java.srcDirs = ['src/wearSi/java']
+               jniLibs.srcDirs = [ 'src/wearSi/jniLibs']
+           }
+
+
+
+         }
+   androidComponents {
+        // Callback before variants are built.
+        beforeVariants(selector().all(), { variant ->
+            if( variant.name.contains("LibreOldNosiNodexGoogle")|| !(variant.name.contains("Libre3SiDex")||variant.name.contains("LibreOldNosiNodex"))|| (variant.name.contains("small")&&!variant.name.contains("LibreOldNosiNodexNogoogle")) ||
+(variant.name.contains("wear")&&variant.name.contains("LibreOldNosiNodex"))
+
+            ) {
+                variant.enabled = false
+            }
+        })
+    }
+}
+
+android.applicationVariants.all { variant ->
+    if (variant.name.startsWith("mobileLibre3SiDex")) {
+        def variantName = variant.name
+        def capName = variantName.capitalize()
+        def mergeJniTaskName = "merge${capName}JniLibFolders"
+        def mergedLibPath = "${buildDir}/intermediates/merged_jni_libs/${variantName}/${mergeJniTaskName}/out/armeabi-v7a/libdata-handle-lib.so"
+        def patchTask = tasks.register("patch${capName}SibionicsArmv7DataHandle") {
+            dependsOn tasks.named(mergeJniTaskName)
+            outputs.upToDateWhen { false }
+            doLast {
+                def libFile = new File(mergedLibPath)
+                if (!libFile.exists()) {
+                    return
+                }
+                // ARMv7 data-handle builds that import libc's lowercase fortify
+                // symbol can bypass libg's V120 sprintf shim.
+                byte[] from = "__vsprintf_chk".getBytes("US-ASCII")
+                byte[] to = "__vSprintf_chk".getBytes("US-ASCII")
+                byte[] bytes = libFile.bytes
+                int patched = 0
+                for (int i = 0; i <= bytes.length - from.length; i++) {
+                    boolean match = true
+                    for (int j = 0; j < from.length; j++) {
+                        if (bytes[i + j] != from[j]) {
+                            match = false
+                            break
+                        }
+                    }
+                    if (match) {
+                        System.arraycopy(to, 0, bytes, i, to.length)
+                        patched++
+                    }
+                }
+                if (patched > 0) {
+                    libFile.bytes = bytes
+                    logger.lifecycle("Patched ${variantName} ARMv7 Sibionics data-handle sprintf symbol")
+                }
+            }
+        }
+        tasks.named("merge${capName}NativeLibs").configure {
+            dependsOn patchTask
+        }
+    }
+}
+
+allprojects {
+    tasks.withType(JavaCompile).tap {
+        configureEach {
+            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+        }
+    }
+}
+
+dependencies {
+  coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+//    mobileImplementation 'com.google.code.gson:gson:2.10.1'
+//    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+//    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:1.1.5"
+  // implementation "androidx.multidex:multidex:2.0.1"
+//    libre3Implementation files('/n/ojka/Downloads/jndi-1.2.1.jar')
+//    implementation files('/n/ojka/Downloads/multidex-2.0.1.aar')
+//      implementation 'androidx.multidex:multidex:2.0.1'
+//    libre3Implementation 'javax.naming:jndi:1.2.1'
+//    libre3Implementation  'jndi:jndi:1.2.1'
+//    mobileImplementation 'org.projectlombok:lombok:1.18.26'
+//    mobileAnnotationProcessor 'org.projectlombok:lombok:1.18.26'
+//    mobileImplementation 'com.github.lecho:hellocharts-android:v1.5.8'
+//    mobileImplementation 'com.github.lecho:hellocharts-library:1.5.8@aar'
+//    implementation 'com.github.lecho:hellocharts-library:1.5.8@aar' // Reverted to Canvas-based drawing
+
+    implementation("androidx.compose.material3:material3:1.4.0")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.material:material-icons-core:1.7.5")
+    implementation("androidx.compose.material:material-icons-extended:1.7.5")
+    implementation("androidx.compose.ui:ui-text-google-fonts:1.7.5")
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    implementation 'androidx.startup:startup-runtime:1.2.0'
+    implementation 'androidx.core:core-ktx:1.17.0'
+  implementation 'com.android.support:support-annotations:28.0.0'
+
+    implementation "androidx.appcompat:appcompat:$APPCOMPAT"
+    implementation 'androidx.activity:activity:1.11.0'
+    implementation 'androidx.core:core:1.17.0'
+   implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.21'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.2.21'
+    implementation "com.google.android.gms:play-services-base:$GMSBASE"
+//    implementation "com.google.android.gms:play-services-base:18.8.0"
+ implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2'
+  mobileImplementation 'androidx.health.connect:connect-client:1.1.0'
+//  mobileImplementation files('/n/ojka/Downloads/ciq-companion-app-sdk-2.0.3.aar');
+  mobileImplementation 'com.garmin.connectiq:ciq-companion-app-sdk:2.3.0@aar'
+
+    compileOnly 'com.google.android.wearable:wearable:2.9.0'
+    implementation "com.google.android.gms:play-services-wearable:$GMSWEAR"
+  // implementation 'com.google.android.gms:play-services-wearable:10.2.0' Needed for China? https://developer.android.com/training/wearables/creating-app-china#data-layer
+
+
+    wearImplementation 'androidx.activity:activity-ktx:1.11.0'
+    wearImplementation 'androidx.constraintlayout:constraintlayout:2.2.1'
+    wearImplementation 'com.google.android.material:material:1.13.0'
+    wearImplementation 'androidx.databinding:viewbinding:8.13.0'
+    wearImplementation 'androidx.core:core-ktx:1.17.0'
+
+
+    wearImplementation 'androidx.wear:wear:1.3.0'
+
+    wearImplementation 'androidx.percentlayout:percentlayout:1.0.0'
+    wearImplementation 'androidx.legacy:legacy-support-v4:1.0.0'
+
+
+    wearImplementation 'androidx.wear.watchface:watchface-style:1.2.1'
+    wearImplementation 'androidx.wear.watchface:watchface-complications:1.2.1'
+    wearImplementation 'androidx.wear.watchface:watchface-editor:1.2.1'
+    wearImplementation 'androidx.wear.watchface:watchface-client:1.2.1'
+    wearImplementation 'androidx.wear.watchface:watchface:1.2.1'
+    wearImplementation 'androidx.wear.watchface:watchface-complications-rendering:1.2.1'
+    wearImplementation 'androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1'
+     wearImplementation 'androidx.core:core-splashscreen:1.2.0-rc01'
+     wearImplementation 'androidx.wear.protolayout:protolayout-external-protobuf:1.3.0'
+    mobileImplementation 'com.google.android.material:material:1.13.0'
+    
+    // Room Database for independent history storage
+    def room_version = "2.7.1"
+    mobileImplementation "androidx.room:room-runtime:$room_version"
+    mobileImplementation "androidx.room:room-ktx:$room_version"
+    ksp "androidx.room:room-compiler:$room_version"
+    
+    // Compose Dependencies
+    def composeBom = platform('androidx.compose:compose-bom:2024.12.01')
+    implementation composeBom
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3:1.4.0'
+    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
+    implementation 'androidx.navigation:navigation-compose:2.8.5'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+    
+    // Glance Support
+    implementation "androidx.glance:glance-appwidget:1.1.0"
+    implementation "androidx.glance:glance-material3:1.1.0"
+    implementation "androidx.work:work-runtime:2.9.1"
+
+    // Unit tests
+    testImplementation 'junit:junit:4.13.2'
+
+configurations {
+mobileLibre3SiDexGoogleImplementation {}
+mobileLibre3SiDexNogoogleImplementation {}
+mobileLibreOldSiDexImplementation {}
+    mobileLibre3SiNodexImplementation {}
+    mobileLibreOldSiNodexImplementation {}
+}
+    mobileLibre3SiNodexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    mobileLibreOldSiNodexImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+
+    mobileLibre3SiDexGoogleImplementation 'com.google.zxing:core:3.5.4'
+    mobileLibre3SiDexNogoogleImplementation 'com.google.zxing:core:3.5.4'
+
+
+    mobileLibre3SiDexGoogleImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    mobileLibre3SiDexNogoogleImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+
+    def cameraXVersion = "1.4.2"
+    def standaloneMlKitVersion = "17.3.0"
+
+    def siMobileVariants = [
+            "mobileLibre3SiDexGoogleImplementation",
+            "mobileLibre3SiDexNogoogleImplementation",
+            "mobileLibre3SiNodexImplementation",
+            "mobileLibreOldSiDexImplementation",
+            "mobileLibreOldSiNodexImplementation"
+    ]
+
+    siMobileVariants.each { cfg ->
+        add(cfg, "androidx.camera:camera-core:$cameraXVersion")
+        add(cfg, "androidx.camera:camera-camera2:$cameraXVersion")
+        add(cfg, "androidx.camera:camera-lifecycle:$cameraXVersion")
+        add(cfg, "androidx.camera:camera-view:$cameraXVersion")
+        add(cfg, "com.google.guava:guava:33.5.0-android")
+        add(cfg, "com.google.mlkit:barcode-scanning:$standaloneMlKitVersion")
+    }
+
+}

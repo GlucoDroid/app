@@ -24,8 +24,6 @@ class RealtimeReadingPolicyTests {
     }
 
     @Test
-<<<<<<< HEAD
-=======
     fun nativeHighWaterAllowsSubSecondLiveTimestampSkew() {
         assertTrue(
             RealtimeReadingPolicy.shouldDispatch(
@@ -48,7 +46,6 @@ class RealtimeReadingPolicyTests {
     }
 
     @Test
->>>>>>> rebase/test-1.0.4-merge
     fun nativeHighWaterProtectsAfterProcessStateReset() {
         assertFalse(RealtimeReadingPolicy.shouldDispatch(1_000L, 0L, 2_000L))
     }

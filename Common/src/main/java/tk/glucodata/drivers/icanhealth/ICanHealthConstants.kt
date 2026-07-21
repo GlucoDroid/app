@@ -11,10 +11,6 @@ package tk.glucodata.drivers.icanhealth
 
 import java.util.UUID
 import java.util.Locale
-<<<<<<< HEAD
-import tk.glucodata.Log
-=======
->>>>>>> rebase/test-1.0.4-merge
 
 object ICanHealthConstants {
     private val FULL_CANONICAL_HEX_SENSOR_ID_REGEX = Regex("^[0-9A-Z]{16}$", RegexOption.IGNORE_CASE)
@@ -209,15 +205,7 @@ object ICanHealthConstants {
 
     @JvmStatic
     fun normalizeOnboardingDeviceSn(source: String?): String {
-<<<<<<< HEAD
-        val sanitized = source
-            ?.trim()
-            ?.uppercase(Locale.US)
-            ?.filter { it.isLetterOrDigit() }
-            .orEmpty()
-=======
         val sanitized = sanitizeSensorIdentity(source)
->>>>>>> rebase/test-1.0.4-merge
         if (sanitized.isEmpty()) {
             return ""
         }
@@ -227,8 +215,6 @@ object ICanHealthConstants {
         return sanitized
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Derives the DIS-comparable identity prefix from a launcher QR/active code.
      * Extended Chinese codes encode the same eight characters as `XYabcdefg`,
@@ -280,17 +266,10 @@ object ICanHealthConstants {
             ?.filter { it.isLetterOrDigit() }
             .orEmpty()
 
->>>>>>> rebase/test-1.0.4-merge
     private fun deriveShortSnFromActiveCode(activeCode: String): String {
         if (activeCode.length < 12) {
             return activeCode
         }
-<<<<<<< HEAD
-        val prefixLength = if (activeCode[0] > 'F' || activeCode.getOrElse(1) { '0' } > 'F') 9 else 8
-        return activeCode.take(prefixLength)
-    }
-
-=======
         val prefixLength = if (usesExtendedShortSn(activeCode)) 9 else 8
         return activeCode.take(prefixLength)
     }
@@ -298,7 +277,6 @@ object ICanHealthConstants {
     private fun usesExtendedShortSn(value: String): Boolean =
         value.length >= 9 && (value[0] > 'F' || value[1] > 'F')
 
->>>>>>> rebase/test-1.0.4-merge
     // ---- Vendor Auth Commands ----
 
     /** F3: Request authentication challenge */

@@ -19,10 +19,7 @@ import tk.glucodata.GlucosePoint
 import tk.glucodata.Natives
 import tk.glucodata.Notify
 import tk.glucodata.SensorBluetooth
-<<<<<<< HEAD
-=======
 import tk.glucodata.alerts.AlertDisplayText
->>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.alerts.AlertRepository
 import tk.glucodata.alerts.AlertStateTracker
 import tk.glucodata.alerts.AlertType
@@ -174,20 +171,6 @@ class AlarmActivity : ComponentActivity() {
                     .ifBlank { getString(tk.glucodata.R.string.alarms) }
         }
 
-<<<<<<< HEAD
-        val supportingText = parsedValueMessage.takeIf {
-            it.isNotBlank() &&
-                !it.equals(alertLabel, ignoreCase = true) &&
-                !it.equals("low", ignoreCase = true) &&
-                !it.equals("high", ignoreCase = true) &&
-                !it.equals("alarm", ignoreCase = true)
-        }
-            ?: rawMessage.takeIf {
-                it.isNotBlank() && !it.equals(alertLabel, ignoreCase = true) && !it.equals(rawValue, ignoreCase = true)
-            }
-            ?: rawValue.takeIf { it.isNotBlank() && it != parsedValueRaw }
-            ?: ""
-=======
         val supportingText = AlertDisplayText.alarmSupportingText(
             parsedValueMessage = parsedValueMessage,
             rawMessage = rawMessage,
@@ -196,7 +179,6 @@ class AlarmActivity : ComponentActivity() {
             alertLabel = alertLabel,
             unitLabels = listOf(Notify.unitlabel, "mmol/L", "mg/dL")
         )
->>>>>>> rebase/test-1.0.4-merge
 
         val severity = when (alertType) {
             AlertType.LOW, AlertType.VERY_LOW, AlertType.PRE_LOW -> AlarmSeverity.LOW

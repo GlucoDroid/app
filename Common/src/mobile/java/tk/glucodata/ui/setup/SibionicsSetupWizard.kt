@@ -53,16 +53,6 @@ import com.google.zxing.common.HybridBinarizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-<<<<<<< HEAD
-
-enum class SibionicsType(val displayNameRes: Int, val subtype: Int) {
-    EU(R.string.eusibionics, 0),
-    HEMATONIX(R.string.hematonix, 1),
-    CHINESE(R.string.chsibionics, 2),
-    SIBIONICS2(R.string.sibionics2, 3)
-}
-
-=======
 import tk.glucodata.drivers.sibionics.SibionicsConstants
 import tk.glucodata.drivers.sibionics.SibionicsRegistry
 
@@ -84,7 +74,6 @@ internal fun SibionicsType.acceptsBleSetupDevice(name: String?): Boolean =
         else -> !name.isNullOrBlank() && !SibionicsConstants.isSibionics2TransmitterName(name)
     }
 
->>>>>>> rebase/test-1.0.4-merge
 enum class SibionicsSetupStep {
     SELECT_TYPE,
     SCAN_SENSOR,
@@ -380,8 +369,6 @@ fun constructFakeSibionicsQr(input: String, targetLength: Int = 59): String? {
     return tk.glucodata.PhotoScan.buildSibionics2TransmitterPayload(trimmedInput)
 }
 
-<<<<<<< HEAD
-=======
 internal fun constructBleOnlySibionicsQr(deviceName: String): String? {
     val normalized = SibionicsConstants.normalizeBleName(deviceName)
     if (normalized.length !in 8..16) return null
@@ -393,7 +380,6 @@ internal fun constructBleOnlySibionicsQr(deviceName: String): String? {
     return prefix + syntheticName16 + "X"
 }
 
->>>>>>> rebase/test-1.0.4-merge
 /**
  * Modern Material 3 Expressive wizard for setting up Sibionics sensors.
  */
@@ -405,13 +391,6 @@ fun SibionicsSetupWizard(
     onComplete: () -> Unit
 ) {
     val ui = rememberWizardUiMetrics()
-<<<<<<< HEAD
-    var currentStep by remember { mutableStateOf(SibionicsSetupStep.SELECT_TYPE) }
-    var selectedType by remember { mutableStateOf(SibionicsType.EU) }
-    var sensorPtr by remember { mutableStateOf(0L) }
-    var sensorName by remember { mutableStateOf("") }
-    var resetTransmitter by remember { mutableStateOf(false) } // Default false as requested
-=======
     val context = LocalContext.current
     var currentStep by remember { mutableStateOf(SibionicsSetupStep.SELECT_TYPE) }
     var selectedType by remember { mutableStateOf(SibionicsType.EU) }
@@ -421,7 +400,6 @@ fun SibionicsSetupWizard(
     var sensorName by remember { mutableStateOf("") }
     var resetTransmitter by remember { mutableStateOf(false) } // Default false as requested
     var pendingLegacyTransmitterName by remember { mutableStateOf<String?>(null) }
->>>>>>> rebase/test-1.0.4-merge
     var scannerTouchActive by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val handleDismiss: () -> Unit = {
@@ -454,13 +432,6 @@ fun SibionicsSetupWizard(
 
                 Natives.setSensorptrSiSubtype(ptr, selectedType.subtype)
 
-<<<<<<< HEAD
-                currentStep =
-                    if (selectedType == SibionicsType.SIBIONICS2)
-                        SibionicsSetupStep.SCAN_TRANSMITTER
-                    else
-                        SibionicsSetupStep.CONNECTING
-=======
                 val pendingTransmitter = pendingLegacyTransmitterName
                 pendingLegacyTransmitterName = null
                 if (selectedType == SibionicsType.SIBIONICS2 && pendingTransmitter != null) {
@@ -494,7 +465,6 @@ fun SibionicsSetupWizard(
                         }
                     }
                 }
->>>>>>> rebase/test-1.0.4-merge
             }
         }
 
@@ -557,20 +527,14 @@ fun SibionicsSetupWizard(
                 SibionicsSetupStep.SELECT_TYPE -> SelectTypeStep(
                     compact = ui.compact,
                     selectedType = selectedType,
-<<<<<<< HEAD
-=======
                     useLegacyDriver = useLegacyDriver,
->>>>>>> rebase/test-1.0.4-merge
                     onNavigateToReadiness = onNavigateToReadiness,
                     onTypeSelected = { type ->
                         selectedType = type
                     },
-<<<<<<< HEAD
-=======
                     onLegacyDriverChanged = { enabled ->
                         useLegacyDriver = enabled
                     },
->>>>>>> rebase/test-1.0.4-merge
                     onNext = {
                         // Always go to SCAN_SENSOR to ensure sensor structure is created.
                         // Subtype will be applied in SCAN_SENSOR callback.
@@ -584,10 +548,7 @@ fun SibionicsSetupWizard(
                 SibionicsSetupStep.SCAN_SENSOR -> ScanSensorStep(
                     compact = ui.compact,
                     selectedType = selectedType,
-<<<<<<< HEAD
-=======
                     useManagedDriver = useManagedDriver,
->>>>>>> rebase/test-1.0.4-merge
                     onInlineScanResult = { raw ->
                         tk.glucodata.MainActivity.handleInlineQrScan(
                             raw,
@@ -610,8 +571,6 @@ fun SibionicsSetupWizard(
                             )
                         }
                     },
-<<<<<<< HEAD
-=======
                     onManagedEntry = { raw, device ->
                         val record = SibionicsRegistry.addSensorAndStart(
                             context = context.applicationContext,
@@ -671,7 +630,6 @@ fun SibionicsSetupWizard(
                             }
                         }
                     },
->>>>>>> rebase/test-1.0.4-merge
                     onScannerTouchInteractionChanged = { active ->
                         scannerTouchActive = active
                     }
@@ -765,16 +723,11 @@ fun SibionicsSetupWizard(
 fun ScanSensorStep(
     compact: Boolean,
     selectedType: SibionicsType,
-<<<<<<< HEAD
-    onInlineScanResult: (String) -> Unit,
-    onManualEntry: (String) -> Unit,
-=======
     useManagedDriver: Boolean,
     onInlineScanResult: (String) -> Unit,
     onManualEntry: (String) -> Unit,
     onManagedEntry: (String, BleDeviceScanner.SibionicsBleDevice?) -> Unit,
     onBleDeviceEntry: (BleDeviceScanner.SibionicsBleDevice) -> Unit,
->>>>>>> rebase/test-1.0.4-merge
     onScannerTouchInteractionChanged: (Boolean) -> Unit
 ) {
     val contentPadding = if (compact) 12.dp else 16.dp
@@ -789,16 +742,11 @@ fun ScanSensorStep(
     var galleryDecodeInProgress by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-<<<<<<< HEAD
-    val selectedBleDevice = remember(bleProbeDevices, selectedBleAddress) {
-        bleProbeDevices.firstOrNull { it.address == selectedBleAddress }
-=======
     val matchingBleDevices = remember(bleProbeDevices, selectedType) {
         bleProbeDevices.filter { selectedType.acceptsBleSetupDevice(it.name) }
     }
     val selectedBleDevice = remember(matchingBleDevices, selectedBleAddress) {
         matchingBleDevices.firstOrNull { it.address == selectedBleAddress }
->>>>>>> rebase/test-1.0.4-merge
     }
     val launchFullscreenScan = rememberUnifiedQrScanLauncher(
         requestCode = tk.glucodata.MainActivity.REQUEST_BARCODE,
@@ -806,15 +754,11 @@ fun ScanSensorStep(
         onScanResult = { raw ->
             if (!handledScan) {
                 handledScan = true
-<<<<<<< HEAD
-                onInlineScanResult(raw)
-=======
                 if (useManagedDriver) {
                     onManagedEntry(raw, selectedBleDevice)
                 } else {
                     onInlineScanResult(raw)
                 }
->>>>>>> rebase/test-1.0.4-merge
             }
         }
     )
@@ -823,18 +767,11 @@ fun ScanSensorStep(
         onDispose { onScannerTouchInteractionChanged(false) }
     }
 
-<<<<<<< HEAD
-    LaunchedEffect(bleProbeScanning) {
-        if (bleProbeScanning) {
-            try {
-                BleDeviceScanner.scanForSibionicsByService().collect { found ->
-=======
     LaunchedEffect(bleProbeScanning, selectedType) {
         if (bleProbeScanning) {
             try {
                 BleDeviceScanner.scanForSibionicsByService().collect { found ->
                     if (!selectedType.acceptsBleSetupDevice(found.name)) return@collect
->>>>>>> rebase/test-1.0.4-merge
                     bleProbeDevices = bleProbeDevices
                         .toMutableList()
                         .apply {
@@ -846,12 +783,6 @@ fun ScanSensorStep(
                             }
                         }
                         .sortedBy { it.name.uppercase() }
-<<<<<<< HEAD
-                    if (selectedBleAddress == null) {
-                        selectedBleAddress = found.address
-                    }
-=======
->>>>>>> rebase/test-1.0.4-merge
                 }
             } finally {
                 bleProbeScanning = false
@@ -869,15 +800,11 @@ fun ScanSensorStep(
                 try {
                     val decoded = decodeBitmapQr(context, uri)
                     if (decoded != null) {
-<<<<<<< HEAD
-                        onManualEntry(decoded)
-=======
                         if (useManagedDriver) {
                             onManagedEntry(decoded, selectedBleDevice)
                         } else {
                             onManualEntry(decoded)
                         }
->>>>>>> rebase/test-1.0.4-merge
                     } else {
                         tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.no_qr_found))
                     }
@@ -896,15 +823,11 @@ fun ScanSensorStep(
             onDismiss = { showManualEntry = false },
             onConfirm = { code ->
                 showManualEntry = false
-<<<<<<< HEAD
-                onManualEntry(code)
-=======
                 if (useManagedDriver) {
                     onManagedEntry(code, selectedBleDevice)
                 } else {
                     onManualEntry(code)
                 }
->>>>>>> rebase/test-1.0.4-merge
             }
         )
     }
@@ -926,15 +849,11 @@ fun ScanSensorStep(
                 onScanResult = { raw ->
                     if (!handledScan) {
                         handledScan = true
-<<<<<<< HEAD
-                        onInlineScanResult(raw)
-=======
                         if (useManagedDriver) {
                             onManagedEntry(raw, selectedBleDevice)
                         } else {
                             onInlineScanResult(raw)
                         }
->>>>>>> rebase/test-1.0.4-merge
                     }
                 },
                 onManualFallback = launchFullscreenScan,
@@ -952,114 +871,6 @@ fun ScanSensorStep(
                 modifier = Modifier.padding(top = if (compact) 10.dp else 12.dp, bottom = if (compact) 16.dp else 20.dp)
             )
 
-<<<<<<< HEAD
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surfaceContainerLow
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(if (compact) 12.dp else 14.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.sibionics_ble_probe_title),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = stringResource(R.string.sibionics_ble_probe_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
-                    )
-
-                    OutlinedButton(
-                        onClick = {
-                            bleProbeDevices = emptyList()
-                            selectedBleAddress = null
-                            bleProbeScanning = true
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(buttonHeight)
-                    ) {
-                        if (bleProbeScanning) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(if (compact) 18.dp else 20.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.scanning_devices))
-                        } else {
-                            Icon(Icons.Default.BluetoothSearching, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.search_bluetooth))
-                        }
-                    }
-
-                    if (bleProbeDevices.isEmpty() && !bleProbeScanning) {
-                        Text(
-                            text = stringResource(R.string.sibionics_ble_probe_empty),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 10.dp)
-                        )
-                    }
-
-                    if (bleProbeDevices.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        bleProbeDevices.forEach { item ->
-                            val selected = (item.address == selectedBleAddress)
-                            ListItem(
-                                headlineContent = {
-                                    Text(
-                                        text = item.name,
-                                        maxLines = 1
-                                    )
-                                },
-                                supportingContent = {
-                                    Text(
-                                        text = "${item.address} • RSSI ${item.rssi}",
-                                        maxLines = 1
-                                    )
-                                },
-                                leadingContent = { Icon(Icons.Default.Bluetooth, contentDescription = null) },
-                                trailingContent = {
-                                    if (selected) {
-                                        Icon(Icons.Default.Check, contentDescription = null)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (selected) MaterialTheme.colorScheme.primaryContainer
-                                        else Color.Transparent
-                                    )
-                                    .clickable { selectedBleAddress = item.address }
-                            )
-                        }
-                    }
-
-                    if (selectedType != SibionicsType.SIBIONICS2 && selectedBleDevice != null) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = stringResource(R.string.sibionics_ble_selected, selectedBleDevice.name),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = { onManualEntry(selectedBleDevice.name) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(buttonHeight)
-                        ) {
-                            Text(stringResource(R.string.sibionics_use_fake_qr_from_ble))
-                        }
-                    }
-=======
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
@@ -1145,7 +956,6 @@ fun ScanSensorStep(
                             maxLines = 1,
                         )
                     }
->>>>>>> rebase/test-1.0.4-merge
                 }
             }
         }
@@ -1167,28 +977,6 @@ fun ScanSensorStep(
                 Text(stringResource(R.string.select_gallery_button))
             }
 
-<<<<<<< HEAD
-            // Skip Button for Sibionics 2 - allows bypassing sensor scan since it uses Bluetooth connection
-            // We pass a randomly generated valid-looking sensor code.
-            if (SibionicsType.SIBIONICS2 == selectedType) {
-                Spacer(modifier = Modifier.height(sectionGap))
-                OutlinedButton(
-                    onClick = {
-                        // random 16-char alphanumeric serial
-                        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-                        val randomSerial = (1..16).map { chars.random() }.joinToString("")
-                        // Append dummy char because native parser drops the last character
-                        val randomCode = "FAKEBATCH$" + randomSerial + "X" 
-                        onManualEntry(randomCode)
-                    },
-                    modifier = Modifier.fillMaxWidth().height(buttonHeight)
-                ) {
-                   Text(stringResource(R.string.skip_fake_sensor)) 
-                }
-            }
-
-=======
->>>>>>> rebase/test-1.0.4-merge
             Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))
 
             TextButton(
@@ -1208,15 +996,10 @@ fun ScanSensorStep(
 fun SelectTypeStep(
     compact: Boolean,
     selectedType: SibionicsType,
-<<<<<<< HEAD
-    onNavigateToReadiness: () -> Unit,
-    onTypeSelected: (SibionicsType) -> Unit,
-=======
     useLegacyDriver: Boolean,
     onNavigateToReadiness: () -> Unit,
     onTypeSelected: (SibionicsType) -> Unit,
     onLegacyDriverChanged: (Boolean) -> Unit,
->>>>>>> rebase/test-1.0.4-merge
     onNext: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -1230,23 +1013,6 @@ fun SelectTypeStep(
             .fillMaxSize()
             .padding(horizontal = horizontalPadding, vertical = verticalPadding)
     ) {
-<<<<<<< HEAD
-        // Header with generous spacing
-        Spacer(modifier = Modifier.height(if (compact) 4.dp else 8.dp))
-        Text(
-            text = stringResource(R.string.select_sibionics_type),
-            style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium
-        )
-        Spacer(modifier = Modifier.height(if (compact) 6.dp else 8.dp))
-        Text(
-            text = stringResource(R.string.choose_sibionics_variant),
-            style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))
-        tk.glucodata.ui.CgmReadinessSetupBanner(onOpenReadiness = onNavigateToReadiness)
-        Spacer(modifier = Modifier.height(if (compact) 16.dp else 24.dp))
-=======
         Spacer(modifier = Modifier.height(if (compact) 12.dp else 18.dp))
         Text(
             text = stringResource(R.string.select_sibionics_type),
@@ -1262,64 +1028,12 @@ fun SelectTypeStep(
         Spacer(modifier = Modifier.height(if (compact) 10.dp else 12.dp))
         tk.glucodata.ui.CgmReadinessSetupBanner(onOpenReadiness = onNavigateToReadiness)
         Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))
->>>>>>> rebase/test-1.0.4-merge
 
         // Selection Cards (M3 Expressive - no dividers, surface tonality)
         val listScrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .weight(1f)
-<<<<<<< HEAD
-                .verticalScroll(listScrollState)
-                .selectableGroup(),
-            verticalArrangement = Arrangement.spacedBy(listGap) // Generous spacing instead of dividers
-        ) {
-            SibionicsType.values().forEach { type ->
-                val isSelected = (type == selectedType)
-
-                val containerColor by animateColorAsState(
-                    targetValue = if (isSelected) 
-                        MaterialTheme.colorScheme.primaryContainer
-                    else 
-                        MaterialTheme.colorScheme.surfaceContainerHigh,
-                    animationSpec = androidx.compose.animation.core.tween(250),
-                    label = "containerColor"
-                )
-                
-                // Animate border
-                val borderColor by animateColorAsState(
-                    targetValue = if (isSelected) 
-                        MaterialTheme.colorScheme.primary
-                    else 
-                        Color.Transparent,
-                    animationSpec = androidx.compose.animation.core.tween(250),
-                    label = "borderColor"
-                )
-                val checkAlpha by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (isSelected) 1f else 0f,
-                    animationSpec = androidx.compose.animation.core.tween(180),
-                    label = "checkAlpha"
-                )
-                val cardShape = RoundedCornerShape(if (compact) 18.dp else 20.dp)
-                
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    onClick = { onTypeSelected(type) },
-                    shape = cardShape,
-                    color = containerColor,
-                    border = androidx.compose.foundation.BorderStroke(2.dp, borderColor),
-                    tonalElevation = if (isSelected) 0.dp else 1.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(cardPadding),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Content
-                        Column(modifier = Modifier.weight(1f)) {
-=======
                 .verticalScroll(listScrollState),
             verticalArrangement = Arrangement.spacedBy(listGap) // Generous spacing instead of dividers
         ) {
@@ -1368,30 +1082,10 @@ fun SelectTypeStep(
                                 .padding(cardPadding),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
->>>>>>> rebase/test-1.0.4-merge
                             Text(
                                 text = stringResource(type.displayNameRes),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-<<<<<<< HEAD
-                                color = if (isSelected) 
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                else 
-                                    MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        
-                        Box(
-                            modifier = Modifier.size(if (compact) 24.dp else 28.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = checkAlpha),
-                                modifier = Modifier.size(if (compact) 20.dp else 24.dp)
-                            )
-=======
                                 color = if (isSelected)
                                     MaterialTheme.colorScheme.onPrimaryContainer
                                 else
@@ -1410,17 +1104,10 @@ fun SelectTypeStep(
                                     modifier = Modifier.size(if (compact) 20.dp else 24.dp)
                                 )
                             }
->>>>>>> rebase/test-1.0.4-merge
                         }
                     }
                 }
             }
-<<<<<<< HEAD
-        }
-
-        Spacer(modifier = Modifier.height(if (compact) 16.dp else 24.dp))
-        
-=======
 
             ListItem(
                 headlineContent = { Text(stringResource(R.string.sibionics_legacy_driver_title)) },
@@ -1447,7 +1134,6 @@ fun SelectTypeStep(
 
         Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))
 
->>>>>>> rebase/test-1.0.4-merge
         // Full-width Next button (M3 Expressive - prominent primary action)
         Button(
             onClick = onNext,

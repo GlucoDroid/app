@@ -8,10 +8,7 @@ import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Icon;
 import android.os.Build;
-<<<<<<< HEAD
-=======
 import java.util.List;
->>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.Log;
 
 public class StatusIcon {
@@ -132,8 +129,6 @@ public class StatusIcon {
         }
         return null;
     }
-<<<<<<< HEAD
-=======
 
     Icon getIcon(String primaryValue, List<String> peerValues) {
         if (peerValues == null || peerValues.isEmpty()) {
@@ -215,5 +210,4 @@ public class StatusIcon {
         canvas.drawText(safeText, x, y, paint);
         return top + lineHeight;
     }
->>>>>>> rebase/test-1.0.4-merge
 }

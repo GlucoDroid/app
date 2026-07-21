@@ -94,10 +94,7 @@ void startlogcat() {
   }
 }
 
-<<<<<<< HEAD
-=======
 #include <sys/sendfile.h>
->>>>>>> rebase/test-1.0.4-merge
 
 decltype(std::declval<struct stat>().st_size) filesize(int handle) {
   if (handle == -1) {
@@ -127,34 +124,6 @@ static bool copyfile(const char *infile, int out) {
   destruct _2([in] { close(in); });
   auto len = filesize(in);
   if (len <= 0) {
-<<<<<<< HEAD
-    LOGGER("size %s=%lld\n", infile, (long long)len);
-    return false;
-  }
-  // sendfile(2) requires out to be a regular file; SAF may return a pipe fd.
-  char buf[65536];
-  ssize_t total = 0;
-  ssize_t n;
-  for (;;) {
-    n = read(in, buf, sizeof(buf));
-    if (n < 0 && errno == EINTR) continue;
-    if (n <= 0) break;
-    ssize_t written = 0;
-    while (written < n) {
-      ssize_t w = write(out, buf + written, n - written);
-      if (w < 0) {
-        flerror("write(%d)=%zd errno=%d total=%zd", out, w, errno, total);
-        return false;
-      }
-      written += w;
-    }
-    total += n;
-  }
-  bool suc = (total == len);
-  if (!suc) {
-    flerror("copyfile(%s): wrote %zd expected %lld", infile, total,
-            (long long)len);
-=======
     LOGGER("size %s=%d\n", infile, len);
     return false;
   }
@@ -163,7 +132,6 @@ static bool copyfile(const char *infile, int out) {
   if (!suc) {
     flerror("sendfile(%d,%d (%s) ,null,%lld)=%zd", out, in, infile, len,
             outlen);
->>>>>>> rebase/test-1.0.4-merge
   }
   return suc;
 #else

@@ -164,10 +164,7 @@
  <string name="addsensorenddate">Додайте кінцеву дату датчика до календаря</string>
  <string name="enddatesensor">"Датчик кінцевої дати "</string>
  <string name="open">Відкрити</string>
-<<<<<<< HEAD
-=======
  <string name="share">Поділитися</string>
->>>>>>> rebase/test-1.0.4-merge
  <string name="withoutsensor">Без датчика</string>
  <string name="wronglibrary">Бібліотека не працює належним чином, спробуйте іншу</string>
  <string name="installedlibrary">Встановлена бібліотека</string>
@@ -420,17 +417,10 @@
 
     <!-- Newly Extracted Strings -->
     <string name="import_history">Імпортувати історію</string>
-<<<<<<< HEAD
-    <string name="import_history_desc">Імпорт даних глюкози з CSV файлу</string>
-    <string name="get_started_desc">Почніть з додавання вашого сенсора</string>
-    <string name="select_sensor">Виберіть тип сенсора</string>
-    <string name="select_sibionics_type">Виберіть тип сенсора</string>
-=======
     <string name="import_history_desc">Імпортувати дані глюкози з експорту JugglucoNG або CSV-файлу</string>
     <string name="get_started_desc">Почніть з додавання вашого сенсора</string>
     <string name="select_sensor">Виберіть тип сенсора</string>
     <string name="select_sibionics_type">Виберіть сенсор Sibionics</string>
->>>>>>> rebase/test-1.0.4-merge
     <string name="or_divider">"  або  "</string>
     <string name="no_sensors_connected">Немає підключених сенсорів</string>
     <string name="enter_sensor_codes">Введіть коди сенсора</string>
@@ -450,11 +440,7 @@
     <string name="select_gallery_button">Вибрати з Галереї</string>
     <string name="skip_fake_sensor">Пропустити (Вик. фіктивний сенсор)</string>
     <string name="enter_code_manually">Ввести код вручну</string>
-<<<<<<< HEAD
-    <string name="choose_sibionics_variant">Виберіть варіант сенсора Sibionics</string>
-=======
     <string name="choose_sibionics_variant">Укажіть модель з упаковки.</string>
->>>>>>> rebase/test-1.0.4-merge
     <string name="continue_action">Продовжити</string>
     <string name="sensor_init_failed">Ініціалізація сенсора не вдалася</string>
     <string name="sensor_lost_restart">Помилка: Сенсор втрачено. Перезапустіть налаштування.</string>
@@ -474,13 +460,9 @@
     <string name="export_history_title">Експорт Історії</string>
     <string name="export_history_sub">Зберегти показання в CSV або текст</string>
     <string name="import_history_title">Імпорт Історії</string>
-<<<<<<< HEAD
-    <string name="import_history_sub">Відновити показання з CSV файлу</string>
-=======
     <string name="import_history_sub">Відновити показання глюкози з експорту JugglucoNG або CSV-файлу</string>
     <string name="import_no_glucose">У цьому файлі немає даних глюкози</string>
     <string name="import_unsupported_file">Непідтримуваний файл. Виберіть експорт JugglucoNG (JSON) або CSV-файл історії глюкози.</string>
->>>>>>> rebase/test-1.0.4-merge
     <string name="clear_history_title">Очистити Історію?</string>
     <string name="clear_history_confirmation">Це видалить усі показання глюкози з бази даних. Ця дія незворотна.</string>
     <string name="delete_reading_title">Видалити показання?</string>
@@ -571,16 +553,12 @@
     <string name="scan_libre_sensor">Сканувати Сенсор Libre</string>
     <string name="libre_nfc_instruction">Прикладіть телефон до сенсора для сканування</string>
     <!-- New Code Translations -->
-<<<<<<< HEAD
-    <string name="auto_calibration_mode">Алгоритм автокалібрування</string>
-=======
     <string name="auto_calibration_mode">Алгоритм датчика</string>
     <string name="sibionics_custom_algorithm">Адаптивна модель датчика (експериментальна)</string>
     <string name="sibionics_custom_algorithm_desc">Компенсація дрейфу датчика, фізіологічної затримки й артефактів</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics за замовчуванням</string>
     <string name="sibionics_stock_algorithm_detail">Використовувати калібрування усередині алгоритму датчика</string>
     <string name="sibionics_restart_algorithm_desc">Відновити хвилинний стан алгоритму зі збереженої історії датчика</string>
->>>>>>> rebase/test-1.0.4-merge
     <string name="juggluco_native">Рідний Juggluco</string>
     <string name="window_label">вікно</string>
     <string name="auto_restart_algorithm">Перезапуск алгоритму</string>
@@ -706,11 +684,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibrate_a">Візуальний режим</string>
     <string name="calibrated">Calibrated</string>
     <string name="calibratepast">Apply to past</string>
-<<<<<<< HEAD
-    <string name="calibration">Calibration</string>
-=======
     <string name="calibration">Калібрування</string>
->>>>>>> rebase/test-1.0.4-merge
     <string name="calibration_algorithm">Calibration Algorithm</string>
     <string name="calibrations">Calibrations</string>
     <string name="caresens_air_scan_instruction">Відскануйте код датчика на упаковці CareSens Air</string>
@@ -742,13 +716,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dexfuture">Predict (Dexcom)</string>
     <string name="disabled_status">Disabled</string>
     <string name="disconnect">Disconnect</string>
-<<<<<<< HEAD
-    <string name="disconnect_sensor_aidex_desc">Це від’єднає датчик. Ключі сполучення та історія зберігаються — ви можете повторно підключитися пізніше.</string>
-=======
     <string name="disconnect_sensor_aidex_desc">Сенсор буде видалено з цього пристрою. Його історія залишиться доступною.</string>
     <string name="unbind_sensor">Відв’язати сенсор</string>
     <string name="unbind_sensor_desc">Скасувати сполучення, щоб сенсор можна було підключити до іншого пристрою.</string>
->>>>>>> rebase/test-1.0.4-merge
     <string name="disconnect_sensor_desc">This will permanently stop the sensor session.</string>
     <string name="disconnect_sensor_title">Disconnect Sensor?</string>
     <string name="enabled_status">Enabled</string>
@@ -1375,13 +1345,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_probe_empty">Пристрої Sibionics FF30 поки не знайдено.</string>
     <string name="sibionics_ble_selected">Вибрано: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Використати фейковий QR з цієї BLE-назви</string>
-<<<<<<< HEAD
-=======
     <string name="sibionics_use_ble_device">Використати цей Bluetooth-пристрій</string>
     <string name="sibionics_legacy_driver_title">Застарілий драйвер</string>
     <string name="sibionics_legacy_driver_desc">Старий пропрієтарний драйвер — лише для сумісності з наявним налаштуванням.</string>
     <string name="sibionics_managed_sensor_added">Керований датчик Sibionics додано: %1$s</string>
->>>>>>> rebase/test-1.0.4-merge
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
     <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
@@ -2048,8 +2015,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_import_export_ready">Збережені матеріали для %1$s готові.</string>
     <string name="ottai_credentials_import">Імпорт</string>
     <string name="ottai_credentials_replace">Замінити</string>
-<<<<<<< HEAD
-=======
 
     <!-- PR feature translations: trend, alerts, palette, and expiry. -->
     <string name="alert_falling_fast">Falling Fast</string>
@@ -2121,5 +2086,4 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_reset_postpone">Відкласти на 2 години</string>
     <string name="sibionics_reset_reminder_channel">Нагадування про скидання Sibionics</string>
     <string name="sibionics_reset_reminder_channel_desc">Нагадування та дії для скидання Sibionics 2 до завершення строку</string>
->>>>>>> rebase/test-1.0.4-merge
 </resources>

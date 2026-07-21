@@ -644,11 +644,8 @@ fun DashboardChartSection(
     peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
-<<<<<<< HEAD
-=======
     showEiob: Boolean = true,
     appChartRangeColors: Boolean = false,
->>>>>>> rebase/test-1.0.4-merge
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
     graphSmoothingMinutes: Int = 0,
@@ -677,10 +674,7 @@ fun DashboardChartSection(
     onDismissJournalAction: (() -> Unit)? = null,
     onJournalMarkerClick: ((Long) -> Unit)? = null,
     chartBoostProgress: Float = 0f,
-<<<<<<< HEAD
-=======
     resetToLatestOnResume: Boolean = true,
->>>>>>> rebase/test-1.0.4-merge
     onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
 ) {
     val chartContent: @Composable () -> Unit = {
@@ -693,11 +687,8 @@ fun DashboardChartSection(
                         peerPredictionSeries = peerPredictionSeries,
                         journalMarkers = journalMarkers,
                         activeInsulinSummary = activeInsulinSummary,
-<<<<<<< HEAD
-=======
                         showEiob = showEiob,
                         appChartRangeColors = appChartRangeColors,
->>>>>>> rebase/test-1.0.4-merge
                         predictionPoints = predictionPoints,
                         predictionSeries = predictionSeries,
                         graphSmoothingMinutes = graphSmoothingMinutes,
@@ -726,10 +717,7 @@ fun DashboardChartSection(
                         onDismissJournalAction = onDismissJournalAction,
                         onJournalMarkerClick = onJournalMarkerClick,
                         chartBoostProgress = chartBoostProgress,
-<<<<<<< HEAD
-=======
                         resetToLatestOnResume = resetToLatestOnResume,
->>>>>>> rebase/test-1.0.4-merge
                         onViewportSnapshotChanged = onViewportSnapshotChanged
                     )
                 } else {
@@ -765,11 +753,8 @@ fun InteractiveGlucoseChart(
     peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
-<<<<<<< HEAD
-=======
     showEiob: Boolean = true,
     appChartRangeColors: Boolean = false,
->>>>>>> rebase/test-1.0.4-merge
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
     graphSmoothingMinutes: Int = 0,
@@ -799,20 +784,14 @@ fun InteractiveGlucoseChart(
     onDismissJournalAction: (() -> Unit)? = null,
     onJournalMarkerClick: ((Long) -> Unit)? = null,
     chartBoostProgress: Float = 0f,
-<<<<<<< HEAD
-=======
     resetToLatestOnResume: Boolean = true,
->>>>>>> rebase/test-1.0.4-merge
     onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
 ) {
     // --- THEME & PAINTS ---
     val isDark = isSystemInDarkTheme()
-<<<<<<< HEAD
-=======
     // Observe the glucose palette so target band / band tints recompute live
     // when the user switches presets or edits a band colour (no restart).
     val glucosePaletteRevision = GlucosePaletteState.revision
->>>>>>> rebase/test-1.0.4-merge
     // User requested stronger dark mode lines ("oddly pale").
     // Standard M3 dark primary is pastel. We use a more saturated blue for data.
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -820,16 +799,9 @@ fun InteractiveGlucoseChart(
     val tertiaryColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f) // Lighter shade for 3rd line
     val pointColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.125f)
-<<<<<<< HEAD
-    // 1. Select the correct Material Green shade (300 for Dark, 700 for Light)
-    val materialGreen = if (isDark) Color(0xFF81C784) else Color(0xFF388E3C)
-    // 2. Apply "Container" level opacity (0.12f is standard for M3 highlights)
-    val targetBandColor = materialGreen.copy(alpha = 0.12f)
-=======
     // Target band inherits the active in-range band colour (was a hardcoded
     // Material green). Keep the 0.12f container-level opacity.
     val targetBandColor = Color(GlucoseRangeColors.inRange(isDark)).copy(alpha = 0.12f)
->>>>>>> rebase/test-1.0.4-merge
 //    val targetBandColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
     val hoverLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     val minMaxLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -1184,10 +1156,6 @@ fun InteractiveGlucoseChart(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-<<<<<<< HEAD
-
-=======
->>>>>>> rebase/test-1.0.4-merge
     // React to parent range state only when it represents a new range button choice.
     // Range changes alter the visible duration inside the current frame; tapping the
     // already-active range button is the explicit "back to now" action.
@@ -1323,17 +1291,6 @@ fun InteractiveGlucoseChart(
     )
     val minYAxisSpan = if (isMmol) 6f else 108f
 
-<<<<<<< HEAD
-    // --- Y-AXIS SCALING ---
-    var yMin by rememberSaveable { mutableFloatStateOf(graphRangeDefaults.first) }
-    var yMax by rememberSaveable { mutableFloatStateOf(graphRangeDefaults.second) }
-
-    LaunchedEffect(graphRangeDefaults) {
-        yMin = graphRangeDefaults.first
-        yMax = graphRangeDefaults.second
-    }
-
-=======
     val isRawModeChart = viewMode == 1 || viewMode == 3
     val hasCalibration = calibratedValueResolver.hasCalibration(isRawModeChart)
     val hideInitialWhenCalibrated = hasCalibration &&
@@ -1457,7 +1414,6 @@ fun InteractiveGlucoseChart(
     val renderedYMin = if (isYAxisAdjusting) baselineYMin else displayYMin
     val renderedYMax = if (isYAxisAdjusting) baselineYMax else displayYMax
 
->>>>>>> rebase/test-1.0.4-merge
     // --- INTERACTION STATE ---
     var selectedPoint by remember { mutableStateOf<GlucosePoint?>(null) }
     var isScrubbing by remember { mutableStateOf(false) } // Touching the line?
@@ -1470,10 +1426,7 @@ fun InteractiveGlucoseChart(
         pendingTimelineTapJob = null
     }
 
-<<<<<<< HEAD
-=======
 
->>>>>>> rebase/test-1.0.4-merge
     // Auto-dismiss selection if off-screen (User Request)
     LaunchedEffect(centerTime, visibleDuration, selectedPoint) {
         selectedPoint?.let { p ->
@@ -1582,11 +1535,8 @@ fun InteractiveGlucoseChart(
     val currentInteractionData by rememberUpdatedState(interactionData)
     val currentViewMode by rememberUpdatedState(viewMode)
     val currentCalibratedValueResolver by rememberUpdatedState(calibratedValueResolver)
-<<<<<<< HEAD
-=======
     val currentRenderedYMin by rememberUpdatedState(renderedYMin)
     val currentRenderedYMax by rememberUpdatedState(renderedYMax)
->>>>>>> rebase/test-1.0.4-merge
     // The pointerInput lambda below is keyed on previewWindowReservedIntPx and otherwise
     // long-lived, so it would otherwise capture these as stale snapshots — when the
     // prediction horizon, zoom level, or expansion progress change, gesture clamping
@@ -1709,10 +1659,7 @@ fun InteractiveGlucoseChart(
                             }
                         }
                         isUserInteracting = true
-<<<<<<< HEAD
-=======
                         isYAxisAdjusting = false
->>>>>>> rebase/test-1.0.4-merge
                         try {
                             // FIX: Use requireUnconsumed = true (default) to respect z-order.
                             // This prevents the chart from hijacking touches meant for the floating buttons.
@@ -1878,17 +1825,10 @@ fun InteractiveGlucoseChart(
                                 val clampedX = position.x.coerceIn(0f, usefulWidth)
                                 val tapTime = viewportStart + ((clampedX / usefulWidth).toDouble() * downDuration)
                                 val normalizedY = 1f - (position.y / chartHeight).coerceIn(0f, 1f)
-<<<<<<< HEAD
-                                val suggestedValue = if (yMax - yMin < 0.001f) {
-                                    yMin
-                                } else {
-                                    (normalizedY * (yMax - yMin)) + yMin
-=======
                                 val suggestedValue = if (currentRenderedYMax - currentRenderedYMin < 0.001f) {
                                     currentRenderedYMin
                                 } else {
                                     (normalizedY * (currentRenderedYMax - currentRenderedYMin)) + currentRenderedYMin
->>>>>>> rebase/test-1.0.4-merge
                                 }
                                 return ChartTimelineTapSuggestion(
                                     timestamp = tapTime.toLong(),
@@ -1902,15 +1842,12 @@ fun InteractiveGlucoseChart(
                             var longPressTriggered = false
                             var change = down
                             var totalDragDistance = 0f
-<<<<<<< HEAD
-=======
                             var accumulatedPanX = 0f
                             var accumulatedPanY = 0f
                             var lockedPanAxis = 0 // 0 undecided, 1 horizontal, 2 vertical
                             var yGestureStartMin = 0f
                             var yGestureStartMax = 0f
                             var yGestureAdjustsMax = false
->>>>>>> rebase/test-1.0.4-merge
                             var lastPointerCount = 1
                             val longPressJob = if (onTimelineTap != null && !isDoubleTapStart) {
                                 coroutineScope.launch {
@@ -1943,13 +1880,8 @@ fun InteractiveGlucoseChart(
                                     } else {
                                         pointAtTouch.value
                                     }
-<<<<<<< HEAD
-                                    val liveYMin = yMin
-                                    val liveYMax = yMax
-=======
                                     val liveYMin = currentRenderedYMin
                                     val liveYMax = currentRenderedYMax
->>>>>>> rebase/test-1.0.4-merge
                                     val dataY =
                                         chartHeight - ((v - liveYMin) / (liveYMax - liveYMin)) * chartHeight
                                     abs(down.position.y - dataY) < touchThreshold
@@ -1973,14 +1905,11 @@ fun InteractiveGlucoseChart(
                                 if (pointerCount == 0 || newChange.changedToUp()) break
                                 if (pointerCount != lastPointerCount) {
                                     longPressJob?.cancel()
-<<<<<<< HEAD
-=======
                                     lockedPanAxis = 0
                                     accumulatedPanX = 0f
                                     accumulatedPanY = 0f
                                     isYAxisAdjusting = false
                                     totalDragDistance = maxOf(totalDragDistance, viewConfiguration.touchSlop)
->>>>>>> rebase/test-1.0.4-merge
                                     change = newChange
                                     lastPointerCount = pointerCount
                                     velocityTracker.resetTracking()
@@ -2062,29 +1991,6 @@ fun InteractiveGlucoseChart(
                                         val panY = newChange.position.y - change.position.y
                                         val dragDist = kotlin.math.sqrt(panX * panX + panY * panY)
                                         totalDragDistance += dragDist
-<<<<<<< HEAD
-
-                                        if (totalDragDistance > viewConfiguration.touchSlop) {
-                                            longPressJob?.cancel()
-                                            dismissJournalActionIfNeeded()
-                                        }
-
-                                        if (abs(panX) > abs(panY)) {
-                                            // Horizontal pan
-                                            panViewportByPixels(panX, usefulWidth)
-                                        } else if (totalDragDistance > 30f) {
-                                            // Vertical scale
-                                            val liveYMin = yMin
-                                            val liveYMax = yMax
-                                            val scaleFactor =
-                                                panY * (liveYMax - liveYMin) / contentHeight * 2f
-                                            if (change.position.y < contentHeight / 2f) {
-                                                yMax =
-                                                    (liveYMax + scaleFactor).coerceAtLeast(liveYMin + minYAxisSpan)
-                                            } else {
-                                                yMin = (liveYMin + scaleFactor).coerceAtLeast(0f)
-                                            }
-=======
                                         accumulatedPanX += panX
                                         accumulatedPanY += panY
 
@@ -2122,7 +2028,6 @@ fun InteractiveGlucoseChart(
                                             )
                                             baselineYMin = manualRange.min
                                             baselineYMax = manualRange.max
->>>>>>> rebase/test-1.0.4-merge
                                         }
                                     }
                                     newChange.consume()
@@ -2194,11 +2099,7 @@ fun InteractiveGlucoseChart(
                                             }
                                         }
                                     }
-<<<<<<< HEAD
-                                } else if (!isOneFingerZoom) {
-=======
                                 } else if (!isOneFingerZoom && lockedPanAxis != 2) {
->>>>>>> rebase/test-1.0.4-merge
                                     // FLING - simple defaults
                                     val velocity = velocityTracker.calculateVelocity()
                                     val vx = velocity.x
@@ -2233,10 +2134,7 @@ fun InteractiveGlucoseChart(
                                 }
                             }
                         } finally {
-<<<<<<< HEAD
-=======
                             isYAxisAdjusting = false
->>>>>>> rebase/test-1.0.4-merge
                             isUserInteracting = false
                             lastInteractionTimestamp = System.currentTimeMillis()
                         }
@@ -2263,17 +2161,10 @@ fun InteractiveGlucoseChart(
             val heightPx = constraints.maxHeight.toFloat()
             val chartHeightPx = (heightPx - chartUnderlayBottomPx - previewWindowReservedPx - bottomAxisHeightPx - chartPlotBottomGapPx).coerceAtLeast(1f)
             
-<<<<<<< HEAD
-            val ySpanForGradient = yMax - yMin
-            fun thresholdY(value: Float): Float {
-                return if (ySpanForGradient > 0.001f) {
-                    (chartHeightPx * (1f - (value - yMin) / ySpanForGradient)).coerceIn(-2000f, chartHeightPx + 2000f)
-=======
             val ySpanForGradient = renderedYMax - renderedYMin
             fun thresholdY(value: Float): Float {
                 return if (ySpanForGradient > 0.001f) {
                     (chartHeightPx * (1f - (value - renderedYMin) / ySpanForGradient)).coerceIn(-2000f, chartHeightPx + 2000f)
->>>>>>> rebase/test-1.0.4-merge
                 } else {
                     0f
                 }
@@ -2287,10 +2178,7 @@ fun InteractiveGlucoseChart(
             // Multi-sensor: the primary trace carries a subtle identity tint so
             // it pairs with its (tinted) values, like the peer traces do.
             val primaryLineTintFraction = if (peerChartSeries.isNotEmpty()) 0.22f else 0f
-<<<<<<< HEAD
-=======
             val appTrafficDark = isSystemInDarkTheme()
->>>>>>> rebase/test-1.0.4-merge
             val gradientBrush = remember(
                 limitYVeryHigh,
                 limitYHigh,
@@ -2301,14 +2189,10 @@ fun InteractiveGlucoseChart(
                 highOutOfRangeTintBase,
                 lowOutOfRangeTintBase,
                 primaryLineTintFraction,
-<<<<<<< HEAD
-                primaryIdentityColor
-=======
                 primaryIdentityColor,
                 appChartRangeColors,
                 appTrafficDark,
                 glucosePaletteRevision
->>>>>>> rebase/test-1.0.4-merge
             ) {
                 if (chartHeightPx <= 0f) {
                     Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
@@ -2320,13 +2204,6 @@ fun InteractiveGlucoseChart(
                             color
                         }
 
-<<<<<<< HEAD
-                    val veryHighTint = identityTinted(Color(GlucoseRangeColors.VERY_HIGH))
-                    val highTint = identityTinted(highOutOfRangeTintBase)
-                    val lowTint = identityTinted(lowOutOfRangeTintBase)
-                    val veryLowTint = identityTinted(Color(GlucoseRangeColors.VERY_LOW))
-                    val inRangeTint = identityTinted(primaryColor)
-=======
                     // Traffic mode swaps the muted tints for the same palette
                     // the value/notification coloring uses, incl. green in range.
                     val veryHighTint = identityTinted(
@@ -2349,7 +2226,6 @@ fun InteractiveGlucoseChart(
                         if (appChartRangeColors) Color(GlucoseRangeColors.valueInRange(appTrafficDark))
                         else primaryColor
                     )
->>>>>>> rebase/test-1.0.4-merge
                     val fadePx = 18f
                     val stops = mutableListOf<Pair<Float, Color>>()
 
@@ -2382,23 +2258,14 @@ fun InteractiveGlucoseChart(
                 chartHeightPx,
                 highOutOfRangeTintBase,
                 lowOutOfRangeTintBase,
-<<<<<<< HEAD
-                peerNeutralBase
-=======
                 peerNeutralBase,
                 glucosePaletteRevision
->>>>>>> rebase/test-1.0.4-merge
             ) {
                 if (chartHeightPx <= 0f) {
                     emptyMap()
                 } else {
-<<<<<<< HEAD
-                    val veryHighTint = Color(GlucoseRangeColors.VERY_HIGH)
-                    val veryLowTint = Color(GlucoseRangeColors.VERY_LOW)
-=======
                     val veryHighTint = Color(GlucoseRangeColors.veryHigh(isDark))
                     val veryLowTint = Color(GlucoseRangeColors.veryLow(isDark))
->>>>>>> rebase/test-1.0.4-merge
                     val fadePx = 18f
                     peerChartSeries.associate { series ->
                         // Tone down the coloring (desaturate toward the neutral
@@ -2490,14 +2357,9 @@ fun InteractiveGlucoseChart(
 
                 // Maps Value to Y (Inverted: High value = Low Y)
                 // Hoist state reads for performance loop
-<<<<<<< HEAD
-                val cYMin = yMin
-                val cYRange = yMax - cYMin
-=======
                 val cYMin = renderedYMin
                 val cYMax = renderedYMax
                 val cYRange = cYMax - cYMin
->>>>>>> rebase/test-1.0.4-merge
                 
                 fun valToY(v: Float): Float {
                     if (cYRange < 0.001f) return chartHeight / 2 // Prevent div/0
@@ -2512,15 +2374,9 @@ fun InteractiveGlucoseChart(
 
                 // --- 1. DRAW Y-AXIS GRID ---
                 val yStep = if (cYRange < 25) 2f else 50f
-<<<<<<< HEAD
-                var yVal = (kotlin.math.ceil(yMin / yStep) * yStep).toInt() // integer steps
-                
-                while (yVal < yMax) {
-=======
                 var yVal = (kotlin.math.ceil(cYMin / yStep) * yStep).toInt() // integer steps
                 
                 while (yVal < cYMax) {
->>>>>>> rebase/test-1.0.4-merge
                     val y = valToY(yVal.toFloat())
                     if (y in 0f..chartHeight) {
                         drawLine(gridColor, Offset(0f, y), Offset(width, y), 1f)
@@ -2605,14 +2461,6 @@ fun InteractiveGlucoseChart(
                     }
                 }
 
-<<<<<<< HEAD
-                val isRawModeChart = viewMode == 1 || viewMode == 3
-                val hasCalibration = calibratedValueResolver.hasCalibration(isRawModeChart)
-                val hideInitialWhenCalibrated = hasCalibration &&
-                    tk.glucodata.data.calibration.CalibrationManager.shouldHideInitialWhenCalibrated()
-
-=======
->>>>>>> rebase/test-1.0.4-merge
                 if (peerChartSeries.isNotEmpty()) {
                     val peerGapThreshold = 900000L // 15 mins
                     val peerStroke = 2.dp.toPx()
@@ -3488,13 +3336,8 @@ fun InteractiveGlucoseChart(
             val journalChipMinGapPx = with(LocalDensity.current) { 90.dp.toPx() }
             val journalActionChipYOffsetPx = with(LocalDensity.current) { (chartHeightPx - 34.dp.toPx()).coerceAtLeast(12.dp.toPx()) }
             val overlayValueToY: (Float) -> Float = { value ->
-<<<<<<< HEAD
-                val range = (yMax - yMin).takeIf { it > 0.001f } ?: 1f
-                (chartHeightPx - ((value - yMin) / range) * chartHeightPx).coerceIn(0f, chartHeightPx)
-=======
                 val range = (renderedYMax - renderedYMin).takeIf { it > 0.001f } ?: 1f
                 (chartHeightPx - ((value - renderedYMin) / range) * chartHeightPx).coerceIn(0f, chartHeightPx)
->>>>>>> rebase/test-1.0.4-merge
             }
             fun markerOverlayY(marker: JournalChartMarker): Float? {
                 return marker.chartGlucoseValue
@@ -3724,13 +3567,6 @@ fun InteractiveGlucoseChart(
                 }
 
             activeInsulinSummary?.let { summary ->
-<<<<<<< HEAD
-                val totalUnitsLabel = if (summary.totalUnits % 1f < 0.05f) {
-                    summary.totalUnits.roundToInt().toString()
-                } else {
-                    String.format(java.util.Locale.getDefault(), "%.1f", summary.totalUnits)
-                }
-=======
                 val unitsLabel = { units: Float ->
                     if (units % 1f < 0.05f) {
                         units.roundToInt().toString()
@@ -3739,7 +3575,6 @@ fun InteractiveGlucoseChart(
                     }
                 }
                 val totalUnitsLabel = unitsLabel(summary.totalUnits)
->>>>>>> rebase/test-1.0.4-merge
                 val remainingLabel = summary.nextEndingAt
                     ?.let { formatRemainingDuration(it - System.currentTimeMillis()) }
                     ?.takeIf { it.isNotBlank() }
@@ -3760,18 +3595,6 @@ fun InteractiveGlucoseChart(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-<<<<<<< HEAD
-                                text = "${totalUnitsLabel}U",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "${summary.weightedActivityPercent}%",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-=======
                                 text = "IOB ${unitsLabel(summary.iobUnits)}U",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold
@@ -3784,7 +3607,6 @@ fun InteractiveGlucoseChart(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
->>>>>>> rebase/test-1.0.4-merge
                             remainingLabel?.let { label ->
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Icon(
@@ -3810,8 +3632,6 @@ fun InteractiveGlucoseChart(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-<<<<<<< HEAD
-=======
                                     text = buildString {
                                         append(stringResource(R.string.journal_iob_expanded, unitsLabel(summary.iobUnits)))
                                         if (showEiob) {
@@ -3822,7 +3642,6 @@ fun InteractiveGlucoseChart(
                                     style = MaterialTheme.typography.titleSmall
                                 )
                                 Text(
->>>>>>> rebase/test-1.0.4-merge
                                     text = stringResource(
                                         R.string.journal_active_insulin_summary,
                                         summary.activeEntryCount,

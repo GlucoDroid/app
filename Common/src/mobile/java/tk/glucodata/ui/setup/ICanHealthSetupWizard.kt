@@ -55,11 +55,7 @@ import tk.glucodata.drivers.icanhealth.ICanHealthRegistry
 
 private const val ICAN_HEALTH_ONBOARDING_EXAMPLE = "726022F50005"
 
-<<<<<<< HEAD
-private enum class WizardStep {
-=======
 private enum class ICanHealthSetupStep {
->>>>>>> rebase/test-1.0.4-merge
     ONBOARDING,
     CONNECTING,
     SUCCESS,
@@ -76,11 +72,7 @@ fun ICanHealthSetupWizard(
     val ui = rememberWizardUiMetrics()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-<<<<<<< HEAD
-    var currentStep by remember { mutableStateOf(WizardStep.ONBOARDING) }
-=======
     var currentStep by remember { mutableStateOf(ICanHealthSetupStep.ONBOARDING) }
->>>>>>> rebase/test-1.0.4-merge
     var lastOnboardingCode by remember { mutableStateOf("") }
     var selectedSensorLabel by remember { mutableStateOf("") }
     var showManualEntry by remember { mutableStateOf(false) }
@@ -100,11 +92,7 @@ fun ICanHealthSetupWizard(
             return
         }
         selectedSensorLabel = normalized
-<<<<<<< HEAD
-        currentStep = WizardStep.CONNECTING
-=======
         currentStep = ICanHealthSetupStep.CONNECTING
->>>>>>> rebase/test-1.0.4-merge
         scope.launch {
             try {
                 ICanHealthRegistry.addSensor(
@@ -116,11 +104,7 @@ fun ICanHealthSetupWizard(
                     null
                 )
                 kotlinx.coroutines.delay(2000)
-<<<<<<< HEAD
-                currentStep = WizardStep.SUCCESS
-=======
                 currentStep = ICanHealthSetupStep.SUCCESS
->>>>>>> rebase/test-1.0.4-merge
             } catch (t: Throwable) {
                 Log.e(tag, "Failed to add iCanHealth sensor: ${t.message}")
                 Toast.makeText(
@@ -128,11 +112,7 @@ fun ICanHealthSetupWizard(
                     context.getString(R.string.nobluetooth),
                     Toast.LENGTH_LONG
                 ).show()
-<<<<<<< HEAD
-                currentStep = WizardStep.ONBOARDING
-=======
                 currentStep = ICanHealthSetupStep.ONBOARDING
->>>>>>> rebase/test-1.0.4-merge
             }
         }
     }
@@ -173,22 +153,13 @@ fun ICanHealthSetupWizard(
     BackHandler {
         when {
             showManualEntry -> showManualEntry = false
-<<<<<<< HEAD
-            currentStep == WizardStep.ONBOARDING -> onDismiss()
-            else -> currentStep = WizardStep.ONBOARDING
-=======
             currentStep == ICanHealthSetupStep.ONBOARDING -> onDismiss()
             else -> currentStep = ICanHealthSetupStep.ONBOARDING
->>>>>>> rebase/test-1.0.4-merge
         }
     }
 
     LaunchedEffect(currentStep) {
-<<<<<<< HEAD
-        if (currentStep == WizardStep.SUCCESS) {
-=======
         if (currentStep == ICanHealthSetupStep.SUCCESS) {
->>>>>>> rebase/test-1.0.4-merge
             delay(SENSOR_SETUP_SUCCESS_AUTO_ADVANCE_MS)
             onComplete()
         }
@@ -223,11 +194,7 @@ fun ICanHealthSetupWizard(
             label = "ICanHealthWizard"
         ) { step ->
             when (step) {
-<<<<<<< HEAD
-                WizardStep.ONBOARDING -> ICanHealthOnboardingStep(
-=======
                 ICanHealthSetupStep.ONBOARDING -> ICanHealthOnboardingStep(
->>>>>>> rebase/test-1.0.4-merge
                     ui = ui,
                     onNavigateToReadiness = onNavigateToReadiness,
                     onInlineScanResult = ::requestPermissionsAndAttach,
@@ -235,11 +202,7 @@ fun ICanHealthSetupWizard(
                     onShowManualEntry = { showManualEntry = true }
                 )
 
-<<<<<<< HEAD
-                WizardStep.CONNECTING -> Box(
-=======
                 ICanHealthSetupStep.CONNECTING -> Box(
->>>>>>> rebase/test-1.0.4-merge
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
@@ -249,11 +212,7 @@ fun ICanHealthSetupWizard(
                     )
                 }
 
-<<<<<<< HEAD
-                WizardStep.SUCCESS -> Box(
-=======
                 ICanHealthSetupStep.SUCCESS -> Box(
->>>>>>> rebase/test-1.0.4-merge
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {

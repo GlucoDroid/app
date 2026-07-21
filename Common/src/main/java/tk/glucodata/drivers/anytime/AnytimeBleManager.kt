@@ -3312,8 +3312,6 @@ class AnytimeBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
-<<<<<<< HEAD
-=======
     override fun onBluetoothAdapterUnavailable() {
         cancelReconnect()
         clearGattCallbacks()
@@ -3323,7 +3321,6 @@ class AnytimeBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
->>>>>>> rebase/test-1.0.4-merge
     override fun terminateManagedSensor(wipeData: Boolean) {
         Log.i(TAG, "terminateManagedSensor requested wipeData=$wipeData")
         cancelCt5EndCycleRestart("terminateManagedSensor")

@@ -17,17 +17,11 @@ import androidx.compose.ui.unit.dp
 import tk.glucodata.R
 import tk.glucodata.alerts.AlertConfig
 import tk.glucodata.alerts.AlertDeliveryMode
-<<<<<<< HEAD
-import tk.glucodata.alerts.MAX_ALERT_DURATION_SECONDS
-import tk.glucodata.alerts.MIN_ALERT_DURATION_SECONDS
-import tk.glucodata.alerts.HapticProfile
-=======
 import tk.glucodata.alerts.AlertType
 import tk.glucodata.alerts.MAX_ALERT_DURATION_SECONDS
 import tk.glucodata.alerts.MIN_ALERT_DURATION_SECONDS
 import tk.glucodata.alerts.HapticProfile
 import tk.glucodata.alerts.maxSoundDelaySecondsFor
->>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.ui.components.StyledSwitch
 import tk.glucodata.ui.util.ConnectedButtonGroup
 
@@ -205,8 +199,6 @@ fun CommonAlertSettings(
             )
         }
 
-<<<<<<< HEAD
-=======
         // === Sound delay (vibrate first, audio after N seconds) ===
         // Only meaningful when both sound and vibration are on: otherwise there
         // is nothing to delay, or a silent gap with no signal at all.
@@ -255,7 +247,6 @@ fun CommonAlertSettings(
             }
         }
 
->>>>>>> rebase/test-1.0.4-merge
         // === Sound Settings (Conditional) ===
         AnimatedVisibility(visible = config.soundEnabled) {
             Column(

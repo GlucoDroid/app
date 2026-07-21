@@ -148,11 +148,8 @@ fun ExpressiveSettingsScreen(
     val graphLowValue by viewModel.graphLow.collectAsState()
     val graphHighValue by viewModel.graphHigh.collectAsState()
     val targetLowValue by viewModel.targetLow.collectAsState()
-<<<<<<< HEAD
-=======
     val veryLowThresholdValue by viewModel.veryLowThreshold.collectAsState()
     val veryHighThresholdValue by viewModel.veryHighThreshold.collectAsState()
->>>>>>> rebase/test-1.0.4-merge
     val targetHighValue by viewModel.targetHigh.collectAsState()
 
     // Dialog states
@@ -263,20 +260,14 @@ fun ExpressiveSettingsScreen(
                     targetHighValue = targetHighValue,
                     chartLowValue = graphLowValue,
                     chartHighValue = graphHighValue,
-<<<<<<< HEAD
-=======
                     veryLowValue = veryLowThresholdValue,
                     veryHighValue = veryHighThresholdValue,
->>>>>>> rebase/test-1.0.4-merge
                     isMmol = isMmol,
                     expanded = glucoseRangeExpanded,
                     onExpandedChange = { glucoseRangeExpanded = it },
                     onTargetRangeChange = { low, high -> viewModel.setTargetRange(low, high) },
                     onChartRangeChange = { low, high -> viewModel.setGraphRange(low, high) },
-<<<<<<< HEAD
-=======
                     onVeryRangeChange = { low, high -> viewModel.setVeryLowHighThresholds(low, high) },
->>>>>>> rebase/test-1.0.4-merge
                     iconTint = glucoseColor,
                     position = CardPosition.MIDDLE
                 )
@@ -366,10 +357,7 @@ fun ExpressiveSettingsScreen(
             val exchangeColor = MaterialTheme.colorScheme.tertiary
             val xdripEnabled by viewModel.xDripBroadcastEnabled.collectAsState()
             val glucodataBroadcastEnabled by viewModel.glucodataBroadcastEnabled.collectAsState()
-<<<<<<< HEAD
-=======
             val broadcastComputedTrend by viewModel.broadcastComputedTrend.collectAsState()
->>>>>>> rebase/test-1.0.4-merge
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 SettingsSwitchItem(
@@ -394,17 +382,11 @@ fun ExpressiveSettingsScreen(
                     title = stringResource(R.string.aaps_broadcast),
                     subtitle = stringResource(R.string.glucodata_subtitle),
                     checked = glucodataBroadcastEnabled,
-<<<<<<< HEAD
-                    icon = Icons.AutoMirrored.Filled.Send, 
-=======
                     icon = Icons.AutoMirrored.Filled.Send,
->>>>>>> rebase/test-1.0.4-merge
                     iconTint = exchangeColor,
                     position = CardPosition.MIDDLE,
                     onCheckedChange = { viewModel.toggleGlucodataBroadcast(it) }
                 )
-<<<<<<< HEAD
-=======
                 SettingsSwitchItem(
                     title = stringResource(R.string.broadcast_computed_trend_title),
                     subtitle = stringResource(R.string.broadcast_computed_trend_desc),
@@ -414,7 +396,6 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.MIDDLE,
                     onCheckedChange = { viewModel.setBroadcastComputedTrend(it) }
                 )
->>>>>>> rebase/test-1.0.4-merge
                 SettingsItem(
                     title = stringResource(R.string.outbound_api_title),
                     subtitle = stringResource(R.string.outbound_api_desc),
@@ -796,13 +777,6 @@ fun ExpressiveSettingsScreen(
                                 },
                                 Toast.LENGTH_LONG
                             ).show()
-<<<<<<< HEAD
-                            if (summary.restartRequired) {
-                                context.findActivity()?.fullRestart()
-                            } else {
-                                viewModel.refreshData()
-                            }
-=======
                             if (summary.historyReadings > 0) {
                                 // Pin the imported serial for display (when idle) so the
                                 // dashboard chart shows the imported glucose. Persisted, so
@@ -814,7 +788,6 @@ fun ExpressiveSettingsScreen(
                             if (summary.restartRequired) {
                                 context.findActivity()?.fullRestart()
                             }
->>>>>>> rebase/test-1.0.4-merge
                         } else {
                             Toast.makeText(
                                 context,
@@ -864,20 +837,14 @@ private fun GlucoseRangeExpandableSettingsItem(
     targetHighValue: Float,
     chartLowValue: Float,
     chartHighValue: Float,
-<<<<<<< HEAD
-=======
     veryLowValue: Float,
     veryHighValue: Float,
->>>>>>> rebase/test-1.0.4-merge
     isMmol: Boolean,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onTargetRangeChange: (Float, Float) -> Unit,
     onChartRangeChange: (Float, Float) -> Unit,
-<<<<<<< HEAD
-=======
     onVeryRangeChange: (Float, Float) -> Unit,
->>>>>>> rebase/test-1.0.4-merge
     iconTint: Color,
     position: CardPosition
 ) {
@@ -886,12 +853,9 @@ private fun GlucoseRangeExpandableSettingsItem(
     val targetHighBounds = if (isMmol) 6.0f..16.0f else 100f..350f
     val chartLowBounds = if (isMmol) 0.0f..12.0f else 0f..216f
     val chartHighBounds = if (isMmol) 4.0f..30.0f else 72f..540f
-<<<<<<< HEAD
-=======
     // Same bounds as the very-low/very-high alert editor.
     val veryLowBounds = if (isMmol) 2.0f..4.0f else 36f..70f
     val veryHighBounds = if (isMmol) 10.0f..20.0f else 180f..360f
->>>>>>> rebase/test-1.0.4-merge
     val normalizedTargetLow = clampLowerRangeValue(
         value = targetLowValue,
         upperValue = targetHighValue,
@@ -936,8 +900,6 @@ private fun GlucoseRangeExpandableSettingsItem(
     var chartHighSlider by remember(chartLowValue, chartHighValue, isMmol) {
         mutableFloatStateOf(normalizedChartHigh)
     }
-<<<<<<< HEAD
-=======
     val normalizedVeryLow = clampLowerRangeValue(
         value = veryLowValue,
         upperValue = veryHighValue,
@@ -958,7 +920,6 @@ private fun GlucoseRangeExpandableSettingsItem(
     var veryHighSlider by remember(veryLowValue, veryHighValue, isMmol) {
         mutableFloatStateOf(normalizedVeryHigh)
     }
->>>>>>> rebase/test-1.0.4-merge
 
     val targetSummary = remember(targetLowSlider, targetHighSlider, isMmol) {
         formatRangeSummary(targetLowSlider, targetHighSlider, isMmol)
@@ -968,12 +929,6 @@ private fun GlucoseRangeExpandableSettingsItem(
     }
     val targetShortTitle = stringResource(R.string.target_short_title)
     val chartShortTitle = stringResource(R.string.chart_short_title)
-<<<<<<< HEAD
-    val targetTitle = stringResource(R.string.target_range_title)
-    val chartTitle = stringResource(R.string.chart_limits_title)
-    val collapsedSummary = remember(targetShortTitle, chartShortTitle, targetSummary, chartSummary) {
-        "$targetShortTitle $targetSummary • $chartShortTitle $chartSummary"
-=======
     val veryShortTitle = stringResource(R.string.very_range_short_title)
     val targetTitle = stringResource(R.string.target_range_title)
     val chartTitle = stringResource(R.string.chart_limits_title)
@@ -983,7 +938,6 @@ private fun GlucoseRangeExpandableSettingsItem(
     }
     val collapsedSummary = remember(targetShortTitle, chartShortTitle, veryShortTitle, targetSummary, chartSummary, verySummary) {
         "$targetShortTitle $targetSummary • $chartShortTitle $chartSummary • $veryShortTitle $verySummary"
->>>>>>> rebase/test-1.0.4-merge
     }
 
     Surface(
@@ -1108,8 +1062,6 @@ private fun GlucoseRangeExpandableSettingsItem(
                                 onChartRangeChange(chartLowSlider, chartHighSlider)
                             }
                         )
-<<<<<<< HEAD
-=======
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
@@ -1147,7 +1099,6 @@ private fun GlucoseRangeExpandableSettingsItem(
                                 onVeryRangeChange(veryLowSlider, veryHighSlider)
                             }
                         )
->>>>>>> rebase/test-1.0.4-merge
                     }
                 }
             }
@@ -2271,10 +2222,7 @@ private fun LanguagePickerDialog(onDismiss: () -> Unit) {
         "Portuguese" to "pt",
         "Russian" to "ru",
         "Swedish" to "sv",
-<<<<<<< HEAD
-=======
         "Somali" to "so",
->>>>>>> rebase/test-1.0.4-merge
         "Turkish" to "tr",
         "Ukrainian" to "uk",
         "Mongolian" to "mn",

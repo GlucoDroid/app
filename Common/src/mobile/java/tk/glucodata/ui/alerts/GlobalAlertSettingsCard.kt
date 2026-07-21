@@ -269,10 +269,7 @@ internal fun AlertConfig.sameMasterDraft(other: AlertConfig): Boolean {
         retryEnabled == other.retryEnabled &&
         retryIntervalMinutes == other.retryIntervalMinutes &&
         retryCount == other.retryCount &&
-<<<<<<< HEAD
-=======
         soundDelayEnabled == other.soundDelayEnabled &&
         soundDelaySeconds == other.soundDelaySeconds &&
->>>>>>> rebase/test-1.0.4-merge
         defaultSnoozeMinutes == other.defaultSnoozeMinutes
 }

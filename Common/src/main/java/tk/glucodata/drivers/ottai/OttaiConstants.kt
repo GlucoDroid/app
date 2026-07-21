@@ -175,18 +175,6 @@ object OttaiConstants {
 
     // ---- Lifetime / cadence ----
 
-<<<<<<< HEAD
-    /** Sensor rated lifetime (typical Ottai). */
-    const val DEFAULT_RATED_LIFETIME_DAYS = 15
-
-    /**
-     * Activation values come from the cloud validate-by-mac response, NOT fabricated
-     * locally. The official app stores them in kotlin.reflect.p.D (activeExpireTime,
-     * ms — the maxActive duration) and p.E (retainTime, ms — the destruction value);
-     * p.E defaults to 172800000 (= 172800 s = 2 days) when the response omits it.
-     * The BLE writes are p.D/1000 and p.E/1000 respectively. Writing a fabricated
-     * absolute epoch to the destruction char made the sensor terminate the link.
-=======
     /** Sensor rated lifetime reported by the cloud for the Chinese M8 tested here. */
     const val DEFAULT_RATED_LIFETIME_DAYS = 15
 
@@ -197,22 +185,11 @@ object OttaiConstants {
      * lifetime below, while retaining the cloud value for the rated/official end shown
      * in UI. retainTime remains cloud-driven; writing an absolute epoch to destruction
      * made the sensor terminate the link.
->>>>>>> rebase/test-1.0.4-merge
      */
     const val DEFAULT_RETAIN_TIME_MS = 172_800_000L
     const val DEFAULT_ACTIVE_EXPIRE_MS = DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
 
     /**
-<<<<<<< HEAD
-     * These sensors keep streaming well past the vendor's rated lifetime. We surface the
-     * cloud-reported rated end (getOfficialEndMs) for reference, but let the sensor run to
-     * this extended horizon and never hard-stop on the calendar alone: readings continue
-     * past the extended end as long as samples keep arriving (see [OttaiBleManager.isSensorExpired]).
-     */
-    const val EXTENDED_LIFETIME_DAYS = 25
-    const val EXTENDED_LIFETIME_MS = EXTENDED_LIFETIME_DAYS * 24L * 3600L * 1000L
-
-=======
      * Managed lifetime target. This value must be written to maxActive during activation;
      * changing app-side metadata alone does not extend the sensor.
      */
@@ -235,7 +212,6 @@ object OttaiConstants {
     /** Sensor command state is authoritative; cloud/provisional timestamps are not. */
     fun commandNeedsActivation(commandStatus: Int): Boolean = commandStatus in 0..2
 
->>>>>>> rebase/test-1.0.4-merge
     /** Past the extended end, only declare the sensor expired once samples stop this long. */
     const val EXPIRED_STALE_GRACE_MS = 6L * 3600L * 1000L
 

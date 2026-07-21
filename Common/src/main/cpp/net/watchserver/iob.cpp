@@ -1,9 +1,6 @@
 #include <math.h>
-<<<<<<< HEAD
-=======
 #include <mutex>
 #include <stdint.h>
->>>>>>> rebase/test-1.0.4-merge
 #include "nums/numdata.hpp"
 #include "nightnumcategories.hpp"
 #include "settings/settings.hpp"
@@ -82,8 +79,6 @@ static long double iobformula(long double level, long double agemin,Insulin in) 
 
 
     
-<<<<<<< HEAD
-=======
 /*
 The Java journal pushes its insulin/carb totals here on every glucose reading
 (Natives.setJournalIob). While fresh, they take precedence over the
@@ -150,7 +145,6 @@ bool pebblecob(uint32_t now,double *cob) {
    return true;
    }
 
->>>>>>> rebase/test-1.0.4-merge
 double getiob(uint32_t now) {
 //   uint32_t oldage=now-6*60*60;
    uint32_t oldage=now-16*60*60;

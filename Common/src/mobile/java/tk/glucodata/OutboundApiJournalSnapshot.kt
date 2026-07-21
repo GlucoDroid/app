@@ -1,8 +1,5 @@
 package tk.glucodata
 
-<<<<<<< HEAD
-import kotlinx.coroutines.Dispatchers
-=======
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -10,7 +7,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
->>>>>>> rebase/test-1.0.4-merge
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -21,10 +17,7 @@ import tk.glucodata.data.journal.JournalEntrySource
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalFoodEntity
 import tk.glucodata.data.journal.JournalInsulinPreset
-<<<<<<< HEAD
-=======
 import tk.glucodata.data.journal.JournalIobCalculator
->>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.data.journal.JournalInsulinPresetEntity
 import tk.glucodata.data.journal.JournalRepository
 import tk.glucodata.data.journal.JournalTreatmentTransfer
@@ -36,10 +29,7 @@ object OutboundApiJournalSnapshot {
     private const val SNAPSHOT_EVENT_WINDOW_MS = 12L * 60L * 60L * 1000L
     private const val DEFAULT_ACTIVE_WINDOW_MS = 24L * 60L * 60L * 1000L
     private const val API_SOURCE_PREFIX = "api"
-<<<<<<< HEAD
-=======
     private const val JOURNAL_ENABLED_KEY = "dashboard_journal_enabled"
->>>>>>> rebase/test-1.0.4-merge
 
     @JvmStatic
     fun snapshotJson(timeMillis: Long): String = runBlocking {
@@ -48,8 +38,6 @@ object OutboundApiJournalSnapshot {
         }
     }
 
-<<<<<<< HEAD
-=======
     private class BroadcastIobCache(val atMillis: Long, val values: FloatArray?)
 
     @Volatile
@@ -148,7 +136,6 @@ object OutboundApiJournalSnapshot {
         )
     }
 
->>>>>>> rebase/test-1.0.4-merge
     @JvmStatic
     fun importFromJson(raw: String): Int = runBlocking {
         withContext(Dispatchers.IO) {
@@ -176,14 +163,10 @@ object OutboundApiJournalSnapshot {
         val startMillis = (atMillis - maxOf(DEFAULT_ACTIVE_WINDOW_MS, maxPresetDurationMs) - 60_000L)
             .coerceAtLeast(0L)
         val entries = dao.getEntriesBetween(startMillis, atMillis)
-<<<<<<< HEAD
-        val iob = activeInsulinUnits(entries, presetsById, atMillis)
-=======
         val insulin = JournalIobCalculator.compute(
             JournalIobCalculator.dosesFromEntities(entries, presetsById),
             atMillis
         )
->>>>>>> rebase/test-1.0.4-merge
         val cob = activeCarbsGrams(entries, atMillis)
         val eventWindowStart = atMillis - SNAPSHOT_EVENT_WINDOW_MS
         val events = JSONArray()
@@ -194,15 +177,10 @@ object OutboundApiJournalSnapshot {
         return JSONObject()
             .put("schema", "tk.glucodata.journal.snapshot.v2")
             .put("timestamp", atMillis)
-<<<<<<< HEAD
-            .put("iob", finiteOrNull(iob))
-            .put("journal_iob", finiteOrNull(iob))
-=======
             .put("iob", finiteOrNull(insulin.iobUnits))
             .put("journal_iob", finiteOrNull(insulin.iobUnits))
             .put("eiob", finiteOrNull(insulin.eiobUnits))
             .put("journal_eiob", finiteOrNull(insulin.eiobUnits))
->>>>>>> rebase/test-1.0.4-merge
             .put("cob", finiteOrNull(cob))
             .put("journal_cob", finiteOrNull(cob))
             .put("events", events)
@@ -346,23 +324,6 @@ object OutboundApiJournalSnapshot {
             .put("nsRemoteId", nsRemoteId)
     }
 
-<<<<<<< HEAD
-    private fun activeInsulinUnits(
-        entries: List<JournalEntryEntity>,
-        presetsById: Map<Long, JournalInsulinPreset>,
-        atMillis: Long
-    ): Float {
-        return entries.sumOf { entry ->
-            if (JournalEntryType.fromStorage(entry.entryType) != JournalEntryType.INSULIN) return@sumOf 0.0
-            val preset = entry.insulinPresetId?.let(presetsById::get) ?: return@sumOf 0.0
-            if (!preset.countsTowardIob) return@sumOf 0.0
-            val amount = entry.amount?.takeIf { it.isFinite() && it > 0f } ?: return@sumOf 0.0
-            (amount * remainingCurveFraction(preset.curvePoints, entry.timestamp, atMillis)).toDouble()
-        }.toFloat()
-    }
-
-=======
->>>>>>> rebase/test-1.0.4-merge
     private fun activeCarbsGrams(entries: List<JournalEntryEntity>, atMillis: Long): Float {
         val prefs = Applic.app.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         val absorptionGramsPerHour = prefs
@@ -378,44 +339,6 @@ object OutboundApiJournalSnapshot {
         }.toFloat()
     }
 
-<<<<<<< HEAD
-    private fun remainingCurveFraction(
-        points: List<tk.glucodata.data.journal.JournalCurvePoint>,
-        doseTimestamp: Long,
-        atMillis: Long
-    ): Float {
-        if (points.size < 2 || atMillis < doseTimestamp) return 0f
-        val elapsedMinutes = ((atMillis - doseTimestamp) / 60_000f).coerceAtLeast(0f)
-        val total = integrateCurve(points, points.last().minute.toFloat())
-        if (total <= 0.0001f) return 0f
-        val delivered = (integrateCurve(points, elapsedMinutes) / total).coerceIn(0f, 1f)
-        return (1f - delivered).coerceIn(0f, 1f)
-    }
-
-    private fun integrateCurve(
-        points: List<tk.glucodata.data.journal.JournalCurvePoint>,
-        upToMinute: Float
-    ): Float {
-        if (points.size < 2 || upToMinute <= points.first().minute) return 0f
-        var area = 0f
-        for (index in 0 until points.lastIndex) {
-            val start = points[index]
-            val end = points[index + 1]
-            if (upToMinute <= start.minute) break
-            val segmentEndMinute = minOf(upToMinute, end.minute.toFloat())
-            val segmentWidth = segmentEndMinute - start.minute
-            if (segmentWidth <= 0f) continue
-            val fullWidth = (end.minute - start.minute).coerceAtLeast(1).toFloat()
-            val endFraction = ((segmentEndMinute - start.minute) / fullWidth).coerceIn(0f, 1f)
-            val segmentEndActivity = start.activity + ((end.activity - start.activity) * endFraction)
-            area += ((start.activity + segmentEndActivity) * 0.5f) * segmentWidth
-            if (upToMinute <= end.minute) break
-        }
-        return area
-    }
-
-=======
->>>>>>> rebase/test-1.0.4-merge
     private fun linearProgress(startMillis: Long, durationMinutes: Float, atMillis: Long): Float {
         if (atMillis <= startMillis) return 0f
         val elapsedMinutes = (atMillis - startMillis) / 60_000f

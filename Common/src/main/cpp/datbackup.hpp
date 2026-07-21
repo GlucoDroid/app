@@ -816,11 +816,7 @@ public:
       }
     }
     int portint = atoi(port.data());
-<<<<<<< HEAD
-    if (!passiveonly && (portint > 65535 || portint < 1)) {
-=======
     if (portint > 65535 || portint <= 0) {
->>>>>>> rebase/test-1.0.4-merge
       LOGGER("port out of range %d\n", portint);
       return -1;
     }

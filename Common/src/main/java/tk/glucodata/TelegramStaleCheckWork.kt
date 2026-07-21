@@ -4,21 +4,12 @@ import android.content.Context
 import android.os.Handler
 import android.os.HandlerThread
 import org.json.JSONObject
-<<<<<<< HEAD
-=======
 import java.net.HttpURLConnection
 import java.net.URL
->>>>>>> rebase/test-1.0.4-merge
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
-<<<<<<< HEAD
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-=======
->>>>>>> rebase/test-1.0.4-merge
 
 /**
  * In-process scheduler for the Telegram "stale" / "missed reading" edit.
@@ -119,14 +110,8 @@ object TelegramStaleCheckWork {
                     )
                 }
                 null -> {
-<<<<<<< HEAD
-                    // Transient network error — retry after TRANSIENT_RETRY_DELAY_MS.
-                    // All recipients are re-evaluated on retry; STALE_THROTTLE_MS
-                    // prevents re-sending to those that already succeeded.
-=======
                     // Transient network error — reschedule so the notification is
                     // retried rather than silently dropped.
->>>>>>> rebase/test-1.0.4-merge
                     earliestNextDelayMs = minOf(earliestNextDelayMs, TRANSIENT_RETRY_DELAY_MS)
                 }
             }
@@ -153,12 +138,6 @@ object TelegramStaleCheckWork {
      * Posts a new stale/missed message to the chat (does not edit the existing bubble).
      * Returns true on 2xx, false on a definitive API rejection (4xx),
      * null on transient network failure (caller should leave state intact).
-<<<<<<< HEAD
-     *
-     * Uses the shared OutboundApi.httpClient (OkHttp) for HTTP/2 PING keep-alive,
-     * matching the rest of the outbound transport.
-=======
->>>>>>> rebase/test-1.0.4-merge
      */
     private fun postSend(
         destination: OutboundApiSettings.Destination,
@@ -171,28 +150,6 @@ object TelegramStaleCheckWork {
             .put("text", text)
             .toString()
             .toByteArray(Charsets.UTF_8)
-<<<<<<< HEAD
-        val contentType = "application/json; charset=UTF-8"
-        return try {
-            val builder = Request.Builder().url(sendUrl)
-                .header("Content-Type", contentType)
-                .header("Accept", "application/json, text/plain")
-                .header("User-Agent", "JugglucoNG API destinations")
-            destination.headers.split('\n')
-                .filter { it.contains(':') }
-                .forEach { line ->
-                    val parts = line.split(':', limit = 2)
-                    if (parts.size != 2) return@forEach
-                    val k = parts[0].trim()
-                    val v = parts[1].trim()
-                    if (k.isEmpty() || k.equals("Content-Type", ignoreCase = true)) return@forEach
-                    builder.header(k, v)
-                }
-            val request = builder.post(body.toRequestBody(contentType.toMediaTypeOrNull())).build()
-            val call = OutboundApi.httpClient.newCall(request)
-            call.execute().use { response ->
-                val code = response.code
-=======
         return try {
             val connection = (URL(sendUrl).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -212,17 +169,13 @@ object TelegramStaleCheckWork {
                 connection.outputStream.use { it.write(body) }
                 val code = connection.responseCode
                 // 429 (rate limit) and 5xx (server error) are transient — leave state intact.
->>>>>>> rebase/test-1.0.4-merge
                 when {
                     code in 200..299 -> true
                     code == 429 || code >= 500 -> null
                     else -> false
                 }
-<<<<<<< HEAD
-=======
             } finally {
                 connection.disconnect()
->>>>>>> rebase/test-1.0.4-merge
             }
         } catch (_: Throwable) {
             null

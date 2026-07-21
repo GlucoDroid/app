@@ -82,10 +82,7 @@ import java.text.DateFormat;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-<<<<<<< HEAD
-=======
 import tk.glucodata.alerts.AlertDisplayText;
->>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.alerts.AlertType;
 import tk.glucodata.alerts.SnoozeManager;
 import tk.glucodata.alerts.AlertConfig;
@@ -922,13 +919,10 @@ public class Notify {
     private static AlertSoundHandle delayedAlertSoundHandle = null;
     private static long nextAlertEffectStartAllowedMs = 0L;
     private static long manualEffectBypassUntilMs = 0L;
-<<<<<<< HEAD
-=======
     // "Vibrate first, audio after N seconds": the scheduled audible-alarm start.
     // Distinct from the anti-overlap debounce above; cancelled on any stop.
     private static ScheduledFuture<?> delayedSoundSchedule = null;
     private static long delayedSoundGeneration = 0L;
->>>>>>> rebase/test-1.0.4-merge
 
     private static final class AlertRetrySession {
         int kind;
@@ -1013,15 +1007,11 @@ public class Notify {
         } catch (Throwable th) {
             Log.stack(LOG_ID, "resolveNotificationStatusText", th);
         }
-<<<<<<< HEAD
-        return fallbackStatus != null ? fallbackStatus : "";
-=======
         // Raw GATT codes ("Status=147") are diagnostics for the bluediag
         // screen, not something to surface in the notification.
         if (fallbackStatus == null || fallbackStatus.startsWith("Status="))
             return "";
         return fallbackStatus;
->>>>>>> rebase/test-1.0.4-merge
     }
 
     private static CurrentDisplaySource.Snapshot resolveNotificationCurrentSnapshot() {
@@ -1281,19 +1271,7 @@ public class Notify {
         if (customAlertId == null || customAlertId.isEmpty()) {
             return false;
         }
-<<<<<<< HEAD
-        try {
-            final Class<?> managerClass = Class.forName("tk.glucodata.logic.CustomAlertManager");
-            final Object manager = managerClass.getField("INSTANCE").get(null);
-            managerClass.getMethod("dismissAlert", String.class).invoke(manager, customAlertId);
-            return true;
-        } catch (Throwable th) {
-            Log.stack(LOG_ID, "dismissCustomAlertById", th);
-            return false;
-        }
-=======
         return CustomAlertAccess.dismissAlert(customAlertId);
->>>>>>> rebase/test-1.0.4-merge
     }
 
     public static void acknowledgeCurrentAlert() {
@@ -1477,13 +1455,9 @@ public class Notify {
         return null;
     }
 
-<<<<<<< HEAD
-    private static int resolveSensorViewMode(String sensorName) {
-=======
     // Package-visible: BroadcastTrendRate resolves the same view mode when
     // computing the outgoing trend.
     static int resolveSensorViewMode(String sensorName) {
->>>>>>> rebase/test-1.0.4-merge
         if (sensorName == null || sensorName.isEmpty()) {
             return 0;
         }
@@ -1610,13 +1584,9 @@ public class Notify {
     }
 
     private static void cancelDelayedAlertEffectsLocked(String reason) {
-<<<<<<< HEAD
-        final boolean hadDelayed = delayedAlertEffectSchedule != null || delayedAlertSoundHandle != null;
-=======
         final boolean hadDelayed = delayedAlertEffectSchedule != null
                 || delayedAlertSoundHandle != null
                 || delayedSoundSchedule != null;
->>>>>>> rebase/test-1.0.4-merge
         if (delayedAlertEffectSchedule != null) {
             delayedAlertEffectSchedule.cancel(false);
             delayedAlertEffectSchedule = null;
@@ -1625,8 +1595,6 @@ public class Notify {
             stopSoundHandleQuietly(delayedAlertSoundHandle);
             delayedAlertSoundHandle = null;
         }
-<<<<<<< HEAD
-=======
         // Cancel a pending "vibrate first, audio later" sound so it never fires
         // after a dismiss / snooze / resolution / retry.
         if (delayedSoundSchedule != null) {
@@ -1634,7 +1602,6 @@ public class Notify {
             delayedSoundSchedule = null;
         }
         delayedSoundGeneration++;
->>>>>>> rebase/test-1.0.4-merge
         delayedAlertEffectPriority = Integer.MIN_VALUE;
         delayedAlertEffectGeneration++;
         if (hadDelayed && doLog) {
@@ -1703,13 +1670,10 @@ public class Notify {
     }
 
     private void vibratealarm(int kind, String hapticProfileName, int durationSeconds) {
-<<<<<<< HEAD
-=======
         vibratealarm(kind, hapticProfileName, durationSeconds, 0);
     }
 
     private void vibratealarm(int kind, String hapticProfileName, int durationSeconds, int soundDelayLeadInSeconds) {
->>>>>>> rebase/test-1.0.4-merge
         var context = Applic.app;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             vibrator = ((VibratorManager) (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)))
@@ -1798,30 +1762,19 @@ public class Notify {
                         amplitudes[i] = 1; // Ensure non-zero if it was meant to be on
                 }
             }
-<<<<<<< HEAD
-            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes, durationSeconds);
-            vibrateWaveform(vibrator, finitePattern.timings, finitePattern.amplitudes, -1);
-        } else {
-            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes, durationSeconds);
-=======
             final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes,
                     durationSeconds, soundDelayLeadInSeconds);
             vibrateWaveform(vibrator, finitePattern.timings, finitePattern.amplitudes, -1);
         } else {
             final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes,
                     durationSeconds, soundDelayLeadInSeconds);
->>>>>>> rebase/test-1.0.4-merge
             vibrator.vibrate(finitePattern.timings, -1);
         }
 
         if (doLog) {
             Log.i(LOG_ID, "vibratealarm " + kind + " hapticProfile=" + hapticProfileName
-<<<<<<< HEAD
-                    + " duration=" + sanitizeAlarmDurationSeconds(durationSeconds));
-=======
                     + " duration=" + sanitizeAlarmDurationSeconds(durationSeconds)
                     + (soundDelayLeadInSeconds > 0 ? " soundDelayLeadIn=" + soundDelayLeadInSeconds : ""));
->>>>>>> rebase/test-1.0.4-merge
         }
     }
 
@@ -2057,18 +2010,6 @@ public class Notify {
         // MOVED EFFECTS START HERE - SAFER
         final String resolvedHapticProfile = (hapticProfile != null) ? hapticProfile : getHapticProfile(kind);
 
-<<<<<<< HEAD
-        if (sound) {
-            if (doplaysound[0] && hasSoundHandle) {
-                if (soundHandle != null) {
-                    soundHandle.setMaxVolume(soundVolumeForProfile(resolvedHapticProfile));
-                    soundHandle.play();
-                } else if (doLog) {
-                    Log.w(LOG_ID, "playringhier: sound handle is null");
-                }
-            }
-        }
-=======
         // Sound delay ("vibrate first, audio after N seconds"): start vibration
         // and flash immediately; add the audible alarm only after the configured
         // delay. Only when both sound and vibration are on for this alert (else
@@ -2077,19 +2018,12 @@ public class Notify {
         final long soundDelayMs = TimeUnit.SECONDS.toMillis(soundDelaySeconds);
         final boolean canPlaySound = sound && doplaysound[0] && hasSoundHandle && soundHandle != null;
 
->>>>>>> rebase/test-1.0.4-merge
         if (!isWearable) {
             if (flash) {
                 Flash.start(app, 200L);
             }
         }
         if (vibrate) {
-<<<<<<< HEAD
-            vibratealarm(kind, resolvedHapticProfile, duration);
-        }
-
-        stopschedule = Applic.scheduler.schedule(runstopalarm, stopDelayMs, TimeUnit.MILLISECONDS);
-=======
             // The finite pattern must also span the silent delay phase
             // ("vibrate first"), else it runs out before the sound starts.
             vibratealarm(kind, resolvedHapticProfile, duration, soundDelaySeconds);
@@ -2132,7 +2066,6 @@ public class Notify {
         // Auto-stop counts the sound's play time from when it actually begins, so
         // a delayed sound still plays for its full duration.
         stopschedule = Applic.scheduler.schedule(runstopalarm, stopDelayMs + soundDelayMs, TimeUnit.MILLISECONDS);
->>>>>>> rebase/test-1.0.4-merge
 
     }
     private String getDeliveryMode(int kind) {
@@ -2198,8 +2131,6 @@ public class Notify {
         }
     }
 
-<<<<<<< HEAD
-=======
     // Resolved audible-alarm delay for this alert type, in seconds (0 = none).
     // Re-applies the per-type hypo cap via the single source of truth in
     // AlertConfig, independent of how the value was written.
@@ -2221,7 +2152,6 @@ public class Notify {
         }
     }
 
->>>>>>> rebase/test-1.0.4-merge
     void mksound(int kind) {
         String ringUri = null;
         try {
@@ -2925,14 +2855,11 @@ public class Notify {
     }
 
     private void setIcon(Notification.Builder GluNotBuilder, float glvalue, int sensorgen2) {
-<<<<<<< HEAD
-=======
         setIcon(GluNotBuilder, glvalue, sensorgen2, java.util.Collections.emptyList());
     }
 
     private void setIcon(Notification.Builder GluNotBuilder, float glvalue, int sensorgen2,
             java.util.List<NotificationChartDrawer.ValueItem> peerValues) {
->>>>>>> rebase/test-1.0.4-merge
         boolean hideIcon = Applic.app.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
                 .getBoolean("notification_hide_status_icon", false);
 
@@ -2942,9 +2869,6 @@ public class Notify {
         }
 
         if (makeicon) {
-<<<<<<< HEAD
-            final var icon = icons.getIcon(getglstring(glvalue, sensorgen2));
-=======
             final java.util.ArrayList<String> peerTexts = new java.util.ArrayList<>();
             if (peerValues != null) {
                 for (NotificationChartDrawer.ValueItem peer : peerValues) {
@@ -2957,7 +2881,6 @@ public class Notify {
                 }
             }
             final var icon = icons.getIcon(getglstring(glvalue, sensorgen2), peerTexts);
->>>>>>> rebase/test-1.0.4-merge
             GluNotBuilder.setSmallIcon(icon);
         } else {
             var draw = GlucoseDraw.getgludraw(glvalue, sensorgen2);
@@ -3101,10 +3024,6 @@ public class Notify {
 
                 float displayRate = glucose.rate;
                 try {
-<<<<<<< HEAD
-                    boolean useRaw = (viewMode == 1 || viewMode == 3);
-                    displayRate = TrendAccess.calculateVelocity(nativePoints, useRaw, isMmol);
-=======
                     // The alarm arrow must not disagree with the main notification and the
                     // dashboard hero: regress over the same canonical trend list they use,
                     // not a bare 10-minute wall-clock slice.
@@ -3116,7 +3035,6 @@ public class Notify {
                             activeSensorSerial);
                     displayRate = DisplayTrendSource.resolveArrowRate(trendPoints, alarmSnapshot, viewMode, isMmol,
                             glucose.rate);
->>>>>>> rebase/test-1.0.4-merge
                 } catch (Throwable t) {
                     // keep original rate if fails
                 }
@@ -3136,21 +3054,12 @@ public class Notify {
                 RemoteViews remoteViewsHeadsUp = new RemoteViews(Applic.app.getPackageName(),
                         R.layout.notification_material_heads_up);
 
-<<<<<<< HEAD
-                // Clean message: "Forecast Low 4.0 mmol/L" -> "Forecast Low"
-                String cleanMessage = customAlertId != null && !customAlertId.isEmpty()
-                        ? message
-                        : message.replaceAll("[0-9.,]+", "").replaceAll("mmol/L", "")
-                                .replaceAll("mg/dL", "").trim();
-                final String badgeText = cleanMessage.isEmpty() ? message : cleanMessage;
-=======
                 // "Forecast Low 4.0 mmol/L" -> "Forecast Low"; duration-carrying
                 // messages (sensor expiry, missed reading) keep their numbers.
                 final String badgeText = AlertDisplayText.notificationBadge(
                         AlertType.Companion.fromId(alertTypeId),
                         customAlertId != null && !customAlertId.isEmpty(),
                         message);
->>>>>>> rebase/test-1.0.4-merge
                 final String alertMeta = timef.format(glucose.time);
                 final String plainValueText = valueText.toString();
 
@@ -3190,15 +3099,12 @@ public class Notify {
 
                 remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
                 remoteViews.setTextViewText(R.id.notification_status, badgeText);
-<<<<<<< HEAD
-=======
                 remoteViews.setTextColor(R.id.notification_status,
                         ((Applic.app.getResources().getConfiguration().uiMode
                                 & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
                                 == android.content.res.Configuration.UI_MODE_NIGHT_YES)
                                         ? 0xB3FFFFFF
                                         : 0x8A000000);
->>>>>>> rebase/test-1.0.4-merge
                 remoteViews.setViewVisibility(R.id.notification_alert_badge, View.GONE);
                 remoteViews.setViewVisibility(R.id.notification_meta, View.GONE);
 
@@ -3463,8 +3369,6 @@ public class Notify {
         } catch (Exception e) {
             chartPoints = new java.util.ArrayList<>();
         }
-<<<<<<< HEAD
-=======
 
         // The canonical trend list: derived from the same rows before the chart's own
         // augmentation, so the arrow regresses over byte-identical points with the
@@ -3472,7 +3376,6 @@ public class Notify {
         java.util.List<GlucosePoint> nativePoints = DisplayTrendSource.resolveTrendPoints(chartPoints, resolvedDisplay,
                 activeSensorSerial);
 
->>>>>>> rebase/test-1.0.4-merge
         chartPoints = DisplayTrendSource.augmentHistory(chartPoints, resolvedDisplay, activeSensorSerial, startT);
 
         BatteryTrace.bump(
@@ -3480,19 +3383,6 @@ public class Notify {
                 20L,
                 "interactive=" + isScreenInteractive());
 
-<<<<<<< HEAD
-        long recentStartT = endT - DisplayTrendSource.TREND_WINDOW_MS;
-        java.util.List<GlucosePoint> nativePoints = new java.util.ArrayList<>();
-        try {
-            nativePoints = NotificationHistorySource.getDisplayHistory(recentStartT, isMmol, activeSensorSerial);
-        } catch (Exception e) {
-            // Fall back to chart points if native fails
-            nativePoints = chartPoints;
-        }
-        nativePoints = DisplayTrendSource.augmentHistory(nativePoints, resolvedDisplay, activeSensorSerial, recentStartT);
-
-=======
->>>>>>> rebase/test-1.0.4-merge
         // Status Logic & ViewMode extraction
         String statusText = "";
         int viewMode = 0; // Default
@@ -3565,12 +3455,6 @@ public class Notify {
         boolean showArrow = prefs.getBoolean("notification_show_arrow", true);
         float arrowSize = prefs.getFloat("notification_arrow_size", 1.0f);
         boolean showStatus = prefs.getBoolean("notification_show_status", true);
-<<<<<<< HEAD
-        boolean showChart = prefs.getBoolean("notification_chart_enabled", true);
-        boolean showChartCollapsed = prefs.getBoolean("notification_chart_collapsed", false);
-        boolean showTargetRange = prefs.getBoolean("notification_chart_target_range", true);
-
-=======
         boolean showIob = prefs.getBoolean("notification_show_iob", false);
         boolean showCob = prefs.getBoolean("notification_show_cob", false);
         boolean showDelta = prefs.getBoolean("notification_show_delta", false);
@@ -3594,18 +3478,11 @@ public class Notify {
                     shadeNight, isMmol, primaryDisplayColor);
         }
 
->>>>>>> rebase/test-1.0.4-merge
         // Multi-sensor: arrows render inline next to each value inside the
         // glucose bitmap; the standalone arrow view would otherwise sit after
         // the peer values and look like it belongs to the last peer.
         boolean inlineMultiArrows = showArrow && !peerValueItems.isEmpty();
 
-<<<<<<< HEAD
-        // Render Arrow (Color + Size from Preferences) - still bitmap for colored
-        // vector
-        Bitmap arrowBitmap = (showArrow && !inlineMultiArrows)
-                ? NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, primaryDisplayColor, arrowSize)
-=======
         // Arrow color: optionally driven by the 30-minute linear forecast
         // (value color says where you are, arrow color where you're heading).
         // Gated on data age: during a reconnect gap the trend window only
@@ -3637,7 +3514,6 @@ public class Notify {
         // vector
         Bitmap arrowBitmap = (showArrow && !inlineMultiArrows)
                 ? NotificationChartDrawer.drawArrow(Applic.app, rate, isMmol, arrowColor, arrowSize)
->>>>>>> rebase/test-1.0.4-merge
                 : null;
 
         // 3a. Construct RemoteViews (Collapsed)
@@ -3673,13 +3549,6 @@ public class Notify {
 
         CharSequence finalText = ssb;
 
-<<<<<<< HEAD
-        String newStatusText = resolveNotificationStatusText(activeSensorSerial, statusText);
-
-        // Apply Style to Status Text too
-        CharSequence styledStatus = newStatusText;
-        if (newStatusText != null && !newStatusText.isEmpty()) {
-=======
         String sensorStatusText = resolveNotificationStatusText(activeSensorSerial, statusText);
 
         // The status line carries the journal IOB/eIOB/COB (when enabled) and
@@ -3739,7 +3608,6 @@ public class Notify {
         final int statusTextColor = shadeNight ? 0xB3FFFFFF : 0x8A000000;
         CharSequence styledStatus = newStatusText;
         if (newStatusText != null && newStatusText.length() > 0) {
->>>>>>> rebase/test-1.0.4-merge
             android.text.SpannableStringBuilder ssbStatus = new android.text.SpannableStringBuilder(newStatusText);
             ssbStatus.setSpan(new android.text.style.TypefaceSpan(family), 0, ssbStatus.length(),
                     android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
@@ -3769,16 +3637,10 @@ public class Notify {
         }
 
         // Status - native TextView
-<<<<<<< HEAD
-        if (showStatus && newStatusText != null && !newStatusText.isEmpty()) {
-            remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
-            remoteViews.setTextViewText(R.id.notification_status, styledStatus);
-=======
         if (newStatusText != null && newStatusText.length() > 0) {
             remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
             remoteViews.setTextViewText(R.id.notification_status, styledStatus);
             remoteViews.setTextColor(R.id.notification_status, statusTextColor);
->>>>>>> rebase/test-1.0.4-merge
         } else {
             remoteViews.setViewVisibility(R.id.notification_status, View.GONE);
         }
@@ -3804,16 +3666,10 @@ public class Notify {
         }
 
         // Status for Expanded - native TextView
-<<<<<<< HEAD
-        if (showStatus && newStatusText != null && !newStatusText.isEmpty()) {
-            remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.VISIBLE);
-            remoteViewsExpanded.setTextViewText(R.id.notification_status, styledStatus);
-=======
         if (newStatusText != null && newStatusText.length() > 0) {
             remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.VISIBLE);
             remoteViewsExpanded.setTextViewText(R.id.notification_status, styledStatus);
             remoteViewsExpanded.setTextColor(R.id.notification_status, statusTextColor);
->>>>>>> rebase/test-1.0.4-merge
         } else {
             remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.GONE);
         }
@@ -3881,11 +3737,7 @@ public class Notify {
         var GluNotBuilder = mkbuilder(type);
         GluNotBuilder.setOnlyAlertOnce(once);
 
-<<<<<<< HEAD
-        setIcon(GluNotBuilder, displayGlucoseValue, glucose.sensorgen2);
-=======
         setIcon(GluNotBuilder, displayGlucoseValue, glucose.sensorgen2, peerValueItems);
->>>>>>> rebase/test-1.0.4-merge
 
         GluNotBuilder.setVisibility(VISIBILITY_PUBLIC);
 
@@ -3943,25 +3795,12 @@ public class Notify {
         } catch (Exception e) {
             chartPoints = new java.util.ArrayList<>();
         }
-<<<<<<< HEAD
-        chartPoints = DisplayTrendSource.augmentHistory(chartPoints, current, activeSensorSerial, startT);
-
-        long recentStartT = endT - DisplayTrendSource.TREND_WINDOW_MS;
-        java.util.List<GlucosePoint> nativePoints = new java.util.ArrayList<>();
-        try {
-            nativePoints = NotificationHistorySource.getDisplayHistory(recentStartT, isMmol, activeSensorSerial);
-        } catch (Exception e) {
-            nativePoints = chartPoints;
-        }
-        nativePoints = DisplayTrendSource.augmentHistory(nativePoints, current, activeSensorSerial, recentStartT);
-=======
 
         // Same canonical trend list as the update path, the dashboard hero and the broadcast.
         java.util.List<GlucosePoint> nativePoints = DisplayTrendSource.resolveTrendPoints(chartPoints, current,
                 activeSensorSerial);
 
         chartPoints = DisplayTrendSource.augmentHistory(chartPoints, current, activeSensorSerial, startT);
->>>>>>> rebase/test-1.0.4-merge
 
         // Identify ViewMode for Startup
         int viewMode = 0;
@@ -4183,10 +4022,6 @@ public class Notify {
             styledMessage = ssbMsg;
         }
 
-<<<<<<< HEAD
-        remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
-        remoteViews.setTextViewText(R.id.notification_status, styledMessage);
-=======
         // Same explicit night-aware color as the live notification — the
         // layout's theme attribute renders near-invisible on dark shades.
         final boolean startupShadeNight = (Applic.app.getResources().getConfiguration().uiMode
@@ -4196,7 +4031,6 @@ public class Notify {
         remoteViews.setViewVisibility(R.id.notification_status, View.VISIBLE);
         remoteViews.setTextViewText(R.id.notification_status, styledMessage);
         remoteViews.setTextColor(R.id.notification_status, startupStatusColor);
->>>>>>> rebase/test-1.0.4-merge
 
         RemoteViews remoteViewsExpanded = new RemoteViews(Applic.app.getPackageName(),
                 R.layout.notification_material_regular_expanded);
@@ -4217,10 +4051,7 @@ public class Notify {
         }
         remoteViewsExpanded.setViewVisibility(R.id.notification_status, View.VISIBLE);
         remoteViewsExpanded.setTextViewText(R.id.notification_status, styledMessage);
-<<<<<<< HEAD
-=======
         remoteViewsExpanded.setTextColor(R.id.notification_status, startupStatusColor);
->>>>>>> rebase/test-1.0.4-merge
 
         var GluNotBuilder = mkbuilder(GLUCOSENOTIFICATION);
         if (Build.VERSION.SDK_INT >= 24) {

@@ -1,18 +1,12 @@
 #pragma once
 #include "SensorGlucoseData.hpp"
-<<<<<<< HEAD
-=======
 #include "../../exchangetrend.hpp"
->>>>>>> rebase/test-1.0.4-merge
 #include "gltype.hpp"
 #include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <cstring>
-<<<<<<< HEAD
-=======
 #include <span>
->>>>>>> rebase/test-1.0.4-merge
 #include <string_view>
 #include <time.h>
 template <typename T>

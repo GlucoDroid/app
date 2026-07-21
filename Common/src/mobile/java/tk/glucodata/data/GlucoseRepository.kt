@@ -61,9 +61,6 @@ class GlucoseRepository {
             _currentSerial.value = resolved
         }
     }
-<<<<<<< HEAD
-    
-=======
 
     /**
      * Fold overlapping imported history into the current real sensor immediately.
@@ -76,7 +73,6 @@ class GlucoseRepository {
         historyRepository.reconcileImportedIntoSensor(serial)
     }
 
->>>>>>> rebase/test-1.0.4-merge
     companion object {
         private const val TAG = "GlucoseRepo"
         private const val ONE_SHOT_SYNC_MIN_INTERVAL_MS = 5_000L

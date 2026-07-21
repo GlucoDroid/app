@@ -24,12 +24,9 @@ interface JournalDao {
     @Query("SELECT * FROM journal_entries WHERE timestamp BETWEEN :startMillis AND :endMillis ORDER BY timestamp ASC, id ASC")
     suspend fun getEntriesBetween(startMillis: Long, endMillis: Long): List<JournalEntryEntity>
 
-<<<<<<< HEAD
-=======
     @Query("SELECT COUNT(*) FROM journal_entries WHERE entryType = :entryType")
     suspend fun countEntriesByType(entryType: String): Int
 
->>>>>>> rebase/test-1.0.4-merge
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertEntry(entry: JournalEntryEntity): Long
 

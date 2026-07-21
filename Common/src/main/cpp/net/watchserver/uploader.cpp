@@ -44,10 +44,7 @@ jstring jnightuploadEntriesurl=nullptr;
 jstring jnightuploadEntries3url=nullptr;
 jstring jnightuploadTreatmentsurl=nullptr;
 jstring jnightuploadTreatments3url=nullptr;
-<<<<<<< HEAD
-=======
 jstring jnightuploadDevicestatusurl=nullptr;
->>>>>>> rebase/test-1.0.4-merge
 jstring jnightuploadsecret= nullptr;
 jclass nightscoutcalibrationclass=nullptr;
 static int lastNightUploadCode = 0;
@@ -140,12 +137,9 @@ static bool makeuploadurls(JNIEnv *env) {
     const bool entriesv3=makeuploadurl(env,R"(/api/v3/entries)",jnightuploadEntries3url);
     const bool treatmentsv1=makeuploadurl(env,R"(/api/v1/treatments)",jnightuploadTreatmentsurl);
     const bool treatmentsv3=makeuploadurl(env,R"(/api/v3/treatments)",jnightuploadTreatments3url);
-<<<<<<< HEAD
-=======
     //devicestatus carries the uploader battery only. A failure here must not hold back glucose,
     //so it is built but deliberately left out of the readiness check.
     makeuploadurl(env,R"(/api/v1/devicestatus)",jnightuploadDevicestatusurl);
->>>>>>> rebase/test-1.0.4-merge
     return entriesv1&&entriesv3&&treatmentsv1&&treatmentsv3;
     }
 
@@ -366,8 +360,6 @@ int nightuploadTreatments(const char *data,int len) {
 int nightuploadTreatments3(const char *data,int len) {
     return nightupload(jnightuploadTreatments3url,data,len,false);
     }
-<<<<<<< HEAD
-=======
 int nightuploadDevicestatus(const char *data,int len) {
     return nightupload(jnightuploadDevicestatusurl,data,len,false);
     }
@@ -425,7 +417,6 @@ static bool uploadDeviceStatus() {
     lastdevicestatusupload=nu;
     return true;
     }
->>>>>>> rebase/test-1.0.4-merge
 
 
 extern double     calibrateONEtest(const SensorGlucoseData *sens,const ScanData &value);
@@ -433,13 +424,9 @@ extern double getdelta(float change);
 extern std::string_view getdeltaname(float change);
 extern int mkv1streamid(char *outiter,const sensorname_t *name,int num);
 
-<<<<<<< HEAD
-template <class T> int mkuploaditem(SensorGlucoseData *sens,char *buf,const sensorname_t *sensorname,const T &item,const bool includeId=false,const bool trailingComma=true) {
-=======
 //gdata/pos locate item inside the poll series so a rate can be derived when the driver reported
 //none (AiDex, Libre 3 backfill). Without it those sensors upload direction:"" and delta:0 forever.
 template <class T> int mkuploaditem(SensorGlucoseData *sens,char *buf,const sensorname_t *sensorname,const T &item,std::span<const ScanData> gdata,const int pos,const bool includeId=false,const bool trailingComma=true) {
->>>>>>> rebase/test-1.0.4-merge
     const time_t tim=item.gettime();
     const std::string_view sensornameView=fixedsensorview(sensorname);
     char sensornameStr[64];
@@ -451,11 +438,7 @@ template <class T> int mkuploaditem(SensorGlucoseData *sens,char *buf,const sens
     int mgdL=getNightscoutCalibrationOverrideForItem(sens,sensornameStr,autoMgdl,rawCurrent,tim*1000LL);
     if(mgdL<=0)
         mgdL=autoMgdl;
-<<<<<<< HEAD
-    float change= item.getchange();
-=======
     const float change=effectivechange(gdata,pos,item);
->>>>>>> rebase/test-1.0.4-merge
     const std::string_view directionlabel=getdeltaname(change);
     double delta=getdelta(change);
     char *out=buf;
@@ -521,11 +504,7 @@ static bool uploadRecentV1(const int sensorid,SensorGlucoseData *sens,const sens
         char buf[512];
         char *ptr=buf;
         *ptr++='[';
-<<<<<<< HEAD
-        ptr+=mkuploaditem(sens,ptr,sensorname,el,true,false);
-=======
         ptr+=mkuploaditem(sens,ptr,sensorname,el,gdata,iter,true,false);
->>>>>>> rebase/test-1.0.4-merge
         *ptr++=']';
         *ptr='\0';
         const int res=nightuploadEntries(buf,ptr-buf);
@@ -551,11 +530,7 @@ static bool uploadV1ChunkIndividually(const int sensorid,SensorGlucoseData *sens
         char buf[512];
         char *ptr=buf;
         *ptr++='[';
-<<<<<<< HEAD
-        ptr+=mkuploaditem(sens,ptr,sensorname,el,true,false);
-=======
         ptr+=mkuploaditem(sens,ptr,sensorname,el,gdata,iter,true,false);
->>>>>>> rebase/test-1.0.4-merge
         *ptr++=']';
         *ptr='\0';
         const int res=nightuploadEntries(buf,ptr-buf);
@@ -565,22 +540,15 @@ static bool uploadV1ChunkIndividually(const int sensorid,SensorGlucoseData *sens
     return true;
     }
 
-<<<<<<< HEAD
-static const char *writeNightscoutV3UploadEntry(char *buf,SensorGlucoseData *sens,const sensorname_t *sensorname,const ScanData *el) {
-=======
 static const char *writeNightscoutV3UploadEntry(char *buf,SensorGlucoseData *sens,const sensorname_t *sensorname,const ScanData *el,std::span<const ScanData> gdata,const int pos) {
->>>>>>> rebase/test-1.0.4-merge
 extern char * writev3entry(char *outin,const ScanData *val, const sensorname_t *sensorname,bool server=true);
     char sensornameStr[64];
     copyfixedsensorname(sensornameStr,sizeof(sensornameStr),sensorname);
     int autoMgdl=el->getmgdL();
     if(double calibrated=calibrateONEtest(sens,*el);!isnan(calibrated))
         autoMgdl=(int)round(calibrated);
-<<<<<<< HEAD
-=======
     //getRawForPoll indexes by pointer offset from the polls base, so it must see the original el,
     //never the patched copy below.
->>>>>>> rebase/test-1.0.4-merge
     const int overrideValue=getNightscoutCalibrationOverrideForItem(
         sens,
         sensornameStr,
@@ -588,19 +556,6 @@ extern char * writev3entry(char *outin,const ScanData *val, const sensorname_t *
         sens->getRawForPoll(el),
         el->gettime()*1000LL
     );
-<<<<<<< HEAD
-    if(overrideValue>0) {
-        ScanData newel=*el;
-        newel.g=overrideValue;
-        return writev3entry(buf,&newel,sensorname,false);
-        }
-    if(autoMgdl!=el->getmgdL()) {
-        ScanData newel=*el;
-        newel.g=autoMgdl;
-        return writev3entry(buf,&newel,sensorname,false);
-        }
-    return writev3entry(buf,el,sensorname,false);
-=======
     ScanData outel=*el;
     if(overrideValue>0)
         outel.g=overrideValue;
@@ -608,7 +563,6 @@ extern char * writev3entry(char *outin,const ScanData *val, const sensorname_t *
         outel.g=autoMgdl;
     outel.ch=effectivechange(gdata,pos,*el);
     return writev3entry(buf,&outel,sensorname,false);
->>>>>>> rebase/test-1.0.4-merge
     }
 
 static bool uploadRecentV3(const int sensorid,SensorGlucoseData *sens,const sensorname_t *sensorname,std::span<const ScanData> gdata,const uint32_t mintime) {
@@ -622,11 +576,7 @@ static bool uploadRecentV3(const int sensorid,SensorGlucoseData *sens,const sens
         if(isRecentNightUploadCovered(sensorid,el.gettime()))
             return true;
         char buf[320];
-<<<<<<< HEAD
-        const char *ptr=writeNightscoutV3UploadEntry(buf,sens,sensorname,&el);
-=======
         const char *ptr=writeNightscoutV3UploadEntry(buf,sens,sensorname,&el,gdata,iter);
->>>>>>> rebase/test-1.0.4-merge
         const int res=nightuploadEntries3(buf,ptr-buf);
         if(!isNightUploadAccepted(res))
             return false;
@@ -682,11 +632,7 @@ static bool uploadCGM3(const bool prioritizeRecent=false) {
                             }
                         constexpr const int max3entry=320;
                         char buf[max3entry];
-<<<<<<< HEAD
-                        const char *ptr=writeNightscoutV3UploadEntry(buf,sens,sensorname,el);
-=======
                         const char *ptr=writeNightscoutV3UploadEntry(buf,sens,sensorname,el,gdata,positer);
->>>>>>> rebase/test-1.0.4-merge
                         const int buflen=ptr-buf;
                         logwriter(buf,buflen);
                         auto res=nightuploadEntries3(buf,buflen);
@@ -772,11 +718,7 @@ static bool uploadCGM(const bool prioritizeRecent=false) {
                             if(isRecentNightUploadCovered(sensorid,el.gettime())) {
                                 continue;
                                 }
-<<<<<<< HEAD
-                            ptr+=mkuploaditem(sens,ptr,sensorname,el,false,true);
-=======
                             ptr+=mkuploaditem(sens,ptr,sensorname,el,gdata,iter,false,true);
->>>>>>> rebase/test-1.0.4-merge
                             }
                         }
                     LOGGER("%d new positer=%d\n",sensorid,chunkend);
@@ -925,11 +867,8 @@ static void uploaderthread() {
                 continue;
                 }
             }
-<<<<<<< HEAD
-=======
         //Best effort: a devicestatus failure must never delay or block glucose upload.
         uploadDeviceStatus();
->>>>>>> rebase/test-1.0.4-merge
         waitmin=5*60;
         lastNightUploadWaitMinutes = waitmin;
         }

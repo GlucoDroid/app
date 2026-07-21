@@ -546,8 +546,6 @@ class HistoryRepository(context: Context = Applic.app) {
         return deleted
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Physically fold imported readings into a real sensor once that sensor's
      * native history has been backfilled. Scoped to the sensor's coverage
@@ -614,7 +612,6 @@ class HistoryRepository(context: Context = Applic.app) {
         }
     }
 
->>>>>>> rebase/test-1.0.4-merge
     private suspend fun filterDeletedReadings(readings: List<HistoryReading>): List<HistoryReading> {
         if (readings.isEmpty()) return emptyList()
 
@@ -1102,13 +1099,10 @@ class HistoryRepository(context: Context = Applic.app) {
                     }
                     backfillFinished.signalAll()
                 }
-<<<<<<< HEAD
-=======
                 if (success) {
                     // Fold any overlapping imported history into this real sensor.
                     reconcileImportedIntoSensor(serial)
                 }
->>>>>>> rebase/test-1.0.4-merge
             }
         }
     }

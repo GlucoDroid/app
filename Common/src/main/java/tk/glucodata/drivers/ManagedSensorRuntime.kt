@@ -46,8 +46,6 @@ object ManagedSensorRuntime {
         return resolveDriver(resolvedSensorId)
             ?.let { driver -> runCatching { driver.getManagedCurrentSnapshot(maxAgeMillis) }.getOrNull() }
     }
-<<<<<<< HEAD
-=======
 
     @JvmStatic
     fun integratesUserCalibration(sensorId: String?, isRawMode: Boolean): Boolean =
@@ -66,5 +64,4 @@ object ManagedSensorRuntime {
                 }
         }
     }
->>>>>>> rebase/test-1.0.4-merge
 }

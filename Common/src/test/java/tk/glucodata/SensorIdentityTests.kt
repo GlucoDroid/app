@@ -2,10 +2,7 @@ package tk.glucodata
 
 import org.junit.After
 import org.junit.Assert.assertEquals
-<<<<<<< HEAD
-=======
 import org.junit.Assert.assertFalse
->>>>>>> rebase/test-1.0.4-merge
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -111,8 +108,6 @@ class SensorIdentityTests {
     }
 
     @Test
-<<<<<<< HEAD
-=======
     fun placeholderIdentity_neverBecomesASensorOrMainSelection() {
         ManagedCurrentSensor.set("?")
 
@@ -149,7 +144,6 @@ class SensorIdentityTests {
     }
 
     @Test
->>>>>>> rebase/test-1.0.4-merge
     fun matches_recognizesAidexCanonicalAndAlias() {
         assertTrue(SensorIdentity.matches("X-222227JR7C", "222227JR7C"))
         assertTrue(SensorIdentity.matches("222227JR7C", "X-222227JR7C"))

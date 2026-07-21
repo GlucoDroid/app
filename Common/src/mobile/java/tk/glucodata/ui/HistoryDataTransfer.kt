@@ -2,10 +2,6 @@ package tk.glucodata.ui
 
 import android.content.Intent
 import android.net.Uri
-<<<<<<< HEAD
-import android.provider.DocumentsContract
-=======
->>>>>>> rebase/test-1.0.4-merge
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -244,10 +240,6 @@ fun ExportDataSettingsSheet(
     var historyDays by rememberSaveable { mutableStateOf<Long?>(90L) }
     var isExporting by remember { mutableStateOf(false) }
     var pendingRequest by remember { mutableStateOf<ExportPackageExporter.ExportRequest?>(null) }
-<<<<<<< HEAD
-    var pendingTreeRequest by remember { mutableStateOf<ExportPackageExporter.ExportRequest?>(null) }
-=======
->>>>>>> rebase/test-1.0.4-merge
     var pendingCsvRequest by remember { mutableStateOf<ExportPackageExporter.ExportRequest?>(null) }
     var pendingReadableRequest by remember { mutableStateOf<ExportPackageExporter.ExportRequest?>(null) }
 
@@ -350,36 +342,6 @@ fun ExportDataSettingsSheet(
         }
     }
 
-<<<<<<< HEAD
-    suspend fun savePackageAndReportToTree(
-        treeUri: Uri,
-        request: ExportPackageExporter.ExportRequest
-    ): Result<Unit> {
-        return withContext(Dispatchers.IO) {
-            runCatching {
-                val jsonUri = DocumentsContract.createDocument(
-                    context.contentResolver,
-                    treeUri,
-                    ExportPackageExporter.mimeTypeFor(request),
-                    ExportPackageExporter.suggestedFileName(request)
-                ) ?: error(context.getString(R.string.unable_to_open_destination_file))
-                ExportPackageExporter.exportToUri(context, jsonUri, request).getOrThrow()
-
-                val reportUri = DocumentsContract.createDocument(
-                    context.contentResolver,
-                    treeUri,
-                    "text/plain",
-                    ExportPackageExporter.suggestedReadableReportFileName()
-                ) ?: error(context.getString(R.string.unable_to_open_destination_file))
-                require(exportReadableReportToUri(reportUri, request)) {
-                    context.getString(R.string.export_failed)
-                }
-            }
-        }
-    }
-
-=======
->>>>>>> rebase/test-1.0.4-merge
     val saveLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -398,27 +360,6 @@ fun ExportDataSettingsSheet(
         }
     }
 
-<<<<<<< HEAD
-    val treeLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        val request = pendingTreeRequest
-        pendingTreeRequest = null
-        if (uri != null && request != null) {
-            isExporting = true
-            scope.launch {
-                val result = savePackageAndReportToTree(uri, request)
-                withContext(Dispatchers.Main) {
-                    isExporting = false
-                    showExportResult(result.isSuccess, result.exceptionOrNull()?.localizedMessage)
-                    if (result.isSuccess) onDismiss()
-                }
-            }
-        }
-    }
-
-=======
->>>>>>> rebase/test-1.0.4-merge
     val csvLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
@@ -461,16 +402,8 @@ fun ExportDataSettingsSheet(
             Toast.makeText(context, context.getString(R.string.export_nothing_selected), Toast.LENGTH_SHORT).show()
             return
         }
-<<<<<<< HEAD
-        if (request.includeHistory && (request.includeSettings || request.includeCalibrations)) {
-            pendingTreeRequest = request
-            treeLauncher.launch(null)
-            return
-        }
-=======
         // Always save a single JSON package containing every selected section. The
         // human-readable report stays available via its own button and via Share.
->>>>>>> rebase/test-1.0.4-merge
         pendingRequest = request
         saveLauncher.launch(ExportPackageExporter.suggestedFileName(request))
     }

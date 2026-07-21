@@ -1741,8 +1741,6 @@ class AiDexBleManager(
     // GATT Callbacks
     // =========================================================================
 
-<<<<<<< HEAD
-=======
     // Consecutive GATT_CONNECTING failures (status 133 / CONNECTION_FAILED_ESTABLISHMENT).
     // A hard-to-reach sensor retried every few seconds can wedge the Bluetooth stack, so
     // these are backed off progressively. Reset on a successful connection.
@@ -1763,7 +1761,6 @@ class AiDexBleManager(
         }
     }
 
->>>>>>> rebase/test-1.0.4-merge
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         super.onConnectionStateChange(gatt, status, newState)
         if (newState == BluetoothProfile.STATE_CONNECTED || newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -1787,10 +1784,7 @@ class AiDexBleManager(
             }
             connectTime = now
             constatstatusstr = "Connected"
-<<<<<<< HEAD
-=======
             consecutiveConnectFailures = 0  // link established — clear the 133 backoff streak
->>>>>>> rebase/test-1.0.4-merge
             _isPaused = false  // Clear paused flag — connection is active
             cancelBroadcastScan()
             liveOffsetCutoff = 0  // Reset live offset cutoff for this connection session
@@ -2011,10 +2005,6 @@ class AiDexBleManager(
                 Log.i(TAG, "Paused (stop=true) — not scheduling reconnect")
                 close()
             } else if (!reconnect.isBroadcastOnlyMode) {
-<<<<<<< HEAD
-                val delay = reconnect.nextReconnectDelayMs()
-                Log.i(TAG, "Scheduling reconnect in ${delay}ms (attempt ${reconnect.softAttempts})")
-=======
                 // status 133 (GATT_ERROR / CONNECTION_FAILED_ESTABLISHMENT) is a hard
                 // link-layer connect failure; retrying every few seconds can wedge the
                 // Bluetooth stack (as seen in the field). Back off progressively and clear
@@ -2029,7 +2019,6 @@ class AiDexBleManager(
                 }
                 val delay = reconnect.nextReconnectDelayMs() + extraDelay
                 Log.i(TAG, "Scheduling reconnect in ${delay}ms (attempt ${reconnect.softAttempts}, connectFailures=$consecutiveConnectFailures)")
->>>>>>> rebase/test-1.0.4-merge
                 close()
                 handler.postDelayed({ connectDevice(0) }, delay)
             } else {
@@ -3119,13 +3108,9 @@ class AiDexBleManager(
                     sampleTimestampMs,
                     autoValue,
                     normalizedRawValue ?: 0f,
-<<<<<<< HEAD
-                    1.0f
-=======
                     1.0f,
                     // The direct F003 live frame carries no trend byte.
                     Natives.AIDEX_TREND_UNKNOWN
->>>>>>> rebase/test-1.0.4-merge
                 )
                 handleGlucoseResult(res, sampleTimestampMs, normalizedRawValue ?: Float.NaN)
                 if (constatstatusstr == "Connected") {
@@ -5478,8 +5463,6 @@ class AiDexBleManager(
         // (e.g., "Paused", "Unpaired", "Broadcast Only", "Pairing cancelled")
     }
 
-<<<<<<< HEAD
-=======
     override fun onBluetoothAdapterUnavailable() {
         pendingStaleConnectionRecovery = false
         connectAttemptInFlight = false
@@ -5490,7 +5473,6 @@ class AiDexBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
->>>>>>> rebase/test-1.0.4-merge
     override fun manualReconnectNow() {
         Log.i(TAG, "manualReconnectNow: forcing reconnect for $SerialNumber")
         consecutiveSetupDisconnects = 0
@@ -6403,14 +6385,10 @@ class AiDexBleManager(
                     sampleTimestampMs,
                     sample.glucoseMgDl.toFloat(),
                     0f,
-<<<<<<< HEAD
-                    1.0f
-=======
                     1.0f,
                     // Broadcast samples do carry the sensor's own trend byte — the same
                     // value cached into ExchangeTrend above. Prefer it over a derived rate.
                     sample.trend
->>>>>>> rebase/test-1.0.4-merge
                 )
                 handleGlucoseResult(res, sampleTimestampMs)
                 maybePromoteFallbackReadingToHistory(now, source)

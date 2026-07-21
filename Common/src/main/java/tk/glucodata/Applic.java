@@ -831,8 +831,6 @@ public class Applic extends Application implements androidx.work.Configuration.P
             SuperGattCallback.initAlarmTalk();
             initialize();
 
-<<<<<<< HEAD
-=======
             // Load the glucose colour palette + per-band overrides before any
             // drawing happens, so the notification chart (which runs outside
             // Compose) renders with the user's choice too.
@@ -842,7 +840,6 @@ public class Applic extends Application implements androidx.work.Configuration.P
             // and before SensorBluetooth creates callbacks for the active native sensor list.
             tk.glucodata.drivers.sibionics.SibionicsLegacyMigration.migrateActiveSensors(this);
 
->>>>>>> rebase/test-1.0.4-merge
             // Preserve an explicit non-active selection across startup. Historical sensors
             // are still valid dashboard targets even if they are not in activeSensors().
             // Virtual/cloud-only sensors must not stay in native lastsensorname: native
@@ -934,10 +931,7 @@ public class Applic extends Application implements androidx.work.Configuration.P
     @Override
     public void onCreate() {
         super.onCreate();
-<<<<<<< HEAD
-=======
         enlargeCursorWindow();
->>>>>>> rebase/test-1.0.4-merge
         updateWearMessageReceiverComponent();
         if (!DiskSpace.check(this)) {
             android.util.Log.e(LOG_ID, "Stop program");
@@ -954,8 +948,6 @@ public class Applic extends Application implements androidx.work.Configuration.P
         }
     }
 
-<<<<<<< HEAD
-=======
     /**
      * Raise the global {@link android.database.CursorWindow} size (default 2 MB).
      *
@@ -981,7 +973,6 @@ public class Applic extends Application implements androidx.work.Configuration.P
         }
     }
 
->>>>>>> rebase/test-1.0.4-merge
     // static public int backgroundcolor= BLACK;
     static public int backgroundcolor = isWearable ? BLACK : RED;
 

@@ -100,15 +100,7 @@ object AiDexManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
         if (!isManagedSensorId(sensorId)) {
             return null
         }
-<<<<<<< HEAD
-        return if (AiDexNativeFactory.isNativeModeEnabled(context)) {
-            AiDexNativeFactory.createBleManager(sensorId, dataptr)
-        } else {
-            AiDexSensor(Applic.app ?: context.applicationContext, sensorId, dataptr)
-        }
-=======
         return AiDexNativeFactory.createBleManager(sensorId, dataptr)
->>>>>>> rebase/test-1.0.4-merge
     }
 
     override fun removePersistedSensor(context: Context, sensorId: String?) {

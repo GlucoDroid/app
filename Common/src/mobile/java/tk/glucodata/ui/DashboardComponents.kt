@@ -111,13 +111,9 @@ import tk.glucodata.SensorIdentity
 import tk.glucodata.Applic
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.DisplayDataState
-<<<<<<< HEAD
-import tk.glucodata.GlucoseRangeColors
-=======
 import androidx.compose.ui.graphics.toArgb
 import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.TrendProjection
->>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.Notify
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.logic.TrendEngine
@@ -279,13 +275,10 @@ fun DashboardCombinedHeader(
     targetHigh: Float = fallbackHighThreshold(isMmol),
     veryLowThreshold: Float = fallbackVeryLowThreshold(isMmol),
     veryHighThreshold: Float = fallbackVeryHighThreshold(isMmol),
-<<<<<<< HEAD
-=======
     valueRangeColorsEnabled: Boolean = false,
     arrowForecastColorsEnabled: Boolean = false,
     showDelta: Boolean = false,
     deltaIntervalMinutes: Int = tk.glucodata.GlucoseDelta.DEFAULT_INTERVAL_MINUTES,
->>>>>>> rebase/test-1.0.4-merge
     peerReadings: List<tk.glucodata.ui.viewmodel.DashboardViewModel.PeerCurrentReading> = emptyList(),
     onPeerReadingClick: (String) -> Unit = {},
     onHeroClick: () -> Unit = {}
@@ -305,13 +298,6 @@ fun DashboardCombinedHeader(
     val sensorContentColor = if (isExpiring) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
 
     // Advanced Trend
-<<<<<<< HEAD
-    val trendResult = remember(history, latestPoint) {
-        if (history.isNotEmpty()) {
-             // Map Kotlin UI points to Native Java points for shared TrendEngine
-             val nativeList = history.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) }
-             tk.glucodata.logic.TrendEngine.calculateTrend(nativeList, useRaw = (viewMode == 1 || viewMode == 3), isMmol = isMmol)
-=======
     val trendResult = remember(history, latestPoint, currentSnapshot) {
         if (history.isNotEmpty()) {
              // Map Kotlin UI points to Native Java points for shared TrendEngine
@@ -320,7 +306,6 @@ fun DashboardCombinedHeader(
              // the same points the notification and broadcast arrows regress over.
              val trendPoints = tk.glucodata.DisplayTrendSource.resolveTrendPoints(nativeList, currentSnapshot, null)
              tk.glucodata.logic.TrendEngine.calculateTrend(trendPoints, useRaw = (viewMode == 1 || viewMode == 3), isMmol = isMmol)
->>>>>>> rebase/test-1.0.4-merge
         } else if (latestPoint != null) {
             // Fallback
              val nativeList = listOf(tk.glucodata.GlucosePoint(latestPoint.timestamp, latestPoint.value, latestPoint.rawValue))
@@ -329,8 +314,6 @@ fun DashboardCombinedHeader(
             tk.glucodata.logic.TrendEngine.TrendResult(tk.glucodata.logic.TrendEngine.TrendState.Unknown, 0f, 0f, 0f, 0f)
         }
     }
-<<<<<<< HEAD
-=======
     // "Δ" readout: the measured change over the last ~5 minutes — a raw
     // number to sanity-check the estimated arrow against. Walks back to the
     // first point old enough for the window instead of taking blind indices.
@@ -358,7 +341,6 @@ fun DashboardCombinedHeader(
     } else {
         null
     }
->>>>>>> rebase/test-1.0.4-merge
     val isLandscape = rememberAdaptiveWindowMetrics().isLandscape
     val cornerWeights = remember(trendResult.velocity) { trendCornerWeightsFromVelocity(trendResult.velocity) }
     val cornerAnimSpec = spring<Dp>(
@@ -417,15 +399,12 @@ fun DashboardCombinedHeader(
         )
     }
     val sensorPresent = sensorName.isNotBlank() || activeSensors.isNotEmpty()
-<<<<<<< HEAD
-=======
     val sensorDisplayName = remember(refreshRevision, sensorName) {
         tk.glucodata.drivers.ManagedSensorRuntime.resolveUiSnapshot(sensorName)
             ?.displayName
             ?.takeIf { it.isNotBlank() }
             ?: sensorName
     }
->>>>>>> rebase/test-1.0.4-merge
     val resolvedDataState = dataState ?: remember(
         resolvedCurrentSnapshot?.timeMillis,
         latestPoint?.timestamp,
@@ -467,13 +446,9 @@ fun DashboardCombinedHeader(
         targetLow,
         targetHigh,
         veryLowThreshold,
-<<<<<<< HEAD
-        veryHighThreshold
-=======
         veryHighThreshold,
         // Recompose the band tint when the user switches palette / edits a band.
         GlucosePaletteState.revision
->>>>>>> rebase/test-1.0.4-merge
     ) {
         glucoseHeroTone(
             value = dvs?.primaryValue,
@@ -486,8 +461,6 @@ fun DashboardCombinedHeader(
             veryHighThreshold = veryHighThreshold
         )
     }
-<<<<<<< HEAD
-=======
     // Optional GDH-style traffic coloring of the value itself: green in
     // target range, yellow up to the alarm bounds, red beyond.
     val heroValueColor = if (valueRangeColorsEnabled && isFreshData) {
@@ -539,7 +512,6 @@ fun DashboardCombinedHeader(
     } else {
         heroValueColor
     }
->>>>>>> rebase/test-1.0.4-merge
     val targetGlucoseContainerColor = glucoseTone?.let { tone ->
         lerpColor(glucoseBaseContainerColor, tone.tint, tone.blendFraction)
     } ?: glucoseBaseContainerColor
@@ -711,16 +683,6 @@ fun DashboardCombinedHeader(
                                 DashboardHeroPrimaryText(
                                     value = primaryText,
                                     style = primaryValueStyle,
-<<<<<<< HEAD
-                                    color = glucoseContentColor
-                                )
-                            }
-
-                            tk.glucodata.ui.components.TrendIndicator(
-                                trendResult = trendResult,
-                                modifier = Modifier.size(resolvedTrendIconSize),
-                                color = glucoseContentColor
-=======
                                     color = heroValueColor
                                 )
                             }
@@ -731,7 +693,6 @@ fun DashboardCombinedHeader(
                                 deltaText = heroDeltaText,
                                 contentColor = glucoseContentColor,
                                 iconSize = resolvedTrendIconSize
->>>>>>> rebase/test-1.0.4-merge
                             )
                         }
 
@@ -820,29 +781,18 @@ fun DashboardCombinedHeader(
                                 separatorStyle = slashStyle,
                                 secondaryStackStyle = secondaryThreeValueStyle,
                                 tertiaryStackStyle = tertiaryThreeValueStyle,
-<<<<<<< HEAD
-                                contentColor = glucoseContentColor
-=======
                                 contentColor = glucoseContentColor,
                                 primaryColor = heroValueColor
->>>>>>> rebase/test-1.0.4-merge
                             )
 
                             Spacer(modifier = Modifier.width(resolvedClusterGap))
 
-<<<<<<< HEAD
-                            tk.glucodata.ui.components.TrendIndicator(
-                                trendResult = trendResult,
-                                modifier = Modifier.size(resolvedTrendIconSize),
-                                color = glucoseContentColor
-=======
                             HeroTrendWithDelta(
                                 trendResult = trendResult,
                                 arrowColor = heroArrowColor,
                                 deltaText = heroDeltaText,
                                 contentColor = glucoseContentColor,
                                 iconSize = resolvedTrendIconSize
->>>>>>> rebase/test-1.0.4-merge
                             )
                         }
 
@@ -942,17 +892,10 @@ fun DashboardCombinedHeader(
                     }
                     
                     // 1. Sensor Name (Top Label)
-<<<<<<< HEAD
-                    if (sensorName.isNotEmpty()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = sensorName,
-=======
                     if (sensorDisplayName.isNotEmpty()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = sensorDisplayName,
->>>>>>> rebase/test-1.0.4-merge
                                 style = MaterialTheme.typography.labelMedium, // M3 Standard
                                 color = sensorContentColor.copy(alpha = 0.7f),
                                 maxLines = 1,
@@ -1066,8 +1009,6 @@ fun DashboardCombinedHeader(
 }
 
 @Composable
-<<<<<<< HEAD
-=======
 private fun HeroTrendWithDelta(
     trendResult: tk.glucodata.logic.TrendEngine.TrendResult,
     arrowColor: Color,
@@ -1094,7 +1035,6 @@ private fun HeroTrendWithDelta(
 }
 
 @Composable
->>>>>>> rebase/test-1.0.4-merge
 private fun DashboardHeroPrimaryText(
     value: String,
     style: TextStyle,
@@ -1237,12 +1177,8 @@ private fun DashboardHeroValueCluster(
     secondaryStackStyle: TextStyle,
     tertiaryStackStyle: TextStyle,
     contentColor: Color,
-<<<<<<< HEAD
-    modifier: Modifier = Modifier
-=======
     modifier: Modifier = Modifier,
     primaryColor: Color = contentColor
->>>>>>> rebase/test-1.0.4-merge
 ) {
     val hasSecondary = secondaryText != null
     val hasTertiary = tertiaryText != null
@@ -1319,11 +1255,7 @@ private fun DashboardHeroValueCluster(
                 DashboardHeroPrimaryText(
                     value = primaryText,
                     style = primaryStyle,
-<<<<<<< HEAD
-                    color = contentColor
-=======
                     color = primaryColor
->>>>>>> rebase/test-1.0.4-merge
                 )
             }
 
@@ -1338,11 +1270,7 @@ private fun DashboardHeroValueCluster(
                     DashboardHeroPrimaryText(
                         value = primaryText,
                         style = scaledPrimaryStyle,
-<<<<<<< HEAD
-                        color = contentColor
-=======
                         color = primaryColor
->>>>>>> rebase/test-1.0.4-merge
                     )
                     Spacer(modifier = Modifier.width(6.dp * pairScale))
                     Text(
@@ -1377,11 +1305,7 @@ private fun DashboardHeroValueCluster(
                     DashboardHeroPrimaryText(
                         value = primaryText,
                         style = scaledPrimaryStyle,
-<<<<<<< HEAD
-                        color = contentColor
-=======
                         color = primaryColor
->>>>>>> rebase/test-1.0.4-merge
                     )
 
                     Spacer(modifier = Modifier.width(8.dp * stackScale))

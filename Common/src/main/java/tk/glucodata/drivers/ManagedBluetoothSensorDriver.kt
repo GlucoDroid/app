@@ -39,10 +39,7 @@ enum class ManagedSensorUiFamily {
     ICAN,
     ANYTIME,
     OTTAI,
-<<<<<<< HEAD
-=======
     SIBIONICS,
->>>>>>> rebase/test-1.0.4-merge
 }
 
 data class ManagedSensorUiSnapshot(
@@ -62,12 +59,9 @@ data class ManagedSensorUiSnapshot(
     val rssi: Int = 0,
     val dataptr: Long = 0L,
     val viewMode: Int = 0,
-<<<<<<< HEAD
-=======
     val autoResetDays: Int = 300,
     val customAlgorithmEnabled: Boolean = false,
     val customAlgorithmMode: Int = if (customAlgorithmEnabled) 2 else 0,
->>>>>>> rebase/test-1.0.4-merge
     val supportsDisplayModes: Boolean = false,
     val supportsManualCalibration: Boolean = false,
     val supportsHardwareReset: Boolean = false,
@@ -125,8 +119,6 @@ interface ManagedBluetoothSensorDriver {
 
     fun softReconnect() {}
 
-<<<<<<< HEAD
-=======
     /**
      * The system Bluetooth adapter became unavailable. Physical BLE drivers must
      * discard only their current transport/session state here; this is not a
@@ -135,7 +127,6 @@ interface ManagedBluetoothSensorDriver {
      */
     fun onBluetoothAdapterUnavailable() {}
 
->>>>>>> rebase/test-1.0.4-merge
     fun terminateManagedSensor(wipeData: Boolean = false) {}
 
     fun shouldUseSharedCurrentSensorHandoffOnTerminate(): Boolean = true
@@ -148,13 +139,10 @@ interface ManagedBluetoothSensorDriver {
 
     fun supportsManualCalibration(): Boolean = false
 
-<<<<<<< HEAD
-=======
     /** True when this driver consumes calibration for the requested display mode. */
     fun integratesUserCalibration(isRawMode: Boolean): Boolean = false
 
     /** Calibration points or policy changed; stateful managed models may rebuild locally. */
     fun onUserCalibrationRevisionChanged(revision: Long) {}
 
->>>>>>> rebase/test-1.0.4-merge
 }

@@ -1,12 +1,5 @@
 package tk.glucodata.alerts
 
-<<<<<<< HEAD
-internal class SensorExpiryAlertState {
-    private var baselineReady = false
-    private var lastEndTimeMs = 0L
-    private var wasInWarningWindow = false
-    private var alertedForEndTimeMs = 0L
-=======
 import tk.glucodata.Natives
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
@@ -102,18 +95,10 @@ internal class SensorExpiryAlertState(private val store: ExpiryWarnedStore) {
     private var lastEndTimeMs = 0L
     private val wasInWindow = mutableMapOf<Int, Boolean>()   // threshold -> inside window last tick
     private val alertedForEnd = mutableMapOf<Int, Long>()    // threshold -> endTime already warned for
->>>>>>> rebase/test-1.0.4-merge
 
     fun reset() {
         baselineReady = false
         lastEndTimeMs = 0L
-<<<<<<< HEAD
-        wasInWarningWindow = false
-        alertedForEndTimeMs = 0L
-    }
-
-    fun shouldTrigger(
-=======
         wasInWindow.clear()
         alertedForEnd.clear()
     }
@@ -123,53 +108,11 @@ internal class SensorExpiryAlertState(private val store: ExpiryWarnedStore) {
      *   At most one element (cascade guard); empty means do nothing.
      */
     fun triggeredThresholds(
->>>>>>> rebase/test-1.0.4-merge
         enabled: Boolean,
         activeNow: Boolean,
         snoozed: Boolean,
         endTimeMs: Long,
         nowMs: Long,
-<<<<<<< HEAD
-        warningMs: Long
-    ): Boolean {
-        if (!enabled || endTimeMs <= 0L || warningMs <= 0L) {
-            reset()
-            return false
-        }
-
-        if (endTimeMs != lastEndTimeMs) {
-            baselineReady = false
-            lastEndTimeMs = endTimeMs
-            wasInWarningWindow = false
-            alertedForEndTimeMs = 0L
-        }
-
-        if (!activeNow || snoozed) {
-            return false
-        }
-
-        val inWarningWindow = endTimeMs - nowMs <= warningMs
-        if (!baselineReady) {
-            baselineReady = true
-            wasInWarningWindow = inWarningWindow
-            if (inWarningWindow) {
-                alertedForEndTimeMs = endTimeMs
-            }
-            return false
-        }
-
-        if (!inWarningWindow) {
-            wasInWarningWindow = false
-            return false
-        }
-
-        val shouldTrigger = !wasInWarningWindow && alertedForEndTimeMs != endTimeMs
-        wasInWarningWindow = true
-        if (shouldTrigger) {
-            alertedForEndTimeMs = endTimeMs
-        }
-        return shouldTrigger
-=======
         thresholdsMinutes: Set<Int>
     ): Set<Int> {
         if (!enabled || endTimeMs <= 0L || thresholdsMinutes.isEmpty()) {
@@ -251,6 +194,5 @@ internal class SensorExpiryAlertState(private val store: ExpiryWarnedStore) {
     private fun persistWarned() {
         val warned = alertedForEnd.filterValues { it == lastEndTimeMs }.keys
         store.save(lastEndTimeMs, store.load(lastEndTimeMs) + warned)
->>>>>>> rebase/test-1.0.4-merge
     }
 }

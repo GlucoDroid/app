@@ -2,60 +2,6 @@
 
 package tk.glucodata.ui
 
-<<<<<<< HEAD
-import android.annotation.SuppressLint
-import android.app.Activity
-import android.content.Context
-import android.content.SharedPreferences
-import android.view.HapticFeedbackConstants
-import android.view.View
-import androidx.activity.compose.setContent
-import androidx.activity.compose.BackHandler
-import androidx.appcompat.app.AppCompatActivity
-import androidx.annotation.Keep
-import androidx.core.content.res.ResourcesCompat
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.rounded.*
-import androidx.compose.material3.*
-import androidx.compose.material3.Slider
-import tk.glucodata.ui.components.StyledSwitch
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.*
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.Alignment
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
-=======
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -74,200 +20,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
->>>>>>> rebase/test-1.0.4-merge
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-<<<<<<< HEAD
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.zIndex
-import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.surfaceColorAtElevation
-import androidx.compose.ui.platform.LocalConfiguration
-import android.content.res.Configuration
-import android.text.Layout
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.view.WindowCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.graphics.RectangleShape
-import tk.glucodata.ui.util.ConnectedButtonGroup
-import tk.glucodata.ui.util.AdaptiveLayoutDensity
-import tk.glucodata.ui.util.findActivity
-import tk.glucodata.ui.util.hardRestart
-import tk.glucodata.ui.util.rememberAdaptiveWindowMetrics
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.BorderStroke
-=======
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import tk.glucodata.ui.util.ConnectedButtonGroup
->>>>>>> rebase/test-1.0.4-merge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
-<<<<<<< HEAD
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.scrollable
-import androidx.compose.foundation.gestures.rememberScrollableState
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.draw.alpha
-import androidx.compose.animation.togetherWith
-
-import androidx.compose.ui.draw.alpha
-
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.shrinkHorizontally
-
-import androidx.compose.material.icons.automirrored.filled.LastPage
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Download
-import kotlinx.coroutines.launch
-import tk.glucodata.CurrentDisplaySource
-import tk.glucodata.DataSmoothing
-import tk.glucodata.DisplayDataState
-import tk.glucodata.Libre3NfcSettings
-import tk.glucodata.Natives
-import tk.glucodata.Notify
-import tk.glucodata.SensorBluetooth
-import tk.glucodata.QRmake
-import tk.glucodata.R
-import tk.glucodata.MainActivity
-import tk.glucodata.UiRefreshBus
-import tk.glucodata.drivers.ManagedSensorCalibrationSource
-import tk.glucodata.drivers.anytime.AnytimeCalibrationPolicy
-import android.widget.Toast
-import tk.glucodata.data.journal.JournalEntry
-import tk.glucodata.data.journal.JournalEntryType
-import tk.glucodata.data.journal.JournalInsulinPreset
-import tk.glucodata.data.prediction.GlucosePredictionSeries
-import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
-import tk.glucodata.data.prediction.PredictiveSimulationSettings
-import tk.glucodata.data.prediction.buildGlucosePrediction
-import tk.glucodata.ui.journal.JournalDoseProfile
-import tk.glucodata.ui.journal.JournalEntrySheet
-import tk.glucodata.ui.journal.JournalInlineChip
-import tk.glucodata.ui.journal.JournalSettingsScreen
-import tk.glucodata.ui.journal.buildActiveInsulinSummary
-import tk.glucodata.ui.journal.buildJournalChartMarkers
-import tk.glucodata.ui.journal.journalTypeColor
-import tk.glucodata.ui.journal.journalTypeSelectedContainerColor
-import tk.glucodata.ui.journal.journalTypeSubtleContainerColor
-import tk.glucodata.ui.viewmodel.DashboardViewModel
-import tk.glucodata.ui.theme.displayLargeExpressive
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
-import androidx.compose.ui.res.stringResource
-import java.util.Locale
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.Icon
-import androidx.compose.ui.platform.LocalUriHandler
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.io.File
-import androidx.compose.material.icons.filled.ShowChart
-import androidx.compose.material.icons.outlined.ShowChart
-import androidx.compose.material.icons.filled.Sensors
-import androidx.compose.material.icons.outlined.Sensors
-import androidx.compose.material.icons.outlined.BarChart
-import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.outlined.Insights
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.outlined.Analytics
-import androidx.compose.material.icons.outlined.LegendToggle
-import androidx.compose.material.icons.rounded.TrendingUp
-import androidx.compose.material.icons.rounded.TrendingDown
-import androidx.compose.material.icons.rounded.TrendingFlat
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.LifecycleEventObserver
-import tk.glucodata.ui.components.CardPosition
-import tk.glucodata.ui.components.MasterSwitchCard
-import tk.glucodata.ui.components.SectionLabel
-import tk.glucodata.ui.components.SettingsItem
-import tk.glucodata.ui.components.SettingsSwitchItem
-import kotlin.math.abs
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.text.withStyle
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.roundToInt
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-
-import androidx.compose.foundation.gestures.calculateCentroid
-import androidx.compose.foundation.gestures.calculateCentroidSize
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.animation.Crossfade
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.animation.core.exponentialDecay
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
-=======
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
@@ -294,17 +60,10 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 import androidx.compose.material.icons.filled.KeyboardArrowRight
->>>>>>> rebase/test-1.0.4-merge
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-<<<<<<< HEAD
-import androidx.compose.ui.input.pointer.changedToUp
-import androidx.compose.ui.input.pointer.util.VelocityTracker
-import androidx.compose.ui.input.pointer.util.addPointerInputChange
-=======
->>>>>>> rebase/test-1.0.4-merge
 
 @Composable
 fun InfoRow(label: String, value: String) {
@@ -433,12 +192,9 @@ fun SensorCard(
 ) {
     val context = LocalContext.current
     var showTerminateDialog by remember { mutableStateOf(false) }
-<<<<<<< HEAD
-=======
     var unbindAiDexChecked by remember(sensor.serial, sensor.isVendorPaired) {
         mutableStateOf(sensor.isVendorPaired)
     }
->>>>>>> rebase/test-1.0.4-merge
     var showForgetDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     // Edit 79: showClearDialog removed — restart algorithm now in Sibionics Calibration bottom sheet
@@ -478,21 +234,6 @@ fun SensorCard(
     // forgetVendor() + removeAiDexFromPrefs() + finishSensor() + sensorEnded() = full cleanup.
     if (showTerminateDialog) {
         if (sensor.isAidex) {
-<<<<<<< HEAD
-            // AiDex: full teardown — removes bond, keys, prefs, and sensor entry
-            AlertDialog(
-                onDismissRequest = { showTerminateDialog = false },
-                title = { Text(stringResource(R.string.disconnect_sensor_title)) },
-                text = { Text(stringResource(R.string.disconnect_sensor_aidex_desc)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.terminateSensor(sensor.serial)
-                        showTerminateDialog = false
-                    }) { Text(stringResource(R.string.disconnect)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showTerminateDialog = false }) {
-=======
             AlertDialog(
                 onDismissRequest = {
                     showTerminateDialog = false
@@ -553,7 +294,6 @@ fun SensorCard(
                         showTerminateDialog = false
                         unbindAiDexChecked = sensor.isVendorPaired
                     }) {
->>>>>>> rebase/test-1.0.4-merge
                         Text(stringResource(R.string.cancel))
                     }
                 }
@@ -722,18 +462,6 @@ fun SensorCard(
             text = { 
                 Column {
                     Text(stringResource(R.string.unified_reset_desc))
-<<<<<<< HEAD
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { keepAutoCalChecked = !keepAutoCalChecked }
-                    ) {
-                        Checkbox(
-                            checked = keepAutoCalChecked,
-                            onCheckedChange = { keepAutoCalChecked = it }
-                        )
-                        Text(stringResource(R.string.keep_auto_calibration))
-=======
                     if (sensor.dataptr != 0L) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(
@@ -746,17 +474,12 @@ fun SensorCard(
                             )
                             Text(stringResource(R.string.keep_auto_calibration))
                         }
->>>>>>> rebase/test-1.0.4-merge
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-<<<<<<< HEAD
-                    if (keepAutoCalChecked) {
-=======
                     if (sensor.dataptr == 0L || keepAutoCalChecked) {
->>>>>>> rebase/test-1.0.4-merge
                         viewModel.resetSensor(sensor.serial)  // Hardware reset only
                     } else {
                         viewModel.clearAll(sensor.serial)     // Full reset
@@ -930,23 +653,13 @@ fun SensorCard(
         }
     }
 
-<<<<<<< HEAD
-    // Auto-Calibration Settings bottom sheet — redesigned with master switch
-    // Master switch guards advanced controls (slider + daily restart).
-    // Restart button available in both modes (native restart in OFF, windowed in ON).
-=======
     // Independent, immediately applied sensor-algorithm features.
->>>>>>> rebase/test-1.0.4-merge
     if (showSibionicsCalSheet && sensor.isSibionics && sensor.viewMode != 1) {
         @OptIn(ExperimentalMaterial3Api::class)
         ModalBottomSheet(
             onDismissRequest = { showSibionicsCalSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-<<<<<<< HEAD
-            dragHandle = { BottomSheetDefaults.DragHandle() }
-=======
             dragHandle = { CompactSheetDragHandle() }
->>>>>>> rebase/test-1.0.4-merge
         ) {
             Column(
                 modifier = Modifier
@@ -962,217 +675,6 @@ fun SensorCard(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-<<<<<<< HEAD
-                // --- Master switch: Advanced auto-calibration (prominent card) ---
-                var advancedEnabled by remember(sensor.customCalEnabled) { mutableStateOf(sensor.customCalEnabled) }
-                // Track whether settings were changed but not yet applied (dirty state)
-                var settingsDirty by remember { mutableStateOf(false) }
-                val windowLabels = remember { listOf("12H", "1D", "2D", "3D", "5D", "7D", "10D", "14D", "18D", "MAX") }
-                val maxSliderPos = windowLabels.lastIndex
-                var sliderPos by remember(sensor.customCalEnabled, sensor.customCalIndex) {
-                    mutableStateOf(
-                        if (sensor.customCalEnabled) {
-                            sensor.customCalIndex.coerceIn(0, maxSliderPos).toFloat()
-                        } else {
-                            maxSliderPos.toFloat()
-                        }
-                    )
-                }
-                var customAutoReset by remember(sensor.customCalEnabled, sensor.customCalAutoReset) {
-                    mutableStateOf(if (sensor.customCalEnabled) sensor.customCalAutoReset else true)
-                }
-                fun applyAdvancedToggle(targetEnabled: Boolean) {
-                    if (advancedEnabled == targetEnabled) return
-                    advancedEnabled = targetEnabled
-                    if (!targetEnabled) {
-                        viewModel.disableCustomCalAndReplay(sensor.serial)
-                        settingsDirty = false
-                    } else {
-                        val defaultPos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                        viewModel.updateCustomCalibration(sensor.serial, true, defaultPos, customAutoReset)
-                        settingsDirty = true
-                    }
-                }
-                fun applyDailyRestartToggle(targetEnabled: Boolean) {
-                    if (customAutoReset == targetEnabled) return
-                    customAutoReset = targetEnabled
-                    val pos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                    viewModel.updateCustomCalibration(sensor.serial, true, pos, targetEnabled)
-                    settingsDirty = true
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (advancedEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            else MaterialTheme.colorScheme.surfaceContainerHighest,
-                    border = if (advancedEnabled)
-                        BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
-                    else null,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                applyAdvancedToggle(!advancedEnabled)
-                            }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = if (advancedEnabled) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Advanced auto-calibration",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                if (advancedEnabled) "Custom calibration window active"
-                                else "Standard Juggluco algorithm",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        StyledSwitch(
-                            checked = advancedEnabled,
-                            onCheckedChange = { checked -> applyAdvancedToggle(checked) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // --- Advanced controls (slider + daily restart) — visible when master switch ON ---
-                AnimatedVisibility(visible = advancedEnabled) {
-                    Column {
-                        val currentPos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                        val currentLabel = windowLabels[currentPos]
-
-                        // Current mode label
-                        Text(
-                            currentLabel,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (currentLabel == "MAX") MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            if (currentLabel == "MAX") "Use all available sensor data"
-                            else "$currentLabel calibration window",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-
-                        Slider(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                            value = sliderPos,
-                            onValueChange = { sliderPos = it },
-                            valueRange = 0f..maxSliderPos.toFloat(),
-                            steps = maxSliderPos - 1,
-                            onValueChangeFinished = {
-                                val pos = sliderPos.toInt().coerceIn(0, maxSliderPos)
-                                viewModel.updateCustomCalibration(sensor.serial, true, pos, customAutoReset)
-                                settingsDirty = true
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // --- Restart daily toggle (full-row touch target) ---
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    applyDailyRestartToggle(!customAutoReset)
-                                }
-                                .padding(horizontal = 4.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Restart daily",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    "Automatically restart algorithm once per day",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            StyledSwitch(
-                                checked = customAutoReset,
-                                onCheckedChange = { checked -> applyDailyRestartToggle(checked) }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-                }
-
-                // --- Restart algorithm button (always visible) ---
-                // Visual: RED when dirty (unapplied changes), subtle otherwise
-                val restartButtonColor = if (settingsDirty)
-                    MaterialTheme.colorScheme.errorContainer
-                else
-                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                val restartIconColor = MaterialTheme.colorScheme.error
-                val restartTextColor = MaterialTheme.colorScheme.error
-
-                Surface(
-                    onClick = {
-                        if (advancedEnabled) {
-                            viewModel.localReplay(sensor.serial)
-                        } else {
-                            viewModel.restartSibionicsNativeFresh(sensor.serial)
-                        }
-                        settingsDirty = false
-                        showSibionicsCalSheet = false
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    color = restartButtonColor,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.RestartAlt,
-                            contentDescription = null,
-                            tint = restartIconColor
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                if (settingsDirty) stringResource(R.string.restart_algorithm_to_apply)
-                                else stringResource(R.string.restart_algorithm),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = restartTextColor
-                            )
-                            Text(
-                                if (settingsDirty) stringResource(R.string.settings_changed_press_to_apply)
-                                else if (advancedEnabled) stringResource(R.string.restart_with_current_window)
-                                else stringResource(R.string.restart_with_standard_algorithm),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-=======
                 var algorithmFeatures by remember(sensor.customCalIndex) {
                     mutableIntStateOf(sensor.customCalIndex.coerceIn(0, 7))
                 }
@@ -1241,18 +743,10 @@ fun SensorCard(
                                 Spacer(modifier = Modifier.width(16.dp))
                                 RadioButton(selected = selected, onClick = null)
                             }
->>>>>>> rebase/test-1.0.4-merge
                         }
                     }
                 }
 
-<<<<<<< HEAD
-                Spacer(modifier = Modifier.height(16.dp))
-                TextButton(
-                    onClick = { showSibionicsCalSheet = false },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text(stringResource(R.string.cancel)) }
-=======
                 Spacer(modifier = Modifier.height(12.dp))
 
                 SettingsSwitchItem(
@@ -1280,7 +774,6 @@ fun SensorCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
                 ) { Text(stringResource(R.string.close)) }
->>>>>>> rebase/test-1.0.4-merge
             }
         }
     }
@@ -1644,11 +1137,7 @@ fun SensorCard(
                             // Title with optional "Active" badge
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-<<<<<<< HEAD
-                                    text = sensor.serial,
-=======
                                     text = sensor.displayName.ifBlank { sensor.serial },
->>>>>>> rebase/test-1.0.4-merge
                                     style = serialTextStyle,
                                     maxLines = 1,
                                     softWrap = false,
@@ -1817,14 +1306,10 @@ fun SensorCard(
                         }
                     }
 
-<<<<<<< HEAD
-                    if (sensor.connectionStatus.isNotEmpty()) {
-=======
                     val connectedStatus = stringResource(R.string.status_connected)
                     if (sensor.connectionStatus.isNotEmpty() &&
                         !sensor.connectionStatus.equals(connectedStatus, ignoreCase = true)
                     ) {
->>>>>>> rebase/test-1.0.4-merge
                         DataRow(stringResource(R.string.last_ble_status), sensor.connectionStatus)
                     }
                     DataRow(stringResource(R.string.sensor_address), sensor.deviceAddress)
@@ -2000,15 +1485,6 @@ fun SensorCard(
 
                 // Auto-calibration entry — Sibionics only, hidden when Raw mode selected (viewMode == 1)
                 if (sensor.isSibionics && sensor.viewMode != 1) {
-<<<<<<< HEAD
-                    val calSubtitle = if (sensor.customCalEnabled) {
-                        val calLabels = listOf("12H", "1D", "2D", "3D", "5D", "7D", "10D", "14D", "18D", "MAX")
-                        val label = calLabels.getOrElse(sensor.customCalIndex) { "12H" }
-                        "$label ${stringResource(R.string.window_label)}"
-                    } else {
-                        stringResource(R.string.juggluco_native)
-                    }
-=======
                     val calibrationEnabled = sensor.customCalIndex and 1 != 0
                     val baseAlgorithm = stringResource(
                         when (sensor.customCalIndex and 6) {
@@ -2021,7 +1497,6 @@ fun SensorCard(
                     val calSubtitle = if (calibrationEnabled) {
                         "$baseAlgorithm • ${stringResource(R.string.calibration)}"
                     } else baseAlgorithm
->>>>>>> rebase/test-1.0.4-merge
                     Surface(
                         onClick = { showSibionicsCalSheet = true },
                         shape = RoundedCornerShape(12.dp),
@@ -2047,11 +1522,7 @@ fun SensorCard(
                                 Text(
                                     calSubtitle,
                                     style = MaterialTheme.typography.bodySmall,
-<<<<<<< HEAD
-                                    color = if (sensor.customCalEnabled) MaterialTheme.colorScheme.tertiary
-=======
                                     color = if (sensor.customCalIndex != 0) MaterialTheme.colorScheme.tertiary
->>>>>>> rebase/test-1.0.4-merge
                                            else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -2311,11 +1782,7 @@ fun SensorCard(
             }
 
             // Row 1: Unified Reset Button (Sibionics only - full width, styled like "Previous calibrations")
-<<<<<<< HEAD
-            if (sensor.isSibionics2) {
-=======
             if (sensor.isSibionics) {
->>>>>>> rebase/test-1.0.4-merge
                 FilledTonalButton(
                     onClick = { showUnifiedResetDialog = true },
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -2334,95 +1801,6 @@ fun SensorCard(
                     Text(stringResource(R.string.reset_sensor))
                 }
 
-<<<<<<< HEAD
-                // Auto-reset days stepper (hardware reset scheduling, not algorithm-related)
-                val isAutoResetEnabled = sensor.autoResetDays < 25
-                var daysValue by remember(sensor.autoResetDays) {
-                    mutableStateOf(if (isAutoResetEnabled) sensor.autoResetDays else 20)
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.auto_reset_title),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                    AnimatedVisibility(visible = isAutoResetEnabled) {
-                        Surface(
-                            shape = MaterialTheme.shapes.large,
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            modifier = Modifier.padding(end = 8.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(4.dp)
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        if (daysValue > 1) {
-                                            daysValue--
-                                            viewModel.setAutoResetDays(sensor.serial, daysValue)
-                                        }
-                                    },
-                                    enabled = daysValue > 1,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Remove,
-                                        contentDescription = "Decrease",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = if (daysValue > 1) MaterialTheme.colorScheme.onSurfaceVariant
-                                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                    )
-                                }
-                                Surface(
-                                    shape = MaterialTheme.shapes.medium,
-                                    color = MaterialTheme.colorScheme.primaryContainer
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.auto_reset_days, daysValue),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        if (daysValue < 22) {
-                                            daysValue++
-                                            viewModel.setAutoResetDays(sensor.serial, daysValue)
-                                        }
-                                    },
-                                    enabled = daysValue < 22,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Increase",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = if (daysValue < 22) MaterialTheme.colorScheme.onSurfaceVariant
-                                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    StyledSwitch(
-                        checked = isAutoResetEnabled,
-                        onCheckedChange = { enabled ->
-                            val newValue = if (enabled) daysValue else 300
-                            viewModel.setAutoResetDays(sensor.serial, newValue)
-                        }
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-=======
                 if (sensor.isSibionics2) {
                     val isAutoResetEnabled = sensor.autoResetDays in 1..22
                     var daysValue by remember(sensor.serial, sensor.autoResetDays) {
@@ -2523,7 +1901,6 @@ fun SensorCard(
                         }
                     }
                 }
->>>>>>> rebase/test-1.0.4-merge
             }
 
             if (sensor.isMq) {
@@ -2763,11 +2140,7 @@ fun SensorCard(
                 }
             }
 
-<<<<<<< HEAD
-            if (!sensor.isAidex && !sensor.isSibionics2 && sensor.supportsHardwareReset) {
-=======
             if (!sensor.isAidex && !sensor.isSibionics && sensor.supportsHardwareReset) {
->>>>>>> rebase/test-1.0.4-merge
                 FilledTonalButton(
                     onClick = { showResetDialog = true },
                     enabled = sensor.isVendorConnected,

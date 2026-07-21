@@ -65,66 +65,6 @@ object TrendEngine {
 
         if (validPoints.size < 2) return TrendResult(TrendState.Flat, 0f, 0f, 0f, 0f)
 
-<<<<<<< HEAD
-        // Calculate Average Velocity (Weighted towards recent)
-        // Simple Linear Regression or Weighted Delta could work. 
-        // Let's use a weighted delta between adjacent points to prioritize recent change 
-        // while smoothing out single-point noise.
-        
-        var totalWeightedVelocity = 0f
-        var totalWeight = 0f
-        
-        // Use correct value source
-        val pFirst = validPoints.first()
-        val firstVal = if (useRaw && pFirst.rawValue > 0) pFirst.rawValue else pFirst.value
-
-        // Use explicit flag
-        val conversionFactor = if (isMmol) GlucoseFormatter.MGDL_PER_MMOL else 1.0f
-
-        // Collect values for noise calculation (in NATIVE units - no conversion!)
-        val rawValueList = mutableListOf<Float>()
-        // Collect values for velocity calculation (in mg/dL)
-        val mgdlValueList = mutableListOf<Float>()
-
-        // Analyze pairs
-        for (i in 0 until validPoints.size - 1) {
-            val p1 = validPoints[i]
-            val p2 = validPoints[i+1]
-            val timeDeltaMin = (p1.timestamp - p2.timestamp) / 60000f
-            
-            val v1 = if (useRaw && p1.rawValue > 0) p1.rawValue else p1.value
-            rawValueList.add(v1) // Native units for noise
-            mgdlValueList.add(v1 * conversionFactor) // mg/dL for velocity
-            
-            if (timeDeltaMin > 0) {
-                // Normalize delta to mg/dL
-                val v2 = if (useRaw && p2.rawValue > 0) p2.rawValue else p2.value
-                
-                val valueDelta = (v1 - v2) * conversionFactor
-                val instantVelocity = valueDelta / timeDeltaMin
-
-                // Outlier Rejection: Ignore non-physiological jumps (e.g. calibration artifacts)
-                // Threshold: 20 mg/dL per minute (~1.1 mmol/L per min) is extremely high 
-                // (Max normal rise is ~3-5).
-                if (Math.abs(instantVelocity) > 20f) {
-                    continue
-                }
-                
-                // Weight: More recent = higher weight
-                // Decay weight by 0.6 per step (was 0.8) for higher responsiveness
-                val weight = Math.pow(0.6, i.toDouble()).toFloat()
-                
-                totalWeightedVelocity += instantVelocity * weight
-                totalWeight += weight
-            }
-        }
-        // Add last point's value
-        val pLast = validPoints.last()
-        val lastVal = if (useRaw && pLast.rawValue > 0) pLast.rawValue else pLast.value
-        rawValueList.add(lastVal)
-
-        val velocity = if (totalWeight > 0) totalWeightedVelocity / totalWeight else 0f
-=======
         // Use explicit flag
         val conversionFactor = if (isMmol) GlucoseFormatter.MGDL_PER_MMOL else 1.0f
 
@@ -178,7 +118,6 @@ object TrendEngine {
         } else {
             0f
         }
->>>>>>> rebase/test-1.0.4-merge
 
         // Acceleration: Compare velocity of first half vs second half of window
         // (Rough approximation)

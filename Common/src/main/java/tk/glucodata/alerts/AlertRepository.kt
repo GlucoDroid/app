@@ -4,10 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import tk.glucodata.Applic
-<<<<<<< HEAD
-=======
 import tk.glucodata.GlucoseDelta
->>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.Natives
 import tk.glucodata.SuperGattCallback
 
@@ -56,8 +53,6 @@ object AlertRepository {
     private fun keyRetryEnabled(type: AlertType) = "alert_${type.id}_retryOn"
     private fun keyRetryInterval(type: AlertType) = "alert_${type.id}_retryInt"
     private fun keyRetryCount(type: AlertType) = "alert_${type.id}_retryCnt"
-<<<<<<< HEAD
-=======
     // Delta-counter keys (FALLING_FAST / RISING_FAST)
     private fun keyDeltaThreshold(type: AlertType) = "alert_${type.id}_deltaThreshold"
     private fun keyDeltaCount(type: AlertType) = "alert_${type.id}_deltaCount"
@@ -140,7 +135,6 @@ object AlertRepository {
         val raw = prefs.getStringSet(keyExpiryWarnings(type), null) ?: return default
         return sanitizeExpiryWarningMinutes(raw.mapNotNull { it.toIntOrNull() }.toSet())
     }
->>>>>>> rebase/test-1.0.4-merge
 
     private inline fun <reified T : Enum<T>> parseEnumPref(value: String?, fallback: T): T {
         return value?.let { raw ->
@@ -280,13 +274,9 @@ object AlertRepository {
             activeEndMinute = prefs.getInt(keyActiveEndMinute(type), -1).takeIf { it >= 0 },
             retryEnabled = prefs.getBoolean(keyRetryEnabled(type), false),
             retryIntervalMinutes = prefs.getInt(keyRetryInterval(type), 5),
-<<<<<<< HEAD
-            retryCount = prefs.getInt(keyRetryCount(type), 3)
-=======
             retryCount = prefs.getInt(keyRetryCount(type), 3),
             soundDelayEnabled = prefs.getBoolean(keySoundDelayEnabled(type), false),
             soundDelaySeconds = readSoundDelaySeconds(type)
->>>>>>> rebase/test-1.0.4-merge
         )
     }
 
@@ -336,12 +326,6 @@ object AlertRepository {
             activeEndMinute = prefs.getInt(keyActiveEndMinute(type), -1).takeIf { it >= 0 },
             retryEnabled = prefs.getBoolean(keyRetryEnabled(type), false),
             retryIntervalMinutes = prefs.getInt(keyRetryInterval(type), 5),
-<<<<<<< HEAD
-            retryCount = prefs.getInt(keyRetryCount(type), 3)
-        )
-    }
-    
-=======
             retryCount = prefs.getInt(keyRetryCount(type), 3),
             deltaThreshold = prefs.getFloat(keyDeltaThreshold(type), default.deltaThreshold ?: 0f).takeIf { it > 0 },
             deltaCount = prefs.getInt(keyDeltaCount(type), default.deltaCount ?: 0).takeIf { it > 0 },
@@ -356,7 +340,6 @@ object AlertRepository {
         )
     }
 
->>>>>>> rebase/test-1.0.4-merge
     /**
      * Save configuration for an alert type.
      * For legacy types, writes to both SharedPreferences and Natives.
@@ -374,12 +357,9 @@ object AlertRepository {
     }
     
     private fun saveToPrefs(config: AlertConfig) {
-<<<<<<< HEAD
-=======
         if (config.type == AlertType.SENSOR_EXPIRY) {
             adoptOpenWindowsForNewExpiryThresholds(config)
         }
->>>>>>> rebase/test-1.0.4-merge
         prefs.edit {
             putBoolean(keyEnabled(config.type), config.enabled)
             if (config.threshold != null) putFloat(keyThreshold(config.type), config.threshold) else remove(keyThreshold(config.type))
@@ -407,8 +387,6 @@ object AlertRepository {
             putBoolean(keyRetryEnabled(config.type), config.retryEnabled)
             putInt(keyRetryInterval(config.type), config.retryIntervalMinutes)
             putInt(keyRetryCount(config.type), config.retryCount)
-<<<<<<< HEAD
-=======
             if (config.deltaThreshold != null) putFloat(keyDeltaThreshold(config.type), config.deltaThreshold) else remove(keyDeltaThreshold(config.type))
             if (config.deltaCount != null) putInt(keyDeltaCount(config.type), config.deltaCount) else remove(keyDeltaCount(config.type))
             if (config.deltaBorder != null) putFloat(keyDeltaBorder(config.type), config.deltaBorder) else remove(keyDeltaBorder(config.type))
@@ -423,7 +401,6 @@ object AlertRepository {
                     sanitizeExpiryWarningMinutes(config.expiryWarningMinutes).map { it.toString() }.toSet()
                 )
             }
->>>>>>> rebase/test-1.0.4-merge
         }
     }
     

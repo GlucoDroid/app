@@ -147,10 +147,7 @@ private fun HistoryRoute(
     val journalEntries by dashboardViewModel.journalEntries.collectAsStateWithLifecycle()
     val journalInsulinPresets by dashboardViewModel.journalInsulinPresets.collectAsStateWithLifecycle()
     val journalFoods by dashboardViewModel.journalFoods.collectAsStateWithLifecycle()
-<<<<<<< HEAD
-=======
     val appChartRangeColorsEnabled by dashboardViewModel.glucoseAppChartRangeColorsEnabled.collectAsStateWithLifecycle()
->>>>>>> rebase/test-1.0.4-merge
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
@@ -178,10 +175,7 @@ private fun HistoryRoute(
         calibrations = calibrations,
         title = title,
         browseMode = browseMode,
-<<<<<<< HEAD
-=======
         chartRangeColors = appChartRangeColorsEnabled,
->>>>>>> rebase/test-1.0.4-merge
 //        initialShowReadingRows = initialShowReadingRows,
         journalEnabled = journalEnabled,
         journalEntries = scopedJournalEntries,
@@ -301,11 +295,8 @@ private fun JournalRoute(
     val journalEntries by dashboardViewModel.journalEntries.collectAsStateWithLifecycle()
     val journalInsulinPresets by dashboardViewModel.journalInsulinPresets.collectAsStateWithLifecycle()
     val journalFoods by dashboardViewModel.journalFoods.collectAsStateWithLifecycle()
-<<<<<<< HEAD
-=======
     val journalEiobDisplayEnabled by dashboardViewModel.journalEiobDisplayEnabled.collectAsStateWithLifecycle()
     val appChartRangeColorsEnabled by dashboardViewModel.glucoseAppChartRangeColorsEnabled.collectAsStateWithLifecycle()
->>>>>>> rebase/test-1.0.4-merge
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
@@ -375,13 +366,9 @@ private fun JournalRoute(
         modifier = modifier,
         showTitle = showTitle,
         useStatusBarsPadding = useStatusBarsPadding,
-<<<<<<< HEAD
-        bottomContentPadding = bottomContentPadding
-=======
         bottomContentPadding = bottomContentPadding,
         showEiob = journalEiobDisplayEnabled,
         chartRangeColors = appChartRangeColorsEnabled
->>>>>>> rebase/test-1.0.4-merge
     )
 
     journalEditorRequest?.let { request ->

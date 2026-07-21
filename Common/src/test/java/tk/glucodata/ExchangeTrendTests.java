@@ -71,8 +71,6 @@ public class ExchangeTrendTests {
         assertEquals("\u2193\u2193", ExchangeTrend.arrowForIndex(ExchangeTrend.DOUBLE_DOWN));
     }
 
-<<<<<<< HEAD
-=======
     @Test
     public void deriveRate_convertsSampleGapToMgdlPerMinute() {
         final long now = 1_700_000_000_000L;
@@ -136,7 +134,6 @@ public class ExchangeTrendTests {
         assertEquals("", trend.name);
     }
 
->>>>>>> rebase/test-1.0.4-merge
     private static void assertTrend(float rate, int expectedIndex, String expectedName) {
         final ExchangeTrend trend = ExchangeTrend.fromRate(rate);
 

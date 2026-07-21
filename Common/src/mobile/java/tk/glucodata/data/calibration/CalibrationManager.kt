@@ -42,13 +42,9 @@ object CalibrationManager {
     private const val KEY_WEIGHT_MODE = "calibration_weight_mode"
     private const val HOUR_MS = 3_600_000.0
     private const val PAST_BLEND_WINDOW_MS = 30L * 60L * 1000L
-<<<<<<< HEAD
-    private const val LEGACY_SENSOR_RESOLUTION_WINDOW_MS = 15L * 60L * 1000L
-=======
     private const val INTEGRATED_ANCHOR_MATCH_MS = 2L * 60L * 1000L
     private const val LEGACY_SENSOR_RESOLUTION_WINDOW_MS = 15L * 60L * 1000L
     private const val MAX_MANAGED_CALIBRATION_ANCHORS = 12
->>>>>>> rebase/test-1.0.4-merge
 
     enum class CalibrationAlgorithm(
         val storageValue: String,
@@ -172,8 +168,6 @@ object CalibrationManager {
         val allPoints: List<CalPoint>,
         val earliestPoint: CalPoint?
     )
-<<<<<<< HEAD
-=======
 
     private data class IntegratedContextCacheKey(
         val sensorId: String,
@@ -187,7 +181,6 @@ object CalibrationManager {
         val isRawMode: Boolean,
         val unit: Int,
     )
->>>>>>> rebase/test-1.0.4-merge
     
     private lateinit var database: CalibrationDatabase
     private lateinit var dao: CalibrationDao
@@ -259,11 +252,8 @@ object CalibrationManager {
             return size > 128
         }
     }
-<<<<<<< HEAD
-=======
     private val integratedContextCache = LinkedHashMap<IntegratedContextCacheKey, CalibrationContext>()
     private val integratedBaselineCache = LinkedHashMap<IntegratedBaselineCacheKey, List<CalibrationSample>>()
->>>>>>> rebase/test-1.0.4-merge
 
     fun init(context: Context) {
         synchronized(initLock) {
@@ -343,9 +333,6 @@ object CalibrationManager {
         synchronized(validPointsCache) {
             validPointsCache.clear()
         }
-<<<<<<< HEAD
-        Log.d(TAG, "Calibration cache invalidated: $reason")
-=======
         synchronized(integratedContextCache) {
             integratedContextCache.clear()
         }
@@ -353,13 +340,10 @@ object CalibrationManager {
         runCatching {
             tk.glucodata.drivers.ManagedSensorRuntime.notifyUserCalibrationRevisionChanged(calibrationRevision)
         }
->>>>>>> rebase/test-1.0.4-merge
     }
 
     fun getRevision(): Long = calibrationRevision
 
-<<<<<<< HEAD
-=======
     @JvmStatic
     fun getIntegratedCalibrationFingerprint(sensorIdOverride: String?, isRawMode: Boolean): Long {
         val sensorId = resolveSensorId(sensorIdOverride)
@@ -424,7 +408,6 @@ object CalibrationManager {
         requestUiRefreshAfterCalibrationChange()
     }
 
->>>>>>> rebase/test-1.0.4-merge
     private fun normalizeSensorId(sensorId: String?): String {
         val normalized = sensorId?.trim()?.takeIf { it.isNotEmpty() } ?: return ""
         return SensorIdentity.resolveAppSensorId(normalized) ?: normalized
@@ -1089,10 +1072,7 @@ object CalibrationManager {
                 migrateCalibrationSensorIdsIfPossible()
                 dao.getAllSync()
             }
-<<<<<<< HEAD
-=======
             if (calibrationStateLoaded && _calibrations.value == list) return
->>>>>>> rebase/test-1.0.4-merge
             _calibrations.value = list
             calibrationStateLoaded = true
             invalidateComputationCache("loadCalibrations")
@@ -1209,12 +1189,9 @@ object CalibrationManager {
         if (!value.isFinite() || value <= 0f) {
             return value
         }
-<<<<<<< HEAD
-=======
         if (tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(currentSensor, isRawMode)) {
             return value
         }
->>>>>>> rebase/test-1.0.4-merge
 
         val algorithm = getAlgorithmForMode(isRawMode)
         val cacheKey = CalibrationCacheKey(
@@ -1269,15 +1246,6 @@ object CalibrationManager {
         emitDiagnostics: Boolean = false,
         sensorIdOverride: String? = null
     ): FloatArray {
-<<<<<<< HEAD
-        if (samples.isEmpty()) return FloatArray(0)
-
-        val context = resolveCalibrationContext(isRawMode, sensorIdOverride)
-        if (context == null) {
-            return FloatArray(samples.size) { index -> samples[index].value }
-        }
-
-=======
         return getCalibratedSeriesInternal(
             samples = samples,
             isRawMode = isRawMode,
@@ -1389,16 +1357,11 @@ object CalibrationManager {
         emitDiagnostics: Boolean,
         context: CalibrationContext,
     ): FloatArray {
->>>>>>> rebase/test-1.0.4-merge
         val results = FloatArray(samples.size)
         if (!_lockPastHistory.value) {
             val points = context.allPoints.filter { it.isEnabled }
             samples.forEachIndexed { index, sample ->
-<<<<<<< HEAD
-                results[index] = if (points.isEmpty()) {
-=======
                 val modelValue = if (points.isEmpty()) {
->>>>>>> rebase/test-1.0.4-merge
                     sample.value
                 } else {
                     computeCalibratedValue(
@@ -1410,10 +1373,7 @@ object CalibrationManager {
                         emitDiagnostics = emitDiagnostics && index == samples.lastIndex
                     )
                 }
-<<<<<<< HEAD
-=======
                 results[index] = modelValue
->>>>>>> rebase/test-1.0.4-merge
             }
             return results
         }
@@ -1427,11 +1387,7 @@ object CalibrationManager {
                 targetTimestamp = sample.timestamp,
                 earliestPoint = context.earliestPoint
             )
-<<<<<<< HEAD
-            results[indexedSample.index] = if (points.isEmpty()) {
-=======
             val modelValue = if (points.isEmpty()) {
->>>>>>> rebase/test-1.0.4-merge
                 sample.value
             } else {
                 computeCalibratedValue(
@@ -1443,17 +1399,12 @@ object CalibrationManager {
                     emitDiagnostics = emitDiagnostics && sortedIndex == indexedSamples.lastIndex
                 )
             }
-<<<<<<< HEAD
-=======
             results[indexedSample.index] = modelValue
->>>>>>> rebase/test-1.0.4-merge
         }
 
         return results
     }
 
-<<<<<<< HEAD
-=======
     private fun rebaseIntegratedContext(
         context: CalibrationContext,
         stockSamples: List<CalibrationSample>,
@@ -1500,7 +1451,6 @@ object CalibrationManager {
             .distinctBy { it.timestamp }
     }
 
->>>>>>> rebase/test-1.0.4-merge
     private fun resolveCalibrationContext(
         isRawMode: Boolean,
         sensorIdOverride: String?
@@ -2135,10 +2085,7 @@ object CalibrationManager {
     fun hasActiveCalibration(isRawMode: Boolean, sensorIdOverride: String? = null): Boolean {
         val sensorId = resolveSensorId(sensorIdOverride)
         if (!isEnabledForMode(isRawMode, sensorId)) return false
-<<<<<<< HEAD
-=======
         if (tk.glucodata.drivers.ManagedSensorRuntime.integratesUserCalibration(sensorId, isRawMode)) return false
->>>>>>> rebase/test-1.0.4-merge
 
         return getValidPointsForSensor(isRawMode, sensorId).isNotEmpty()
     }

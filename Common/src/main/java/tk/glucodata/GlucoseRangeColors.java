@@ -1,12 +1,5 @@
 package tk.glucodata;
 
-<<<<<<< HEAD
-/**
- * Shared glucose range tones. The hue order follows AGP convention:
- * below range is red/dark red, in range is green, above range is amber/orange.
- */
-public final class GlucoseRangeColors {
-=======
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -25,7 +18,6 @@ public final class GlucoseRangeColors {
     // Muted preset (the historical default). Kept as the public constants so any
     // remaining direct reference still resolves to the original tones. Dark ==
     // light: the muted palette is intentionally identical in both themes.
->>>>>>> rebase/test-1.0.4-merge
     public static final int VERY_LOW = 0xFFC7655C;
     public static final int LOW = 0xFFC97970;
     public static final int IN_RANGE = 0xFF4E8A55;
@@ -38,8 +30,6 @@ public final class GlucoseRangeColors {
     public static final int HIGH_DARK = HIGH;
     public static final int VERY_HIGH_DARK = VERY_HIGH;
 
-<<<<<<< HEAD
-=======
     /** Selectable colour presets. CUSTOM is a UI label for "base + overrides". */
     public enum Palette { MUTED, VIBRANT, GDH_LIKE, CUSTOM }
 
@@ -221,7 +211,6 @@ public final class GlucoseRangeColors {
         }
     }
 
->>>>>>> rebase/test-1.0.4-merge
     public static final float DEFAULT_LOW_MGDL = 70.0f;
     public static final float DEFAULT_HIGH_MGDL = 180.0f;
     public static final float DEFAULT_VERY_LOW_MGDL = 54.0f;
@@ -236,25 +225,6 @@ public final class GlucoseRangeColors {
     }
 
     public static int veryLow(boolean darkTheme) {
-<<<<<<< HEAD
-        return darkTheme ? VERY_LOW_DARK : VERY_LOW;
-    }
-
-    public static int low(boolean darkTheme) {
-        return darkTheme ? LOW_DARK : LOW;
-    }
-
-    public static int inRange(boolean darkTheme) {
-        return darkTheme ? IN_RANGE_DARK : IN_RANGE;
-    }
-
-    public static int high(boolean darkTheme) {
-        return darkTheme ? HIGH_DARK : HIGH;
-    }
-
-    public static int veryHigh(boolean darkTheme) {
-        return darkTheme ? VERY_HIGH_DARK : VERY_HIGH;
-=======
         return resolve(Band.VERY_LOW, darkTheme);
     }
 
@@ -272,7 +242,6 @@ public final class GlucoseRangeColors {
 
     public static int veryHigh(boolean darkTheme) {
         return resolve(Band.VERY_HIGH, darkTheme);
->>>>>>> rebase/test-1.0.4-merge
     }
 
     public static float defaultLow(boolean isMmol) {
@@ -291,8 +260,6 @@ public final class GlucoseRangeColors {
         return isMmol ? DEFAULT_VERY_HIGH_MMOL : DEFAULT_VERY_HIGH_MGDL;
     }
 
-<<<<<<< HEAD
-=======
     // Traffic-light palette for colouring the current value (and trend arrow,
     // and the notification value): green inside the target range, yellow between
     // target and alarm bounds, red beyond the alarms. This is a 3-tier system,
@@ -372,7 +339,6 @@ public final class GlucoseRangeColors {
         return valueInRange(darkTheme);
     }
 
->>>>>>> rebase/test-1.0.4-merge
     public static int blend(int startColor, int endColor, float fraction) {
         float safeFraction = Math.max(0.0f, Math.min(1.0f, fraction));
         float inverse = 1.0f - safeFraction;

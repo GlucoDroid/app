@@ -9,8 +9,6 @@ interface ManagedSensorMaintenanceDriver {
 
     fun resetSensor(): Boolean = false
 
-<<<<<<< HEAD
-=======
     fun supportsAutoReset(): Boolean = false
 
     fun getAutoResetDays(): Int = 300
@@ -27,7 +25,6 @@ interface ManagedSensorMaintenanceDriver {
 
     fun setCustomAlgorithmMode(mode: Int): Boolean = setCustomAlgorithmEnabled(mode == 2)
 
->>>>>>> rebase/test-1.0.4-merge
     fun supportsClearCalibrationAction(): Boolean = false
 
     fun clearSensorCalibration(): Boolean = false
