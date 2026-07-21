@@ -368,6 +368,10 @@ fun HistoryBrowseScreen(
     title: String,
     browseMode: TimelineBrowseMode = TimelineBrowseMode.HISTORY,
     journalEnabled: Boolean = false,
+<<<<<<< HEAD
+=======
+    chartRangeColors: Boolean = false,
+>>>>>>> rebase/test-1.0.4-merge
     journalEntries: List<JournalEntry> = emptyList(),
     journalInsulinPresets: List<JournalInsulinPreset> = emptyList(),
     journalFoods: List<JournalFood> = emptyList(),
@@ -603,6 +607,10 @@ fun HistoryBrowseScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(420.dp),
+<<<<<<< HEAD
+=======
+                            appChartRangeColors = chartRangeColors,
+>>>>>>> rebase/test-1.0.4-merge
                             glucoseHistory = activeHistory,
                             journalMarkers = journalMarkers,
                             graphSmoothingMinutes = graphSmoothingMinutes,
@@ -625,6 +633,10 @@ fun HistoryBrowseScreen(
                             onJournalMarkerClick = { entryId ->
                                 journalEntriesById[entryId]?.let { onJournalEntryClick?.invoke(it) }
                             },
+<<<<<<< HEAD
+=======
+                            resetToLatestOnResume = false,
+>>>>>>> rebase/test-1.0.4-merge
                             onViewportSnapshotChanged = { viewportSnapshot = it }
                         )
                     }

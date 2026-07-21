@@ -2,7 +2,10 @@ package tk.glucodata.ui.setup
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
+<<<<<<< HEAD
 import android.content.ActivityNotFoundException
+=======
+>>>>>>> rebase/test-1.0.4-merge
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -28,13 +31,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+<<<<<<< HEAD
 import com.microtechmd.blecomm.BlecommLoader
+=======
+>>>>>>> rebase/test-1.0.4-merge
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import tk.glucodata.Log
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
+<<<<<<< HEAD
 import tk.glucodata.drivers.aidex.AiDexNativeFactory
+=======
+>>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.ui.util.BleDeviceScanner
 import tk.glucodata.ui.util.rememberBleScanner
 import java.util.UUID
@@ -58,6 +67,7 @@ fun AiDexSetupWizard(
     var selectedDeviceName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+<<<<<<< HEAD
     var vendorLibAvailable by remember { mutableStateOf(BlecommLoader.isLibraryPresent(context) || AiDexNativeFactory.isNativeModeEnabled(context)) }
     val uploadLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -83,6 +93,8 @@ fun AiDexSetupWizard(
             Toast.makeText(context, context.getString(R.string.unable_to_open_source_file), Toast.LENGTH_LONG).show()
         }
     }
+=======
+>>>>>>> rebase/test-1.0.4-merge
     BackHandler {
         if (currentStep == AiDexSetupStep.SCAN) onDismiss() else currentStep = AiDexSetupStep.SCAN
     }
@@ -114,6 +126,7 @@ fun AiDexSetupWizard(
             when (step) {
                 AiDexSetupStep.SCAN -> AiDexScanStep(
                     ui = ui,
+<<<<<<< HEAD
                     vendorLibAvailable = vendorLibAvailable,
                     onNavigateToReadiness = onNavigateToReadiness,
                     onUploadProprietary = launchUploadPickerSafely,
@@ -133,6 +146,11 @@ fun AiDexSetupWizard(
                                     return@AiDexScanStep
                                 }
                             }
+=======
+                    onNavigateToReadiness = onNavigateToReadiness,
+                    onDeviceSelected = { selectedName, address ->
+                        try {
+>>>>>>> rebase/test-1.0.4-merge
                             val name = selectedName.trim()
                             if (name.isEmpty()) {
                                 Toast.makeText(
@@ -194,9 +212,13 @@ fun AiDexSetupWizard(
 @Composable
 fun AiDexScanStep(
     ui: WizardUiMetrics,
+<<<<<<< HEAD
     vendorLibAvailable: Boolean,
     onNavigateToReadiness: () -> Unit,
     onUploadProprietary: () -> Unit,
+=======
+    onNavigateToReadiness: () -> Unit,
+>>>>>>> rebase/test-1.0.4-merge
     onDeviceSelected: (String, String) -> Unit
 ) {
     data class ScanCandidate(
@@ -380,6 +402,7 @@ fun AiDexScanStep(
                 }
             }
         }
+<<<<<<< HEAD
         if (!vendorLibAvailable) {
             Spacer(Modifier.height(ui.spacerMedium))
             Card(
@@ -404,6 +427,8 @@ fun AiDexScanStep(
             }
         }
 
+=======
+>>>>>>> rebase/test-1.0.4-merge
         LazyColumn {
             items(devices) { device ->
                 val name = device.rawName.ifBlank { stringResource(R.string.unknown) }
@@ -412,7 +437,11 @@ fun AiDexScanStep(
                 // If we're in "sensors only" mode, skip non-matching devices.
                 if (!showAllDevices && !device.isLikelyAiDex) return@items
 
+<<<<<<< HEAD
                 val canSelect = vendorLibAvailable && (device.isLikelyAiDex || showAllDevices)
+=======
+                val canSelect = device.isLikelyAiDex || showAllDevices
+>>>>>>> rebase/test-1.0.4-merge
 
                 ListItem(
                     headlineContent = {

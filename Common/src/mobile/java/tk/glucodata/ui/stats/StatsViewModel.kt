@@ -584,7 +584,10 @@ class StatsViewModel : ViewModel() {
             val displayAutoValue = GlucoseFormatter.displayFromMgDl(point.value, isMmol)
             val displayRawValue = GlucoseFormatter.displayFromMgDl(point.rawValue, isMmol)
             val calibratedDisplayValue = calibratedDisplayValues[index]
+<<<<<<< HEAD
 
+=======
+>>>>>>> rebase/test-1.0.4-merge
             val primaryValueMgDl = resolvePrimaryStatsValueMgDl(
                 displayAutoValue = displayAutoValue,
                 displayRawValue = displayRawValue,

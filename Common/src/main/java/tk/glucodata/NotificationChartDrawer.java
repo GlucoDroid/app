@@ -68,6 +68,14 @@ public class NotificationChartDrawer {
         }
     }
 
+<<<<<<< HEAD
+=======
+    // Optional GDH-style traffic coloring of the chart line, resolved from
+    // prefs at each drawChartInternal entry (single funnel for all charts).
+    private static volatile boolean sTrafficLineColors = false;
+    private static volatile boolean sTrafficLineDark = false;
+
+>>>>>>> rebase/test-1.0.4-merge
     private static int resolveThresholdPointColor(
             float value,
             float targetLow,
@@ -76,6 +84,20 @@ public class NotificationChartDrawer {
             float veryHighThreshold,
             int inRangeColor,
             boolean isMmol) {
+<<<<<<< HEAD
+=======
+        if (sTrafficLineColors) {
+            return GlucoseRangeColors.trafficColorForValue(
+                    value,
+                    targetLow,
+                    targetHigh,
+                    veryLowThreshold,
+                    veryHighThreshold,
+                    sTrafficLineDark,
+                    isMmol,
+                    inRangeColor);
+        }
+>>>>>>> rebase/test-1.0.4-merge
         return GlucoseRangeColors.colorForValue(
                 value,
                 targetLow,
@@ -916,6 +938,7 @@ public class NotificationChartDrawer {
             outlinePaint.setStrokeWidth(strokeWidth * 2.2f);
         }
 
+<<<<<<< HEAD
         // Rotation Formula: Rate -> Degrees
         // 2.0 -> 50 deg? No, TrendIndicator uses:
         // sensitivity = 25f
@@ -926,6 +949,11 @@ public class NotificationChartDrawer {
             rotation = -90f;
         if (rotation > 90f)
             rotation = 90f;
+=======
+        // Shared rotation math (45 deg per mg/dL/min, vertical at +/-2, flat
+        // below the Flat trend state) — must match TrendIndicator.
+        float rotation = TrendArrowAngle.rotationDegrees(rate);
+>>>>>>> rebase/test-1.0.4-merge
 
         // Base Dimensions from TrendIndicator.kt
         float headSpan = drawSize * 0.5f;
@@ -934,6 +962,7 @@ public class NotificationChartDrawer {
 
         boolean showDouble = Math.abs(rate) > 2.0f;
 
+<<<<<<< HEAD
         // Total Length Calculation
         // arrowLenFactor = if (showDouble) 0.35f else 0.6f
         float arrowLenFactor = showDouble ? 0.3f : 0.5f;
@@ -943,12 +972,32 @@ public class NotificationChartDrawer {
         float totalScale = 1.0f;
         float speed = Math.abs(rate);
         totalScale = 1.0f + (Math.min(speed * 0.12f, 0.5f)); // baseScale
+=======
+        // Total Length Calculation. The arrow rotates around the bitmap
+        // center, so a shaft of up to ~95% of the box never clips at any
+        // angle; the old 50% factor left a stubby glyph next to what other
+        // apps render for the same rate.
+        float arrowLenFactor = showDouble ? 0.42f : 0.62f;
+
+        // Slight growth with speed, capped so the double-head variant still
+        // fits inside the bitmap.
+        float speed = Math.abs(rate);
+        float totalScale = 1.0f + Math.min(speed * 0.04f, 0.18f);
+>>>>>>> rebase/test-1.0.4-merge
 
         float arrowLen = drawSize * arrowLenFactor * totalScale;
         float totalVisualLen = arrowLen;
         if (showDouble) {
             totalVisualLen += gap + headDepth;
         }
+<<<<<<< HEAD
+=======
+        if (totalVisualLen > drawSize * 0.95f) {
+            float shrink = (drawSize * 0.95f) / totalVisualLen;
+            arrowLen *= shrink;
+            totalVisualLen = drawSize * 0.95f;
+        }
+>>>>>>> rebase/test-1.0.4-merge
 
         float cx = bitmapSize / 2.0f;
         float cy = bitmapSize / 2.0f;
@@ -1428,6 +1477,12 @@ public class NotificationChartDrawer {
     private static Bitmap drawChartInternal(Context context, List<GlucosePoint> data, int widthHint, int heightHint,
             boolean isMmol, int viewMode, boolean showTargetRange, boolean hasCalibration, boolean compactMode,
             String calibrationSensorId, long durationMs, boolean showPredictionOverlay, List<PeerSeries> peerSeries) {
+<<<<<<< HEAD
+=======
+        sTrafficLineColors = context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+                .getBoolean("glucose_chart_range_colors_enabled", false);
+        sTrafficLineDark = useLightOnTransparentPalette(context);
+>>>>>>> rebase/test-1.0.4-merge
         // Get display metrics for proper sizing
         DisplayMetrics dm = context.getResources().getDisplayMetrics();
         int width = (widthHint > 0) ? widthHint : dm.widthPixels;

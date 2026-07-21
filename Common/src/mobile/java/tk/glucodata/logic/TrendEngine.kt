@@ -65,6 +65,7 @@ object TrendEngine {
 
         if (validPoints.size < 2) return TrendResult(TrendState.Flat, 0f, 0f, 0f, 0f)
 
+<<<<<<< HEAD
         // Calculate Average Velocity (Weighted towards recent)
         // Simple Linear Regression or Weighted Delta could work. 
         // Let's use a weighted delta between adjacent points to prioritize recent change 
@@ -123,6 +124,61 @@ object TrendEngine {
         rawValueList.add(lastVal)
 
         val velocity = if (totalWeight > 0) totalWeightedVelocity / totalWeight else 0f
+=======
+        // Use explicit flag
+        val conversionFactor = if (isMmol) GlucoseFormatter.MGDL_PER_MMOL else 1.0f
+
+        fun pointValue(p: GlucosePoint): Float = if (useRaw && p.rawValue > 0) p.rawValue else p.value
+
+        // Collect values for noise calculation (in NATIVE units - no conversion!)
+        val rawValueList = mutableListOf<Float>()
+        validPoints.forEach { rawValueList.add(pointValue(it)) }
+
+        // Velocity: least-squares slope over the window, in mg/dL per minute.
+        // The previous estimator averaged adjacent minute-deltas with a 0.6^i
+        // recency decay, which put 40% of the total weight on the newest
+        // single delta — effectively a 3 minute slope that rode every noisy
+        // reading and regularly showed far steeper than the sensor's own
+        // ~15 minute averaged rate, the number every broadcast receiver
+        // rotates its arrow by. A regression reads the trend, not the jitter.
+        //
+        // A non-physiological jump between adjacent points (calibration step,
+        // >20 mg/dL per minute) ends the window: only the segment newer than
+        // the artifact describes the current trend.
+        var usable = validPoints.size
+        for (i in 0 until validPoints.size - 1) {
+            val p1 = validPoints[i]
+            val p2 = validPoints[i + 1]
+            val timeDeltaMin = (p1.timestamp - p2.timestamp) / 60000f
+            if (timeDeltaMin > 0f &&
+                Math.abs((pointValue(p1) - pointValue(p2)) * conversionFactor / timeDeltaMin) > 20f
+            ) {
+                usable = i + 1
+                break
+            }
+        }
+
+        val newestTs = validPoints.first().timestamp
+        var sx = 0.0
+        var sy = 0.0
+        var sxy = 0.0
+        var sxx = 0.0
+        for (i in 0 until usable) {
+            val p = validPoints[i]
+            val xMinutes = (p.timestamp - newestTs) / 60000.0
+            val yMgdl = (pointValue(p) * conversionFactor).toDouble()
+            sx += xMinutes
+            sy += yMgdl
+            sxy += xMinutes * yMgdl
+            sxx += xMinutes * xMinutes
+        }
+        val denominator = usable * sxx - sx * sx
+        val velocity = if (usable >= 2 && denominator > 1e-6) {
+            ((usable * sxy - sx * sy) / denominator).toFloat()
+        } else {
+            0f
+        }
+>>>>>>> rebase/test-1.0.4-merge
 
         // Acceleration: Compare velocity of first half vs second half of window
         // (Rough approximation)

@@ -24,6 +24,31 @@ class RealtimeReadingPolicyTests {
     }
 
     @Test
+<<<<<<< HEAD
+=======
+    fun nativeHighWaterAllowsSubSecondLiveTimestampSkew() {
+        assertTrue(
+            RealtimeReadingPolicy.shouldDispatch(
+                1_783_587_719_998L,
+                1_783_587_660_050L,
+                1_783_587_720_000L
+            )
+        )
+    }
+
+    @Test
+    fun inMemoryHighWaterStillBlocksOlderCallbacks() {
+        assertFalse(
+            RealtimeReadingPolicy.shouldDispatch(
+                1_783_587_719_998L,
+                1_783_587_720_000L,
+                1_783_587_720_000L
+            )
+        )
+    }
+
+    @Test
+>>>>>>> rebase/test-1.0.4-merge
     fun nativeHighWaterProtectsAfterProcessStateReset() {
         assertFalse(RealtimeReadingPolicy.shouldDispatch(1_000L, 0L, 2_000L))
     }

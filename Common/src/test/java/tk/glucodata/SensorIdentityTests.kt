@@ -2,6 +2,10 @@ package tk.glucodata
 
 import org.junit.After
 import org.junit.Assert.assertEquals
+<<<<<<< HEAD
+=======
+import org.junit.Assert.assertFalse
+>>>>>>> rebase/test-1.0.4-merge
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -107,6 +111,45 @@ class SensorIdentityTests {
     }
 
     @Test
+<<<<<<< HEAD
+=======
+    fun placeholderIdentity_neverBecomesASensorOrMainSelection() {
+        ManagedCurrentSensor.set("?")
+
+        assertNull(SensorIdentity.resolveAppSensorId("?"))
+        assertNull(
+            SensorIdentity.resolveAvailableMainSensor(
+                selectedMain = "?",
+                preferredSensorId = null,
+                activeSensors = arrayOf("?")
+            )
+        )
+        assertEquals(
+            "real-sensor",
+            SensorIdentity.resolveAvailableMainSensor(
+                selectedMain = "?",
+                preferredSensorId = null,
+                activeSensors = arrayOf("?", "real-sensor")
+            )
+        )
+    }
+
+    @Test
+    fun usableIdentity_acceptsVendorFormatsButRejectsPlaceholdersAndControls() {
+        listOf(
+            "SIBI:0683013AQT9",
+            "ICN-8760080A2604",
+            "X-222227JR7C",
+            "P225043JMV",
+            "46HU804EBJ4",
+        ).forEach { assertTrue(SensorIdentity.isUsableSensorId(it)) }
+
+        assertFalse(SensorIdentity.isUsableSensorId("?"))
+        assertFalse(SensorIdentity.isUsableSensorId("bad\u001Didentity"))
+    }
+
+    @Test
+>>>>>>> rebase/test-1.0.4-merge
     fun matches_recognizesAidexCanonicalAndAlias() {
         assertTrue(SensorIdentity.matches("X-222227JR7C", "222227JR7C"))
         assertTrue(SensorIdentity.matches("222227JR7C", "X-222227JR7C"))

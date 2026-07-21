@@ -134,6 +134,12 @@ class OttaiBleManager(
     @Volatile private var discoveryStarted = false
     @Volatile private var activationCommandSentAtMs = 0L
     @Volatile private var provisionalActiveTimeMs = 0L
+<<<<<<< HEAD
+=======
+    @Volatile private var commandStatus = -1
+    @Volatile private var needsActivationAttempted = false
+    @Volatile private var endedRecoveryAttempted = false
+>>>>>>> rebase/test-1.0.4-merge
     @Volatile private var livePollIntervalMs = 60_000L
     @Volatile private var lastHistoryRequestAtMs = 0L
     @Volatile private var roomBackfillChecked = false
@@ -167,14 +173,22 @@ class OttaiBleManager(
     override var viewMode: Int = 0
 
     private val livePollRunnable = Runnable {
+<<<<<<< HEAD
         if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return@Runnable
+=======
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank() || commandStatus >= 4) return@Runnable
+>>>>>>> rebase/test-1.0.4-merge
         val gatt = mBluetoothGatt ?: return@Runnable
         readLiveGlucose(gatt, "poll")
         scheduleLivePoll()
     }
 
     private val postHistoryLiveRunnable = Runnable {
+<<<<<<< HEAD
         if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return@Runnable
+=======
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank() || commandStatus >= 4) return@Runnable
+>>>>>>> rebase/test-1.0.4-merge
         val gatt = mBluetoothGatt ?: return@Runnable
         readLiveGlucose(gatt, "post-history")
         scheduleLivePoll()
@@ -184,6 +198,25 @@ class OttaiBleManager(
         requestPendingHistoryChunk()
     }
 
+<<<<<<< HEAD
+=======
+    private val endedHistoryBackfillRunnable = Runnable { runEndedHistoryBackfill() }
+
+    private fun runEndedHistoryBackfill() {
+        if (stop || commandStatus < 4 || phase != Phase.STREAMING || sessionKeyHex.isBlank()) {
+            return
+        }
+        if (actStep != ActStep.NONE && actStep != ActStep.DONE) {
+            handler.postDelayed(endedHistoryBackfillRunnable, 1_000L)
+            return
+        }
+        val endExclusive = lastDataNo + 1
+        if (endExclusive <= 0) return
+        val issued = requestRoomBackfillAfterLive(endExclusive, -1)
+        Log.i(TAG, "ended history backfill endExclusive=$endExclusive issued=$issued")
+    }
+
+>>>>>>> rebase/test-1.0.4-merge
     private val connectionWatchdogRunnable = Runnable {
         checkConnectionWatchdog()
     }
@@ -205,7 +238,10 @@ class OttaiBleManager(
         } else {
             OttaiRegistry.loadProvisionalActiveTime(context, id)
         }
+<<<<<<< HEAD
         if (provisionalActiveTimeMs > 0L) activationCommandSentAtMs = provisionalActiveTimeMs
+=======
+>>>>>>> rebase/test-1.0.4-merge
         authKeys = materials.authKeys
         lastDataNo = OttaiRegistry.loadLastDataNo(context, id)
         // Restore the spike-filter baseline so the first sample after an app restart is
@@ -280,6 +316,10 @@ class OttaiBleManager(
         handler.removeCallbacks(livePollRunnable)
         handler.removeCallbacks(postHistoryLiveRunnable)
         handler.removeCallbacks(pendingHistoryChunkRunnable)
+<<<<<<< HEAD
+=======
+        handler.removeCallbacks(endedHistoryBackfillRunnable)
+>>>>>>> rebase/test-1.0.4-merge
         handler.removeCallbacks(connectionWatchdogRunnable)
         clearPendingHistoryRange()
         svcDeviceInfo = null
@@ -291,6 +331,10 @@ class OttaiBleManager(
         notifyEnableIndex = 0
         discoveryStarted = false
         pendingActivation = false
+<<<<<<< HEAD
+=======
+        commandStatus = -1
+>>>>>>> rebase/test-1.0.4-merge
         phase = Phase.IDLE
         val oldGatt = mBluetoothGatt
         runCatching { disconnect() }
@@ -355,10 +399,22 @@ class OttaiBleManager(
 
     override fun softReconnect() {
         setPause(false)
+<<<<<<< HEAD
+=======
+        needsActivationAttempted = false
+>>>>>>> rebase/test-1.0.4-merge
         clearGattTransport("user reconnect", markSignalLoss = false)
         connectDevice(0)
     }
 
+<<<<<<< HEAD
+=======
+    override fun onBluetoothAdapterUnavailable() {
+        clearGattTransport("Bluetooth adapter off", markSignalLoss = false)
+        constatstatusstr = appString(R.string.status_bluetooth_off, "Bluetooth off")
+    }
+
+>>>>>>> rebase/test-1.0.4-merge
     private fun knownBleAddress(): String? =
         OttaiConstants.normalizeBleAddress(mActiveDeviceAddress, allowPlain = false)
             ?: OttaiConstants.normalizeBleAddress(
@@ -413,6 +469,10 @@ class OttaiBleManager(
                 phase = Phase.DISCOVERING
                 authStep = AuthStep.NONE
                 actStep = ActStep.NONE
+<<<<<<< HEAD
+=======
+                commandStatus = -1
+>>>>>>> rebase/test-1.0.4-merge
                 notifyEnableIndex = 0
                 discoveryStarted = false
                 roomBackfillChecked = false
@@ -434,10 +494,19 @@ class OttaiBleManager(
             }
             BluetoothProfile.STATE_DISCONNECTED -> {
                 Log.i(TAG, "disconnected status=$status")
+<<<<<<< HEAD
+=======
+                val activationFailed = OttaiConstants.commandNeedsActivation(commandStatus) &&
+                    needsActivationAttempted && activationCommandSentAtMs <= 0L
+>>>>>>> rebase/test-1.0.4-merge
                 phase = Phase.IDLE
                 handler.removeCallbacks(livePollRunnable)
                 handler.removeCallbacks(postHistoryLiveRunnable)
                 handler.removeCallbacks(pendingHistoryChunkRunnable)
+<<<<<<< HEAD
+=======
+                handler.removeCallbacks(endedHistoryBackfillRunnable)
+>>>>>>> rebase/test-1.0.4-merge
                 handler.removeCallbacks(connectionWatchdogRunnable)
                 clearPendingHistoryRange()
                 svcDeviceInfo = null; svcCgm = null; svcAuth = null
@@ -445,7 +514,17 @@ class OttaiBleManager(
                 runCatching { gatt.close() }
                 mBluetoothGatt = null
                 mActiveBluetoothDevice = null
+<<<<<<< HEAD
                 if (!stop) scheduleReconnect("gatt disconnect")
+=======
+                if (activationFailed) {
+                    constatstatusstr = appString(R.string.status_disconnected, "Disconnected")
+                    Log.e(TAG, "activation did not reach command=3; automatic reconnect stopped " +
+                        "until the user requests Reconnect")
+                } else if (!stop) {
+                    scheduleReconnect("gatt disconnect")
+                }
+>>>>>>> rebase/test-1.0.4-merge
                 UiRefreshBus.requestStatusRefresh()
             }
         }
@@ -582,10 +661,94 @@ class OttaiBleManager(
             OttaiConstants.CHAR_COMMAND -> {
                 val status = if (value.isNotEmpty()) value[0].toInt() and 0xFF else -1
                 Log.i(TAG, "cmd/activation status=$status (official: 3=activated, <3=needs activation) raw=${OttaiCrypto.bytesToHex(value)}")
+<<<<<<< HEAD
+=======
+                handleCommandStatus(gatt, status)
+>>>>>>> rebase/test-1.0.4-merge
             }
         }
     }
 
+<<<<<<< HEAD
+=======
+    private fun handleCommandStatus(gatt: BluetoothGatt, status: Int) {
+        val previous = commandStatus
+        commandStatus = status
+        if (status < 0) {
+            Log.w(TAG, "invalid empty command status; activation not attempted")
+            UiRefreshBus.requestStatusRefresh()
+            return
+        }
+        if (OttaiConstants.commandNeedsActivation(status)) {
+            handler.removeCallbacks(livePollRunnable)
+            handler.removeCallbacks(postHistoryLiveRunnable)
+            handler.removeCallbacks(endedHistoryBackfillRunnable)
+            val activationBusy = pendingActivation || (actStep != ActStep.NONE && actStep != ActStep.DONE)
+            if (!needsActivationAttempted && !activationBusy) {
+                needsActivationAttempted = true
+                Log.i(TAG, "sensor command status=$status requires activation; starting official activation sequence")
+                handler.postDelayed({
+                    val started = runCatching { requestForceActivation() }.getOrDefault(false)
+                    if (!started) {
+                        needsActivationAttempted = false
+                        Log.e(TAG, "activation could not start after sensor reported status=$status")
+                        UiRefreshBus.requestStatusRefresh()
+                    }
+                }, 250L)
+            } else {
+                Log.i(TAG, "sensor still needs activation status=$status " +
+                    "(attempted=$needsActivationAttempted busy=$activationBusy)")
+            }
+            UiRefreshBus.requestStatusRefresh()
+            return
+        }
+        if (status == 3) {
+            handler.removeCallbacks(endedHistoryBackfillRunnable)
+            needsActivationAttempted = false
+            if (previous >= 4) {
+                Log.i(TAG, "ended-sensor recovery accepted; normal streaming restored")
+            }
+            if (previous != 3) startStreamingAfterCommandStatus(gatt)
+            UiRefreshBus.requestStatusRefresh()
+            return
+        }
+
+        handler.removeCallbacks(livePollRunnable)
+        handler.removeCallbacks(postHistoryLiveRunnable)
+        val start = effectiveActiveTimeMs()
+        val now = System.currentTimeMillis()
+        val canRecover = OttaiConstants.shouldAttemptEndedSensorRecovery(status, start, now)
+        if (canRecover && !endedRecoveryAttempted) {
+            endedRecoveryAttempted = true
+            Log.w(TAG, "sensor reported cmd=$status at age=${(now - start) / 86_400_000L}d; " +
+                "attempting one maxActive recovery to ${OttaiConstants.EXTENDED_LIFETIME_DAYS}d")
+            handler.postDelayed({ runCatching { requestForceActivation() } }, 250L)
+        } else {
+            Log.w(TAG, "sensor ended cmd=$status; live buffer will not be published " +
+                "(recoveryEligible=$canRecover attempted=$endedRecoveryAttempted)")
+            // The ended-history path needs the final dataNo from the live buffer before it can
+            // request the missing range. Reading this characteristic is safe after expiry;
+            // handleEndedLiveBuffer indexes it without publishing a new glucose value.
+            handler.postDelayed({
+                if (commandStatus >= 4) {
+                    runCatching { readLiveGlucose(gatt, "ended-history-index") }
+                }
+            }, 500L)
+        }
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    private fun startStreamingAfterCommandStatus(gatt: BluetoothGatt) {
+        handler.postDelayed({ runCatching { readCgmInfo(gatt) } }, 250L)
+        handler.postDelayed({
+            runCatching {
+                readLiveGlucose(gatt, "command-status-3")
+                scheduleLivePoll()
+            }
+        }, 700L)
+    }
+
+>>>>>>> rebase/test-1.0.4-merge
     private fun parseDeviceAuthParam(v: ByteArray) {
         // [0]=index, [1..3]=time(3), [4..35]=pubX(32), [36..67]=pubY(32)
         if (v.size < 68) { Log.w(TAG, "device param short ${v.size}"); return }
@@ -665,6 +828,7 @@ class OttaiBleManager(
                 // Invalid Handle — and this tells us whether the empty glucose is because
                 // the sensor was never started vs. a dead element.
                 if (sessionOk) readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND)
+<<<<<<< HEAD
                 // Activation fires once, promptly (within the sensor's idle window):
                 //  - AUTO: a virgin sensor (no cloud activeTime) self-activates on its
                 //    first authenticated connect, guarded one-shot so reconnects don't
@@ -699,6 +863,11 @@ class OttaiBleManager(
                         }, 1_200)
                     }
                 }
+=======
+                // Do not infer activation from cloud or provisional timestamps. The command
+                // byte read above is the sensor's authoritative state: 0..2 activates, 3
+                // streams, and 4+ follows the ended-sensor path.
+>>>>>>> rebase/test-1.0.4-merge
             }
             // Any successful activation write advances the sequence (RTC/maxActive on
             // 0000180a, destruction on 84c5b711, cmd on 0000181f).
@@ -797,12 +966,18 @@ class OttaiBleManager(
         // re-anchoring the stream start and broke chart/DB timestamps.
         if (old > 0L && activeTimeMs >= old) return
         provisionalActiveTimeMs = activeTimeMs
+<<<<<<< HEAD
         activationCommandSentAtMs = activeTimeMs
+=======
+>>>>>>> rebase/test-1.0.4-merge
         val id = SerialNumber.orEmpty()
         Applic.app?.let { ctx ->
             if (id.isNotBlank()) {
                 OttaiRegistry.saveProvisionalActiveTime(ctx, id, activeTimeMs)
+<<<<<<< HEAD
                 OttaiRegistry.setActivationAttempted(ctx, id, true)
+=======
+>>>>>>> rebase/test-1.0.4-merge
             }
         }
         Log.i(TAG, "provisional activeTime set=$activeTimeMs source=$reason")
@@ -815,6 +990,13 @@ class OttaiBleManager(
 
     private fun handleGlucosePayload(cipher: ByteArray, live: Boolean, source: String) {
         if (sessionKeyHex.isBlank()) { Log.w(TAG, "payload before session key"); return }
+<<<<<<< HEAD
+=======
+        if (live && commandStatus >= 4) {
+            handleEndedLiveBuffer(cipher, source)
+            return
+        }
+>>>>>>> rebase/test-1.0.4-merge
         val activeMs = effectiveActiveTimeMs()
         val receivedAtMs = System.currentTimeMillis()
         val kind = if (live) "live" else "history"
@@ -881,6 +1063,36 @@ class OttaiBleManager(
         }
     }
 
+<<<<<<< HEAD
+=======
+    private fun handleEndedLiveBuffer(cipher: ByteArray, source: String) {
+        val payload = OttaiCrypto.decryptPayload(cipher, sessionKeyHex)
+        if (payload == null) {
+            Log.w(TAG, "ended live $source decrypt failed len=${cipher.size}")
+            return
+        }
+        val latest = OttaiParser.frameRecords(payload, materials.deviceVersion)
+            .map(OttaiParser::parseRecord)
+            .maxByOrNull { it.dataNo }
+        if (latest == null) {
+            Log.w(TAG, "ended live $source has no records")
+            return
+        }
+        noteSeenDataNo(latest.dataNo)
+        val activeMs = effectiveActiveTimeMs()
+        if (streamStartTimeMs <= 0L && activeMs > 0L) {
+            seedStreamTimeAnchor(
+                latest.dataNo,
+                activeMs + latest.runtimeSec.toLong() * 1_000L,
+                "ended-live",
+            )
+        }
+        Log.i(TAG, "ended live buffer indexed dataNo=${latest.dataNo}; glucose suppressed")
+        handler.removeCallbacks(endedHistoryBackfillRunnable)
+        handler.postDelayed(endedHistoryBackfillRunnable, 4_500L)
+    }
+
+>>>>>>> rebase/test-1.0.4-merge
     private fun emitReading(
         r: OttaiReading,
         live: Boolean,
@@ -1264,8 +1476,16 @@ class OttaiBleManager(
         // activeExpireTime (ms) from the cloud validate-by-mac response. p.U zero-pads
         // to one AES block and encrypts with AES/ECB/ZeroBytePadding; this is a 16-byte
         // write, not plaintext duration + session key.
+<<<<<<< HEAD
         val expireMs = materials.activeExpireTimeMs.takeIf { it > 0L } ?: OttaiConstants.DEFAULT_ACTIVE_EXPIRE_MS
         val secs = expireMs / 1000L
+=======
+        val cloudExpireMs = materials.activeExpireTimeMs.takeIf { it > 0L }
+            ?: OttaiConstants.DEFAULT_ACTIVE_EXPIRE_MS
+        val expireMs = OttaiConstants.activationMaxActiveMs(cloudExpireMs)
+        val secs = expireMs / 1000L
+        Log.i(TAG, "maxActive target=${secs}s cloud=${cloudExpireMs / 1000L}s")
+>>>>>>> rebase/test-1.0.4-merge
         val payload = OttaiCrypto.encryptPayload(longToBytesLE(secs), sessionKeyHex)
             ?: run {
                 Log.e(TAG, "maxActive encryption failed — aborting activation")
@@ -1570,6 +1790,10 @@ class OttaiBleManager(
     // and past it we keep reading as long as samples still arrive — only once the stream has
     // been silent past the stale-grace do we call it expired, so a healthy sensor runs past 25d.
     override fun isSensorExpired(): Boolean {
+<<<<<<< HEAD
+=======
+        if (commandStatus >= 4) return true
+>>>>>>> rebase/test-1.0.4-merge
         val end = getExpectedEndMs()
         if (end <= 0L) return false
         val now = System.currentTimeMillis()
@@ -1592,7 +1816,11 @@ class OttaiBleManager(
     override val vendorModelName: String get() = OttaiConstants.DEFAULT_DISPLAY_NAME
     override fun isUiEnabled(): Boolean = !stop
     override fun isVendorConnectedForUi(): Boolean =
+<<<<<<< HEAD
         !stop && phase == Phase.STREAMING && sessionKeyHex.isNotBlank() && !isConnectionStale()
+=======
+        !stop && phase == Phase.STREAMING && sessionKeyHex.isNotBlank() && commandStatus < 4 && !isConnectionStale()
+>>>>>>> rebase/test-1.0.4-merge
 
     override fun matchesManagedSensorId(sensorId: String?): Boolean =
         OttaiRegistry.resolveCanonicalSensorId(Applic.app, sensorId)
@@ -1605,6 +1833,13 @@ class OttaiBleManager(
         val loss = lossOfSignalText()
         val hasLossStatus = constatstatusstr == "Loss of signal" || constatstatusstr == loss
         if (isConnectionStale()) return loss
+<<<<<<< HEAD
+=======
+        if (commandStatus >= 4) return appString(
+            R.string.ottai_state_expired,
+            "Expired or ended",
+        )
+>>>>>>> rebase/test-1.0.4-merge
         return when (phase) {
             Phase.IDLE -> if (hasLossStatus) loss
                 else if (authKeys == null) "Needs cloud bind"

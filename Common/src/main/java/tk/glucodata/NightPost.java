@@ -42,6 +42,12 @@ import static tk.glucodata.util.getlabel;
 import androidx.appcompat.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+<<<<<<< HEAD
+=======
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
+>>>>>>> rebase/test-1.0.4-merge
 import android.os.Build;
 import android.text.InputType;
 import android.text.method.PasswordTransformationMethod;
@@ -264,6 +270,37 @@ static public boolean uploadJournalTreatments(boolean useV3) {
         }
     }
 
+<<<<<<< HEAD
+=======
+/**
+ * Phone battery charge as a percentage, or -1 when it cannot be read.
+ *
+ * <p>Uploaded to Nightscout as {@code devicestatus[].uploader.battery}, which is what the
+ * Nightscout UI reads for its uploader-battery pill. Remote followers rely on it to notice a
+ * dying phone before glucose data silently stops arriving (issue #113).
+ */
+@Keep
+static public int batteryPercent() {
+    try {
+        final Context context = Applic.getContext();
+        if(context == null)
+            return -1;
+        final Intent status = context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if(status == null)
+            return -1;
+        final int level = status.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+        final int scale = status.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+        if(level < 0 || scale <= 0)
+            return -1;
+        return Math.round(level * 100.0f / scale);
+        }
+    catch(Throwable th) {
+        Log.e(LOG_ID,"batteryPercent error:\n"+stackline(th));
+        return -1;
+        }
+    }
+
+>>>>>>> rebase/test-1.0.4-merge
 @Keep
 static public int upload(String httpurl,byte[] postdata,String secret,boolean put) {
     patch();

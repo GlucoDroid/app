@@ -161,6 +161,13 @@
             android:name=".drivers.icanhealth.ICanHealthReconnectReceiver"
             android:enabled="true"
             android:exported="false" />
+<<<<<<< HEAD
+=======
+        <receiver
+            android:name=".drivers.sibionics.SibionicsResetReminderReceiver"
+            android:enabled="true"
+            android:exported="false" />
+>>>>>>> rebase/test-1.0.4-merge
 
         <service
             android:name="tk.glucodata.keeprunning"

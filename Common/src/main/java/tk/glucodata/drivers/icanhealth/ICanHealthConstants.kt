@@ -11,7 +11,10 @@ package tk.glucodata.drivers.icanhealth
 
 import java.util.UUID
 import java.util.Locale
+<<<<<<< HEAD
 import tk.glucodata.Log
+=======
+>>>>>>> rebase/test-1.0.4-merge
 
 object ICanHealthConstants {
     private val FULL_CANONICAL_HEX_SENSOR_ID_REGEX = Regex("^[0-9A-Z]{16}$", RegexOption.IGNORE_CASE)
@@ -206,11 +209,15 @@ object ICanHealthConstants {
 
     @JvmStatic
     fun normalizeOnboardingDeviceSn(source: String?): String {
+<<<<<<< HEAD
         val sanitized = source
             ?.trim()
             ?.uppercase(Locale.US)
             ?.filter { it.isLetterOrDigit() }
             .orEmpty()
+=======
+        val sanitized = sanitizeSensorIdentity(source)
+>>>>>>> rebase/test-1.0.4-merge
         if (sanitized.isEmpty()) {
             return ""
         }
@@ -220,14 +227,78 @@ object ICanHealthConstants {
         return sanitized
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * Derives the DIS-comparable identity prefix from a launcher QR/active code.
+     * Extended Chinese codes encode the same eight characters as `XYabcdefg`,
+     * while DIS exposes them as `0abcdefg`.
+     */
+    @JvmStatic
+    fun onboardingIdentityPrefix(source: String?): String {
+        val normalized = normalizeOnboardingDeviceSn(source)
+        val shortSn = deriveShortSnFromActiveCode(normalized)
+        return if (usesExtendedShortSn(shortSn)) {
+            "0" + shortSn.substring(2)
+        } else {
+            shortSn
+        }
+    }
+
+    @JvmStatic
+    fun matchesOnboardingIdentity(onboardingDeviceSn: String?, deviceSerial: String?): Boolean {
+        val expected = normalizeOnboardingDeviceSn(onboardingDeviceSn)
+        val observed = sanitizeSensorIdentity(deviceSerial)
+        if (expected.isEmpty() || observed.isEmpty()) {
+            return false
+        }
+        val prefix = onboardingIdentityPrefix(expected)
+        if (prefix.length < 8) {
+            return false
+        }
+        if (expected == observed) {
+            return true
+        }
+        if (observed.startsWith(prefix)) {
+            return true
+        }
+
+        // i6 active codes and DIS serials encode the same seven-character sensor
+        // core at different offsets. Example observed in production:
+        // ZA1OR03MSE50 (active code) -> 01OR03MS00070101 (DIS serial).
+        // Keep the post-connection identity gate, but recognize that vendor layout
+        // instead of accepting whichever nearby iCan happened to connect first.
+        return expected.length == 12 &&
+            observed.length >= 8 &&
+            expected.substring(2, 9) == observed.substring(1, 8)
+    }
+
+    private fun sanitizeSensorIdentity(source: String?): String =
+        source
+            ?.trim()
+            ?.uppercase(Locale.US)
+            ?.filter { it.isLetterOrDigit() }
+            .orEmpty()
+
+>>>>>>> rebase/test-1.0.4-merge
     private fun deriveShortSnFromActiveCode(activeCode: String): String {
         if (activeCode.length < 12) {
             return activeCode
         }
+<<<<<<< HEAD
         val prefixLength = if (activeCode[0] > 'F' || activeCode.getOrElse(1) { '0' } > 'F') 9 else 8
         return activeCode.take(prefixLength)
     }
 
+=======
+        val prefixLength = if (usesExtendedShortSn(activeCode)) 9 else 8
+        return activeCode.take(prefixLength)
+    }
+
+    private fun usesExtendedShortSn(value: String): Boolean =
+        value.length >= 9 && (value[0] > 'F' || value[1] > 'F')
+
+>>>>>>> rebase/test-1.0.4-merge
     // ---- Vendor Auth Commands ----
 
     /** F3: Request authentication challenge */

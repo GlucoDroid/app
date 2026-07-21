@@ -102,7 +102,10 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import tk.glucodata.Applic
 import tk.glucodata.R
+<<<<<<< HEAD
 import tk.glucodata.data.journal.JournalActiveInsulinSummary
+=======
+>>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.data.journal.JournalChartMarker
 import tk.glucodata.data.journal.JournalCurvePoint
 import tk.glucodata.data.journal.JournalEntry
@@ -236,6 +239,7 @@ fun buildJournalChartMarkers(
     }
 }
 
+<<<<<<< HEAD
 fun buildActiveInsulinSummary(
     entries: List<JournalEntry>,
     presetsById: Map<Long, JournalInsulinPreset>,
@@ -262,6 +266,8 @@ fun buildActiveInsulinSummary(
     )
 }
 
+=======
+>>>>>>> rebase/test-1.0.4-merge
 @Composable
 fun JournalQuickDock(
     unit: String,
@@ -771,7 +777,13 @@ fun JournalEntrySheet(
     }
 
     if (showDatePicker) {
+<<<<<<< HEAD
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = draft.timestamp)
+=======
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = journalTimestampToPickerUtcDateMillis(draft.timestamp)
+        )
+>>>>>>> rebase/test-1.0.4-merge
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
@@ -3176,6 +3188,7 @@ private fun adjustIntegerDraft(value: String, delta: Int, minValue: Int = 0): St
     return (current + delta).coerceAtLeast(minValue).toString()
 }
 
+<<<<<<< HEAD
 private fun mergeJournalDate(currentTimestamp: Long, selectedDayTimestamp: Long): Long {
     val current = Calendar.getInstance().apply { timeInMillis = currentTimestamp }
     val selected = Calendar.getInstance().apply { timeInMillis = selectedDayTimestamp }
@@ -3185,6 +3198,8 @@ private fun mergeJournalDate(currentTimestamp: Long, selectedDayTimestamp: Long)
     return current.timeInMillis
 }
 
+=======
+>>>>>>> rebase/test-1.0.4-merge
 private fun mergeJournalTime(currentTimestamp: Long, selectedTime: Pair<Int, Int>): Long {
     return Calendar.getInstance().apply {
         timeInMillis = currentTimestamp

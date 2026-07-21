@@ -71,7 +71,15 @@ class JournalRepository {
             nsUploadedAt = existing?.nsUploadedAt,
             nsRemoteId = input.nsRemoteId?.takeIf { it.isNotBlank() } ?: existing?.nsRemoteId
         )
+<<<<<<< HEAD
         return dao.upsertEntry(entity)
+=======
+        val id = dao.upsertEntry(entity)
+        if (affectsIob(entity.entryType) || affectsIob(existing?.entryType)) {
+            tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
+        }
+        return id
+>>>>>>> rebase/test-1.0.4-merge
     }
 
     suspend fun deleteEntriesBySourceRecordIds(sourceRecordIds: List<String>) {
@@ -81,12 +89,23 @@ class JournalRepository {
             .distinct()
         if (ids.isNotEmpty()) {
             dao.deleteEntriesBySourceRecordIds(ids)
+<<<<<<< HEAD
+=======
+            tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
+>>>>>>> rebase/test-1.0.4-merge
         }
     }
 
     suspend fun deleteEntry(entryId: Long) {
+<<<<<<< HEAD
         database.withTransaction {
             val existing = dao.getEntryById(entryId)
+=======
+        var deletedType: String? = null
+        database.withTransaction {
+            val existing = dao.getEntryById(entryId)
+            deletedType = existing?.entryType
+>>>>>>> rebase/test-1.0.4-merge
             val remoteId = existing?.nightscoutDeleteRemoteId()
             if (remoteId != null) {
                 dao.enqueuePendingNightscoutDelete(
@@ -99,6 +118,12 @@ class JournalRepository {
             }
             dao.deleteEntryById(entryId)
         }
+<<<<<<< HEAD
+=======
+        if (affectsIob(deletedType)) {
+            tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
+        }
+>>>>>>> rebase/test-1.0.4-merge
     }
 
     suspend fun upsertInsulinPreset(input: JournalInsulinPresetInput): Long {
@@ -117,11 +142,27 @@ class JournalRepository {
             countsTowardIob = input.countsTowardIob,
             sortOrder = input.sortOrder
         )
+<<<<<<< HEAD
         return dao.upsertInsulinPreset(entity)
+=======
+        val id = dao.upsertInsulinPreset(entity)
+        // Curve or countsTowardIob edits reshape the IOB of existing doses.
+        tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
+        return id
+>>>>>>> rebase/test-1.0.4-merge
     }
 
     suspend fun deleteInsulinPreset(presetId: Long) {
         dao.deleteInsulinPresetById(presetId)
+<<<<<<< HEAD
+=======
+        tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
+    }
+
+    private fun affectsIob(entryType: String?): Boolean {
+        return entryType == JournalEntryType.INSULIN.storageValue ||
+            entryType == JournalEntryType.CARBS.storageValue
+>>>>>>> rebase/test-1.0.4-merge
     }
 
     suspend fun getInsulinPresetsSnapshot(): List<JournalInsulinPreset> {

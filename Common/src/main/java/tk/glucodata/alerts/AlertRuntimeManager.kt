@@ -6,8 +6,13 @@ import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import tk.glucodata.Applic
 import tk.glucodata.CurrentDisplaySource
+<<<<<<< HEAD
 import tk.glucodata.Log
 import tk.glucodata.Natives
+=======
+import tk.glucodata.GlucoseDelta
+import tk.glucodata.Log
+>>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.Notify
 import tk.glucodata.R
 import tk.glucodata.SuperGattCallback
@@ -20,7 +25,10 @@ data class AlertRuntimeEvaluation(
 object AlertRuntimeManager {
     private const val LOG_ID = "AlertRuntimeManager"
     private const val CHECK_INTERVAL_MS = 15_000L
+<<<<<<< HEAD
     private const val SENSOR_EXPIRY_WARNING_MS = 24L * 60L * 60L * 1000L
+=======
+>>>>>>> rebase/test-1.0.4-merge
 
     private val scheduler = Executors.newSingleThreadScheduledExecutor()
     private val lock = Any()
@@ -32,10 +40,23 @@ object AlertRuntimeManager {
     private var lastRate: Float = Float.NaN
     private var lastDisplaySnapshot: CurrentDisplaySource.Snapshot? = null
     private var persistentHighStartedAtMs: Long = 0L
+<<<<<<< HEAD
     private val sustainedLowStartedAtMs = mutableMapOf<AlertType, Long>()
     private val sustainedLowEligible = EnumSet.of(AlertType.LOW, AlertType.VERY_LOW)
     private val standardEpisodes = AlertEpisodeState<AlertType>()
     private val sensorExpiryState = SensorExpiryAlertState()
+=======
+<<<<<<< HEAD
+    private var lastLoggedExpiryEndMs: Long = Long.MIN_VALUE
+=======
+    private val sustainedLowStartedAtMs = mutableMapOf<AlertType, Long>()
+    private val sustainedLowEligible = EnumSet.of(AlertType.LOW, AlertType.VERY_LOW)
+>>>>>>> 01da0d0ec (feat(alerts): sustained-low gate for LOW/VERY_LOW (#7))
+    private val standardEpisodes = AlertEpisodeState<AlertType>()
+    private val sensorExpiryState = SensorExpiryAlertState(AlertRepository.sensorExpiryWarnedStore)
+    private val fallingDeltaState = DeltaAlarmState(falling = true)
+    private val risingDeltaState = DeltaAlarmState(falling = false)
+>>>>>>> rebase/test-1.0.4-merge
     private val calibrationReadingBarrier = ReadingTimestampBarrier()
 
     private val standardGlucoseAlertTypes = listOf(
@@ -70,6 +91,13 @@ object AlertRuntimeManager {
         synchronized(lock) {
             val suppressThroughMs = maxOf(lastReadingTimeMs, currentReadingTimeMs)
             calibrationReadingBarrier.suppressThrough(suppressThroughMs)
+<<<<<<< HEAD
+=======
+            // A recalibration shifts the displayed value without a real new sample; drop the delta
+            // baseline so the jump can't be mistaken for a steep fall/rise.
+            fallingDeltaState.resetBaseline()
+            risingDeltaState.resetBaseline()
+>>>>>>> rebase/test-1.0.4-merge
             if (suppressThroughMs > 0L) {
                 Log.i(LOG_ID, "Calibration changed; glucose alerts wait for reading after $suppressThroughMs")
             }
@@ -156,6 +184,10 @@ object AlertRuntimeManager {
         evaluateMissedReadingLocked(nowMs)
         if (!glucoseAlertsBlocked) {
             evaluatePersistentHighLocked(nowMs)
+<<<<<<< HEAD
+=======
+            evaluateDeltaAlarmsLocked()
+>>>>>>> rebase/test-1.0.4-merge
         }
         evaluateSensorExpiryLocked(nowMs)
         return standardAlertEvaluation
@@ -404,6 +436,7 @@ object AlertRuntimeManager {
             return
         }
 
+<<<<<<< HEAD
         val endTimeMs = try {
             Natives.getendtime()
         } catch (t: Throwable) {
@@ -413,15 +446,45 @@ object AlertRuntimeManager {
         val activeNow = config.isActiveNow()
         val snoozed = SnoozeManager.isSnoozed(type)
         val shouldTrigger = sensorExpiryState.shouldTrigger(
+=======
+        val endTimeMs = resolveSensorExpiryEndMs(lastDisplaySnapshot?.sensorId, nowMs)
+        if (endTimeMs != lastLoggedExpiryEndMs) {
+            // A sane source logs once per sensor; a bad one (0, past, or moving
+            // every tick like the old Natives.getendtime()) becomes visible log
+            // churn instead of silently swallowed warnings.
+            Log.i(LOG_ID, "Sensor expiry end resolved: $endTimeMs (now=$nowMs)")
+            lastLoggedExpiryEndMs = endTimeMs
+        }
+        if (endTimeMs <= 0L) {
+            // No plausible end: keep the latch untouched so a transient gatt
+            // dropout cannot re-baseline the episode.
+            clearRuntimeAlert(type, "sensor-expiry-no-endtime")
+            return
+        }
+
+        val thresholds = config.expiryWarningMinutes
+        val activeNow = config.isActiveNow()
+        val snoozed = SnoozeManager.isSnoozed(type)
+        val triggered = sensorExpiryState.triggeredThresholds(
+>>>>>>> rebase/test-1.0.4-merge
             enabled = true,
             activeNow = activeNow,
             snoozed = snoozed,
             endTimeMs = endTimeMs,
             nowMs = nowMs,
+<<<<<<< HEAD
             warningMs = SENSOR_EXPIRY_WARNING_MS
         )
 
         if (endTimeMs <= 0L || endTimeMs - nowMs > SENSOR_EXPIRY_WARNING_MS) {
+=======
+            thresholdsMinutes = thresholds
+        )
+
+        // Not yet within even the longest configured lead time -> nothing pending.
+        val largestThresholdMs = (thresholds.maxOrNull() ?: 0).toLong() * 60_000L
+        if (thresholds.isEmpty() || endTimeMs - nowMs > largestThresholdMs) {
+>>>>>>> rebase/test-1.0.4-merge
             clearRuntimeAlert(type, "sensor-expiry-not-due")
             return
         }
@@ -430,18 +493,110 @@ object AlertRuntimeManager {
             clearRuntimeAlert(type, "sensor-expiry-time-inactive")
             return
         }
+<<<<<<< HEAD
         if (snoozed || !shouldTrigger) {
+=======
+        if (snoozed || triggered.isEmpty()) {
+>>>>>>> rebase/test-1.0.4-merge
             return
         }
 
         val glucoseValue = currentGlucoseValueLocked() ?: return
+<<<<<<< HEAD
         val remainingHours = ((endTimeMs - nowMs).coerceAtLeast(0L) / 3_600_000L).toInt().coerceAtLeast(1)
         val message = Applic.app.getString(R.string.alert_sensor_expiry) + " - " +
             Applic.app.getString(R.string.hours_short, remainingHours)
+=======
+        val message = sensorExpiryMessage(triggered.first())
+>>>>>>> rebase/test-1.0.4-merge
 
         triggerAlert(type, glucoseValue, currentRateLocked(), message)
     }
 
+<<<<<<< HEAD
+=======
+    private fun evaluateDeltaAlarmsLocked() {
+        evaluateDeltaAlarmLocked(AlertType.FALLING_FAST, fallingDeltaState)
+        evaluateDeltaAlarmLocked(AlertType.RISING_FAST, risingDeltaState)
+    }
+
+    private fun deltaIntervalMinutesLocked(): Int {
+        return try {
+            GlucoseDelta.sanitizeIntervalMinutes(
+                Applic.app
+                    .getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+                    .getInt("delta_interval_minutes", GlucoseDelta.DEFAULT_INTERVAL_MINUTES)
+            )
+        } catch (t: Throwable) {
+            GlucoseDelta.DEFAULT_INTERVAL_MINUTES
+        }
+    }
+
+    private fun evaluateDeltaAlarmLocked(type: AlertType, state: DeltaAlarmState) {
+        val config = AlertRepository.loadConfig(type)
+        val deltaThreshold = config.deltaThreshold
+        val deltaCount = config.deltaCount
+        val deltaBorder = config.deltaBorder
+
+        if (!config.enabled || deltaThreshold == null || deltaCount == null || deltaBorder == null) {
+            state.reset()
+            clearRuntimeAlert(type, "delta-alarm-disabled")
+            return
+        }
+
+        val glucoseValue = currentGlucoseValueLocked()
+        if (glucoseValue == null) {
+            // Keep the run intact; a missing sample is not a movement.
+            return
+        }
+
+        val activeNow = config.isActiveNow()
+        val snoozed = SnoozeManager.isSnoozed(type)
+        // The state advances its run counter at interval checkpoints and only returns true while
+        // active and not snoozed. The delta is measured over the alert's own window when one is
+        // set, else over the global interval that drives the Δ readout; the state resets itself
+        // when the effective window changes, so a run never mixes windows.
+        val shouldTrigger = state.shouldTrigger(
+            enabled = true,
+            activeNow = activeNow,
+            snoozed = snoozed,
+            value = glucoseValue,
+            readingTimeMs = lastReadingTimeMs,
+            deltaThreshold = deltaThreshold,
+            deltaCount = deltaCount,
+            deltaBorder = deltaBorder,
+            intervalMinutes = config.deltaIntervalMinutes ?: deltaIntervalMinutesLocked(),
+            earlyTriggerEnabled = config.earlyTriggerEnabled
+        )
+
+        if (!activeNow) {
+            clearRuntimeAlert(type, "delta-alarm-time-inactive")
+            return
+        }
+        if (snoozed || !shouldTrigger) {
+            return
+        }
+
+        val label = Applic.app.getString(type.nameResId)
+        val message = "$label ${Notify.glucosestr(glucoseValue)}"
+        triggerAlert(type, glucoseValue, currentRateLocked(), message)
+    }
+
+    /** Notification text naming the threshold that fired ("... in 3 days" / "... in 6 hours"). */
+    private fun sensorExpiryMessage(thresholdMinutes: Int): String {
+        val res = Applic.app.resources
+        return when {
+            thresholdMinutes >= 1440 && thresholdMinutes % 1440 == 0 -> {
+                val days = thresholdMinutes / 1440
+                res.getQuantityString(R.plurals.sensor_expires_in_days, days, days)
+            }
+            else -> {
+                val hours = (thresholdMinutes / 60).coerceAtLeast(1)
+                res.getQuantityString(R.plurals.sensor_expires_in_hours, hours, hours)
+            }
+        }
+    }
+>>>>>>> rebase/test-1.0.4-merge
     private fun triggerAlert(type: AlertType, glucoseValue: Float, rate: Float, message: String): Boolean {
         try {
             val triggered = Notify.triggerSupplementalGlucoseAlert(type.id, glucoseValue, rate, message)

@@ -44,6 +44,89 @@ class ICanHealthConstantsTests {
     }
 
     @Test
+    fun matchesOnboardingIdentity_acceptsLauncherCodeForObservedDisSerial() {
+        assertEquals("8760080A", ICanHealthConstants.onboardingIdentityPrefix("8760080A2604"))
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "8760080A2604",
+                "8760080a0007000000000000"
+            )
+        )
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "8760080A2604",
+                "8760080A00070000"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_acceptsExactShortSerialFamily() {
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "726022F50005",
+                "726022f50005"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_acceptsShiftedI6ActiveCodeFamily() {
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "ZA1OR03MSE50",
+                "01OR03MS00070101"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_rejectsNearbyShiftedI6Sensor() {
+        assertFalse(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "ZA1OR03MSE50",
+                "01OR03MT00070101"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_rejectsAnotherNearbySensor() {
+        assertFalse(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "8760080A2604",
+                "8760080B00070000"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_rejectsWeakPartialIdentity() {
+        assertFalse(ICanHealthConstants.matchesOnboardingIdentity("8760", "8760080A00070000"))
+    }
+
+    @Test
+    fun onboardingIdentityPrefix_mapsChineseI6CodeToObservedDisPrefix() {
+        assertEquals("01OV04NA", ICanHealthConstants.onboardingIdentityPrefix("ZP1OV04NA550"))
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "ZP1OV04NA550",
+                "01OV04NA0003010100000000"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_rejectsAnotherChineseI6() {
+        assertFalse(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "ZP1OV04NA550",
+                "01R9089R0003010100000000"
+            )
+        )
+    }
+
+    @Test
     fun isEndedStatusSequenceCap_onlyMatchesEndedStateAtVendorCap() {
         assertFalse(
             ICanHealthConstants.isEndedStatusSequenceCap(

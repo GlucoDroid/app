@@ -2158,6 +2158,17 @@ extern "C" JNIEXPORT jfloat JNICALL fromjava(getIOBvalue)(JNIEnv *env,
 }
 #endif
 
+<<<<<<< HEAD
+=======
+extern void setjournaliob(float iob, float iobnext30, float cob,
+                          float cobnext30, int64_t timmsec);
+extern "C" JNIEXPORT void JNICALL fromjava(setJournalIob)(
+    JNIEnv *env, jclass cl, jfloat iob, jfloat iobnext30, jfloat cob,
+    jfloat cobnext30, jlong timmsec) {
+  setjournaliob(iob, iobnext30, cob, cobnext30, timmsec);
+}
+
+>>>>>>> rebase/test-1.0.4-merge
 extern "C" JNIEXPORT void JNICALL fromjava(setfloattime)(JNIEnv *env, jclass cl,
                                                          jboolean val) {
   settings->data()->floattime = val;

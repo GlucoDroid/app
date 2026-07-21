@@ -52,6 +52,25 @@ class GlobalAlertSettingsCardTests {
         )
     }
 
+<<<<<<< HEAD
+=======
+    @Test
+    fun applyIsEnabledWhenOnlySoundDelayChanged() {
+        // Guards that soundDelayEnabled/soundDelaySeconds are part of
+        // sameMasterDraft(); otherwise the Apply button stays inert.
+        val applied = soundOnlyDraft().copy(vibrationEnabled = true)
+        val changedDraft = applied.copy(soundDelayEnabled = true, soundDelaySeconds = 30)
+
+        assertTrue(
+            shouldEnableApplyToAll(
+                draftConfig = changedDraft,
+                appliedDraft = applied,
+                allConfigs = mapOf(AlertType.LOW to changedDraft)
+            )
+        )
+    }
+
+>>>>>>> rebase/test-1.0.4-merge
     private fun soundOnlyDraft(): AlertConfig {
         return AlertConfig(
             type = AlertType.LOW,

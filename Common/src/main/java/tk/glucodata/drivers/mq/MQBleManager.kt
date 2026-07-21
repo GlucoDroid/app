@@ -638,6 +638,19 @@ class MQBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
+<<<<<<< HEAD
+=======
+    override fun onBluetoothAdapterUnavailable() {
+        cancelReconnect()
+        flushPendingBgBurst("bluetooth-off")
+        clearLinkWatchdogs()
+        phase = Phase.IDLE
+        mActiveBluetoothDevice = null
+        constatstatusstr = Applic.getContext().getString(tk.glucodata.R.string.status_bluetooth_off)
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+>>>>>>> rebase/test-1.0.4-merge
     override fun terminateManagedSensor(wipeData: Boolean) {
         Applic.app?.let { maybeEndCloudSessionAsync(it, "terminate") }
         setPause(true)

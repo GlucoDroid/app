@@ -5,12 +5,20 @@
 // This factory lives in tk.glucodata.drivers.aidex (Java-accessible) and
 // delegates to classes in tk.glucodata.drivers.aidex.native.ble (Kotlin-only).
 //
+<<<<<<< HEAD
 // SensorBluetooth.java uses this to conditionally create AiDexBleManager
 // instead of the vendor-lib-based AiDexSensor.
 
 package tk.glucodata.drivers.aidex
 
 import android.content.Context
+=======
+// SensorBluetooth.java uses this to create AiDexBleManager without importing
+// from a Java-reserved package name.
+
+package tk.glucodata.drivers.aidex
+
+>>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.Log
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.aidex.native.ble.AiDexBleManager
@@ -20,6 +28,7 @@ import tk.glucodata.drivers.aidex.native.protocol.AiDexDpCatalogProvider
  * Factory bridge that SensorBluetooth.java can call without importing from
  * the `native` package (which Java cannot do).
  *
+<<<<<<< HEAD
  * Most UI code now uses `instanceof AiDexDriver` (the shared interface) to
  * detect either driver implementation. These factory helpers remain for:
  * - Creating native driver instances (createBleManager)
@@ -28,6 +37,13 @@ import tk.glucodata.drivers.aidex.native.protocol.AiDexDpCatalogProvider
  *
  * Usage from Java:
  *   AiDexNativeFactory.INSTANCE.isNativeModeEnabled(context)
+=======
+ * UI code uses `instanceof AiDexDriver` while these helpers remain for:
+ * - Creating native driver instances (createBleManager)
+ * - Specifically identifying the native driver (isNativeAiDex)
+ *
+ * Usage from Java:
+>>>>>>> rebase/test-1.0.4-merge
  *   AiDexNativeFactory.INSTANCE.createBleManager(serial, dataptr)
  *   AiDexNativeFactory.INSTANCE.isNativeAiDex(callback)
  */
@@ -36,6 +52,7 @@ object AiDexNativeFactory {
     private const val TAG = "AiDexNativeFactory"
 
     /**
+<<<<<<< HEAD
      * Native Kotlin driver is always enabled — it replaces the vendor native lib.
      */
     @JvmStatic
@@ -45,6 +62,11 @@ object AiDexNativeFactory {
      * Create an [AiDexBleManager] (native Kotlin driver) as a [SuperGattCallback].
      *
      * Drop-in replacement for `new AiDexSensor(context, serial, dataptr)`.
+=======
+     * Create an [AiDexBleManager] (native Kotlin driver) as a [SuperGattCallback].
+     *
+     * The sole AiDex driver implementation after removal of the vendor-library driver.
+>>>>>>> rebase/test-1.0.4-merge
      * The sensorGen is set to 0 (conventional value for AiDex).
      *
      * @param serial Sensor serial number (with or without "X-" prefix)
@@ -60,8 +82,13 @@ object AiDexNativeFactory {
     /**
      * Check whether a [SuperGattCallback] is an instance of our native [AiDexBleManager].
      *
+<<<<<<< HEAD
      * Java code can use `instanceof AiDexDriver` to check for *any* AiDex driver,
      * but this method specifically identifies the native Kotlin driver (vs vendor-lib).
+=======
+     * Java code can use `instanceof AiDexDriver` for the shared contract; this
+     * method specifically identifies the concrete native manager.
+>>>>>>> rebase/test-1.0.4-merge
      */
     @JvmStatic
     fun isNativeAiDex(callback: SuperGattCallback?): Boolean {

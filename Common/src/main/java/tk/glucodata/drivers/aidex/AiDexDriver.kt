@@ -1,9 +1,13 @@
 // JugglucoNG — AiDex Driver Interface
 //
+<<<<<<< HEAD
 // Shared interface for all AiDex driver implementations (vendor-lib AiDexSensor
 // and native-Kotlin AiDexBleManager). SensorViewModel, ComposeHost, and other UI
 // code type-check `is AiDexDriver` instead of `is AiDexSensor`, so both drivers
 // work identically from the UI's perspective.
+=======
+// Shared interface between the native-Kotlin AiDexBleManager and UI/runtime code.
+>>>>>>> rebase/test-1.0.4-merge
 //
 // Lives in tk.glucodata.drivers.aidex (Java-accessible package).
 
@@ -24,8 +28,12 @@ import tk.glucodata.drivers.ManagedSensorUiSnapshot
 /**
  * Calibration record from the AiDex sensor's on-board storage.
  *
+<<<<<<< HEAD
  * Previously an inner class of AiDexSensor; moved here so both driver
  * implementations can return the same type.
+=======
+ * Kept outside the concrete manager so UI/runtime code can use the shared contract.
+>>>>>>> rebase/test-1.0.4-merge
  */
 data class CalibrationRecord(
     val index: Int,
@@ -39,6 +47,7 @@ data class CalibrationRecord(
 )
 
 /**
+<<<<<<< HEAD
  * Interface that all AiDex BLE driver implementations must satisfy.
  *
  * Both [AiDexSensor] (vendor-lib driver) and
@@ -46,6 +55,11 @@ data class CalibrationRecord(
  * implement this interface.
  *
  * **UI code should check `gatt is AiDexDriver`** rather than `gatt is AiDexSensor`.
+=======
+ * Interface implemented by
+ * [tk.glucodata.drivers.aidex.native.ble.AiDexBleManager]. UI code should depend
+ * on this contract rather than the concrete manager.
+>>>>>>> rebase/test-1.0.4-merge
  */
 interface AiDexDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDriver {
 

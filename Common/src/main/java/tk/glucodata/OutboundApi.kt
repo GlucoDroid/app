@@ -10,11 +10,19 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import org.json.JSONArray
 import org.json.JSONObject
+<<<<<<< HEAD
+=======
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+>>>>>>> rebase/test-1.0.4-merge
 import java.net.URLEncoder
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+<<<<<<< HEAD
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -26,6 +34,11 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+=======
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.roundToInt
+>>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.drivers.ManagedSensorUiFamily
 
@@ -48,6 +61,7 @@ object OutboundApi {
         Thread(runnable, "OutboundApiSend")
     }
 
+<<<<<<< HEAD
     // OkHttp client with HTTP/2 PING-based keep-alive. The system-internal
     // com.android.okhttp used by HttpURLConnection is not configurable from app
     // code and reuses TCP sockets until the server (Telegram's nginx, default
@@ -75,6 +89,8 @@ object OutboundApi {
             .build()
     }
 
+=======
+>>>>>>> rebase/test-1.0.4-merge
     private const val IN_DESTINATION_ID = "destination_id"
     private const val IN_RECIPIENT = "recipient"
     private const val IN_EVENT_ID = "event_id"
@@ -499,7 +515,10 @@ object OutboundApi {
             }
         }
         val trendArrow: String get() = trendArrow(trendName)
+<<<<<<< HEAD
         val trendArrowEmoji: String get() = trendArrowEmoji(trendName)
+=======
+>>>>>>> rebase/test-1.0.4-merge
         val iob: Float get() = runCatching { Natives.getIOBvalue(timeMillis) }.getOrDefault(Float.NaN)
         val journal: JournalSnapshot get() = loadJournalSnapshot(timeMillis)
         val displayText: String
@@ -579,7 +598,10 @@ object OutboundApi {
             })
             .replace("{trend}", reading.trendName)
             .replace("{trend_arrow}", reading.trendArrow)
+<<<<<<< HEAD
             .replace("{trend_arrow_emoji}", reading.trendArrowEmoji)
+=======
+>>>>>>> rebase/test-1.0.4-merge
             .replace("{rate_mgdl}", formatNumber(reading.rateMgdlPerMinute, 1))
             .replace("{rate_mmol}", formatNumber(reading.rateMmolPerMinute, 3))
             .replace("{timestamp}", reading.timeMillis.toString())
@@ -659,6 +681,7 @@ object OutboundApi {
             "DoubleDown" -> "\u2193\u2193"
             else -> "\u2192"
         }
+<<<<<<< HEAD
 
     private fun trendArrowEmoji(trendName: String): String =
         when (trendName) {
@@ -671,6 +694,8 @@ object OutboundApi {
             "DoubleDown" -> "\u2b07\ufe0f\u2b07\ufe0f"      // \u2b07\ufe0f\u2b07\ufe0f
             else -> "\u27a1\ufe0f"                          // \u27a1\ufe0f
         }
+=======
+>>>>>>> rebase/test-1.0.4-merge
 }
 
 class OutboundApiWorker(
@@ -736,7 +761,10 @@ class OutboundApiWorker(
                             delayMs = (destination.staleThresholdMinutes.coerceIn(1, 120) * 60_000L) +
                                 OutboundApiSettings.STALE_CHECK_SLACK_MS
                         )
+<<<<<<< HEAD
                         TelegramKeepAliveScheduler.schedule(context.applicationContext)
+=======
+>>>>>>> rebase/test-1.0.4-merge
                     }
                     Result.success()
                 } else {
@@ -900,9 +928,12 @@ class OutboundApiWorker(
             )
         }
 
+<<<<<<< HEAD
         // Note: sendVk/sendJson share the OkHttp client via executePostOnce —
         // do not re-introduce HttpURLConnection here. See OutboundApi.httpClient
         // and the OkHttp transport migration in this file.
+=======
+>>>>>>> rebase/test-1.0.4-merge
         private fun sendVk(
             destination: OutboundApiSettings.Destination,
             reading: OutboundApi.Reading,
@@ -924,7 +955,10 @@ class OutboundApiWorker(
             )
         }
 
+<<<<<<< HEAD
         // Shares the OkHttp client via executePostOnce (see comment above).
+=======
+>>>>>>> rebase/test-1.0.4-merge
         private fun sendJson(
             destination: OutboundApiSettings.Destination,
             reading: OutboundApi.Reading,
@@ -981,6 +1015,7 @@ class OutboundApiWorker(
             readTimeoutMs: Int,
             parseMessageId: (String) -> Long?
         ): SendResponse {
+<<<<<<< HEAD
             // connectTimeoutMs / readTimeoutMs are kept in the signature for
             // caller compatibility but are now governed by the OkHttpClient's
             // timeouts (see httpClient in OutboundApi).
@@ -1001,6 +1036,26 @@ class OutboundApiWorker(
             return response.use {
                 val code = response.code
                 val responseText = response.body?.string().orEmpty()
+=======
+            val connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = connectTimeoutMs
+                readTimeout = readTimeoutMs
+                doOutput = true
+                setRequestProperty("Content-Type", contentType)
+                setRequestProperty("Accept", "application/json, text/plain")
+                setRequestProperty("User-Agent", "JugglucoNG API destinations")
+                applyHeaders(headers)
+            }
+
+            try {
+                connection.outputStream.use { stream ->
+                    stream.write(body)
+                }
+
+                val code = connection.responseCode
+                val responseText = readResponse(connection, code)
+>>>>>>> rebase/test-1.0.4-merge
                 parseApiError(responseText)?.let { apiError ->
                     val responseCode = apiError.code ?: code
                     return SendResponse(
@@ -1012,13 +1067,22 @@ class OutboundApiWorker(
                 }
                 val ok = code in 200..299
                 val messageId = if (ok) parseMessageId(responseText) else null
+<<<<<<< HEAD
                 SendResponse(
+=======
+                return SendResponse(
+>>>>>>> rebase/test-1.0.4-merge
                     code = code,
                     ok = ok,
                     retryable = code == 429 || code >= 500,
                     error = if (ok) null else responseText.take(500).ifBlank { "HTTP $code" },
                     messageId = messageId
                 )
+<<<<<<< HEAD
+=======
+            } finally {
+                connection.disconnect()
+>>>>>>> rebase/test-1.0.4-merge
             }
         }
 
@@ -1078,7 +1142,11 @@ class OutboundApiWorker(
                 .put("message", message)
         }
 
+<<<<<<< HEAD
         private fun Request.Builder.applyHeaders(rawHeaders: String) {
+=======
+        private fun HttpURLConnection.applyHeaders(rawHeaders: String) {
+>>>>>>> rebase/test-1.0.4-merge
             rawHeaders.lineSequence()
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
@@ -1089,7 +1157,11 @@ class OutboundApiWorker(
                     val value = line.substring(separator + 1).trim()
                     if (name.equals("Content-Type", ignoreCase = true)) return@forEach
                     if (name.isNotEmpty() && value.isNotEmpty()) {
+<<<<<<< HEAD
                         header(name, value)
+=======
+                        setRequestProperty(name, value)
+>>>>>>> rebase/test-1.0.4-merge
                     }
                 }
         }
@@ -1110,6 +1182,26 @@ class OutboundApiWorker(
             return hash and Int.MAX_VALUE
         }
 
+<<<<<<< HEAD
+=======
+        private fun readResponse(connection: HttpURLConnection, code: Int): String {
+            val stream = if (code in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream ?: runCatching { connection.inputStream }.getOrNull()
+            } ?: return ""
+            return BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
+                buildString {
+                    var line = reader.readLine()
+                    while (line != null) {
+                        append(line)
+                        line = reader.readLine()
+                    }
+                }
+            }
+        }
+
+>>>>>>> rebase/test-1.0.4-merge
         private fun parseVkError(responseText: String): ApiError? {
             if (responseText.isBlank()) return null
             return try {

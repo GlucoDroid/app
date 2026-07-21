@@ -25,7 +25,13 @@ class AlertTestValuePolicyTests {
                 AlertType.AMOUNT,
                 AlertType.LOSS,
                 AlertType.MISSED_READING,
+<<<<<<< HEAD
                 AlertType.SENSOR_EXPIRY -> null
+=======
+                AlertType.SENSOR_EXPIRY,
+                AlertType.FALLING_FAST,
+                AlertType.RISING_FAST -> null
+>>>>>>> rebase/test-1.0.4-merge
             }
             val config = AlertConfig(type = type, threshold = threshold)
             val value = AlertTestValuePolicy.resolve(type, config, true, 8.8f)
@@ -44,7 +50,13 @@ class AlertTestValuePolicyTests {
                 AlertType.AMOUNT,
                 AlertType.LOSS,
                 AlertType.MISSED_READING,
+<<<<<<< HEAD
                 AlertType.SENSOR_EXPIRY -> assertEquals(8.8f, value, 0.001f)
+=======
+                AlertType.SENSOR_EXPIRY,
+                AlertType.FALLING_FAST,
+                AlertType.RISING_FAST -> assertEquals(8.8f, value, 0.001f)
+>>>>>>> rebase/test-1.0.4-merge
             }
         }
     }

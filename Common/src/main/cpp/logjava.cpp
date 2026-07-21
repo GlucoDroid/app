@@ -94,6 +94,10 @@ void startlogcat() {
   }
 }
 
+<<<<<<< HEAD
+=======
+#include <sys/sendfile.h>
+>>>>>>> rebase/test-1.0.4-merge
 
 decltype(std::declval<struct stat>().st_size) filesize(int handle) {
   if (handle == -1) {
@@ -123,6 +127,7 @@ static bool copyfile(const char *infile, int out) {
   destruct _2([in] { close(in); });
   auto len = filesize(in);
   if (len <= 0) {
+<<<<<<< HEAD
     LOGGER("size %s=%lld\n", infile, (long long)len);
     return false;
   }
@@ -149,6 +154,16 @@ static bool copyfile(const char *infile, int out) {
   if (!suc) {
     flerror("copyfile(%s): wrote %zd expected %lld", infile, total,
             (long long)len);
+=======
+    LOGGER("size %s=%d\n", infile, len);
+    return false;
+  }
+  auto outlen = sendfile(out, in, nullptr, len);
+  bool suc = outlen == len;
+  if (!suc) {
+    flerror("sendfile(%d,%d (%s) ,null,%lld)=%zd", out, in, infile, len,
+            outlen);
+>>>>>>> rebase/test-1.0.4-merge
   }
   return suc;
 #else

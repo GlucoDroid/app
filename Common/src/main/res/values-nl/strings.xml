@@ -165,6 +165,10 @@
  <string name="addsensorenddate">Sensor einddatum toevoegen aan calendar app</string>
  <string name="enddatesensor">"Sensor einddatum "</string>
  <string name="open">Open</string>
+<<<<<<< HEAD
+=======
+ <string name="share">Delen</string>
+>>>>>>> rebase/test-1.0.4-merge
  <string name="withoutsensor">Zonder sensor</string>
  <string name="wronglibrary">Library werkt niet goed, probeer een andere</string>
  <string name="installedlibrary">Library geïnstalleerd</string>
@@ -472,10 +476,17 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
 
     <!-- Nieuwe vertalingen -->
     <string name="import_history">Geschiedenis importeren</string>
+<<<<<<< HEAD
     <string name="import_history_desc">Importeer glucosegegevens uit een CSV-bestand</string>
     <string name="get_started_desc">Ga aan de slag door je sensor toe te voegen</string>
     <string name="select_sensor">Selecteer sensortype</string>
     <string name="select_sibionics_type">Selecteer sensortype</string>
+=======
+    <string name="import_history_desc">Importeer glucosegegevens uit een JugglucoNG-export of CSV-bestand</string>
+    <string name="get_started_desc">Ga aan de slag door je sensor toe te voegen</string>
+    <string name="select_sensor">Selecteer sensortype</string>
+    <string name="select_sibionics_type">Kies een Sibionics-sensor</string>
+>>>>>>> rebase/test-1.0.4-merge
     <string name="or_divider">"  of  "</string>
     <string name="no_sensors_connected">Geen sensoren verbonden</string>
     
@@ -498,7 +509,11 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="select_gallery_button">Selecteer uit galerij</string>
     <string name="skip_fake_sensor">Overslaan (Gebruik nepsensor)</string>
     <string name="enter_code_manually">Code handmatig invoeren</string>
+<<<<<<< HEAD
     <string name="choose_sibionics_variant">Kies je Sibionics-sensorvariant</string>
+=======
+    <string name="choose_sibionics_variant">Kies het model dat op de verpakking staat.</string>
+>>>>>>> rebase/test-1.0.4-merge
     <string name="continue_action">Doorgaan</string>
     
     <string name="sensor_init_failed">Sensorinitialisatie mislukt</string>
@@ -520,7 +535,13 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="export_history_title">Geschiedenis exporteren</string>
     <string name="export_history_sub">Glucosemetingen opslaan in CSV- of tekstbestand</string>
     <string name="import_history_title">Geschiedenis importeren</string>
+<<<<<<< HEAD
     <string name="import_history_sub">Herstel glucosemetingen uit CSV-bestand</string>
+=======
+    <string name="import_history_sub">Herstel glucosemetingen uit een JugglucoNG-export of CSV-bestand</string>
+    <string name="import_no_glucose">Dit bestand bevat geen glucosegegevens</string>
+    <string name="import_unsupported_file">Niet-ondersteund bestand. Kies een JugglucoNG-export (JSON) of een CSV-bestand met glucosegeschiedenis.</string>
+>>>>>>> rebase/test-1.0.4-merge
     
     <string name="clear_history_title">Geschiedenis wissen?</string>
     <string name="clear_history_confirmation">Hiermee worden alle glucosemetingen uit de database verwijderd. Dit kan niet ongedaan worden gemaakt.</string>
@@ -615,7 +636,16 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="scan_libre_sensor">Scan Libre Sensor</string>
     <string name="libre_nfc_instruction">Houd je telefoon bij de sensor om te scannen</string>
     <!-- New Code Translations -->
+<<<<<<< HEAD
     <string name="auto_calibration_mode">Auto-kalisbratiemodus</string>
+=======
+    <string name="auto_calibration_mode">Sensoralgoritme</string>
+    <string name="sibionics_custom_algorithm">Adaptief sensormodel (experimenteel)</string>
+    <string name="sibionics_custom_algorithm_desc">Compensatie van sensordrift, fysiologische vertraging en artefacten</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics-standaard</string>
+    <string name="sibionics_stock_algorithm_detail">Meterkalibraties binnen het sensoralgoritme gebruiken</string>
+    <string name="sibionics_restart_algorithm_desc">Bouw de minuutstatus opnieuw op uit de opgeslagen sensorgeschiedenis</string>
+>>>>>>> rebase/test-1.0.4-merge
     <string name="juggluco_native">Juggluco natief</string>
     <string name="window_label">venster</string>
     <string name="auto_restart_algorithm">Algoritme herstarten</string>
@@ -765,7 +795,13 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="debug_logs">Debug Logs</string>
     <string name="disabled_status">Disabled</string>
     <string name="disconnect">Disconnect</string>
+<<<<<<< HEAD
     <string name="disconnect_sensor_aidex_desc">Hierdoor wordt de sensor losgekoppeld. Koppelingssleutels en geschiedenis blijven behouden; u kunt later opnieuw verbinding maken.</string>
+=======
+    <string name="disconnect_sensor_aidex_desc">De sensor wordt van dit apparaat verwijderd. De geschiedenis blijft beschikbaar.</string>
+    <string name="unbind_sensor">Sensor ontkoppelen</string>
+    <string name="unbind_sensor_desc">Maak de koppeling vrij zodat een ander apparaat verbinding kan maken.</string>
+>>>>>>> rebase/test-1.0.4-merge
     <string name="disconnect_sensor_desc">This will permanently stop the sensor session.</string>
     <string name="disconnect_sensor_title">Disconnect Sensor?</string>
     <string name="enabled_status">Enabled</string>
@@ -1367,6 +1403,13 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="sibionics_ble_probe_empty">Nog geen Sibionics-FF30-apparaten gevonden.</string>
     <string name="sibionics_ble_selected">Geselecteerd: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Gebruik nep-QR-info van deze BLE-naam</string>
+<<<<<<< HEAD
+=======
+    <string name="sibionics_use_ble_device">Gebruik dit Bluetooth-apparaat</string>
+    <string name="sibionics_legacy_driver_title">Legacy-stuurprogramma</string>
+    <string name="sibionics_legacy_driver_desc">Gebruik het oude propriëtaire stuurprogramma alleen voor een bestaande installatie.</string>
+    <string name="sibionics_managed_sensor_added">Beheerde Sibionics-sensor toegevoegd: %1$s</string>
+>>>>>>> rebase/test-1.0.4-merge
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
     <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
@@ -1975,4 +2018,78 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_import_export_ready">Opgeslagen materialen voor %1$s zijn klaar.</string>
     <string name="ottai_credentials_import">Importeren</string>
     <string name="ottai_credentials_replace">Vervangen</string>
+<<<<<<< HEAD
+=======
+
+    <!-- PR feature translations: trend, alerts, palette, and expiry. -->
+    <string name="alert_falling_fast">Snel vallen</string>
+    <string name="alert_rising_fast">Snel stijgen</string>
+    <string name="broadcast_computed_trend_title">Apptrend uitzenden</string>
+    <string name="broadcast_computed_trend_desc">Gebruik de apptrend in plaats van de sensortrend</string>
+    <string name="dashboard_show_delta_desc">Gemeten verandering over het delta-interval, onder de trendpijl</string>
+    <string name="dashboard_show_delta_title">Delta (Δ) op het dashboard</string>
+    <string name="delta_alarm_interval_follow">Zoals Δ uitlezing (momenteel %1$d min)</string>
+    <string name="delta_alarm_interval_label">Delta-venster</string>
+    <string name="delta_border_above_label">Alarm alleen hierboven</string>
+    <string name="delta_border_below_label">Alarm alleen hieronder</string>
+    <string name="delta_change_label">Wijziging per %1$d min</string>
+    <string name="delta_count_label">Lezingen op een rij</string>
+    <string name="delta_early_trigger_desc">Vuur ook zodra de totale afstand (%1$s %2$s) is afgelegd, ongeacht hoeveel intervallen er zijn verstreken</string>
+    <string name="delta_early_trigger_label">Vroege trigger</string>
+    <string name="delta_interval_1min">1 min</string>
+    <string name="delta_interval_5min">5 minuten</string>
+    <string name="delta_interval_desc">Tijdvenster voor de Δ-uitlezing; de dalende/stijgende alarmen volgen dit, tenzij ze een eigen venster krijgen</string>
+    <string name="delta_interval_title">Delta (Δ)-interval</string>
+    <string name="falling_fast_explanation">Waarschuwt na %1$d opeenvolgende intervallen van %2$d-minuten die elk met ten minste %3$s dalen (≈ %4$d min aanhoudende daling) terwijl de waarde op of onder %5$s ligt. Geen voorspelling, alleen de ruwe trend.</string>
+    <string name="glucose_palette_band_high">Hoog</string>
+    <string name="glucose_palette_band_in_range">Binnen bereik</string>
+    <string name="glucose_palette_band_low">Laag</string>
+    <string name="glucose_palette_band_very_high">Zeer hoog</string>
+    <string name="glucose_palette_band_very_low">Zeer laag</string>
+    <string name="glucose_palette_bands_label">Kleuren per band</string>
+    <string name="glucose_palette_custom_suffix">+ aanpassingen</string>
+    <string name="glucose_palette_edit">Bewerken</string>
+    <string name="glucose_palette_edit_title">Glucose kleuren</string>
+    <string name="glucose_palette_preset_custom">Aangepast</string>
+    <string name="glucose_palette_preset_gdh">GDH-achtig</string>
+    <string name="glucose_palette_preset_label">Voorinstelling</string>
+    <string name="glucose_palette_preset_muted">Gedempt</string>
+    <string name="glucose_palette_preset_vibrant">Levendig</string>
+    <string name="glucose_palette_reset">Opnieuw instellen</string>
+    <string name="glucose_palette_reset_all">Alle kleuren resetten</string>
+    <string name="glucose_palette_title">Glucose kleurenpalet</string>
+    <string name="notification_show_delta_desc">Gemeten verandering over het delta-interval, naast de pijl</string>
+    <string name="notification_show_delta_title">Toon delta (Δ)</string>
+    <string name="rising_fast_explanation">Waarschuwt na %1$d opeenvolgende intervallen van %2$d-minuten die elk stijgen met ten minste %3$s (≈ %4$d min. aanhoudende stijging) terwijl de waarde op of boven %5$s ligt. Geen voorspelling, alleen de ruwe trend.</string>
+    <string name="sensor_expiry_group_days">Dagen</string>
+    <string name="sensor_expiry_group_hours">Uur</string>
+    <string name="sensor_expiry_warnings_desc">Elke geselecteerde tijd waarschuwt één keer per sensor</string>
+    <string name="sensor_expiry_warnings_title">Waarschuw vóór de vervaldatum</string>
+    <string name="sound_delay_desc">Eerst trillen; voeg het hoorbare alarm pas na een vertraging toe</string>
+    <string name="sound_delay_hypo_warning">Let op: dit vertraagt het hoorbare alarm voor een waarschuwing voor een lage glucosewaarde.</string>
+    <string name="sound_delay_label">Geluid vertraging</string>
+    <string name="sound_delay_title">Vertraging alarmgeluid</string>
+    <plurals name="sensor_expires_in_days">
+        <item quantity="one">Sensor verloopt over dag %d</item>
+        <item quantity="other">Sensor verloopt over %d dagen</item>
+    </plurals>
+    <plurals name="sensor_expires_in_hours">
+        <item quantity="one">Sensor verloopt over %d uur</item>
+        <item quantity="other">Sensor verloopt over %d uur</item>
+    </plurals>
+    <string name="sibionics_glucose_model">Glucosemodel</string>
+    <string name="sibionics_stock_model_detail">Exact Sibionics-sensoralgoritme</string>
+    <string name="sibionics_responsive_algorithm">Snelle respons</string>
+    <string name="sibionics_responsive_algorithm_desc">Oorspronkelijke trendgestuurde schatter van glucose en snelheid</string>
+    <string name="sibionics_balanced_algorithm">Lichte afvlakking</string>
+    <string name="sibionics_balanced_algorithm_desc">Begrensde ruisonderdrukking dicht bij het standaardmodel</string>
+    <string name="sibionics_state_algorithm">Adaptieve correctie</string>
+    <string name="sibionics_state_algorithm_desc">Compensatie van sensordrift, fysiologische vertraging en artefacten</string>
+    <string name="sibionics_auto_reset_22_desc">Reset rond dag 22, bij voorkeur tijdens stabielere glucose. Vóór het verlopen volgt altijd een veiligheidsreset, ook als dit uitstaat.</string>
+    <string name="sibionics_reset_reminder_title">Reset van Sibionics 2 komt eraan</string>
+    <string name="sibionics_reset_reminder_text">De sensor bereikt over ongeveer %1$d uur het resetmoment. Reset hem op tijd om hem actief te houden.</string>
+    <string name="sibionics_reset_postpone">2 uur uitstellen</string>
+    <string name="sibionics_reset_reminder_channel">Sibionics-resetherinneringen</string>
+    <string name="sibionics_reset_reminder_channel_desc">Herinneringen en acties om Sibionics 2 vóór afloop te resetten</string>
+>>>>>>> rebase/test-1.0.4-merge
 </resources>

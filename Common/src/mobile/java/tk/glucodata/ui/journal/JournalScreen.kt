@@ -3,6 +3,10 @@
 package tk.glucodata.ui.journal
 
 import android.view.HapticFeedbackConstants
+<<<<<<< HEAD
+=======
+import androidx.compose.animation.AnimatedVisibility
+>>>>>>> rebase/test-1.0.4-merge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,7 +35,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+<<<<<<< HEAD
 import androidx.compose.runtime.getValue
+=======
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+>>>>>>> rebase/test-1.0.4-merge
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,10 +56,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import tk.glucodata.R
+<<<<<<< HEAD
+=======
+import kotlinx.coroutines.delay
+>>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
+<<<<<<< HEAD
+=======
+import tk.glucodata.data.journal.JournalIobCalculator
+>>>>>>> rebase/test-1.0.4-merge
 import tk.glucodata.ui.ChartViewportSnapshot
 import tk.glucodata.ui.DashboardChartSection
 import tk.glucodata.ui.GlucosePoint
@@ -101,7 +119,13 @@ fun JournalScreen(
     modifier: Modifier = Modifier,
     showTitle: Boolean = true,
     useStatusBarsPadding: Boolean = true,
+<<<<<<< HEAD
     bottomContentPadding: Dp = 104.dp
+=======
+    bottomContentPadding: Dp = 104.dp,
+    showEiob: Boolean = true,
+    chartRangeColors: Boolean = false
+>>>>>>> rebase/test-1.0.4-merge
 ) {
     val view = LocalView.current
     val sortedHistory = remember(glucoseHistory) { glucoseHistory.sortedBy { it.timestamp } }
@@ -130,10 +154,14 @@ fun JournalScreen(
         buildJournalChartMarkers(filteredEntries, presetsById, unit, sortedHistory, foodsById)
     }
     val entriesById = remember(filteredEntries) { filteredEntries.associateBy { it.id } }
+<<<<<<< HEAD
     val selectedTimestamp = viewportSnapshot?.selectedPoint?.timestamp
         ?: sortedHistory.lastOrNull()?.timestamp
         ?: journalEntries.maxOfOrNull { it.timestamp }
         ?: System.currentTimeMillis()
+=======
+    val selectedPointTimestamp = viewportSnapshot?.selectedPoint?.timestamp
+>>>>>>> rebase/test-1.0.4-merge
     val selectedDisplayGlucose = viewportSnapshot?.selectedPoint?.value
 
     fun clearChartAction() {
@@ -169,7 +197,12 @@ fun JournalScreen(
             item(key = "journal-metrics") {
                 JournalMetricsPanel(
                     entries = journalEntries,
+<<<<<<< HEAD
                     presetsById = presetsById
+=======
+                    presetsById = presetsById,
+                    showEiob = showEiob
+>>>>>>> rebase/test-1.0.4-merge
                 )
             }
 
@@ -183,6 +216,10 @@ fun JournalScreen(
                     ) {
                         DashboardChartSection(
                             modifier = Modifier.matchParentSize(),
+<<<<<<< HEAD
+=======
+                            appChartRangeColors = chartRangeColors,
+>>>>>>> rebase/test-1.0.4-merge
                             glucoseHistory = sortedHistory,
                             journalMarkers = markers,
                             graphSmoothingMinutes = graphSmoothingMinutes,
@@ -367,7 +404,11 @@ fun JournalScreen(
             },
             onTypeSelected = { type ->
                 onAddJournalEntry(
+<<<<<<< HEAD
                     selectedTimestamp,
+=======
+                    journalQuickAddTimestamp(selectedPointTimestamp, System.currentTimeMillis()),
+>>>>>>> rebase/test-1.0.4-merge
                     type,
                     selectedDisplayGlucose.takeIf { type == JournalEntryType.FINGERSTICK },
                     null
@@ -380,6 +421,19 @@ fun JournalScreen(
     }
 }
 
+<<<<<<< HEAD
+=======
+/**
+ * Timestamp seed for quick-add entries created without an explicit chart selection.
+ * Tapping "+" means "log something happening now"; the last known reading or journal
+ * entry can lag minutes behind wall clock (e.g. right after resume, before the data
+ * flows re-emit) and must never seed the entry. Backdating stays an explicit act:
+ * selecting a chart point or using the timeline/long-press menus.
+ */
+internal fun journalQuickAddTimestamp(selectedPointTimestamp: Long?, nowMillis: Long): Long =
+    selectedPointTimestamp ?: nowMillis
+
+>>>>>>> rebase/test-1.0.4-merge
 @Composable
 private fun JournalHeader(
     onOpenFoodLibrary: () -> Unit,
@@ -423,9 +477,25 @@ private fun JournalHeader(
 @Composable
 private fun JournalMetricsPanel(
     entries: List<JournalEntry>,
+<<<<<<< HEAD
     presetsById: Map<Long, JournalInsulinPreset>
 ) {
     val nowMillis = remember(entries) { System.currentTimeMillis() }
+=======
+    presetsById: Map<Long, JournalInsulinPreset>,
+    showEiob: Boolean
+) {
+    // Tick the clock so IOB/eIOB keep decaying while the screen stays open
+    // (mirrors the dashboard's journalNow ticker).
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(entries) {
+        nowMillis = System.currentTimeMillis()
+        while (true) {
+            delay(30_000L)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
+>>>>>>> rebase/test-1.0.4-merge
     val zone = remember { ZoneId.systemDefault() }
     val startOfDayMillis = remember(nowMillis, zone) {
         LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -434,6 +504,7 @@ private fun JournalMetricsPanel(
         entries.filter { it.timestamp in startOfDayMillis..nowMillis }
     }
     val activeInsulin = remember(entries, presetsById, nowMillis) {
+<<<<<<< HEAD
         buildActiveInsulinSummary(entries, presetsById, nowMillis)
     }
     val activeInsulinUnits = activeInsulin
@@ -446,6 +517,27 @@ private fun JournalMetricsPanel(
     } ?: activeInsulin?.let {
         stringResource(R.string.journal_active_now_percent, it.weightedActivityPercent)
     } ?: stringResource(R.string.journal_no_active_insulin)
+=======
+        JournalIobCalculator.buildActiveInsulinSummary(entries, presetsById, nowMillis)
+    }
+    val iobUnits = activeInsulin?.iobUnits?.coerceAtLeast(0f) ?: 0f
+    val eiobUnits = activeInsulin?.eiobUnits?.coerceAtLeast(0f) ?: 0f
+    val activeUntilFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val eiobText = if (showEiob) {
+        stringResource(R.string.journal_metric_eiob, formatJournalMetric(eiobUnits))
+    } else {
+        null
+    }
+    val untilText = activeInsulin?.nextEndingAt?.let { endingAt ->
+        stringResource(R.string.journal_active_insulin_until, activeUntilFormatter.format(Date(endingAt)))
+    }
+    val activeInsulinDetail = if (activeInsulin == null) {
+        stringResource(R.string.journal_no_active_insulin)
+    } else {
+        listOfNotNull(eiobText, untilText).joinToString(" · ")
+            .ifEmpty { stringResource(R.string.journal_active_now_percent, activeInsulin.weightedActivityPercent) }
+    }
+>>>>>>> rebase/test-1.0.4-merge
     val foodToday = todaysEntries
         .filter { it.type == JournalEntryType.CARBS }
         .sumOf { (it.amount ?: 0f).toDouble() }
@@ -458,6 +550,7 @@ private fun JournalMetricsPanel(
         .filter { it.type == JournalEntryType.ACTIVITY }
         .sumOf { (it.durationMinutes ?: 0).toInt() }
 
+<<<<<<< HEAD
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             JournalMetricCard(
@@ -467,6 +560,23 @@ private fun JournalMetricsPanel(
                 icon = Icons.Default.Vaccines,
                 type = JournalEntryType.INSULIN,
                 modifier = Modifier.weight(1f)
+=======
+    var iobDetailsExpanded by rememberSaveable { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            JournalMetricCard(
+                title = stringResource(R.string.journal_metric_iob),
+                value = "${formatJournalMetric(iobUnits)} U",
+                detail = activeInsulinDetail,
+                icon = Icons.Default.Vaccines,
+                type = JournalEntryType.INSULIN,
+                modifier = Modifier.weight(1f),
+                onClick = if (activeInsulin != null) {
+                    { iobDetailsExpanded = !iobDetailsExpanded }
+                } else {
+                    null
+                }
+>>>>>>> rebase/test-1.0.4-merge
             )
             JournalMetricCard(
                 title = stringResource(R.string.journal_type_food),
@@ -480,6 +590,66 @@ private fun JournalMetricsPanel(
                 modifier = Modifier.weight(1f)
             )
         }
+<<<<<<< HEAD
+=======
+        AnimatedVisibility(visible = iobDetailsExpanded && activeInsulin != null) {
+            activeInsulin?.let { summary ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = journalTypeSelectedContainerColor(
+                        JournalEntryType.INSULIN,
+                        MaterialTheme.colorScheme.surfaceContainerHighest
+                    ).copy(alpha = 0.68f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = buildString {
+                                append(
+                                    stringResource(
+                                        R.string.journal_iob_expanded,
+                                        formatJournalMetric(summary.iobUnits.coerceAtLeast(0f))
+                                    )
+                                )
+                                if (showEiob) {
+                                    append(" · ")
+                                    append(
+                                        stringResource(
+                                            R.string.journal_eiob_expanded,
+                                            formatJournalMetric(summary.eiobUnits.coerceAtLeast(0f))
+                                        )
+                                    )
+                                }
+                            },
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.journal_active_insulin_summary,
+                                summary.activeEntryCount,
+                                formatJournalMetric(summary.totalUnits),
+                                summary.weightedActivityPercent
+                            ),
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        summary.nextEndingAt?.let { endingAt ->
+                            Text(
+                                text = stringResource(
+                                    R.string.journal_active_insulin_until,
+                                    activeUntilFormatter.format(Date(endingAt))
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+>>>>>>> rebase/test-1.0.4-merge
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             JournalMetricCard(
                 title = stringResource(R.string.journal_metric_insulin_today),
@@ -508,10 +678,20 @@ private fun JournalMetricCard(
     detail: String,
     icon: ImageVector,
     type: JournalEntryType,
+<<<<<<< HEAD
     modifier: Modifier = Modifier
 ) {
     val tint = journalTypeColor(type)
     Surface(
+=======
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val tint = journalTypeColor(type)
+    Surface(
+        onClick = onClick ?: {},
+        enabled = onClick != null,
+>>>>>>> rebase/test-1.0.4-merge
         modifier = modifier.heightIn(min = 74.dp),
         shape = RoundedCornerShape(18.dp),
         color = journalTypeSelectedContainerColor(

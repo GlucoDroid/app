@@ -100,11 +100,32 @@ object OttaiRegistry {
     fun ensureSensorRecord(context: Context, sensorId: String, address: String, displayName: String) {
         val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
         val records = persistedRecords(context).toMutableList()
+<<<<<<< HEAD
         val idx = records.indexOfFirst { it.matchesId(canonical) }
         val existing = records.getOrNull(idx)
         val bleAddress = OttaiConstants.normalizeBleAddress(address, allowPlain = false)
             ?: OttaiConstants.normalizeBleAddress(existing?.address, allowPlain = false).orEmpty()
         val record = SensorRecord(canonical, bleAddress, displayName.ifBlank { canonical })
+=======
+        val normalizedAddress = OttaiConstants.normalizeBleAddress(address, allowPlain = false)
+        val existingRecord = findRecord(context, canonical) ?: normalizedAddress?.let { target ->
+            records.filter {
+                OttaiConstants.normalizeBleAddress(it.address, allowPlain = false)
+                    ?.equals(target, ignoreCase = true) == true
+            }.singleOrNull()
+        }
+        val idx = existingRecord?.let { existing ->
+            records.indexOfFirst { it.sensorId.equals(existing.sensorId, ignoreCase = true) }
+        } ?: -1
+        val existing = records.getOrNull(idx)
+        val bleAddress = normalizedAddress
+            ?: OttaiConstants.normalizeBleAddress(existing?.address, allowPlain = false).orEmpty()
+        // A scan may know this device by its full BLE address while the cloud/UI later supplies
+        // a shorter id. Keep the already material-backed canonical id instead of creating a
+        // second record whose auth keys do not exist.
+        val stableId = existing?.sensorId ?: canonical
+        val record = SensorRecord(stableId, bleAddress, displayName.ifBlank { stableId })
+>>>>>>> rebase/test-1.0.4-merge
         if (idx >= 0) records[idx] = record else records.add(record)
         writeRecords(context, records)
     }
@@ -123,11 +144,32 @@ object OttaiRegistry {
         val ctx = context ?: return null
         val id = sensorId?.trim().takeIf { !it.isNullOrBlank() } ?: return null
         val records = persistedRecords(ctx)
+<<<<<<< HEAD
         records.firstOrNull { it.matchesId(id) }?.let { return it }
         val suffix = OttaiConstants.canonicalSensorId(id).takeIf { it.length >= 6 } ?: return null
         return records
             .filter { it.sensorId.endsWith(suffix, ignoreCase = true) }
             .singleOrNull()
+=======
+        val canonical = OttaiConstants.canonicalSensorId(id)
+        val candidates = records.filter { record ->
+            val recordId = OttaiConstants.canonicalSensorId(record.sensorId)
+            record.matchesId(canonical) ||
+                (canonical.length >= 6 && recordId.endsWith(canonical, ignoreCase = true)) ||
+                (recordId.length >= 6 && canonical.endsWith(recordId, ignoreCase = true))
+        }
+        if (candidates.isEmpty()) return null
+        // Prefer the identity that owns the BLE authentication material. This also repairs the
+        // old full-MAC + short-id duplicate state without requiring another cloud bind.
+        candidates.firstOrNull { hasStoredAuthMaterial(ctx, it.sensorId) }?.let { return it }
+        candidates.firstOrNull { it.matchesId(canonical) }?.let { return it }
+        return candidates.singleOrNull()
+    }
+
+    private fun hasStoredAuthMaterial(context: Context, sensorId: String): Boolean {
+        val id = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+        return !prefs(context).getString(OttaiConstants.PREF_KEYA_PREFIX + id, null).isNullOrBlank()
+>>>>>>> rebase/test-1.0.4-merge
     }
 
     @JvmStatic
@@ -162,7 +204,12 @@ object OttaiRegistry {
 
     @JvmStatic
     fun saveMaterials(context: Context, sensorId: String, m: DeviceMaterials) {
+<<<<<<< HEAD
         val id = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+=======
+        val id = resolveCanonicalSensorId(context, sensorId)
+            ?: OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+>>>>>>> rebase/test-1.0.4-merge
         val existing = loadMaterials(context, id)
         val coefficient = m.coefficient.ifBlank { existing.coefficient }
         val method = OttaiMethodDefaults.resolve(m.method.ifBlank { existing.method }, coefficient)
@@ -181,7 +228,12 @@ object OttaiRegistry {
 
     @JvmStatic
     fun loadMaterials(context: Context, sensorId: String): DeviceMaterials {
+<<<<<<< HEAD
         val id = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+=======
+        val id = resolveCanonicalSensorId(context, sensorId)
+            ?: OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+>>>>>>> rebase/test-1.0.4-merge
         val p = prefs(context)
         val coefficient = p.getString(OttaiConstants.PREF_COEFF_PREFIX + id, null).orEmpty()
         val method = OttaiMethodDefaults.resolve(
@@ -324,7 +376,11 @@ object OttaiRegistry {
         val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
         val record = findRecord(context, canonical) ?: return null
         return runCatching {
+<<<<<<< HEAD
             OttaiBleManager(canonical, dataptr).also {
+=======
+            OttaiBleManager(record.sensorId, dataptr).also {
+>>>>>>> rebase/test-1.0.4-merge
                 it.mActiveDeviceAddress = OttaiConstants.normalizeBleAddress(record.address, allowPlain = false)
                 it.restoreFromPersistence(context)
             }
@@ -344,9 +400,16 @@ object OttaiRegistry {
         if (canonical.isBlank()) return null
         val bleAddress = OttaiConstants.normalizeBleAddress(address, allowPlain = false).orEmpty()
         ensureSensorRecord(context, canonical, bleAddress, displayName ?: OttaiConstants.DEFAULT_DISPLAY_NAME)
+<<<<<<< HEAD
         if (connectNow) connectSensor(context, canonical)
         ManagedSensorUiSignals.markDeviceListDirty()
         return canonical
+=======
+        val stableId = resolveCanonicalSensorId(context, canonical) ?: canonical
+        if (connectNow) connectSensor(context, stableId)
+        ManagedSensorUiSignals.markDeviceListDirty()
+        return stableId
+>>>>>>> rebase/test-1.0.4-merge
     }
 
     @JvmStatic

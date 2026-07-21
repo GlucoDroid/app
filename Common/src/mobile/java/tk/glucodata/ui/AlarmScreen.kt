@@ -109,6 +109,10 @@ fun AlarmScreen(
         PixelAlarmContent(
             primaryGlucose = primaryGlucose,
             alarmLabel = alarmLabel,
+<<<<<<< HEAD
+=======
+            supportingText = supportingText,
+>>>>>>> rebase/test-1.0.4-merge
             trend = trend,
             trendResult = trendResult,
             typographyChoice = typographyChoice,
@@ -122,6 +126,10 @@ fun AlarmScreen(
 private fun PixelAlarmContent(
     primaryGlucose: String,
     alarmLabel: String,
+<<<<<<< HEAD
+=======
+    supportingText: String,
+>>>>>>> rebase/test-1.0.4-merge
     trend: Trend,
     trendResult: TrendEngine.TrendResult,
     typographyChoice: AlarmTypographyChoice,
@@ -189,6 +197,10 @@ private fun PixelAlarmContent(
             ) {
                 AlarmHeader(
                     alarmLabel = alarmLabel,
+<<<<<<< HEAD
+=======
+                    supportingText = supportingText,
+>>>>>>> rebase/test-1.0.4-merge
                     compact = compact,
                     fontFamily = typographyChoice.fontFamily,
                     modifier = Modifier.padding(top = if (compact) 28.dp else 40.dp)
@@ -235,6 +247,10 @@ private fun PixelAlarmContent(
 @Composable
 private fun AlarmHeader(
     alarmLabel: String,
+<<<<<<< HEAD
+=======
+    supportingText: String,
+>>>>>>> rebase/test-1.0.4-merge
     compact: Boolean,
     fontFamily: FontFamily,
     modifier: Modifier = Modifier
@@ -266,6 +282,24 @@ private fun AlarmHeader(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+<<<<<<< HEAD
+=======
+            // What the alert actually says beyond its type name: expiry lead
+            // time, missed-reading duration, forecast horizon.
+            if (supportingText.isNotBlank()) {
+                Text(
+                    text = supportingText,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = fontFamily,
+                        fontWeight = FontWeight.W300,
+                        letterSpacing = 0.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+>>>>>>> rebase/test-1.0.4-merge
         }
     }
 }

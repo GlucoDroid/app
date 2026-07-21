@@ -57,6 +57,36 @@ object DisplayTrendSource {
         return merged
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * The one point list every trend arrow regresses over: recent history plus
+     * the live reading, cut to [TREND_WINDOW_MS] anchored at the newest point.
+     *
+     * Anchoring at the newest point instead of the wall clock matters: the
+     * newest reading lags "now" by up to a full period, so a now-anchored load
+     * window keeps or drops the reading sitting at the very edge of the trend
+     * window depending on each consumer's own load timing. Two honest
+     * consumers then regress over lists that differ by one tail point — a
+     * nuance invisible everywhere except at the flat dead zone, where it flips
+     * the glyph categorically for a full period.
+     */
+    @JvmStatic
+    fun resolveTrendPoints(
+        historyPoints: List<GlucosePoint>?,
+        current: CurrentDisplaySource.Snapshot?,
+        activeSensorSerial: String?
+    ): List<GlucosePoint> {
+        val augmented = augmentHistory(historyPoints, current, activeSensorSerial, 0L)
+        val newestTimestamp = augmented.lastOrNull()?.timestamp ?: return augmented
+        val cutoff = newestTimestamp - TREND_WINDOW_MS
+        if (augmented.first().timestamp >= cutoff) {
+            return augmented
+        }
+        return augmented.filter { it.timestamp >= cutoff }
+    }
+
+>>>>>>> rebase/test-1.0.4-merge
     @JvmStatic
     @JvmOverloads
     fun resolveArrowRate(

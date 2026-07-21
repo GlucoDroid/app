@@ -28,12 +28,17 @@ class AiDexScanReceiver : BroadcastReceiver() {
 
         // Brief wake lock to ensure we handle the alarm before CPU returns to sleep
         val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+<<<<<<< HEAD
         val wl = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AiDexSensor:ReceiverWakeup")
+=======
+        val wl = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AiDexBleManager:ReceiverWakeup")
+>>>>>>> rebase/test-1.0.4-merge
         wl?.acquire(10_000L) // 10s should be plenty to start the scan
 
         val callback = SensorBluetooth.gattcallbacks.find {
             it.SerialNumber == serial || SensorIdentity.matches(it.SerialNumber, serial)
         }
+<<<<<<< HEAD
         when (callback) {
             is AiDexSensor -> {
                 if (callback.broadcastScanActive) {
@@ -52,6 +57,12 @@ class AiDexScanReceiver : BroadcastReceiver() {
             else -> {
                 Log.w(TAG, "Sensor $serial not found in callbacks")
             }
+=======
+        if (callback is AiDexBleManager) {
+            callback.handleBroadcastScanAlarm("alarm")
+        } else {
+            Log.w(TAG, "Native AiDex sensor $serial not found in callbacks")
+>>>>>>> rebase/test-1.0.4-merge
         }
     }
 }

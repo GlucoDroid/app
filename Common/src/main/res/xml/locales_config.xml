@@ -8,6 +8,10 @@
    <locale android:name="pl"/>
    <locale android:name="pt"/>
    <locale android:name="ru"/>
+<<<<<<< HEAD
+=======
+   <locale android:name="so"/>
+>>>>>>> rebase/test-1.0.4-merge
    <locale android:name="be"/>
    <locale android:name="uk"/>
    <locale android:name="zh"/>

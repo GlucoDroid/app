@@ -1,4 +1,8 @@
 #include "SensorGlucoseData.hpp"
+<<<<<<< HEAD
+=======
+#include "../exchangetrend.hpp"
+>>>>>>> rebase/test-1.0.4-merge
 #include "datbackup.hpp"
 #include "fromjava.h"
 #include "glucose.hpp"
@@ -61,9 +65,29 @@ static bool aidexStoreIndexInRange(const char *caller, SensorGlucoseData *sens,
   return true;
 }
 
+<<<<<<< HEAD
 extern "C" JNIEXPORT jlong JNICALL fromjava(aidexProcessData)(
     JNIEnv *env, jclass cl, jlong dataptr, jbyteArray value, jlong mmsec,
     jfloat glucose, jfloat rawGlucose, jfloat calibrationFactor) {
+=======
+// Sentinel for "this frame carried no trend byte". Must match
+// Natives.AIDEX_TREND_UNKNOWN. The direct F003 live frame has no trend field;
+// only the 0x11 broadcast sample does.
+static constexpr const int32_t aidextrendunknown = INT32_MIN;
+
+// AiDex reports trend as a signed byte of tenths of mg/dL per minute.
+// Matches ExchangeTrend.fromAiDexTrendByte().
+static float aidextrendtorate(const int32_t trendByte) {
+  if (trendByte == aidextrendunknown)
+    return NAN;
+  return static_cast<int8_t>(trendByte) / 10.0f;
+}
+
+extern "C" JNIEXPORT jlong JNICALL fromjava(aidexProcessData)(
+    JNIEnv *env, jclass cl, jlong dataptr, jbyteArray value, jlong mmsec,
+    jfloat glucose, jfloat rawGlucose, jfloat calibrationFactor,
+    jint trendByte) {
+>>>>>>> rebase/test-1.0.4-merge
   if (!value) {
     LOGAR("aidexProcessData value==null");
     return 1LL;
@@ -80,8 +104,16 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(aidexProcessData)(
     return 1LL;
   }
 
+<<<<<<< HEAD
   // Trend/Rate (AiDex doesn't have a clear rate byte yet, using NAN)
   float change = NAN;
+=======
+  // Rate of change, when the frame carried one. NAN otherwise — the exchange
+  // serializers derive a fallback rate from the poll series in that case, so
+  // Nightscout no longer receives direction:"" / delta:0 for AiDex.
+  const float change = aidextrendtorate(trendByte);
+  const int trendindex = ratetolegacytrendindex(change);
+>>>>>>> rebase/test-1.0.4-merge
 
 #ifndef NOLOG
   time_t tim = timsec;
@@ -93,7 +125,11 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(aidexProcessData)(
   if (!aidexStoreIndexInRange("aidexProcessData", sens, id, timsec)) {
     return 0LL;
   }
+<<<<<<< HEAD
   sens->savepollallIDs<60>(timsec, id, internalVal, 0, change, rawVal);
+=======
+  sens->savepollallIDs<60>(timsec, id, internalVal, trendindex, change, rawVal);
+>>>>>>> rebase/test-1.0.4-merge
 
   // Trigger UI and Notification sync
   jlong res = glucoseback(timsec, internalVal, change, sens);
