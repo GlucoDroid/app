@@ -572,7 +572,7 @@ buildTypes {
             java.srcDirs = ['src/mobileSi/java', 'src/mobileSiNogoogle/java']
             jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
             manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
-            res.srcDirs= ['src/mobileSi/res', 'src/mobileSiNogoogle/res']
+            res.srcDirs= ['src/mobileSi/res', 'src/mobileSiNogoogle/res', 'src/mobileNosi/res']
             }
            mobileLibreOldNosiNodexNogoogle {
                java.srcDirs = ['src/mobileNosi/java']

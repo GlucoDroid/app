@@ -8969,7 +8969,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
             }
         }
         try {
-            val res = Natives.aidexProcessData(dataptr, bytes, timeMs, autoGlucose, rawGlucose, 1.0f)
+            val res = Natives.aidexProcessData(dataptr, bytes, timeMs, autoGlucose, rawGlucose, 1.0f, Natives.AIDEX_TREND_UNKNOWN)
             handleGlucoseResult(res, timeMs)
 
             // Trigger a targeted sync for just this sensor's live reading.
@@ -9316,7 +9316,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
         // The caller batches sync after each page.
         try {
             val rawForStore = if (rawMgDl.isFinite() && rawMgDl > 0f) rawMgDl else 0f
-            Natives.aidexProcessData(dataptr, byteArrayOf(0), historicalTimeMs, glucoseMgDl, rawForStore, 1.0f)
+            Natives.aidexProcessData(dataptr, byteArrayOf(0), historicalTimeMs, glucoseMgDl, rawForStore, 1.0f, Natives.AIDEX_TREND_UNKNOWN)
             if (rawForStore > 0f) {
                 markRawCoverage(offsetMinutes, "history")
             }

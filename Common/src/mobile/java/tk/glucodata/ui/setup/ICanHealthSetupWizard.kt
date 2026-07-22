@@ -55,12 +55,6 @@ import tk.glucodata.drivers.icanhealth.ICanHealthRegistry
 
 private const val ICAN_HEALTH_ONBOARDING_EXAMPLE = "726022F50005"
 
-private enum class ICanHealthSetupStep {
-    ONBOARDING,
-    CONNECTING,
-    SUCCESS,
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ICanHealthSetupWizard(
