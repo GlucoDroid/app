@@ -1,6 +1,5 @@
 package tk.glucodata.ui.screens
 
-import android.content.Context
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -12,7 +11,6 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
@@ -53,6 +51,7 @@ import kotlin.math.ceil
 import kotlinx.coroutines.launch
 import tk.glucodata.Applic
 import tk.glucodata.CalibrationAccess
+import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.GlucosePoint
 import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.Natives
@@ -66,8 +65,6 @@ private const val HOUR_MS = 3_600_000L
 private const val MAX_HISTORY_HOURS = 24
 private const val RIGHT_GAP_FRACTION = 0.09f
 private const val MIN_VIEWPORT_MS = 45 * 60_000L
-private const val CHART_PREFS = "tk.glucodata_preferences"
-private const val SHOW_RAW_KEY = "wear_chart_show_raw"
 
 internal data class ChartThresholds(val low: Float, val high: Float, val veryLow: Float, val veryHigh: Float)
 internal data class CalibrationMark(val timestamp: Long, val value: Float)
@@ -132,6 +129,9 @@ internal fun InteractiveWearChartPanel(
     modifier: Modifier = Modifier,
     initialRangeIndex: Int = 1,
     requestInitialFocus: Boolean = true,
+    rangeIndexOverride: Int? = null,
+    showRangeOverlay: Boolean = true,
+    headlineTopPadding: androidx.compose.ui.unit.Dp = 3.dp,
 ) {
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
     var rangeIndex by remember { mutableIntStateOf(initialRangeIndex.coerceIn(CHART_RANGES.indices)) }
@@ -141,8 +141,7 @@ internal fun InteractiveWearChartPanel(
     var selected by remember { mutableStateOf<GlucosePoint?>(null) }
     val requester = remember { FocusRequester() }
     val context = LocalContext.current
-    val prefs = remember(context) { context.getSharedPreferences(CHART_PREFS, Context.MODE_PRIVATE) }
-    var showRaw by remember { mutableStateOf(prefs.getBoolean(SHOW_RAW_KEY, false)) }
+    var viewMode by remember { mutableIntStateOf(currentWearViewMode()) }
     val timeFormat = remember(context) { DateFormat.getTimeFormat(context) }
 
     fun resetViewport(nextData: WearChartData = data) {
@@ -152,6 +151,7 @@ internal fun InteractiveWearChartPanel(
     }
 
     fun updateData() {
+        viewMode = currentWearViewMode()
         val wasAtNow = abs(viewportEnd - data.end) < 2 * 60_000L
         val next = loadChart(CHART_RANGES[rangeIndex], isMmol)
         data = next
@@ -183,13 +183,20 @@ internal fun InteractiveWearChartPanel(
         data = next
         resetViewport(next)
     }
+    LaunchedEffect(rangeIndexOverride) {
+        rangeIndexOverride?.let { rangeIndex = it.coerceIn(CHART_RANGES.indices) }
+    }
     LaunchedEffect(Unit) {
         launch { UiRefreshBus.revision.collect { updateData() } }
         launch { while (true) { kotlinx.coroutines.delay(60_000L); updateData() } }
         if (requestInitialFocus) requester.requestFocus()
     }
 
-    val lineColor = data.points.lastOrNull()?.let { rangeColor(it.value, isMmol) }
+    val primaryRaw = viewMode == 1 || viewMode == 3
+    val showSecondary = viewMode == 2 || viewMode == 3
+    val lineColor = data.points.lastOrNull()?.let {
+        rangeColor(if (primaryRaw && it.rawValue > 0f) it.rawValue else it.value, isMmol)
+    }
         ?: Color(GlucoseRangeColors.inRange(true))
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.13f)
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -222,7 +229,8 @@ internal fun InteractiveWearChartPanel(
                 viewportEnd = viewportEnd,
                 lineColor = lineColor,
                 rawColor = labelColor.copy(alpha = 0.52f),
-                showRaw = showRaw,
+                primaryRaw = primaryRaw,
+                showSecondary = showSecondary,
                 targetColor = targetColor,
                 alarmColor = alarmColor,
                 gridColor = gridColor,
@@ -241,40 +249,26 @@ internal fun InteractiveWearChartPanel(
                 onReset = { resetViewport() },
                 modifier = Modifier.fillMaxSize().padding(top = 24.dp, bottom = 25.dp),
             )
-            Row(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f), CircleShape),
-            ) {
-                Text(
-                    "${CHART_RANGES[rangeIndex]}h",
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.pointerInput(Unit) {
-                        detectTapGestures { rangeIndex = (rangeIndex + 1) % CHART_RANGES.size }
-                    }.padding(horizontal = 11.dp, vertical = 4.dp),
-                )
-                Text(
-                    stringResource(R.string.raw),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (showRaw) MaterialTheme.colorScheme.primary else labelColor,
-                    modifier = Modifier.pointerInput(Unit) {
-                        detectTapGestures {
-                            showRaw = !showRaw
-                            prefs.edit().putBoolean(SHOW_RAW_KEY, showRaw).apply()
-                        }
-                    }.padding(horizontal = 11.dp, vertical = 4.dp),
-                )
-            }
+            if (showRangeOverlay) WearChartRangeChip(
+                rangeIndex = rangeIndex,
+                onClick = { rangeIndex = (rangeIndex + 1) % CHART_RANGES.size },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
+            )
             val headline = selected?.let {
-                val raw = it.rawValue.takeIf { value -> showRaw && value.isFinite() && value > 0f }
-                val values = if (raw != null) {
-                    "${formatWearGlucose(it.value, isMmol)} / ${formatWearGlucose(raw, isMmol)}"
+                val raw = it.rawValue.takeIf { value -> value.isFinite() && value > 0f }
+                val primary = if (primaryRaw && raw != null) raw else it.value
+                val secondary = if (showSecondary) {
+                    if (primaryRaw) it.value else raw
+                } else null
+                val values = if (secondary != null) {
+                    "${formatWearGlucose(primary, isMmol)} / ${formatWearGlucose(secondary, isMmol)}"
                 } else {
-                    formatWearGlucose(it.value, isMmol)
+                    formatWearGlucose(primary, isMmol)
                 }
                 "$values  ${timeFormat.format(Date(it.timestamp))}"
             }
             headline?.let {
-                Text(it, style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.TopCenter).padding(top = 3.dp))
+                Text(it, style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.TopCenter).padding(top = headlineTopPadding))
             }
             if (data.points.isEmpty()) {
                 Text(
@@ -285,6 +279,27 @@ internal fun InteractiveWearChartPanel(
                 )
             }
     }
+}
+
+@Composable
+internal fun WearChartRangeChip(
+    rangeIndex: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        "${CHART_RANGES[rangeIndex.coerceIn(CHART_RANGES.indices)]}h",
+        style = MaterialTheme.typography.labelLarge,
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f), CircleShape)
+            .pointerInput(Unit) { detectTapGestures { onClick() } }
+            .padding(horizontal = 11.dp, vertical = 4.dp),
+    )
+}
+
+private fun currentWearViewMode(): Int {
+    val sensor = NotificationHistorySource.resolveSensorSerial()
+    return CurrentDisplaySource.resolveViewModeForSensor(sensor).coerceIn(0, 3)
 }
 
 private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectChartTransforms(
@@ -331,7 +346,8 @@ internal fun WearChart(
     viewportEnd: Long = data.end,
     lineColor: Color,
     rawColor: Color = Color.Transparent,
-    showRaw: Boolean = false,
+    primaryRaw: Boolean = false,
+    showSecondary: Boolean = false,
     targetColor: Color,
     alarmColor: Color,
     gridColor: Color,
@@ -391,19 +407,22 @@ internal fun WearChart(
             // Fit the value range to the visible data, not the alarm limits —
             // forcing veryLow..veryHigh into view squashed a flat curve into a
             // sliver. Threshold/target lines simply clip when out of range.
-            var minValue = viewportPoints.minOfOrNull { it.value } ?: data.thresholds.low
-            var maxValue = viewportPoints.maxOfOrNull { it.value } ?: data.thresholds.high
+            fun primaryValue(point: GlucosePoint) =
+                if (primaryRaw && point.rawValue.isFinite() && point.rawValue > 0f) point.rawValue else point.value
+            var minValue = viewportPoints.minOfOrNull(::primaryValue) ?: data.thresholds.low
+            var maxValue = viewportPoints.maxOfOrNull(::primaryValue) ?: data.thresholds.high
             val minSpan = if (data.isMmol) 3f else 54f
             if (maxValue - minValue < minSpan) {
                 val mid = (maxValue + minValue) / 2f
                 minValue = mid - minSpan / 2f
                 maxValue = mid + minSpan / 2f
             }
-            if (showRaw) {
+            if (showSecondary) {
                 viewportPoints.forEach { point ->
-                    if (point.rawValue.isFinite() && point.rawValue > 0f) {
-                        minValue = minOf(minValue, point.rawValue)
-                        maxValue = maxOf(maxValue, point.rawValue)
+                    val value = if (primaryRaw) point.value else point.rawValue
+                    if (value.isFinite() && value > 0f) {
+                        minValue = minOf(minValue, value)
+                        maxValue = maxOf(maxValue, value)
                     }
                 }
             }
@@ -440,8 +459,8 @@ internal fun WearChart(
                 return curve
             }
 
-            val curve = buildCurve(false)
-            val rawCurve = if (showRaw) buildCurve(true) else null
+            val curve = buildCurve(primaryRaw)
+            val secondaryCurve = if (showSecondary) buildCurve(!primaryRaw) else null
             val alarmDash = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 5.dp.toPx()))
             val calibrationDrops = data.calibrations.mapNotNull { mark ->
                 if (mark.timestamp !in viewportStart..viewportEnd) return@mapNotNull null
@@ -465,7 +484,7 @@ internal fun WearChart(
                 while (value < maxValue) { add(value); value += yStep }
             }
             val yLabelTexts = yLabels.map { value -> value to formatWearGlucose(value, data.isMmol) }
-            val bandColor = targetColor.copy(alpha = 0.13f)
+            val bandColor = targetColor.copy(alpha = 0.06f)
             val lowAlarmColor = alarmColor.copy(alpha = 0.56f)
             val selectedLineColor = selectionColor.copy(alpha = 0.6f)
             val quarterTimes = longArrayOf(
@@ -491,7 +510,7 @@ internal fun WearChart(
                     textPaint.textAlign = android.graphics.Paint.Align.CENTER
                     drawContext.canvas.nativeCanvas.drawText(text, lineX, size.height - 2.dp.toPx(), textPaint)
                 }
-                rawCurve?.let { drawPath(it, rawColor, style = Stroke(1.35.dp.toPx())) }
+                secondaryCurve?.let { drawPath(it, rawColor, style = Stroke(1.35.dp.toPx())) }
                 if (viewportPoints.size >= 2) drawPath(curve, lineColor, style = Stroke(2.6.dp.toPx()))
                 calibrationDrops.forEach { drawPath(it, selectionColor) }
                 selectedState.value?.takeIf { it.timestamp in viewportStart..viewportEnd }?.let {

@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import tk.glucodata.TrendArrowAngle
 
 /**
  * Shared "optically correct arrow" — the single source of the app's trend
@@ -40,9 +41,7 @@ fun TrendArrowCanvas(
     outlineColor: Color? = null,
     shadowColor: Color? = null,
 ) {
-    // Formula: Rate 2.0 -> 50 deg.
-    val sensitivity = 25f
-    val targetRotation = (-velocity * sensitivity).coerceIn(-90f, 90f)
+    val targetRotation = TrendArrowAngle.rotationDegrees(velocity)
 
     val rotation by animateFloatAsState(
         targetValue = targetRotation,

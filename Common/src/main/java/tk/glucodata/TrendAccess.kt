@@ -61,13 +61,6 @@ object TrendAccess {
             // apps rotate their arrow by must never degrade in silence.
             Log.e(LOG_ID, "TrendVelocityProvider missing or unusable - degraded to two-point slope")
         }
-        // TrendEngine reports velocity in mg/dL per minute regardless of the
-        // display unit (arrow rotation is tuned for that scale). The fallback
-        // differentiates display-unit points, so mmol inputs must be scaled
-        // back to mg/dL — on wear (no TrendEngine class) this fallback IS the
-        // arrow, and unscaled mmol velocity rendered it permanently flat.
-        val velocity = fallbackVelocity(points, useRaw)
-        return if (isMmol) velocity * 18.0182f else velocity
         return resolution.velocity
     }
 

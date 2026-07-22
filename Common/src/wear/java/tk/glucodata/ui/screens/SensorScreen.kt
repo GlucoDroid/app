@@ -38,6 +38,9 @@ import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.drivers.ManagedSensorViewModeStore
+import tk.glucodata.drivers.ManagedBluetoothSensorDriver
+import tk.glucodata.drivers.SensorIdentity
 import tk.glucodata.ui.WearNavigationRow
 import tk.glucodata.ui.WearSectionTitle
 
@@ -64,6 +67,11 @@ fun SensorScreen(onCalibrate: () -> Unit) {
     }
     val context = LocalContext.current
     val dateFormat = remember(context) { DateFormat.getMediumDateFormat(context) }
+    val currentSensor = sensors.firstOrNull { it.isCurrent }?.serial
+    val viewMode = remember(currentSensor, revision) {
+        ManagedSensorViewModeStore.readOrNull(context, currentSensor)
+            ?: tk.glucodata.CurrentDisplaySource.resolveViewModeForSensor(currentSensor)
+    }
 
     LaunchedEffect(Unit) {
         launch { UiRefreshBus.revision.collect { revision = it; now = System.currentTimeMillis() } }
@@ -155,6 +163,32 @@ fun SensorScreen(onCalibrate: () -> Unit) {
                         ).toString()
                         SensorDetailRow(stringResource(R.string.readings), age)
                     }
+                }
+            }
+            if (currentSensor != null) {
+                item {
+                    val modeLabel = stringResource(
+                        when (viewMode) {
+                            1 -> R.string.raw
+                            2 -> R.string.auto_raw
+                            3 -> R.string.raw_auto
+                            else -> R.string.auto
+                        },
+                    )
+                    WearNavigationRow(
+                        "${stringResource(R.string.display)}: $modeLabel",
+                        onClick = {
+                            val nextMode = (viewMode + 1) % 4
+                            ManagedSensorViewModeStore.write(context, currentSensor, nextMode)
+                            SensorBluetooth.mygatts()?.firstOrNull {
+                                SensorIdentity.matches(it.SerialNumber, currentSensor)
+                            }?.let { driver ->
+                                if (driver is ManagedBluetoothSensorDriver) driver.viewMode = nextMode
+                                if (driver.dataptr != 0L) runCatching { Natives.setViewMode(driver.dataptr, nextMode) }
+                            }
+                            UiRefreshBus.requestDataRefresh()
+                        },
+                    )
                 }
             }
             if (canCalibrate) {

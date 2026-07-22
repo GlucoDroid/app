@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -126,6 +127,7 @@ fun MainScreen(
 ) {
     var snapshot by remember { mutableStateOf(currentSnapshot()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var chartRangeIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         launch { UiRefreshBus.revision.collect { snapshot = currentSnapshot(); now = System.currentTimeMillis() } }
@@ -157,12 +159,15 @@ fun MainScreen(
                     InteractiveWearChartPanel(
                         initialRangeIndex = 0,
                         requestInitialFocus = false,
+                        rangeIndexOverride = chartRangeIndex,
+                        showRangeOverlay = false,
+                        headlineTopPadding = 58.dp,
                         modifier = Modifier.fillMaxSize(),
                     )
                     if (snap != null && status.hasData) {
                         HeroCard(
                             snap, status.isStale, now,
-                            modifier = Modifier.align(Alignment.TopCenter).padding(top = 24.dp),
+                            modifier = Modifier.align(Alignment.TopCenter),
                         )
                     } else {
                         Column(
@@ -200,6 +205,14 @@ fun MainScreen(
                     onOpenSensor,
                     modifier = Modifier.padding(horizontal = 18.dp),
                 )
+            }
+            item {
+                Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
+                    WearChartRangeChip(
+                        rangeIndex = chartRangeIndex,
+                        onClick = { chartRangeIndex = (chartRangeIndex + 1) % CHART_RANGES.size },
+                    )
+                }
             }
             item {
                 Box(Modifier.padding(horizontal = 18.dp)) {
