@@ -79,6 +79,7 @@ import tk.glucodata.drivers.ottai.OttaiCloudClient
 import tk.glucodata.drivers.ottai.OttaiConstants
 import tk.glucodata.drivers.ottai.OttaiNfc
 import tk.glucodata.drivers.ottai.OttaiRegistry
+import tk.glucodata.drivers.ottai.normalizeOttaiCnPhone
 import tk.glucodata.ui.components.SettingsItem
 import tk.glucodata.ui.util.BleDeviceScanner
 import tk.glucodata.ui.util.ConnectedButtonGroup
@@ -603,10 +604,15 @@ fun OttaiSetupWizard(
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             val useSms = region.usesSms
+                            val cnPhone = phone.takeIf { useSms }?.let(::normalizeOttaiCnPhone)
                             OutlinedTextField(
                                 value = phone,
-                                onValueChange = { phone = it.trim() },
+                                onValueChange = { value ->
+                                    phone = if (useSms) value.filter(Char::isDigit).take(11) else value.trim()
+                                },
                                 label = { Text(stringResource(if (useSms) R.string.ottai_phone_hint else R.string.ottai_account_hint)) },
+                                isError = useSms && phone.isNotBlank() && cnPhone == null,
+                                prefix = if (useSms) { { Text("+86") } } else null,
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(
                                     keyboardType = if (useSms) KeyboardType.Phone else KeyboardType.Email,
@@ -622,10 +628,11 @@ fun OttaiSetupWizard(
                             if (useSms) {
                                 OutlinedButton(
                                     onClick = {
+                                        val normalizedPhone = cnPhone ?: return@OutlinedButton
                                         busy = true; status = ""
                                         scope.launch {
                                             val rid = withContext(Dispatchers.IO) {
-                                                runCatching { OttaiCloudClient.requestSmsCode(context, phone) }
+                                                runCatching { OttaiCloudClient.requestSmsCode(context, normalizedPhone) }
                                                     .onFailure { Log.w(tag, "smsCode: ${it.message}") }.getOrNull()
                                             }
                                             busy = false
@@ -638,7 +645,7 @@ fun OttaiSetupWizard(
                                             }
                                         }
                                     },
-                                    enabled = !busy && phone.length >= 6,
+                                    enabled = !busy && cnPhone != null,
                                     modifier = Modifier.fillMaxWidth(),
                                 ) { Text(stringResource(R.string.ottai_send_code)) }
                                 OutlinedTextField(
@@ -651,10 +658,11 @@ fun OttaiSetupWizard(
                                 )
                                 Button(
                                     onClick = {
+                                        val normalizedPhone = cnPhone ?: return@Button
                                         busy = true; status = ""
                                         scope.launch {
                                             val ok = withContext(Dispatchers.IO) {
-                                                runCatching { OttaiCloudClient.smsLogin(context, phone, code, requestId)?.ok == true }
+                                                runCatching { OttaiCloudClient.smsLogin(context, normalizedPhone, code, requestId)?.ok == true }
                                                     .onFailure { Log.w(tag, "smsLogin: ${it.message}") }.getOrDefault(false)
                                             }
                                             busy = false
