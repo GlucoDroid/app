@@ -217,21 +217,19 @@ fun JournalSettingsScreen(
                 )
             }
 
-            item(key = "journal_nav_tab") {
-                SettingsSwitchItem(
-                    title = stringResource(R.string.journal_show_tab_title),
-                    subtitle = stringResource(R.string.journal_show_tab_desc),
-                    checked = journalNavigationTabEnabled,
-                    onCheckedChange = { viewModel.setJournalNavigationTabEnabled(it) },
-                    icon = Icons.Default.EditNote,
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    position = CardPosition.SINGLE,
-                    enabled = journalEnabled
-                )
-            }
-            item(key = "journal_dashboard_quickadd_group") {
+            item(key = "journal_access_group") {
                 val showCurrentTimeOption = journalEnabled && journalDashboardQuickAddButton
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.journal_show_tab_title),
+                        subtitle = stringResource(R.string.journal_show_tab_desc),
+                        checked = journalNavigationTabEnabled,
+                        onCheckedChange = { viewModel.setJournalNavigationTabEnabled(it) },
+                        icon = Icons.Default.EditNote,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        position = CardPosition.TOP,
+                        enabled = journalEnabled
+                    )
                     SettingsSwitchItem(
                         title = stringResource(R.string.journal_dashboard_quickadd_title),
                         subtitle = stringResource(R.string.journal_dashboard_quickadd_desc),
@@ -239,7 +237,7 @@ fun JournalSettingsScreen(
                         onCheckedChange = { viewModel.setJournalDashboardQuickAddButton(it) },
                         icon = Icons.Default.Add,
                         iconTint = MaterialTheme.colorScheme.primary,
-                        position = if (showCurrentTimeOption) CardPosition.TOP else CardPosition.SINGLE,
+                        position = if (showCurrentTimeOption) CardPosition.MIDDLE else CardPosition.BOTTOM,
                         enabled = journalEnabled
                     )
                     AnimatedVisibility(
