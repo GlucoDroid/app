@@ -674,6 +674,7 @@ fun DashboardChartSection(
     onDismissJournalAction: (() -> Unit)? = null,
     onJournalMarkerClick: ((Long) -> Unit)? = null,
     chartBoostProgress: Float = 0f,
+    resetToLatestOnResume: Boolean = true,
     onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
 ) {
     val chartContent: @Composable () -> Unit = {
@@ -716,6 +717,7 @@ fun DashboardChartSection(
                         onDismissJournalAction = onDismissJournalAction,
                         onJournalMarkerClick = onJournalMarkerClick,
                         chartBoostProgress = chartBoostProgress,
+                        resetToLatestOnResume = resetToLatestOnResume,
                         onViewportSnapshotChanged = onViewportSnapshotChanged
                     )
                 } else {
@@ -782,10 +784,14 @@ fun InteractiveGlucoseChart(
     onDismissJournalAction: (() -> Unit)? = null,
     onJournalMarkerClick: ((Long) -> Unit)? = null,
     chartBoostProgress: Float = 0f,
+    resetToLatestOnResume: Boolean = true,
     onViewportSnapshotChanged: ((ChartViewportSnapshot) -> Unit)? = null
 ) {
     // --- THEME & PAINTS ---
     val isDark = isSystemInDarkTheme()
+    // Observe the glucose palette so target band / band tints recompute live
+    // when the user switches presets or edits a band colour (no restart).
+    val glucosePaletteRevision = GlucosePaletteState.revision
     // User requested stronger dark mode lines ("oddly pale").
     // Standard M3 dark primary is pastel. We use a more saturated blue for data.
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -793,10 +799,10 @@ fun InteractiveGlucoseChart(
     val tertiaryColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f) // Lighter shade for 3rd line
     val pointColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.125f)
-    // 1. Select the correct Material Green shade (300 for Dark, 700 for Light)
-    val materialGreen = if (isDark) Color(0xFF81C784) else Color(0xFF388E3C)
-    // 2. Apply "Container" level opacity (0.12f is standard for M3 highlights)
-    val targetBandColor = materialGreen.copy(alpha = 0.12f)
+    // Target band inherits the active in-range band colour (was a hardcoded
+    // Material green). Keep the 0.12f container-level opacity.
+    // Keep custom in-range hues legible as a line without letting them flood the chart surface.
+    val targetBandColor = Color(GlucoseRangeColors.inRange(isDark)).copy(alpha = 0.06f)
 //    val targetBandColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
     val hoverLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     val minMaxLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -1151,7 +1157,6 @@ fun InteractiveGlucoseChart(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-
     // React to parent range state only when it represents a new range button choice.
     // Range changes alter the visible duration inside the current frame; tapping the
     // already-active range button is the explicit "back to now" action.
@@ -1421,6 +1426,7 @@ fun InteractiveGlucoseChart(
         pendingTimelineTapJob?.cancel()
         pendingTimelineTapJob = null
     }
+
 
     // Auto-dismiss selection if off-screen (User Request)
     LaunchedEffect(centerTime, visibleDuration, selectedPoint) {
@@ -2186,7 +2192,8 @@ fun InteractiveGlucoseChart(
                 primaryLineTintFraction,
                 primaryIdentityColor,
                 appChartRangeColors,
-                appTrafficDark
+                appTrafficDark,
+                glucosePaletteRevision
             ) {
                 if (chartHeightPx <= 0f) {
                     Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
@@ -2202,7 +2209,7 @@ fun InteractiveGlucoseChart(
                     // the value/notification coloring uses, incl. green in range.
                     val veryHighTint = identityTinted(
                         if (appChartRangeColors) Color(GlucoseRangeColors.valueOut(appTrafficDark))
-                        else Color(GlucoseRangeColors.VERY_HIGH)
+                        else Color(GlucoseRangeColors.veryHigh(isDark))
                     )
                     val highTint = identityTinted(
                         if (appChartRangeColors) Color(GlucoseRangeColors.valueBorderline(appTrafficDark))
@@ -2214,7 +2221,7 @@ fun InteractiveGlucoseChart(
                     )
                     val veryLowTint = identityTinted(
                         if (appChartRangeColors) Color(GlucoseRangeColors.valueOut(appTrafficDark))
-                        else Color(GlucoseRangeColors.VERY_LOW)
+                        else Color(GlucoseRangeColors.veryLow(isDark))
                     )
                     val inRangeTint = identityTinted(
                         if (appChartRangeColors) Color(GlucoseRangeColors.valueInRange(appTrafficDark))
@@ -2252,13 +2259,14 @@ fun InteractiveGlucoseChart(
                 chartHeightPx,
                 highOutOfRangeTintBase,
                 lowOutOfRangeTintBase,
-                peerNeutralBase
+                peerNeutralBase,
+                glucosePaletteRevision
             ) {
                 if (chartHeightPx <= 0f) {
                     emptyMap()
                 } else {
-                    val veryHighTint = Color(GlucoseRangeColors.VERY_HIGH)
-                    val veryLowTint = Color(GlucoseRangeColors.VERY_LOW)
+                    val veryHighTint = Color(GlucoseRangeColors.veryHigh(isDark))
+                    val veryLowTint = Color(GlucoseRangeColors.veryLow(isDark))
                     val fadePx = 18f
                     peerChartSeries.associate { series ->
                         // Tone down the coloring (desaturate toward the neutral

@@ -324,6 +324,13 @@ class SibionicsBleManager(
         connectDevice(0)
     }
 
+    override fun onBluetoothAdapterUnavailable() {
+        handler.removeCallbacks(reconnectRunnable)
+        prepareForReconnect()
+        constatstatusstr = Applic.getContext().getString(tk.glucodata.R.string.status_bluetooth_off)
+        UiRefreshBus.requestStatusRefresh()
+    }
+
     override fun terminateManagedSensor(wipeData: Boolean) {
         Log.i(SibionicsConstants.TAG, "terminateManagedSensor serial=$SerialNumber wipeData=$wipeData")
         preserveResumeStateOnRemoval = !wipeData

@@ -1,6 +1,6 @@
 // AnytimeProfile.kt — Per-family lifecycle/cadence resolver.
 //
-// CT3 4/4H is the primary target (cadence ~1/min, 16-day rated). CT4 / CT3_PLUS
+// CT3 4/4H is the primary target (cadence 3 min, 14–16-day rated). CT4 / CT3_PLUS
 // have shorter or longer rated lives depending on chemistry. CT5 (no separate
 // transmitter) uses the same 3-minute tick scale in the official SDK
 // (`Anytime`, endNumber 7695 => 16 days) and adds an encrypted identity/data
@@ -15,7 +15,7 @@ data class AnytimeProfile(
     val ratedLifetimeDays: Int,
     /** SDK `algorithm` int (selects per-chemistry pipeline inside libalgorithm-jni.so). */
     val algorithmId: Int,
-    /** Maximum 5-min-tick packet count before session naturally ends. */
+    /** Approximate maximum 3-minute record count before session naturally ends. */
     val endNumber: Int,
     /** Battery-low threshold (Volts) for the family. */
     val lowBatteryVolts: Float,

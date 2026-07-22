@@ -166,8 +166,8 @@
  <string name="addsensorenddate">Ku dar taariikhda dhamaadka dareemaha abka kalandararka</string>
  <string name="enddatesensor">"Dareenka taariikhda dhamaadka"</string>
  <string name="open">Furan</string>
- <string name="share">Wadaag</string>
  <string name="withoutsensor">Dareem la\'aan</string>
+ <string name="share">Wadaag</string>
  <string name="wronglibrary">Maktabadu si fiican uma shaqaynayso, isku day mid kale</string>
  <string name="installedlibrary">Maktabada la rakibay</string>
  <string name="cantextract">Lama soo saari karo %s, isku day apk ka duwan</string>
@@ -607,8 +607,9 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <!-- Sensor Management Strings -->
     <string name="disconnect_sensor_title">Isku xirka Sensor?</string>
     <string name="disconnect_sensor_desc">Tani waxay si joogto ah u joojin doontaa fadhiga dareemayaasha.</string>
-    <string name="disconnect_sensor_aidex_desc">Tani waxay gooyn doontaa dareenka Furayaasha lammaanaha iyo taariikhda waa la xafiday - mar dambe ayaad dib isugu xiri kartaa.</string>
-    <string name="break_pairing">Ka saar lammaanaynta dareemaha</string>
+    <string name="disconnect_sensor_aidex_desc">Dareemaha waa laga saari doonaa qalabkan. Taariikhdiisu way sii jiri doontaa.</string>
+    <string name="unbind_sensor">Ka saar isku-xidhka dareemaha</string>
+    <string name="unbind_sensor_desc">Sii daa isku-xidhka si qalab kale ugu xirmi karo.</string>
     <string name="remove_sensor_title">Ka saar Sensor?</string>
     <string name="remove_sensor_desc">Tani waxay si joogto ah meesha uga saari doontaa dareenka, tirtiri doonta furayaasha lammaanaynta, oo joojin doonta fadhiga. Dareemaha waa in dib loogu dhejiyaa si mar kale loo isticmaalo.</string>
     <string name="remove">Ka saar</string>
@@ -813,7 +814,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
 
     <!-- Hardcoded Strings Extracted -->
     <string name="import_history">Soo dejinta Taariikhda</string>
-    <string name="import_history_desc">Ka soo deji xogta gulukooska faylka CSV</string>
+    <string name="import_history_desc">Ka soo deji xogta gulukooska dhoofinta JugglucoNG ama faylka CSV</string>
     <string name="get_started_desc">Ku bilow adiga oo ku dara dareenkaaga</string>
     <string name="select_sensor">Dooro Nooca Sensor</string>
     <string name="or_divider">"ama"</string>
@@ -862,7 +863,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="export_history_title">Taariikhda dhoofinta</string>
     <string name="export_history_sub">Ku keydi akhrinta gulukooska CSV ama faylka qoraalka</string>
     <string name="import_history_title">Soo dejinta Taariikhda</string>
-    <string name="import_history_sub">Soo celi akhrinta gulukooska ee faylka CSV</string>
+    <string name="import_history_sub">Soo celi akhrinta gulukooska dhoofinta JugglucoNG ama faylka CSV</string>
     
     <string name="clear_history_title">Taariikhda tirtiri?</string>
     <string name="clear_history_confirmation">Tani waxay ka saari doontaa dhammaan akhrinta gulukooska ee kaydka xogta. Tallaabadan lama noqon karo.</string>
@@ -1409,7 +1410,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="hours_remaining">%1$d saacadood ayaa hadhay</string>
     <string name="import_failed_with_error">Soo dejintu waa fashilantay: %1$s</string>
     <string name="import_no_glucose">Faylkan kuma jiro xog gulukoos</string>
-    <string name="import_unsupported_file">Faylkan lama taageero. Dooro dhoofinta JugglucoNG (JSON).</string>
+    <string name="import_unsupported_file">Faylkan lama taageero. Dooro dhoofinta JugglucoNG (JSON) ama CSV taariikhda gulukooska.</string>
     <string name="import_profile_merge">Soo dejinta profile (ku biir)</string>
     <string name="import_profile_replace">Soo rar astaanta guud (bedel)</string>
     <string name="import_summary">La soo dejiyay: %1$d, la booday: %2$d, beddelay: %3$d</string>
@@ -1832,6 +1833,10 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Muuji IOB wax ku ool ah (eIOB)</string>
     <string name="journal_eiob_display_desc">Sidoo kale muuji insuliinta ku salaysan dhaqdhaqaaqa ee jirka ku jirta, kana barbar dhig IOB-ga caadiga ah</string>
+    <string name="journal_dashboard_quickadd_title">Ku dar degdeg ah dashboard-ka</string>
+    <string name="journal_dashboard_quickadd_desc">Muuji badhanka + ee joornaalka</string>
+    <string name="journal_quickadd_always_now_title">Isticmaal wakhtiga hadda</string>
+    <string name="journal_quickadd_always_now_desc">Bilow gelinta hadda, xitaa marka dhibic jaantus la doortay</string>
     <string name="notification_show_iob_title">Muuji insulin jirka ku jirta</string>
     <string name="notification_show_iob_desc">IOB/eIOB-ka joornaalka ee xariiqda xaaladda</string>
     <string name="notification_show_cob_title">Muuji karbohaydraytka jirka ku jira</string>
@@ -2181,6 +2186,63 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="sensor_display_select">Dooro dareemaha muujinta</string>
     <string name="sensor_display_selected">Muujinta dareemaha ayaa la doortay</string>
     <string name="wrongcode">Koodhka QR ee khaldan</string>
+
+    <!-- PR feature translations: trend, alerts, palette, and expiry. -->
+    <string name="alert_falling_fast">Degdeg u dhacaya</string>
+    <string name="alert_rising_fast">Dhaqso u kaca</string>
+    <string name="broadcast_computed_trend_title">Gudbi jihada app-ka</string>
+    <string name="broadcast_computed_trend_desc">Isticmaal jihada app-ka halkii tan dareemaha</string>
+    <string name="dashboard_show_delta_desc">Isbeddel lagu cabbiray inta u dhexaysa delta, ka hooseeya fallaadha isbeddelka</string>
+    <string name="dashboard_show_delta_title">Delta (Δ) ee dashboard-ka</string>
+    <string name="delta_alarm_interval_follow">Sida akhrinta Δ (hadda %1$d daq)</string>
+    <string name="delta_alarm_interval_label">Daaqadda Delta</string>
+    <string name="delta_border_above_label">Alaarmiga kaliya ee ka sarreeya</string>
+    <string name="delta_border_below_label">Digniin kaliya hoos</string>
+    <string name="delta_change_label">Beddel halkii daqiiqo %1$d</string>
+    <string name="delta_count_label">Akhrinta oo isku xigta</string>
+    <string name="delta_early_trigger_desc">Sidoo kale dab isla marka wadarta fogaanta (%1$s %2$s) la daboolo, iyada oo aan loo eegin inta u dhaxe ee dhaaftay</string>
+    <string name="delta_early_trigger_label">Kicin hore</string>
+    <string name="delta_interval_1min">1 daq</string>
+    <string name="delta_interval_5min">5 daqiiqo</string>
+    <string name="delta_interval_desc">Daaqadda waqtiga ee akhrinta Δ; Qaylodhaanta soo dhacaysa/ kor u kacaysa way raacdaa haddii aan la siin daaqadooda</string>
+    <string name="delta_interval_title">Delta (Δ) inta u dhaxaysa</string>
+    <string name="falling_fast_explanation">Ka digaya ka dib %1$d isku xigta %2$d-daqiiqo u dhaxe mid kastaa hoos ugu dhacaya ugu yaraan %3$s (≈ %4$d daqadda dhicis joogta ah) halka qiimuhu uu joogo ama ka hooseeyo %5$s. Ma jirto saadaal, kaliya isbeddelka cayriin.</string>
+    <string name="glucose_palette_band_high">Sare</string>
+    <string name="glucose_palette_band_in_range">Xadka saxda ah</string>
+    <string name="glucose_palette_band_low">Hoose</string>
+    <string name="glucose_palette_band_very_high">Aad u sarreeya</string>
+    <string name="glucose_palette_band_very_low">Aad u hooseeya</string>
+    <string name="glucose_palette_bands_label">Midabada xadka</string>
+    <string name="glucose_palette_custom_suffix">· la habeeyey</string>
+    <string name="glucose_palette_edit">Wax ka beddel</string>
+    <string name="glucose_palette_edit_title">Midabada gulukooska</string>
+    <string name="glucose_palette_preset_custom">La habeeyey</string>
+    <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_label">Palette</string>
+    <string name="glucose_palette_preset_muted">Deggan</string>
+    <string name="glucose_palette_preset_vibrant">Firfircoon</string>
+    <string name="glucose_palette_reset">Dib u dajin</string>
+    <string name="glucose_palette_reset_all">Dib u habeyn dhammaan midabada</string>
+    <string name="glucose_palette_title">Midabada gulukooska</string>
+    <string name="notification_show_delta_desc">Isbeddel lagu qiyaasay inta u dhexaysa delta, ee ku xigta falaarta</string>
+    <string name="notification_show_delta_title">Muuji delta (Δ)</string>
+    <string name="rising_fast_explanation">Ka digaya ka dib %1$d isku xigta ee %2$d-daqiiqo mid walba wuxuu kor u kacayaa ugu yaraan %3$s (≈ %4$d daqiqo koror joogta ah) halka qiimuhu uu joogo ama ka sarreeyo %5$s. Ma jirto saadaal, kaliya isbeddelka cayriin.</string>
+    <string name="sensor_expiry_group_days">Maalmo</string>
+    <string name="sensor_expiry_group_hours">Saacadaha</string>
+    <string name="sensor_expiry_warnings_desc">Waqti kasta oo la doortay wuxuu ka digayaa hal mar dareeme kasta</string>
+    <string name="sensor_expiry_warnings_title">Ka dig inta aanu dhicin</string>
+    <string name="sound_delay_desc">Gariir marka hore; ku dar alaarmiga la maqli karo oo kaliya daahitaanka ka dib</string>
+    <string name="sound_delay_hypo_warning">Digniin: tani waxay dib u dhigaysaa digniinta la maqli karo ee digniinta gulukooska hoose.</string>
+    <string name="sound_delay_label">Daahitaanka dhawaqa</string>
+    <string name="sound_delay_title">Dib u dhig codka alaarmiga</string>
+    <plurals name="sensor_expires_in_days">
+        <item quantity="one">Dareemuhu wuxuu dhacaa %d maalinta</item>
+        <item quantity="other">Dareemuhu wuxuu dhacaa %d maalmood</item>
+    </plurals>
+    <plurals name="sensor_expires_in_hours">
+        <item quantity="one">Dareemuhu wuxuu dhacaa saacada %d</item>
+        <item quantity="other">Dareemuhu wuxuu dhacaa saacadaha %d</item>
+    </plurals>
     <string name="sibionics_stock_algorithm_desc">Sibionics caadiga ah</string>
     <string name="sibionics_responsive_algorithm">Jawaab degdeg ah</string>
     <string name="sibionics_balanced_algorithm">Simid fudud</string>
@@ -2191,4 +2253,17 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="sibionics_reset_postpone">Dib u dhig 2 saacadood</string>
     <string name="sibionics_reset_reminder_channel">Xusuusinta dib-u-dejinta Sibionics</string>
     <string name="sibionics_reset_reminder_channel_desc">Xusuusin iyo ficillo lagu dib u dejiyo Sibionics 2 ka hor intuusan dhicin</string>
+    <string name="notification_large_arrow_title">Falaarta isbeddelka dheer</string>
+    <string name="notification_large_arrow_desc">Falaarta ku dheeree ogeysiisyada, widgets-ka iyo AOD</string>
+    <string name="notification_show_delta_minutes_desc">Muuji isbeddelka %1$d daqiiqo agta falaarta</string>
+    <string name="dashboard_rows_show_delta_title">Delta liiska akhrisyada</string>
+    <string name="dashboard_rows_show_delta_desc">Muuji isbeddelka agta akhris kasta</string>
+    <string name="glucose_palette_sheet_desc">Dooro palette ama habee xad kasta oo gulukoos ah</string>
+    <string name="glucose_palette_saturation">Dheregsanaanta</string>
+    <string name="glucose_palette_brightness">Iftiinka</string>
+    <string name="notification_charts_section">Jaantusyada</string>
+    <string name="notification_status_line_section">Xariiqda xaaladda</string>
+    <string name="display_colors_title">Muuqaalka &amp; midabada</string>
+    <string name="display_colors_desc">Midabada gulukooska, akhrisyada dashboard-ka iyo muuqaalka guud</string>
+    <string name="display_readouts_section">Akhrisyada dashboard-ka</string>
 </resources>

@@ -277,6 +277,8 @@ fun DashboardCombinedHeader(
     veryHighThreshold: Float = fallbackVeryHighThreshold(isMmol),
     valueRangeColorsEnabled: Boolean = false,
     arrowForecastColorsEnabled: Boolean = false,
+    showDelta: Boolean = false,
+    deltaIntervalMinutes: Int = tk.glucodata.GlucoseDelta.DEFAULT_INTERVAL_MINUTES,
     peerReadings: List<tk.glucodata.ui.viewmodel.DashboardViewModel.PeerCurrentReading> = emptyList(),
     onPeerReadingClick: (String) -> Unit = {},
     onHeroClick: () -> Unit = {}
@@ -296,11 +298,14 @@ fun DashboardCombinedHeader(
     val sensorContentColor = if (isExpiring) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
 
     // Advanced Trend
-    val trendResult = remember(history, latestPoint) {
+    val trendResult = remember(history, latestPoint, currentSnapshot) {
         if (history.isNotEmpty()) {
              // Map Kotlin UI points to Native Java points for shared TrendEngine
              val nativeList = history.map { tk.glucodata.GlucosePoint(it.timestamp, it.value, it.rawValue) }
-             tk.glucodata.logic.TrendEngine.calculateTrend(nativeList, useRaw = (viewMode == 1 || viewMode == 3), isMmol = isMmol)
+             // The canonical trend list (live-augmented, newest-anchored window) —
+             // the same points the notification and broadcast arrows regress over.
+             val trendPoints = tk.glucodata.DisplayTrendSource.resolveTrendPoints(nativeList, currentSnapshot, null)
+             tk.glucodata.logic.TrendEngine.calculateTrend(trendPoints, useRaw = (viewMode == 1 || viewMode == 3), isMmol = isMmol)
         } else if (latestPoint != null) {
             // Fallback
              val nativeList = listOf(tk.glucodata.GlucosePoint(latestPoint.timestamp, latestPoint.value, latestPoint.rawValue))
@@ -308,6 +313,20 @@ fun DashboardCombinedHeader(
         } else {
             tk.glucodata.logic.TrendEngine.TrendResult(tk.glucodata.logic.TrendEngine.TrendState.Unknown, 0f, 0f, 0f, 0f)
         }
+    }
+    // "Δ" readout: the measured change over the last ~5 minutes — a raw
+    // number to sanity-check the estimated arrow against. Same computation as
+    // the per-row deltas in the readings list, anchored at the newest point.
+    val heroDeltaText = if (showDelta) {
+        remember(history, isMmol, deltaIntervalMinutes) {
+            history.lastOrNull()?.let { newest ->
+                readingDeltaTexts(listOf(newest.timestamp), history, isMmol, deltaIntervalMinutes)
+                    .first()
+                    ?.let { "Δ $it" }
+            }
+        }
+    } else {
+        null
     }
     val isLandscape = rememberAdaptiveWindowMetrics().isLandscape
     val cornerWeights = remember(trendResult.velocity) { trendCornerWeightsFromVelocity(trendResult.velocity) }
@@ -414,7 +433,9 @@ fun DashboardCombinedHeader(
         targetLow,
         targetHigh,
         veryLowThreshold,
-        veryHighThreshold
+        veryHighThreshold,
+        // Recompose the band tint when the user switches palette / edits a band.
+        GlucosePaletteState.revision
     ) {
         glucoseHeroTone(
             value = dvs?.primaryValue,
@@ -653,10 +674,12 @@ fun DashboardCombinedHeader(
                                 )
                             }
 
-                            tk.glucodata.ui.components.TrendIndicator(
+                            HeroTrendWithDelta(
                                 trendResult = trendResult,
-                                modifier = Modifier.size(resolvedTrendIconSize),
-                                color = heroArrowColor
+                                arrowColor = heroArrowColor,
+                                deltaText = heroDeltaText,
+                                contentColor = glucoseContentColor,
+                                iconSize = resolvedTrendIconSize
                             )
                         }
 
@@ -751,10 +774,12 @@ fun DashboardCombinedHeader(
 
                             Spacer(modifier = Modifier.width(resolvedClusterGap))
 
-                            tk.glucodata.ui.components.TrendIndicator(
+                            HeroTrendWithDelta(
                                 trendResult = trendResult,
-                                modifier = Modifier.size(resolvedTrendIconSize),
-                                color = heroArrowColor
+                                arrowColor = heroArrowColor,
+                                deltaText = heroDeltaText,
+                                contentColor = glucoseContentColor,
+                                iconSize = resolvedTrendIconSize
                             )
                         }
 
@@ -965,6 +990,32 @@ fun DashboardCombinedHeader(
                 Modifier
                     .weight(0.3f)
                     .fillMaxHeight()
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeroTrendWithDelta(
+    trendResult: tk.glucodata.logic.TrendEngine.TrendResult,
+    arrowColor: Color,
+    deltaText: String?,
+    contentColor: Color,
+    iconSize: androidx.compose.ui.unit.Dp
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        tk.glucodata.ui.components.TrendIndicator(
+            trendResult = trendResult,
+            modifier = Modifier.size(iconSize),
+            color = arrowColor
+        )
+        if (!deltaText.isNullOrEmpty()) {
+            Text(
+                text = deltaText,
+                style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                color = contentColor.copy(alpha = 0.75f),
+                softWrap = false,
+                maxLines = 1
             )
         }
     }

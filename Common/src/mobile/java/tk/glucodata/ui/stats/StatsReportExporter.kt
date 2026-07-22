@@ -361,11 +361,13 @@ object StatsReportExporter {
                 )
             }
 
-            val colorTirVeryLow = GlucoseRangeColors.VERY_LOW
-            val colorTirLow = GlucoseRangeColors.LOW
-            val colorTirInRange = GlucoseRangeColors.IN_RANGE
-            val colorTirHigh = GlucoseRangeColors.HIGH
-            val colorTirVeryHigh = GlucoseRangeColors.VERY_HIGH
+            // Follow the active glucose palette + overrides (light variant for
+            // the printed/exported report, which has no dark theme).
+            val colorTirVeryLow = GlucoseRangeColors.veryLow(false)
+            val colorTirLow = GlucoseRangeColors.low(false)
+            val colorTirInRange = GlucoseRangeColors.inRange(false)
+            val colorTirHigh = GlucoseRangeColors.high(false)
+            val colorTirVeryHigh = GlucoseRangeColors.veryHigh(false)
 
             fun loadFontSafely(fontRes: Int): android.graphics.Typeface? =
                 runCatching { ResourcesCompat.getFont(context, fontRes) }

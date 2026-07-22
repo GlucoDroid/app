@@ -119,6 +119,14 @@ interface ManagedBluetoothSensorDriver {
 
     fun softReconnect() {}
 
+    /**
+     * The system Bluetooth adapter became unavailable. Physical BLE drivers must
+     * discard only their current transport/session state here; this is not a
+     * sensor pause or terminal driver shutdown. Network-backed managed drivers
+     * intentionally keep the no-op default.
+     */
+    fun onBluetoothAdapterUnavailable() {}
+
     fun terminateManagedSensor(wipeData: Boolean = false) {}
 
     fun shouldUseSharedCurrentSensorHandoffOnTerminate(): Boolean = true

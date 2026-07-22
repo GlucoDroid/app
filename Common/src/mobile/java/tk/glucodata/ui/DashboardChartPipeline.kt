@@ -226,3 +226,78 @@ internal fun buildDisplayReadings(
         .sortedByDescending { it.timestamp }
         .take(limit)
 }
+
+/**
+ * The most points [tk.glucodata.logic.TrendEngine] can regress over: it cuts to a
+ * 20 minute window and then caps at 30 samples, so handing it more is never read.
+ */
+internal const val TREND_HISTORY_LIMIT = 30
+
+/**
+ * The point list the row arrows regress over, as opposed to the rows actually drawn.
+ *
+ * These are two different lengths on purpose. The dashboard draws 10 recent readings,
+ * but every row's arrow is a 20 minute regression, and at a one-a-minute cadence 10
+ * points is only 10 minutes of it. Feeding [ReadingRow] the displayed list starved
+ * that window here while the history and journal screens — which pass a whole day
+ * section — got the full one, so the same reading drew a rising arrow on the dashboard
+ * and a falling one in history, and neither matched the hero.
+ *
+ * Same source, ordering and de-duplication as [buildDisplayReadings], just long enough,
+ * which keeps the displayed readings an exact prefix of this list. ReadingRow slices it
+ * with `history.drop(index)` using the *display* index, so that prefix relationship is
+ * what makes the row-to-window alignment correct.
+ */
+internal fun buildTrendHistory(consumerHistory: List<GlucosePoint>): List<GlucosePoint> =
+    buildDisplayReadings(consumerHistory, limit = TREND_HISTORY_LIMIT)
+
+/**
+ * The "Δ" readout of the hero card, anchored at arbitrary points in time: for each
+ * anchor timestamp, the delta the hero would have shown when that reading was the
+ * newest one. The hero's own readout is the single-anchor case (the newest point),
+ * so there is exactly one walk-back and one formatting rule — a row can never
+ * disagree with the hero about the same reading.
+ *
+ * Anchors must be newest-first (the order the dashboard rows are drawn in) and
+ * [history] is the hero's input list, oldest-first — the *unsmoothed* one: visual
+ * smoothing reshapes recent values, and the Δ is a raw measurement by design.
+ * Both cursors only ever move toward older points, so the whole visible list is
+ * one pass over the history regardless of how many rows are shown.
+ *
+ * An anchor with no old-enough partner (start of the data, or a gap wider than
+ * the pairing rules allow) yields null, never a NaN text.
+ */
+internal fun readingDeltaTexts(
+    anchorTimestamps: List<Long>,
+    history: List<GlucosePoint>,
+    isMmol: Boolean,
+    deltaIntervalMinutes: Int
+): List<String?> {
+    if (anchorTimestamps.isEmpty()) return emptyList()
+    val newestFirst = history.asReversed()
+    val minGap = tk.glucodata.GlucoseDelta.minGapMillis(deltaIntervalMinutes)
+    var anchorIndex = 0
+    var previousIndex = 0
+    return anchorTimestamps.map { anchorTimestamp ->
+        while (anchorIndex < newestFirst.size && newestFirst[anchorIndex].timestamp > anchorTimestamp) {
+            anchorIndex++
+        }
+        val anchor = newestFirst.getOrNull(anchorIndex) ?: return@map null
+        // Same predicate as the hero's walk-back: the first point old enough for
+        // the interval's window, skipping empty/sentinel values. Skips are safe to
+        // keep across anchors: a value failure is permanent, and a too-small gap
+        // only shrinks further for the older anchors that follow.
+        while (previousIndex < newestFirst.size) {
+            val candidate = newestFirst[previousIndex]
+            if (candidate.value > 0.1f && anchor.timestamp - candidate.timestamp >= minGap) break
+            previousIndex++
+        }
+        val previous = newestFirst.getOrNull(previousIndex) ?: return@map null
+        val delta = tk.glucodata.GlucoseDelta.delta(
+            anchor.timestamp, anchor.value,
+            previous.timestamp, previous.value,
+            deltaIntervalMinutes
+        )
+        tk.glucodata.GlucoseDelta.format(delta, isMmol).takeIf { it.isNotEmpty() }
+    }
+}

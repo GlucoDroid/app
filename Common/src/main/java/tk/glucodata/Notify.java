@@ -82,6 +82,7 @@ import java.text.DateFormat;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import tk.glucodata.alerts.AlertDisplayText;
 import tk.glucodata.alerts.AlertType;
 import tk.glucodata.alerts.SnoozeManager;
 import tk.glucodata.alerts.AlertConfig;
@@ -918,6 +919,10 @@ public class Notify {
     private static AlertSoundHandle delayedAlertSoundHandle = null;
     private static long nextAlertEffectStartAllowedMs = 0L;
     private static long manualEffectBypassUntilMs = 0L;
+    // "Vibrate first, audio after N seconds": the scheduled audible-alarm start.
+    // Distinct from the anti-overlap debounce above; cancelled on any stop.
+    private static ScheduledFuture<?> delayedSoundSchedule = null;
+    private static long delayedSoundGeneration = 0L;
 
     private static final class AlertRetrySession {
         int kind;
@@ -1266,15 +1271,7 @@ public class Notify {
         if (customAlertId == null || customAlertId.isEmpty()) {
             return false;
         }
-        try {
-            final Class<?> managerClass = Class.forName("tk.glucodata.logic.CustomAlertManager");
-            final Object manager = managerClass.getField("INSTANCE").get(null);
-            managerClass.getMethod("dismissAlert", String.class).invoke(manager, customAlertId);
-            return true;
-        } catch (Throwable th) {
-            Log.stack(LOG_ID, "dismissCustomAlertById", th);
-            return false;
-        }
+        return CustomAlertAccess.dismissAlert(customAlertId);
     }
 
     public static void acknowledgeCurrentAlert() {
@@ -1458,7 +1455,9 @@ public class Notify {
         return null;
     }
 
-    private static int resolveSensorViewMode(String sensorName) {
+    // Package-visible: BroadcastTrendRate resolves the same view mode when
+    // computing the outgoing trend.
+    static int resolveSensorViewMode(String sensorName) {
         if (sensorName == null || sensorName.isEmpty()) {
             return 0;
         }
@@ -1579,7 +1578,9 @@ public class Notify {
     }
 
     private static void cancelDelayedAlertEffectsLocked(String reason) {
-        final boolean hadDelayed = delayedAlertEffectSchedule != null || delayedAlertSoundHandle != null;
+        final boolean hadDelayed = delayedAlertEffectSchedule != null
+                || delayedAlertSoundHandle != null
+                || delayedSoundSchedule != null;
         if (delayedAlertEffectSchedule != null) {
             delayedAlertEffectSchedule.cancel(false);
             delayedAlertEffectSchedule = null;
@@ -1588,6 +1589,13 @@ public class Notify {
             stopSoundHandleQuietly(delayedAlertSoundHandle);
             delayedAlertSoundHandle = null;
         }
+        // Cancel a pending "vibrate first, audio later" sound so it never fires
+        // after a dismiss / snooze / resolution / retry.
+        if (delayedSoundSchedule != null) {
+            delayedSoundSchedule.cancel(false);
+            delayedSoundSchedule = null;
+        }
+        delayedSoundGeneration++;
         delayedAlertEffectPriority = Integer.MIN_VALUE;
         delayedAlertEffectGeneration++;
         if (hadDelayed && doLog) {
@@ -1656,6 +1664,10 @@ public class Notify {
     }
 
     private void vibratealarm(int kind, String hapticProfileName, int durationSeconds) {
+        vibratealarm(kind, hapticProfileName, durationSeconds, 0);
+    }
+
+    private void vibratealarm(int kind, String hapticProfileName, int durationSeconds, int soundDelayLeadInSeconds) {
         var context = Applic.app;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             vibrator = ((VibratorManager) (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE)))
@@ -1744,16 +1756,19 @@ public class Notify {
                         amplitudes[i] = 1; // Ensure non-zero if it was meant to be on
                 }
             }
-            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes, durationSeconds);
+            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes,
+                    durationSeconds, soundDelayLeadInSeconds);
             vibrateWaveform(vibrator, finitePattern.timings, finitePattern.amplitudes, -1);
         } else {
-            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes, durationSeconds);
+            final AlertVibrationPattern finitePattern = AlertVibrationPattern.buildFinite(timings, amplitudes,
+                    durationSeconds, soundDelayLeadInSeconds);
             vibrator.vibrate(finitePattern.timings, -1);
         }
 
         if (doLog) {
             Log.i(LOG_ID, "vibratealarm " + kind + " hapticProfile=" + hapticProfileName
-                    + " duration=" + sanitizeAlarmDurationSeconds(durationSeconds));
+                    + " duration=" + sanitizeAlarmDurationSeconds(durationSeconds)
+                    + (soundDelayLeadInSeconds > 0 ? " soundDelayLeadIn=" + soundDelayLeadInSeconds : ""));
         }
     }
 
@@ -1989,26 +2004,62 @@ public class Notify {
         // MOVED EFFECTS START HERE - SAFER
         final String resolvedHapticProfile = (hapticProfile != null) ? hapticProfile : getHapticProfile(kind);
 
-        if (sound) {
-            if (doplaysound[0] && hasSoundHandle) {
-                if (soundHandle != null) {
-                    soundHandle.setMaxVolume(soundVolumeForProfile(resolvedHapticProfile));
-                    soundHandle.play();
-                } else if (doLog) {
-                    Log.w(LOG_ID, "playringhier: sound handle is null");
-                }
-            }
-        }
+        // Sound delay ("vibrate first, audio after N seconds"): start vibration
+        // and flash immediately; add the audible alarm only after the configured
+        // delay. Only when both sound and vibration are on for this alert (else
+        // there is either nothing to delay, or a silent gap with no signal).
+        final int soundDelaySeconds = (sound && vibrate) ? getSoundDelaySeconds(kind) : 0;
+        final long soundDelayMs = TimeUnit.SECONDS.toMillis(soundDelaySeconds);
+        final boolean canPlaySound = sound && doplaysound[0] && hasSoundHandle && soundHandle != null;
+
         if (!isWearable) {
             if (flash) {
                 Flash.start(app, 200L);
             }
         }
         if (vibrate) {
-            vibratealarm(kind, resolvedHapticProfile, duration);
+            // The finite pattern must also span the silent delay phase
+            // ("vibrate first"), else it runs out before the sound starts.
+            vibratealarm(kind, resolvedHapticProfile, duration, soundDelaySeconds);
         }
 
-        stopschedule = Applic.scheduler.schedule(runstopalarm, stopDelayMs, TimeUnit.MILLISECONDS);
+        if (canPlaySound) {
+            soundHandle.setMaxVolume(soundVolumeForProfile(resolvedHapticProfile));
+            if (soundDelayMs > 0L) {
+                // Delay only the play() call; the gradual fade-in lives inside
+                // play() and carries over unchanged, just starting later.
+                final AlertSoundHandle delayedHandle = soundHandle;
+                final long soundGeneration;
+                synchronized (alertEffectLock) {
+                    soundGeneration = ++delayedSoundGeneration;
+                    delayedSoundSchedule = Applic.scheduler.schedule(() -> {
+                        synchronized (alertEffectLock) {
+                            if (soundGeneration != delayedSoundGeneration) {
+                                return;
+                            }
+                            delayedSoundSchedule = null;
+                        }
+                        // Only sound if still alarming (not dismissed / snoozed /
+                        // resolved during the delay); play() is also a no-op once
+                        // the handle has been released.
+                        if (getisalarm()) {
+                            delayedHandle.play();
+                        }
+                    }, soundDelayMs, TimeUnit.MILLISECONDS);
+                }
+                if (doLog) {
+                    Log.i(LOG_ID, "Sound delayed by " + soundDelaySeconds + "s for kind=" + kind);
+                }
+            } else {
+                soundHandle.play();
+            }
+        } else if (sound && soundHandle == null && doLog) {
+            Log.w(LOG_ID, "playringhier: sound handle is null");
+        }
+
+        // Auto-stop counts the sound's play time from when it actually begins, so
+        // a delayed sound still plays for its full duration.
+        stopschedule = Applic.scheduler.schedule(runstopalarm, stopDelayMs + soundDelayMs, TimeUnit.MILLISECONDS);
 
     }
     private String getDeliveryMode(int kind) {
@@ -2071,6 +2122,27 @@ public class Notify {
             case "SOFT":      case "LOW":      return 0.4f;
             case "STEADY":    case "MEDIUM":   return 0.7f;
             default:                           return 1.0f;
+        }
+    }
+
+    // Resolved audible-alarm delay for this alert type, in seconds (0 = none).
+    // Re-applies the per-type hypo cap via the single source of truth in
+    // AlertConfig, independent of how the value was written.
+    private int getSoundDelaySeconds(int kind) {
+        final AlertType type = AlertType.Companion.fromId(kind);
+        if (type == null) {
+            return 0;
+        }
+        try {
+            final android.content.SharedPreferences prefs = Applic.app.getSharedPreferences(
+                    "tk.glucodata.alerts", android.content.Context.MODE_PRIVATE);
+            if (!prefs.getBoolean("alert_" + kind + "_soundDelayEnabled", false)) {
+                return 0;
+            }
+            final int requested = prefs.getInt("alert_" + kind + "_soundDelay", 0);
+            return tk.glucodata.alerts.AlertConfigKt.sanitizeSoundDelaySeconds(type, requested);
+        } catch (Exception e) {
+            return 0;
         }
     }
 
@@ -2946,8 +3018,17 @@ public class Notify {
 
                 float displayRate = glucose.rate;
                 try {
-                    boolean useRaw = (viewMode == 1 || viewMode == 3);
-                    displayRate = TrendAccess.calculateVelocity(nativePoints, useRaw, isMmol);
+                    // The alarm arrow must not disagree with the main notification and the
+                    // dashboard hero: regress over the same canonical trend list they use,
+                    // not a bare 10-minute wall-clock slice.
+                    final CurrentDisplaySource.Snapshot alarmSnapshot = resolveNotificationCurrentSnapshot(
+                            activeSensorSerial);
+                    java.util.List<GlucosePoint> trendPoints = NotificationHistorySource.getDisplayHistory(
+                            endT - 2 * DisplayTrendSource.TREND_WINDOW_MS, isMmol, activeSensorSerial);
+                    trendPoints = DisplayTrendSource.resolveTrendPoints(trendPoints, alarmSnapshot,
+                            activeSensorSerial);
+                    displayRate = DisplayTrendSource.resolveArrowRate(trendPoints, alarmSnapshot, viewMode, isMmol,
+                            glucose.rate);
                 } catch (Throwable t) {
                     // keep original rate if fails
                 }
@@ -2967,12 +3048,12 @@ public class Notify {
                 RemoteViews remoteViewsHeadsUp = new RemoteViews(Applic.app.getPackageName(),
                         R.layout.notification_material_heads_up);
 
-                // Clean message: "Forecast Low 4.0 mmol/L" -> "Forecast Low"
-                String cleanMessage = customAlertId != null && !customAlertId.isEmpty()
-                        ? message
-                        : message.replaceAll("[0-9.,]+", "").replaceAll("mmol/L", "")
-                                .replaceAll("mg/dL", "").trim();
-                final String badgeText = cleanMessage.isEmpty() ? message : cleanMessage;
+                // "Forecast Low 4.0 mmol/L" -> "Forecast Low"; duration-carrying
+                // messages (sensor expiry, missed reading) keep their numbers.
+                final String badgeText = AlertDisplayText.notificationBadge(
+                        AlertType.Companion.fromId(alertTypeId),
+                        customAlertId != null && !customAlertId.isEmpty(),
+                        message);
                 final String alertMeta = timef.format(glucose.time);
                 final String plainValueText = valueText.toString();
 
@@ -3282,22 +3363,19 @@ public class Notify {
         } catch (Exception e) {
             chartPoints = new java.util.ArrayList<>();
         }
+
+        // The canonical trend list: derived from the same rows before the chart's own
+        // augmentation, so the arrow regresses over byte-identical points with the
+        // dashboard hero and the computed-trend broadcast.
+        java.util.List<GlucosePoint> nativePoints = DisplayTrendSource.resolveTrendPoints(chartPoints, resolvedDisplay,
+                activeSensorSerial);
+
         chartPoints = DisplayTrendSource.augmentHistory(chartPoints, resolvedDisplay, activeSensorSerial, startT);
 
         BatteryTrace.bump(
                 "notify.glucose.render",
                 20L,
                 "interactive=" + isScreenInteractive());
-
-        long recentStartT = endT - DisplayTrendSource.TREND_WINDOW_MS;
-        java.util.List<GlucosePoint> nativePoints = new java.util.ArrayList<>();
-        try {
-            nativePoints = NotificationHistorySource.getDisplayHistory(recentStartT, isMmol, activeSensorSerial);
-        } catch (Exception e) {
-            // Fall back to chart points if native fails
-            nativePoints = chartPoints;
-        }
-        nativePoints = DisplayTrendSource.augmentHistory(nativePoints, resolvedDisplay, activeSensorSerial, recentStartT);
 
         // Status Logic & ViewMode extraction
         String statusText = "";
@@ -3373,6 +3451,8 @@ public class Notify {
         boolean showStatus = prefs.getBoolean("notification_show_status", true);
         boolean showIob = prefs.getBoolean("notification_show_iob", false);
         boolean showCob = prefs.getBoolean("notification_show_cob", false);
+        boolean showDelta = prefs.getBoolean("notification_show_delta", false);
+        int deltaIntervalMinutes = prefs.getInt("delta_interval_minutes", GlucoseDelta.DEFAULT_INTERVAL_MINUTES);
         boolean iobCobRiskColored = prefs.getBoolean("notification_iob_cob_risk_colored", false);
         boolean arrowForecastColored = prefs.getBoolean("glucose_arrow_forecast_colors_enabled", false);
         boolean showChart = prefs.getBoolean("notification_chart_enabled", true);
@@ -3480,6 +3560,39 @@ public class Notify {
                 newStatusText = (sensorStatusText == null || sensorStatusText.isEmpty())
                         ? iobLine
                         : new android.text.SpannableStringBuilder(iobLine).append(" · ").append(sensorStatusText);
+        }
+        // The "Δ" readout: measured change over the last ~5 minutes — a raw
+        // number to sanity-check the estimated arrow against. Leftmost, right
+        // next to the arrow. Walks back to the first point old enough for the
+        // window; the tail can hold near-duplicates (persisted vs live
+        // timestamp of the same reading), so never take blind indices.
+        if (showDelta && nativePoints.size() >= 2) {
+            final GlucosePoint newest = nativePoints.get(nativePoints.size() - 1);
+            final float newestValue = (isRawMode && newest.rawValue > 0f) ? newest.rawValue : newest.value;
+            GlucosePoint previous = null;
+            for (int i = nativePoints.size() - 2; i >= 0; i--) {
+                final GlucosePoint p = nativePoints.get(i);
+                final float value = (isRawMode && p.rawValue > 0f) ? p.rawValue : p.value;
+                if (value > 0.1f && newest.timestamp - p.timestamp >= GlucoseDelta.minGapMillis(deltaIntervalMinutes)) {
+                    previous = p;
+                    break;
+                }
+            }
+            final float previousValue = previous == null ? Float.NaN
+                    : (isRawMode && previous.rawValue > 0f) ? previous.rawValue : previous.value;
+            final String deltaText = previous == null ? "" : GlucoseDelta.format(
+                    GlucoseDelta.delta(newest.timestamp, newestValue, previous.timestamp, previousValue, deltaIntervalMinutes),
+                    isMmol);
+            if (doLog)
+                Log.i(LOG_ID, "notification delta=" + deltaText
+                        + " points=" + nativePoints.size()
+                        + " gap=" + (previous == null ? -1L : (newest.timestamp - previous.timestamp)));
+            if (!deltaText.isEmpty()) {
+                newStatusText = (newStatusText == null || newStatusText.length() == 0)
+                        ? "Δ " + deltaText
+                        : new android.text.SpannableStringBuilder("Δ ").append(deltaText)
+                                .append(" · ").append(newStatusText);
+            }
         }
 
         // Apply Style to Status Text too
@@ -3676,16 +3789,12 @@ public class Notify {
         } catch (Exception e) {
             chartPoints = new java.util.ArrayList<>();
         }
-        chartPoints = DisplayTrendSource.augmentHistory(chartPoints, current, activeSensorSerial, startT);
 
-        long recentStartT = endT - DisplayTrendSource.TREND_WINDOW_MS;
-        java.util.List<GlucosePoint> nativePoints = new java.util.ArrayList<>();
-        try {
-            nativePoints = NotificationHistorySource.getDisplayHistory(recentStartT, isMmol, activeSensorSerial);
-        } catch (Exception e) {
-            nativePoints = chartPoints;
-        }
-        nativePoints = DisplayTrendSource.augmentHistory(nativePoints, current, activeSensorSerial, recentStartT);
+        // Same canonical trend list as the update path, the dashboard hero and the broadcast.
+        java.util.List<GlucosePoint> nativePoints = DisplayTrendSource.resolveTrendPoints(chartPoints, current,
+                activeSensorSerial);
+
+        chartPoints = DisplayTrendSource.augmentHistory(chartPoints, current, activeSensorSerial, startT);
 
         // Identify ViewMode for Startup
         int viewMode = 0;

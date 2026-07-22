@@ -42,6 +42,110 @@ object TrendEngine {
         val noiseLevel: Float = 0f // 0.0 - 1.0 (normalized CV, higher = noisier)
     )
 
+    /** Cadence the fixed 20 minute window was chosen for: Dexcom/Libre, one reading per 5 min. */
+    private const val REFERENCE_CADENCE_MIN = 5.0
+    private const val REFERENCE_WINDOW_MIN = 20.0
+
+    /** Guard rails: never so short it rides jitter, never so long it outlives the trend. */
+    private const val MIN_WINDOW_MIN = 8.0
+    private const val MAX_WINDOW_MIN = 25.0
+
+    /**
+     * How far back the slope regresses, scaled to the sensor's actual reading cadence.
+     *
+     * A fixed 20 minutes is not one setting — it is a different amount of smoothing per
+     * sensor. What the window really buys is confidence in the slope, and for evenly
+     * spaced samples the standard error of a least-squares slope goes as
+     *
+     *     SE  ~  sigma * sqrt(cadence) / window^1.5
+     *
+     * so holding SE constant across sensors means window ~ cadence^(1/3). Anchored at the
+     * accepted 20 min / 5 min reference that yields ~12 min at a one-a-minute cadence:
+     * the same trustworthiness, a third less lag.
+     *
+     * Concretely, on 17 h of 1-minute Sibionics data a 20 minute window produced a slope
+     * SE of 0.048 mg/dL/min where a 5-minute sensor at 20 minutes gets 0.100 — twice the
+     * precision nobody asked for, paid for in an arrow that changed 2.1 times an hour
+     * instead of the old estimator's 17. The old decay-weighted estimator hid this by
+     * weighting `0.6^i` per *sample*, so its effective window silently scaled with
+     * cadence (~15 min at 5 min, ~3 min at 1 min); replacing it with a fixed 20 minutes
+     * left 5-minute sensors roughly where they were and over-smoothed fast ones ~7x.
+     *
+     * Cadence is measured from the data rather than declared per driver, so a sensor that
+     * changes rate, backfills, or drops readings is described by what it actually
+     * delivered. Median, not mean: one disconnect gap must not stretch the window.
+     */
+    internal fun trendWindowMillis(newestFirst: List<GlucosePoint>): Long {
+        val scaled = REFERENCE_WINDOW_MIN *
+            Math.cbrt(cadenceMinutes(newestFirst) / REFERENCE_CADENCE_MIN)
+        val windowMinutes = scaled.coerceIn(MIN_WINDOW_MIN, MAX_WINDOW_MIN)
+        return (windowMinutes * 60_000.0).toLong()
+    }
+
+    /**
+     * The sensor's actual reading interval, as a median of the recent gaps.
+     *
+     * Measured rather than declared per driver, so a sensor that changes rate, backfills or
+     * drops readings is described by what it really delivered. Median, not mean: one
+     * disconnect gap must not stretch the estimate.
+     */
+    internal fun cadenceMinutes(newestFirst: List<GlucosePoint>): Double {
+        val gapsMinutes = ArrayList<Double>(newestFirst.size)
+        for (i in 0 until newestFirst.size - 1) {
+            val gap = (newestFirst[i].timestamp - newestFirst[i + 1].timestamp) / 60000.0
+            // Only forward gaps; duplicate timestamps say nothing about cadence.
+            if (gap > 0.0) {
+                gapsMinutes.add(gap)
+            }
+            // A dozen gaps pin the median; scanning a whole day section does not improve it.
+            if (gapsMinutes.size >= 12) {
+                break
+            }
+        }
+        if (gapsMinutes.isEmpty()) {
+            return REFERENCE_CADENCE_MIN
+        }
+        gapsMinutes.sort()
+        return gapsMinutes[gapsMinutes.size / 2]
+    }
+
+    /**
+     * Recency half-weighting of the regression, as a multiple of the reading interval.
+     *
+     * A plain least-squares fit weights a reading from 12 minutes ago exactly as heavily as
+     * the one that just arrived, so a sharp turn off a plateau — the shape that actually
+     * prompts someone to look at the arrow — is averaged against the plateau it just left.
+     * Measured over 17 h of 1-minute data, at 11 sharp turns off a plateau, as a fraction of
+     * the real rate the arrow actually reported at the moment of the turn:
+     *
+     *     fixed 20 min (unweighted)   17%    jitter 0.050
+     *     cadence window, unweighted  30%    jitter 0.093
+     *     this, exp(-age/5*cadence)   42%    jitter 0.104
+     *     pre-regression estimator    79%    jitter 0.394
+     *
+     * An arrow showing a sixth of what is happening is not a slow arrow, it is a wrong one.
+     *
+     * The multiple is bounded below by noise, not chosen for feel. The regression's own
+     * guarantee — a steady 0.5 mg/dL/min fall with 3 mg/dL of jitter on the newest reading
+     * must still read as a fall (< -0.2) — holds at 5 (-0.28) and at 3.5 (-0.22), but breaks
+     * at 3 (-0.18) and collapses at 2 (+0.00, where an ordinary blip erases the trend
+     * outright). See TrendEngineVelocityTests.singleNoisyReadingDoesNotDominateTheTrend,
+     * the original PR's test, which passes unchanged. 5 keeps a real margin on it.
+     *
+     * On a verified 1-minute excursion (a rise off a ~90 minute plateau) this reached the
+     * double-arrow state at 15:28 where the unweighted cadence window reached it at 15:29
+     * and the old fixed 20 minutes never did — it was still showing 58 degrees three
+     * minutes in.
+     *
+     * That pre-regression estimator also weighted recency — `0.6^i`, decaying over roughly
+     * two samples. Its problem was never recency: it averaged *adjacent deltas*, where a
+     * single noisy reading owns the newest delta and the newest delta owns 40% of the
+     * answer. Weighting a regression keeps every point in one fit, so most of that
+     * responsiveness comes back at under a third of the jitter. The PR was right about the
+     * fit and wrong to throw out recency with it.
+     */
+    private const val DECAY_CADENCE_MULTIPLE = 5.0
+
     /**
      * Calculates the trend based on a list of historical points.
      * @param history List of glucose points, ordered by time descending (newest first).
@@ -58,71 +162,74 @@ object TrendEngine {
             history
         }
 
-        // Use the last 20 minutes of data to match xDrip's window exactly
-        val validPoints = newestFirst.takeWhile { 
-             (newestFirst.first().timestamp - it.timestamp) <= 20 * 60 * 1000 
+        // Window scaled to the sensor's cadence so the slope carries the same
+        // confidence on every sensor — see [trendWindowMillis].
+        val windowMillis = trendWindowMillis(newestFirst)
+        val validPoints = newestFirst.takeWhile {
+             (newestFirst.first().timestamp - it.timestamp) <= windowMillis
         }.take(30)
 
         if (validPoints.size < 2) return TrendResult(TrendState.Flat, 0f, 0f, 0f, 0f)
 
-        // Calculate Average Velocity (Weighted towards recent)
-        // Simple Linear Regression or Weighted Delta could work. 
-        // Let's use a weighted delta between adjacent points to prioritize recent change 
-        // while smoothing out single-point noise.
-        
-        var totalWeightedVelocity = 0f
-        var totalWeight = 0f
-        
-        // Use correct value source
-        val pFirst = validPoints.first()
-        val firstVal = if (useRaw && pFirst.rawValue > 0) pFirst.rawValue else pFirst.value
-
         // Use explicit flag
         val conversionFactor = if (isMmol) GlucoseFormatter.MGDL_PER_MMOL else 1.0f
 
+        fun pointValue(p: GlucosePoint): Float = if (useRaw && p.rawValue > 0) p.rawValue else p.value
+
         // Collect values for noise calculation (in NATIVE units - no conversion!)
         val rawValueList = mutableListOf<Float>()
-        // Collect values for velocity calculation (in mg/dL)
-        val mgdlValueList = mutableListOf<Float>()
+        validPoints.forEach { rawValueList.add(pointValue(it)) }
 
-        // Analyze pairs
+        // Velocity: recency-weighted least-squares slope over the window, in mg/dL per
+        // minute. The window comes from the sensor's cadence ([trendWindowMillis]) and the
+        // weighting from [DECAY_CADENCE_MULTIPLE]; a fit reads the trend rather than the
+        // jitter, and the weighting stops it averaging a fresh turn against the plateau it
+        // just left.
+        //
+        // A non-physiological jump between adjacent points (calibration step,
+        // >20 mg/dL per minute) ends the window: only the segment newer than
+        // the artifact describes the current trend.
+        var usable = validPoints.size
         for (i in 0 until validPoints.size - 1) {
             val p1 = validPoints[i]
-            val p2 = validPoints[i+1]
+            val p2 = validPoints[i + 1]
             val timeDeltaMin = (p1.timestamp - p2.timestamp) / 60000f
-            
-            val v1 = if (useRaw && p1.rawValue > 0) p1.rawValue else p1.value
-            rawValueList.add(v1) // Native units for noise
-            mgdlValueList.add(v1 * conversionFactor) // mg/dL for velocity
-            
-            if (timeDeltaMin > 0) {
-                // Normalize delta to mg/dL
-                val v2 = if (useRaw && p2.rawValue > 0) p2.rawValue else p2.value
-                
-                val valueDelta = (v1 - v2) * conversionFactor
-                val instantVelocity = valueDelta / timeDeltaMin
-
-                // Outlier Rejection: Ignore non-physiological jumps (e.g. calibration artifacts)
-                // Threshold: 20 mg/dL per minute (~1.1 mmol/L per min) is extremely high 
-                // (Max normal rise is ~3-5).
-                if (Math.abs(instantVelocity) > 20f) {
-                    continue
-                }
-                
-                // Weight: More recent = higher weight
-                // Decay weight by 0.6 per step (was 0.8) for higher responsiveness
-                val weight = Math.pow(0.6, i.toDouble()).toFloat()
-                
-                totalWeightedVelocity += instantVelocity * weight
-                totalWeight += weight
+            if (timeDeltaMin > 0f &&
+                Math.abs((pointValue(p1) - pointValue(p2)) * conversionFactor / timeDeltaMin) > 20f
+            ) {
+                usable = i + 1
+                break
             }
         }
-        // Add last point's value
-        val pLast = validPoints.last()
-        val lastVal = if (useRaw && pLast.rawValue > 0) pLast.rawValue else pLast.value
-        rawValueList.add(lastVal)
 
-        val velocity = if (totalWeight > 0) totalWeightedVelocity / totalWeight else 0f
+        // Recency-weighted least squares — see [DECAY_CADENCE_MULTIPLE]. Weights replace the
+        // plain point count in every sum, so with a flat weight of 1 this is exactly the
+        // unweighted fit.
+        val tauMinutes = DECAY_CADENCE_MULTIPLE * cadenceMinutes(validPoints)
+        val newestTs = validPoints.first().timestamp
+        var sw = 0.0
+        var sx = 0.0
+        var sy = 0.0
+        var sxy = 0.0
+        var sxx = 0.0
+        for (i in 0 until usable) {
+            val p = validPoints[i]
+            val xMinutes = (p.timestamp - newestTs) / 60000.0
+            val yMgdl = (pointValue(p) * conversionFactor).toDouble()
+            // xMinutes <= 0 going back, so this decays from 1 at the newest reading.
+            val w = Math.exp(xMinutes / tauMinutes)
+            sw += w
+            sx += w * xMinutes
+            sy += w * yMgdl
+            sxy += w * xMinutes * yMgdl
+            sxx += w * xMinutes * xMinutes
+        }
+        val denominator = sw * sxx - sx * sx
+        val velocity = if (usable >= 2 && denominator > 1e-6) {
+            ((sw * sxy - sx * sy) / denominator).toFloat()
+        } else {
+            0f
+        }
 
         // Acceleration: Compare velocity of first half vs second half of window
         // (Rough approximation)

@@ -1,7 +1,15 @@
 package tk.glucodata
 
 object DisplayTrendSource {
-    const val TREND_WINDOW_MS = 20L * 60L * 1000L
+    /**
+     * How much history the trend consumers keep on hand. This is a supply ceiling, not
+     * the estimator's window: TrendEngine picks its own window from the sensor's cadence
+     * and narrows this list further. It only has to be at least the estimator's longest
+     * possible window (TrendEngine.MAX_WINDOW_MIN, 25 min) so a slow sensor is never
+     * quietly served less history than it asked for. The two live in different source
+     * sets, so they cannot share the constant — keep them in step by hand.
+     */
+    const val TREND_WINDOW_MS = 25L * 60L * 1000L
 
     @JvmStatic
     fun augmentHistory(
@@ -55,6 +63,33 @@ object DisplayTrendSource {
             merged.add(candidate)
         }
         return merged
+    }
+
+    /**
+     * The one point list every trend arrow regresses over: recent history plus
+     * the live reading, cut to [TREND_WINDOW_MS] anchored at the newest point.
+     *
+     * Anchoring at the newest point instead of the wall clock matters: the
+     * newest reading lags "now" by up to a full period, so a now-anchored load
+     * window keeps or drops the reading sitting at the very edge of the trend
+     * window depending on each consumer's own load timing. Two honest
+     * consumers then regress over lists that differ by one tail point — a
+     * nuance invisible everywhere except at the flat dead zone, where it flips
+     * the glyph categorically for a full period.
+     */
+    @JvmStatic
+    fun resolveTrendPoints(
+        historyPoints: List<GlucosePoint>?,
+        current: CurrentDisplaySource.Snapshot?,
+        activeSensorSerial: String?
+    ): List<GlucosePoint> {
+        val augmented = augmentHistory(historyPoints, current, activeSensorSerial, 0L)
+        val newestTimestamp = augmented.lastOrNull()?.timestamp ?: return augmented
+        val cutoff = newestTimestamp - TREND_WINDOW_MS
+        if (augmented.first().timestamp >= cutoff) {
+            return augmented
+        }
+        return augmented.filter { it.timestamp >= cutoff }
     }
 
     @JvmStatic

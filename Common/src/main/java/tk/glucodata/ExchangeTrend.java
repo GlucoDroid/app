@@ -15,6 +15,11 @@ public final class ExchangeTrend {
     private static final long NATIVE_MATCH_WINDOW_MS = 2L * 60L * 1000L;
     private static final long CACHE_MATCH_WINDOW_MS = 30L * 1000L;
 
+    /** Shortest sample separation {@link #deriveRate} will accept, in milliseconds. */
+    public static final long MIN_DERIVE_GAP_MS = 4L * 60L * 1000L;
+    /** Longest sample separation {@link #deriveRate} will accept, in milliseconds. */
+    public static final long MAX_DERIVE_GAP_MS = 20L * 60L * 1000L;
+
     private static final String[] NAMES = {
             "",
             "DoubleUp",
@@ -86,6 +91,46 @@ public final class ExchangeTrend {
 
     public static ExchangeTrend fromRate(float rateMgdlPerMinute) {
         return fromRate(rateMgdlPerMinute, "rate");
+    }
+
+    /**
+     * Rate of change derived from two glucose samples, in mg/dL per minute.
+     *
+     * <p>Used as a last-resort fallback for sensors whose driver does not report a rate of its own
+     * (AiDex history, Libre 3 backfill, the generic managed-driver stream path). Without it those
+     * sensors serialize {@code direction:""} and {@code delta:0} into every exchange payload.
+     *
+     * <p>The separation between the two samples must fall inside
+     * [{@link #MIN_DERIVE_GAP_MS}, {@link #MAX_DERIVE_GAP_MS}]. Below the floor, mg/dL quantisation
+     * dominates and a 1 mg/dL wobble reads as a full arrow of movement. Above the ceiling the older
+     * sample no longer describes where glucose is heading now, and emitting nothing is better than
+     * emitting a confidently wrong arrow.
+     *
+     * <p>The C++ serializer mirrors this exactly — see {@code deriveChangeMgdlPerMinute()} in
+     * {@code net/watchserver/common.hpp}. Keep the two in step.
+     *
+     * @return the derived rate, or {@link Float#NaN} when the pair cannot support one.
+     */
+    public static float deriveRate(int previousMgdl, long previousTimeMillis,
+                                   int currentMgdl, long currentTimeMillis) {
+        if (previousMgdl <= 0 || currentMgdl <= 0) {
+            return Float.NaN;
+        }
+        final long gapMillis = currentTimeMillis - previousTimeMillis;
+        if (gapMillis < MIN_DERIVE_GAP_MS || gapMillis > MAX_DERIVE_GAP_MS) {
+            return Float.NaN;
+        }
+        return (currentMgdl - previousMgdl) / (gapMillis / 60000.0f);
+    }
+
+    /**
+     * Seven-state trend derived from two glucose samples. Returns {@link #unknown()} — which
+     * serializes as an empty direction — when {@link #deriveRate} cannot produce a rate.
+     */
+    public static ExchangeTrend fromSamples(int previousMgdl, long previousTimeMillis,
+                                            int currentMgdl, long currentTimeMillis) {
+        final float rate = deriveRate(previousMgdl, previousTimeMillis, currentMgdl, currentTimeMillis);
+        return Float.isNaN(rate) ? unknown() : fromRate(rate, "derived");
     }
 
     public static String nameForIndex(int index) {

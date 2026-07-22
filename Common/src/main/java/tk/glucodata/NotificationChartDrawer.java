@@ -932,16 +932,9 @@ public class NotificationChartDrawer {
             outlinePaint.setStrokeWidth(strokeWidth * 2.2f);
         }
 
-        // Rotation Formula: Rate -> Degrees
-        // 2.0 -> 50 deg? No, TrendIndicator uses:
-        // sensitivity = 25f
-        // rotation = (-velocity * sensitivity).coerceIn(-90f, 90f)
-        float sensitivity = 25f;
-        float rotation = (-rate * sensitivity);
-        if (rotation < -90f)
-            rotation = -90f;
-        if (rotation > 90f)
-            rotation = 90f;
+        // Shared rotation math (45 deg per mg/dL/min, vertical at +/-2, flat
+        // below the Flat trend state) — must match TrendIndicator.
+        float rotation = TrendArrowAngle.rotationDegrees(rate);
 
         // Base Dimensions from TrendIndicator.kt
         float headSpan = drawSize * 0.5f;
@@ -950,20 +943,32 @@ public class NotificationChartDrawer {
 
         boolean showDouble = Math.abs(rate) > 2.0f;
 
-        // Total Length Calculation
-        // arrowLenFactor = if (showDouble) 0.35f else 0.6f
-        float arrowLenFactor = showDouble ? 0.3f : 0.5f;
+        // Total Length Calculation. The arrow rotates around the bitmap
+        // center, so a shaft of up to ~95% of the box never clips at any
+        // angle. Opt-in setting: the long-shaft variant matches what other
+        // apps render for the same rate; the default keeps the compact glyph.
+        boolean largeArrow = context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+                .getBoolean("notification_large_trend_arrow", false);
+        float arrowLenFactor = largeArrow
+                ? (showDouble ? 0.62f : 0.82f)
+                : (showDouble ? 0.42f : 0.62f);
 
-        // Apply Scaling Logic (TrendIndicator uses baseScale + pulse)
-        // We pulse a static scale here to look "Active"
-        float totalScale = 1.0f;
+        // Slight growth with speed, capped so the double-head variant still
+        // fits inside the bitmap.
         float speed = Math.abs(rate);
-        totalScale = 1.0f + (Math.min(speed * 0.12f, 0.5f)); // baseScale
+        float totalScale = largeArrow
+                ? 1.0f + Math.min(speed * 0.05f, 0.12f)
+                : 1.0f + Math.min(speed * 0.04f, 0.18f);
 
         float arrowLen = drawSize * arrowLenFactor * totalScale;
         float totalVisualLen = arrowLen;
         if (showDouble) {
             totalVisualLen += gap + headDepth;
+        }
+        if (totalVisualLen > drawSize * 0.95f) {
+            float shrink = (drawSize * 0.95f) / totalVisualLen;
+            arrowLen *= shrink;
+            totalVisualLen = drawSize * 0.95f;
         }
 
         float cx = bitmapSize / 2.0f;

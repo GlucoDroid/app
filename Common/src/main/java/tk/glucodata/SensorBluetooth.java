@@ -1157,6 +1157,17 @@ public class SensorBluetooth {
         return gatt != null && gatt.stop;
     }
 
+    // constatstatusstr records the last connection event ("Loss of signal",
+    // "Status=N", ...) and is never cleared when the link recovers. A reading
+    // processed after that event (charcha[0], set on every successful glucose)
+    // proves recovery, so the recorded status is history, not current state.
+    // Same-package bridge for the Compose UI, like isSensorPaused.
+    public static boolean connectionStatusOutdated(SuperGattCallback gatt) {
+        return gatt != null
+                && gatt.constatchange[1] != 0L
+                && gatt.charcha[0] > gatt.constatchange[1];
+    }
+
     // --- KOTLIN SENSORS (AiDex) SUPPORT ---
     public static void addAiDexSensor(Context context, String name, String address) {
         if (context == null || name == null || name.trim().isEmpty() || address == null || address.trim().isEmpty()) {
@@ -1852,7 +1863,20 @@ public class SensorBluetooth {
                                     cb.constatchange[1] = System.currentTimeMillis();
                                     cb.constatstatusstr = "Bluetooth off"; // "
                                 }
-                                cb.close();
+                                if (cb instanceof ManagedBluetoothSensorDriver managed) {
+                                    // Adapter loss is a temporary transport event. Calling a
+                                    // managed callback's virtual close() may terminate its
+                                    // HandlerThread/executor and make Bluetooth recovery
+                                    // impossible until the whole app is restarted.
+                                    cb.closeGattTransport();
+                                    try {
+                                        managed.onBluetoothAdapterUnavailable();
+                                    } catch (Throwable th) {
+                                        Log.stack(LOG_ID, cb.SerialNumber + " adapter-off cleanup", th);
+                                    }
+                                } else {
+                                    cb.close();
+                                }
                             }
                             if (keepBluetooth)
                                 mBluetoothAdapter.enable();

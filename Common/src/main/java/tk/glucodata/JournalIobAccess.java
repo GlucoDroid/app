@@ -16,6 +16,8 @@
 
 package tk.glucodata;
 
+import android.os.Looper;
+
 // Bridge to the journal-based insulin/carb snapshot. The journal only exists
 // in the mobile source set, so callers in src/main (JugglucoSend, Notify)
 // resolve it by name — same pattern as OutboundApi. Returns null on variants
@@ -24,8 +26,26 @@ public class JournalIobAccess {
     private static java.lang.reflect.Method snapshotMethod;
     private static boolean snapshotResolved;
 
-    // [classicIob, eiob, cob, iobNext30min, cobNext30min] in units/grams,
-    // NaN marking "no data of that kind"; null when unavailable.
+    // Feeds the current journal IOB/COB to the native webserver so /pebble
+    // polls (GlucoDataHandler's Juggluco IOB support) report the journal
+    // instead of the unused native amounts store. Pushing NaN clears a value:
+    // the webserver then falls back to its native computation.
+    static void pushWatchserver(long atMillis) {
+        float[] values = snapshot(atMillis);
+        if (values != null && values.length >= 3) {
+            float iobNext30 = values.length >= 5 ? values[3] : Float.NaN;
+            float cobNext30 = values.length >= 5 ? values[4] : Float.NaN;
+            Natives.setJournalIob(values[0], iobNext30, values[2], cobNext30, atMillis);
+        } else if (Looper.myLooper() != Looper.getMainLooper()) {
+            // Off the main thread null is authoritative (journal disabled or
+            // empty); on the main thread it may just be a cold cache, so a
+            // stored value is left to expire on its own.
+            Natives.setJournalIob(Float.NaN, Float.NaN, Float.NaN, Float.NaN, atMillis);
+        }
+    }
+
+    // [classicIob, eiob, cob] in units/grams, NaN marking "no data of that
+    // kind"; null when unavailable.
     static float[] snapshot(long atMillis) {
         try {
             if (!snapshotResolved) {

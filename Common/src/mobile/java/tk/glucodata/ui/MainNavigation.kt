@@ -147,6 +147,7 @@ private fun HistoryRoute(
     val journalEntries by dashboardViewModel.journalEntries.collectAsStateWithLifecycle()
     val journalInsulinPresets by dashboardViewModel.journalInsulinPresets.collectAsStateWithLifecycle()
     val journalFoods by dashboardViewModel.journalFoods.collectAsStateWithLifecycle()
+    val journalQuickAddAlwaysNow by dashboardViewModel.journalQuickAddAlwaysNow.collectAsStateWithLifecycle()
     val appChartRangeColorsEnabled by dashboardViewModel.glucoseAppChartRangeColorsEnabled.collectAsStateWithLifecycle()
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
@@ -181,6 +182,7 @@ private fun HistoryRoute(
         journalEntries = scopedJournalEntries,
         journalInsulinPresets = journalInsulinPresets,
         journalFoods = journalFoods,
+        quickAddAlwaysNow = journalQuickAddAlwaysNow,
         onBack = onBack,
         onPointClick = { point ->
             onTriggerCalibration(
@@ -296,6 +298,7 @@ private fun JournalRoute(
     val journalInsulinPresets by dashboardViewModel.journalInsulinPresets.collectAsStateWithLifecycle()
     val journalFoods by dashboardViewModel.journalFoods.collectAsStateWithLifecycle()
     val journalEiobDisplayEnabled by dashboardViewModel.journalEiobDisplayEnabled.collectAsStateWithLifecycle()
+    val journalQuickAddAlwaysNow by dashboardViewModel.journalQuickAddAlwaysNow.collectAsStateWithLifecycle()
     val appChartRangeColorsEnabled by dashboardViewModel.glucoseAppChartRangeColorsEnabled.collectAsStateWithLifecycle()
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
@@ -368,7 +371,8 @@ private fun JournalRoute(
         useStatusBarsPadding = useStatusBarsPadding,
         bottomContentPadding = bottomContentPadding,
         showEiob = journalEiobDisplayEnabled,
-        chartRangeColors = appChartRangeColorsEnabled
+        chartRangeColors = appChartRangeColorsEnabled,
+        quickAddAlwaysNow = journalQuickAddAlwaysNow
     )
 
     journalEditorRequest?.let { request ->
@@ -780,6 +784,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/notification-display") {
                         NotificationSettingsScreen(navController, dashboardViewModel)
                     }
+                    composable("settings/display-colors") {
+                        DisplayAndColorSettingsScreen(navController, dashboardViewModel)
+                    }
                     composable("settings/data-smoothing") {
                         DataSmoothingSettingsScreen(navController, dashboardViewModel)
                     }
@@ -922,6 +929,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/webserver") { WebServerSettingsScreen(navController) }
                 composable("settings/notification-display") {
                     NotificationSettingsScreen(navController, dashboardViewModel)
+                }
+                composable("settings/display-colors") {
+                    DisplayAndColorSettingsScreen(navController, dashboardViewModel)
                 }
                 composable("settings/data-smoothing") {
                     DataSmoothingSettingsScreen(navController, dashboardViewModel)

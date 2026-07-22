@@ -632,6 +632,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             app.numdata.sendglucose(SerialNumber, tim, gl, thresholdchange(rate), alarm | 0x10);
             GlucoseWidget.update();
             WearSync2.pushTail();
+            // Keep the webserver's /pebble IOB in step with the journal,
+            // independent of whether any broadcast target is configured.
+            JournalIobAccess.pushWatchserver(System.currentTimeMillis());
         }
         if (shouldBroadcastMinuteUpdate) {
             nexttime = tim + mininterval;
@@ -932,6 +935,12 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     }
 
     public void close() {
+        closeGattTransport();
+    }
+
+    /** Close only the current Android GATT transport, without invoking a
+     * managed driver's terminal close override. */
+    public final void closeGattTransport() {
         clearPendingConnect();
         {
             if (doLog) {
@@ -977,7 +986,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             // stale reference to allow reconnection (fixes Sibionics 1 CN reconnect bug).
             if (doLog)
                 Log.d(LOG_ID, SerialNumber + " getConnectDevice: clearing stale mBluetoothGatt");
-            close();
+            closeGattTransport();
         }
         if (cb.mActiveDeviceAddress == null || cb.mActiveBluetoothDevice == null) {
             {

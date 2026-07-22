@@ -380,6 +380,11 @@ class OttaiBleManager(
         connectDevice(0)
     }
 
+    override fun onBluetoothAdapterUnavailable() {
+        clearGattTransport("Bluetooth adapter off", markSignalLoss = false)
+        constatstatusstr = appString(R.string.status_bluetooth_off, "Bluetooth off")
+    }
+
     private fun knownBleAddress(): String? =
         OttaiConstants.normalizeBleAddress(mActiveDeviceAddress, allowPlain = false)
             ?: OttaiConstants.normalizeBleAddress(

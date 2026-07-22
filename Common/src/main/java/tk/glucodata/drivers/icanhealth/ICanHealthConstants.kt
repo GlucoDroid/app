@@ -245,7 +245,18 @@ object ICanHealthConstants {
         if (expected == observed) {
             return true
         }
-        return observed.startsWith(prefix)
+        if (observed.startsWith(prefix)) {
+            return true
+        }
+
+        // i6 active codes and DIS serials encode the same seven-character sensor
+        // core at different offsets. Example observed in production:
+        // ZA1OR03MSE50 (active code) -> 01OR03MS00070101 (DIS serial).
+        // Keep the post-connection identity gate, but recognize that vendor layout
+        // instead of accepting whichever nearby iCan happened to connect first.
+        return expected.length == 12 &&
+            observed.length >= 8 &&
+            expected.substring(2, 9) == observed.substring(1, 8)
     }
 
     private fun sanitizeSensorIdentity(source: String?): String =

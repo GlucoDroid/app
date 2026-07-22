@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -289,7 +290,17 @@ private fun JournalActionMenuRow(
                 scaleX = 0.78f + (0.22f * itemProgress)
                 scaleY = 0.78f + (0.22f * itemProgress)
                 rotationZ = (if (placeIconAfterLabel) -7f else 7f) * (1f - itemProgress)
-            },
+            }
+            // The whole row is one touch target: without this, the 10dp gap
+            // between the label pill and the icon belongs to nothing, and a
+            // tap there falls through to the content behind the menu (journal
+            // rows, or the dashboard chart's calibration tap). No indication:
+            // the pills keep their own ripples.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

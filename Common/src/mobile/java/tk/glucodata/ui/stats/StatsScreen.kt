@@ -157,11 +157,14 @@ import kotlinx.coroutines.delay
 import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.ui.theme.labelLargeExpressive
 
-private val TirVeryLowColor = Color(GlucoseRangeColors.VERY_LOW)
-private val TirLowColor = Color(GlucoseRangeColors.LOW)
-private val TirInRangeColor = Color(GlucoseRangeColors.IN_RANGE)
-private val TirHighColor = Color(GlucoseRangeColors.HIGH)
-private val TirVeryHighColor = Color(GlucoseRangeColors.VERY_HIGH)
+// Follow the active glucose palette (and any per-band overrides). Computed on
+// access so a palette switch shows up when the stats screen is (re)entered.
+// Light variant only, matching the historical theme-independent behaviour.
+private val TirVeryLowColor get() = Color(GlucoseRangeColors.veryLow(false))
+private val TirLowColor get() = Color(GlucoseRangeColors.low(false))
+private val TirInRangeColor get() = Color(GlucoseRangeColors.inRange(false))
+private val TirHighColor get() = Color(GlucoseRangeColors.high(false))
+private val TirVeryHighColor get() = Color(GlucoseRangeColors.veryHigh(false))
 private const val PrefKeyReportPdfStyle = "stats_report_pdf_style"
 
 private enum class TirBand {

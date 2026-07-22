@@ -71,6 +71,26 @@ class ICanHealthConstantsTests {
     }
 
     @Test
+    fun matchesOnboardingIdentity_acceptsShiftedI6ActiveCodeFamily() {
+        assertTrue(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "ZA1OR03MSE50",
+                "01OR03MS00070101"
+            )
+        )
+    }
+
+    @Test
+    fun matchesOnboardingIdentity_rejectsNearbyShiftedI6Sensor() {
+        assertFalse(
+            ICanHealthConstants.matchesOnboardingIdentity(
+                "ZA1OR03MSE50",
+                "01OR03MT00070101"
+            )
+        )
+    }
+
+    @Test
     fun matchesOnboardingIdentity_rejectsAnotherNearbySensor() {
         assertFalse(
             ICanHealthConstants.matchesOnboardingIdentity(

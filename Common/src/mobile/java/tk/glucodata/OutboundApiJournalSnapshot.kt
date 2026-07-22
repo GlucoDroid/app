@@ -1,7 +1,12 @@
 package tk.glucodata
 
 import android.os.Looper
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -38,6 +43,33 @@ object OutboundApiJournalSnapshot {
     @Volatile
     private var broadcastIobCache: BroadcastIobCache? = null
     private const val BROADCAST_IOB_CACHE_MS = 30_000L
+
+    private val journalChangedScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile
+    private var journalChangedJob: Job? = null
+    private const val JOURNAL_CHANGED_DEBOUNCE_MS = 400L
+
+    /**
+     * Called by JournalRepository after IOB-relevant mutations so the surfaces
+     * outside the app catch up right away instead of at the next glucose
+     * reading: the persistent notification, the glucodata.Minute broadcast and
+     * the webserver's /pebble store. Bursts (importer sync cycles) coalesce
+     * into a single refresh.
+     */
+    @JvmStatic
+    fun journalChanged() {
+        broadcastIobCache = null
+        journalChangedJob?.cancel()
+        journalChangedJob = journalChangedScope.launch {
+            delay(JOURNAL_CHANGED_DEBOUNCE_MS)
+            val now = System.currentTimeMillis()
+            val values = runCatching { buildBroadcastIob(now) }.getOrNull()
+            broadcastIobCache = BroadcastIobCache(now, values)
+            JournalIobAccess.pushWatchserver(now)
+            if (values != null) JugglucoSend.rebroadcastIob()
+            Notify.showoldglucose()
+        }
+    }
 
     /**
      * Compact insulin/carb snapshot for the glucodata.Minute broadcast and the

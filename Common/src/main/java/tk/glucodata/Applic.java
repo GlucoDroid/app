@@ -831,6 +831,11 @@ public class Applic extends Application implements androidx.work.Configuration.P
             SuperGattCallback.initAlarmTalk();
             initialize();
 
+            // Load the glucose colour palette + per-band overrides before any
+            // drawing happens, so the notification chart (which runs outside
+            // Compose) renders with the user's choice too.
+            GlucoseRangeColors.initFromPrefs(this);
+
             // Driver-owned one-time handoff. This must run after native storage initialization
             // and before SensorBluetooth creates callbacks for the active native sensor list.
             tk.glucodata.drivers.sibionics.SibionicsLegacyMigration.migrateActiveSensors(this);

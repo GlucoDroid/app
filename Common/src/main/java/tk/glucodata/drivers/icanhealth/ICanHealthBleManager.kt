@@ -1080,6 +1080,17 @@ class ICanHealthBleManager(
         super.close()
     }
 
+    override fun onBluetoothAdapterUnavailable() {
+        resetConnectionAttemptState()
+        clearGattTransportState()
+        mActiveBluetoothDevice = null
+        setUiStatus(
+            UiStatusKind.CUSTOM,
+            Applic.getContext().getString(tk.glucodata.R.string.status_bluetooth_off),
+        )
+        UiRefreshBus.requestStatusRefresh()
+    }
+
     // Unpaired regional i3/i6 discovery cannot rely on 0x181F being present in
     // every delivered advertisement, so use the existing unfiltered scan path.
     override fun getService(): UUID? =

@@ -1,12 +1,15 @@
 package tk.glucodata;
 
+import static tk.glucodata.alerts.AlertConfigKt.MAX_SOUND_DELAY_SECONDS;
 import static tk.glucodata.alerts.AlertConfigKt.sanitizeAlertDurationSeconds;
 
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 final class AlertVibrationPattern {
-    private static final int MAX_SEGMENTS = 512;
+    // Sized for the densest base pattern (9 segments per 1.2s loop) looped
+    // across the maximum sound delay plus the maximum alarm duration (360s).
+    private static final int MAX_SEGMENTS = 4096;
 
     final long[] timings;
     final int[] amplitudes;
@@ -17,8 +20,18 @@ final class AlertVibrationPattern {
     }
 
     static AlertVibrationPattern buildFinite(long[] baseTimings, int[] baseAmplitudes, int durationSeconds) {
+        return buildFinite(baseTimings, baseAmplitudes, durationSeconds, 0);
+    }
+
+    // leadInSeconds extends the pattern across the silent sound-delay phase
+    // ("vibrate first"), so it is bounded by the sound-delay cap rather than
+    // folded into the alarm-duration sanitizer, which would reject the sum.
+    static AlertVibrationPattern buildFinite(long[] baseTimings, int[] baseAmplitudes, int durationSeconds,
+            int leadInSeconds) {
         // Never hand Android an infinite alert vibration; scheduled stop is only an early cleanup path.
-        final long maxDurationMs = TimeUnit.SECONDS.toMillis(sanitizeAlertDurationSeconds(durationSeconds));
+        final int boundedLeadIn = Math.max(0, Math.min(leadInSeconds, MAX_SOUND_DELAY_SECONDS));
+        final long maxDurationMs = TimeUnit.SECONDS
+                .toMillis(sanitizeAlertDurationSeconds(durationSeconds) + (long) boundedLeadIn);
         final ArrayList<Long> timingList = new ArrayList<>();
         final ArrayList<Integer> amplitudeList = new ArrayList<>();
         long elapsedMs = 0L;

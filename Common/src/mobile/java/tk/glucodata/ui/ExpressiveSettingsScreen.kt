@@ -272,6 +272,15 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.MIDDLE
                 )
 
+                SettingsItem(
+                    title = stringResource(R.string.display_colors_title),
+                    subtitle = stringResource(R.string.display_colors_desc),
+                    icon = Icons.Default.Palette,
+                    iconTint = glucoseColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/display-colors") }
+                )
+
                 ManualCalibrationSettingsItem(
                     calibrationEnabled = calibrationEnabled,
                     modeLabel = calibrationModeLabel,
@@ -357,6 +366,7 @@ fun ExpressiveSettingsScreen(
             val exchangeColor = MaterialTheme.colorScheme.tertiary
             val xdripEnabled by viewModel.xDripBroadcastEnabled.collectAsState()
             val glucodataBroadcastEnabled by viewModel.glucodataBroadcastEnabled.collectAsState()
+            val broadcastComputedTrend by viewModel.broadcastComputedTrend.collectAsState()
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 SettingsSwitchItem(
@@ -381,10 +391,19 @@ fun ExpressiveSettingsScreen(
                     title = stringResource(R.string.aaps_broadcast),
                     subtitle = stringResource(R.string.glucodata_subtitle),
                     checked = glucodataBroadcastEnabled,
-                    icon = Icons.AutoMirrored.Filled.Send, 
+                    icon = Icons.AutoMirrored.Filled.Send,
                     iconTint = exchangeColor,
                     position = CardPosition.MIDDLE,
                     onCheckedChange = { viewModel.toggleGlucodataBroadcast(it) }
+                )
+                SettingsSwitchItem(
+                    title = stringResource(R.string.broadcast_computed_trend_title),
+                    subtitle = stringResource(R.string.broadcast_computed_trend_desc),
+                    checked = broadcastComputedTrend,
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
+                    iconTint = exchangeColor,
+                    position = CardPosition.MIDDLE,
+                    onCheckedChange = { viewModel.setBroadcastComputedTrend(it) }
                 )
                 SettingsItem(
                     title = stringResource(R.string.outbound_api_title),

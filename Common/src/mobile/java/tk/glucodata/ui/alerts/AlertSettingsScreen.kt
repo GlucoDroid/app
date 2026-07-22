@@ -155,7 +155,9 @@ fun AlertSettingsScreen(
     val predictiveAlerts = remember {
         listOf(
             AlertType.PRE_LOW,
+            AlertType.FALLING_FAST,
             AlertType.PRE_HIGH,
+            AlertType.RISING_FAST,
             AlertType.PERSISTENT_HIGH
         )
     }
@@ -239,6 +241,8 @@ fun AlertSettingsScreen(
                                 retryEnabled = draft.retryEnabled,
                                 retryIntervalMinutes = draft.retryIntervalMinutes,
                                 retryCount = draft.retryCount,
+                                soundDelayEnabled = draft.soundDelayEnabled,
+                                soundDelaySeconds = draft.soundDelaySeconds,
                                 defaultSnoozeMinutes = draft.defaultSnoozeMinutes
                             )
                             persistConfigIfChanged(updated)
@@ -954,6 +958,12 @@ private fun AlertCard(
                             if (isNotEmpty()) append(" • ")
                             append(stringResource(R.string.minutes_short_format, it))
                         }
+                        config.deltaThreshold?.let { dt ->
+                            if (isNotEmpty()) append(" • ")
+                            append(formatThreshold(dt, isMmol))
+                            append(" ×")
+                            append(config.deltaCount ?: AlertDefaults.DELTA_COUNT_DEFAULT)
+                        }
                         // Add time range if enabled
                         if (config.timeRangeEnabled) {
                             if (isNotEmpty()) append(" • ")
@@ -1045,6 +1055,15 @@ private fun AlertSettingsExpanded(
             onPickSound = { onPickSound() },
             onTest = onTest,
             headerContent = {
+                // === Delta-counter Section (FALLING_FAST / RISING_FAST) ===
+                if (config.type == AlertType.FALLING_FAST || config.type == AlertType.RISING_FAST) {
+                    DeltaAlarmSettings(
+                        config = config,
+                        isMmol = isMmol,
+                        onConfigChange = onConfigChange
+                    )
+                }
+
                  // === Threshold Section (If applicable) ===
                 if (config.threshold != null) {
                     ThresholdSlider(
@@ -1083,14 +1102,196 @@ private fun AlertSettingsExpanded(
                         }
                     }
                 }
+
+                // === Sensor-expiry pre-warnings (multi-select, this type only) ===
+                if (config.type == AlertType.SENSOR_EXPIRY) {
+                    SensorExpiryThresholdSelector(
+                        selected = config.expiryWarningMinutes,
+                        onToggle = { minutes ->
+                            val next = if (minutes in config.expiryWarningMinutes) {
+                                config.expiryWarningMinutes - minutes
+                            } else {
+                                config.expiryWarningMinutes + minutes
+                            }
+                            onConfigChange(config.copy(expiryWarningMinutes = next))
+                        }
+                    )
+                }
             }
         )
     }
-}    
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SensorExpiryThresholdSelector(
+    selected: Set<Int>,
+    onToggle: (Int) -> Unit
+) {
+    val days = EXPIRY_WARNING_PRESETS.filter { it >= 1440 }
+    val hours = EXPIRY_WARNING_PRESETS.filter { it < 1440 }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(R.string.sensor_expiry_warnings_title),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            stringResource(R.string.sensor_expiry_warnings_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Text(
+            stringResource(R.string.sensor_expiry_group_days),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            days.forEach { minutes ->
+                val on = minutes in selected
+                FilterChip(
+                    selected = on,
+                    onClick = { onToggle(minutes) },
+                    label = { Text(stringResource(R.string.days_short, minutes / 1440)) },
+                    leadingIcon = { if (on) Icon(Icons.Filled.Check, contentDescription = null) }
+                )
+            }
+        }
+
+        Text(
+            stringResource(R.string.sensor_expiry_group_hours),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            hours.forEach { minutes ->
+                val on = minutes in selected
+                FilterChip(
+                    selected = on,
+                    onClick = { onToggle(minutes) },
+                    label = { Text(stringResource(R.string.hours_short, minutes / 60)) },
+                    leadingIcon = { if (on) Icon(Icons.Filled.Check, contentDescription = null) }
+                )
+            }
+        }
+    }
+}
         
 //        HorizontalDivider()
         
 
+
+/**
+ * Type-specific inputs for the GDH-style delta alarms: how big a change per interval counts as
+ * steep, how many consecutive intervals are needed, the value past which it may alarm, and the
+ * interval itself (own window, or follow the Δ readout's global one).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DeltaAlarmSettings(
+    config: AlertConfig,
+    isMmol: Boolean,
+    onConfigChange: (AlertConfig) -> Unit
+) {
+    val falling = config.type == AlertType.FALLING_FAST
+    val deltaThreshold = config.deltaThreshold
+        ?: if (isMmol) AlertDefaults.DELTA_THRESHOLD_MMOL else AlertDefaults.DELTA_THRESHOLD_MGDL
+    val deltaCount = config.deltaCount ?: AlertDefaults.DELTA_COUNT_DEFAULT
+    val deltaBorder = config.deltaBorder ?: if (falling) {
+        if (isMmol) AlertDefaults.FALLING_BORDER_MMOL else AlertDefaults.FALLING_BORDER_MGDL
+    } else {
+        if (isMmol) AlertDefaults.RISING_BORDER_MMOL else AlertDefaults.RISING_BORDER_MGDL
+    }
+    // The alarm follows the Δ readout's global interval unless this alert sets its own window.
+    val displayIntervalMinutes = remember {
+        tk.glucodata.GlucoseDelta.sanitizeIntervalMinutes(
+            Applic.app
+                .getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+                .getInt("delta_interval_minutes", tk.glucodata.GlucoseDelta.DEFAULT_INTERVAL_MINUTES)
+        )
+    }
+    val effectiveIntervalMinutes = config.deltaIntervalMinutes ?: displayIntervalMinutes
+
+    ThresholdSlider(
+        label = stringResource(R.string.delta_change_label, effectiveIntervalMinutes),
+        value = deltaThreshold,
+        isMmol = isMmol,
+        range = if (isMmol) 0.1f..2.5f else 1f..40f,
+        onValueChange = { onConfigChange(config.copy(deltaThreshold = it)) }
+    )
+
+    DurationSlider(
+        label = stringResource(R.string.delta_count_label),
+        value = deltaCount,
+        range = 2..12,
+        stepSize = 1,
+        onValueChange = { onConfigChange(config.copy(deltaCount = it)) },
+        valueText = { "$it" }
+    )
+
+    ThresholdSlider(
+        label = stringResource(if (falling) R.string.delta_border_below_label else R.string.delta_border_above_label),
+        value = deltaBorder,
+        isMmol = isMmol,
+        range = if (falling) {
+            if (isMmol) 4.0f..11.0f else 70f..200f
+        } else {
+            if (isMmol) 7.0f..17.0f else 120f..300f
+        },
+        onValueChange = { onConfigChange(config.copy(deltaBorder = it)) }
+    )
+
+    // With checkpoint counting the window directly scales the confirmation time
+    // (count x window), so it must not silently change with a display preference.
+    Text(
+        text = stringResource(R.string.delta_alarm_interval_label),
+        style = MaterialTheme.typography.bodyLarge
+    )
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+            selected = config.deltaIntervalMinutes == null,
+            onClick = { onConfigChange(config.copy(deltaIntervalMinutes = null)) },
+            label = { Text(stringResource(R.string.delta_alarm_interval_follow, displayIntervalMinutes)) }
+        )
+        FilterChip(
+            selected = config.deltaIntervalMinutes == 1,
+            onClick = { onConfigChange(config.copy(deltaIntervalMinutes = 1)) },
+            label = { Text(stringResource(R.string.delta_interval_1min)) }
+        )
+        FilterChip(
+            selected = config.deltaIntervalMinutes == 5,
+            onClick = { onConfigChange(config.copy(deltaIntervalMinutes = 5)) },
+            label = { Text(stringResource(R.string.delta_interval_5min)) }
+        )
+    }
+
+    Text(
+        text = stringResource(
+            if (falling) R.string.falling_fast_explanation else R.string.rising_fast_explanation,
+            deltaCount,
+            effectiveIntervalMinutes,
+            formatThreshold(deltaThreshold, isMmol),
+            deltaCount * effectiveIntervalMinutes,
+            formatThreshold(deltaBorder, isMmol)
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    // Optional escalation on the implied total distance (count x threshold).
+    ClickableToggleRow(
+        icon = Icons.Default.Bolt,
+        title = stringResource(R.string.delta_early_trigger_label),
+        subtitle = stringResource(
+            R.string.delta_early_trigger_desc,
+            formatThreshold(deltaCount * deltaThreshold, isMmol),
+            stringResource(if (isMmol) R.string.unit_mmol else R.string.unit_mg)
+        ),
+        checked = config.earlyTriggerEnabled,
+        onCheckedChange = { onConfigChange(config.copy(earlyTriggerEnabled = it)) }
+    )
+}
 
 @Composable
 private fun ThresholdSlider(
@@ -1883,6 +2084,8 @@ private fun getAlertIconAndColor(type: AlertType, isDark: Boolean): Pair<ImageVe
         AlertType.VERY_HIGH -> Icons.Default.Warning to Color(GlucoseRangeColors.veryHigh(isDark))
         AlertType.PRE_LOW -> Icons.AutoMirrored.Filled.TrendingDown to Color(GlucoseRangeColors.low(isDark))
         AlertType.PRE_HIGH -> Icons.AutoMirrored.Filled.TrendingUp to Color(GlucoseRangeColors.high(isDark))
+        AlertType.FALLING_FAST -> Icons.AutoMirrored.Filled.TrendingDown to Color(GlucoseRangeColors.veryLow(isDark))
+        AlertType.RISING_FAST -> Icons.AutoMirrored.Filled.TrendingUp to Color(GlucoseRangeColors.veryHigh(isDark))
         AlertType.PERSISTENT_HIGH -> Icons.Default.Timer to Color(GlucoseRangeColors.veryHigh(isDark))
         AlertType.MISSED_READING -> Icons.Default.SignalWifiOff to Color(0xFF78909C)
         AlertType.LOSS -> Icons.Default.BluetoothDisabled to Color(0xFF90A4AE)

@@ -3108,7 +3108,9 @@ class AiDexBleManager(
                     sampleTimestampMs,
                     autoValue,
                     normalizedRawValue ?: 0f,
-                    1.0f
+                    1.0f,
+                    // The direct F003 live frame carries no trend byte.
+                    Natives.AIDEX_TREND_UNKNOWN
                 )
                 handleGlucoseResult(res, sampleTimestampMs, normalizedRawValue ?: Float.NaN)
                 if (constatstatusstr == "Connected") {
@@ -5461,6 +5463,16 @@ class AiDexBleManager(
         // (e.g., "Paused", "Unpaired", "Broadcast Only", "Pairing cancelled")
     }
 
+    override fun onBluetoothAdapterUnavailable() {
+        pendingStaleConnectionRecovery = false
+        connectAttemptInFlight = false
+        connectTime = 0L
+        resetConnectionRuntimeState(reason = "bluetooth-adapter-off", resetInvalidSetupCounter = false)
+        setPhase(Phase.IDLE)
+        constatstatusstr = "Bluetooth off"
+        UiRefreshBus.requestStatusRefresh()
+    }
+
     override fun manualReconnectNow() {
         Log.i(TAG, "manualReconnectNow: forcing reconnect for $SerialNumber")
         consecutiveSetupDisconnects = 0
@@ -6373,7 +6385,10 @@ class AiDexBleManager(
                     sampleTimestampMs,
                     sample.glucoseMgDl.toFloat(),
                     0f,
-                    1.0f
+                    1.0f,
+                    // Broadcast samples do carry the sensor's own trend byte — the same
+                    // value cached into ExchangeTrend above. Prefer it over a derived rate.
+                    sample.trend
                 )
                 handleGlucoseResult(res, sampleTimestampMs)
                 maybePromoteFallbackReadingToHistory(now, source)

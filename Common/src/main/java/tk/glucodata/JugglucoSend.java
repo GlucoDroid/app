@@ -70,9 +70,27 @@ private static String[] names=null;
 public static  void setreceivers() {
 	names=Natives.glucodataRecepters();
 	}
+private static volatile String lastSerial=null;
+private static volatile ExchangeGlucosePayload lastPayload=null;
+private static volatile int lastAlarm=0;
+
+// A journal edit between readings: repeat the last glucose intent so the
+// fresh IOB/COB extras go out right away instead of at the next reading.
+// Receivers treat the unchanged glucose time as a duplicate and only take
+// the insulin data (GlucoDataHandler wants 45s between readings but has a
+// separate path for IOB/COB-only intents).
+public static void rebroadcastIob() {
+	final ExchangeGlucosePayload payload=lastPayload;
+	if(payload==null)
+		return;
+	broadcastglucose(lastSerial,payload,lastAlarm);
+	}
 static void broadcastglucose(String SerialNumber, ExchangeGlucosePayload payload, int alarm) {
 	if(names==null)
 		return;
+	lastSerial=SerialNumber;
+	lastPayload=payload;
+	lastAlarm=alarm;
 	{if(doLog) {Log.i(LOG_ID,"broadcastglucose "+payload.primaryDisplayValue+" rate="+payload.rate);};};
         final Context context=Applic.app;
         Intent intent = new Intent(ACTION);
