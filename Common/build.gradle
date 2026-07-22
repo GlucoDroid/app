@@ -87,9 +87,8 @@ android {
     //    buildConfigField 'int', 'noZXing', '1'
         //compileSdk 36
         applicationId "cloud.glucodroid"
-
-versionName '0.3.0.6-alpha'
-        versionCode 83006
+        versionCode 83007
+        versionName '0.3.0.7-alpha'
 //    multiDexEnabled true
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
@@ -166,7 +165,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         libreOld {
     //******  Zet op rollout op 100% ******
             dimension 'libreVersion'
-            versionCode 83006 //LIBRE2ONLY
+            versionCode 1004 //LIBRE2ONLY
          //    versionName '10.3.10-no3'
             versionNameSuffix '-no3'
             buildConfigField 'int', 'libreVersion', '2'
@@ -180,7 +179,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //       minSdk 23
             dimension 'libreVersion'
         versionNameSuffix '-li3'
-        versionCode 83004 //LIBRE3
+        versionCode 1004 //LIBRE3
     //******  Zet op rollout op 100% ******
 
                buildConfigField 'int', 'libreVersion', '3'
@@ -195,7 +194,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         si {
       dimension 'SiBionics'
         versionNameSuffix '-si'
-        versionCode 83004
+        versionCode 1004
        buildConfigField 'int', 'SiBionics', '1'
        externalNativeBuild.cmake {
          cppFlags "   -DSIBIONICS=1 "
@@ -204,7 +203,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         }
         nosi {
             dimension 'SiBionics'
-         versionCode 83004
+         versionCode 1004
          versionNameSuffix '-nosi'
           buildConfigField 'int', 'SiBionics', '0'
           externalNativeBuild.cmake {
@@ -222,7 +221,7 @@ flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
         minSdkVersion 26
         buildConfigField 'int', 'minSDK', "$minSdk"
         manifestPlaceholders["minSDK"] = "$minSdk"
-        versionCode 83004 //WATCH
+        versionCode 1004 //WATCH
     //******  Zet op rollout op 100% ******
         //versionName '10.3.10-wear'
         versionNameSuffix '-wear'
@@ -275,10 +274,10 @@ buildTypes {
 
 
         release {
-            resValue "string", "app_name", "GlucoDroid"
             signingConfig signingConfigs.alg
             minifyEnabled true
         shrinkResources true
+            resValue "string", "app_name", "GlucoDroid"
 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
 
@@ -289,18 +288,18 @@ buildTypes {
             jniDebuggable false
             debuggable false
             externalNativeBuild.cmake {
-                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1" 
-                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1" 
+                cppFlags "$CPPSTD","-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1"
+                cFlags "-DRELEASEID=1","-DRELEASE=1","-DNORAWSTREAM=1" , "-DRELEASEDIR=1"
 
 
                 }
         }
         releaselog {
             versionNameSuffix '-log'
-            resValue "string", "app_name", "GlucoDroid"
             signingConfig signingConfigs.alg
-            minifyEnabled true 
+            minifyEnabled true
         shrinkResources true
+            resValue "string", "app_name", "GlucoDroid"
 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules.my', 'proguard-rules.log'
 
@@ -509,7 +508,7 @@ buildTypes {
 
 
         }
-        }
+    }
 
     externalNativeBuild {
         cmake {
@@ -546,7 +545,6 @@ buildTypes {
        }
     lint {
         abortOnError false
-        baseline file("lint-baseline.xml")
     }
     dependenciesInfo {
         includeInApk true
@@ -574,7 +572,7 @@ buildTypes {
             java.srcDirs = ['src/mobileSi/java', 'src/mobileSiNogoogle/java']
             jniLibs.srcDirs = [ 'src/mobileSi/jniLibs']
             manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
-            res.srcDirs= ['src/mobileSi/res', 'src/mobileSiNogoogle/res', 'src/mobileNosi/res']
+            res.srcDirs= ['src/mobileSi/res', 'src/mobileSiNogoogle/res']
             }
            mobileLibreOldNosiNodexNogoogle {
                java.srcDirs = ['src/mobileNosi/java']
@@ -754,9 +752,8 @@ dependencies {
     implementation "androidx.glance:glance-appwidget:1.1.0"
     implementation "androidx.glance:glance-material3:1.1.0"
     implementation "androidx.work:work-runtime:2.9.1"
-    // OkHttp 4.12.0 is the latest stable that works with Kotlin 2.3.21 / AGP 9.2.0.
-    // Used for outbound API HTTP (Telegram, etc.) with HTTP/2 PING-based keep-alive
-    // to avoid the system-internal com.android.okhttp stale-connection bug.
+
+    // OkHttp for Telegram keep-alive and OutboundApi
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
     // Unit tests

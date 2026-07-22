@@ -71,7 +71,11 @@ class JournalRepository {
             nsUploadedAt = existing?.nsUploadedAt,
             nsRemoteId = input.nsRemoteId?.takeIf { it.isNotBlank() } ?: existing?.nsRemoteId
         )
-        return dao.upsertEntry(entity)
+        val id = dao.upsertEntry(entity)
+        if (affectsIob(entity.entryType) || affectsIob(existing?.entryType)) {
+            tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
+        }
+        return id
     }
 
     suspend fun deleteEntriesBySourceRecordIds(sourceRecordIds: List<String>) {
@@ -81,12 +85,15 @@ class JournalRepository {
             .distinct()
         if (ids.isNotEmpty()) {
             dao.deleteEntriesBySourceRecordIds(ids)
+            tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
         }
     }
 
     suspend fun deleteEntry(entryId: Long) {
+        var deletedType: String? = null
         database.withTransaction {
             val existing = dao.getEntryById(entryId)
+            deletedType = existing?.entryType
             val remoteId = existing?.nightscoutDeleteRemoteId()
             if (remoteId != null) {
                 dao.enqueuePendingNightscoutDelete(
@@ -98,6 +105,9 @@ class JournalRepository {
                 )
             }
             dao.deleteEntryById(entryId)
+        }
+        if (affectsIob(deletedType)) {
+            tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
         }
     }
 
@@ -117,11 +127,20 @@ class JournalRepository {
             countsTowardIob = input.countsTowardIob,
             sortOrder = input.sortOrder
         )
-        return dao.upsertInsulinPreset(entity)
+        val id = dao.upsertInsulinPreset(entity)
+        // Curve or countsTowardIob edits reshape the IOB of existing doses.
+        tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
+        return id
     }
 
     suspend fun deleteInsulinPreset(presetId: Long) {
         dao.deleteInsulinPresetById(presetId)
+        tk.glucodata.OutboundApiJournalSnapshot.journalChanged()
+    }
+
+    private fun affectsIob(entryType: String?): Boolean {
+        return entryType == JournalEntryType.INSULIN.storageValue ||
+            entryType == JournalEntryType.CARBS.storageValue
     }
 
     suspend fun getInsulinPresetsSnapshot(): List<JournalInsulinPreset> {

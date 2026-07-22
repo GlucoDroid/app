@@ -62,36 +62,41 @@ fun buildGlucosePrediction(
     val safeAbsorption = settings.carbAbsorptionGramsPerHour.coerceAtLeast(5f)
     val stepMinutes = settings.stepMinutes.coerceIn(3, 15)
     val horizonMinutes = settings.horizonMinutes.coerceIn(30, 360)
-    val trendSlopePerMinute = if (settings.trendMomentumEnabled) {
-        recentTrendSlopePerMinute(history, baselineTime).let { slope ->
-            val maxSlope = if (isMmol) 0.16f else 3f
-            slope.coerceIn(-maxSlope, maxSlope)
-        }
-    } else {
-        0f
-    }
     val targetCenter = ((targetLow + targetHigh) * 0.5f).takeIf { it.isFinite() && it > 0f }
         ?: baseline.value
     val relevantEntries = journalEntries.filter { entry ->
         entry.timestamp in (baselineTime - 36L * 60L * 60L * 1000L)..(baselineTime + horizonMinutes * 60_000L)
     }
 
+    fun journalDeltaAt(timestamp: Long): Float = relevantEntries.sumOf { entry ->
+        entry.projectedDisplayDelta(
+            atMillis = timestamp,
+            baselineMillis = baselineTime,
+            sensitivityDisplay = sensitivity,
+            carbRatioGramsPerUnit = safeCarbRatio,
+            carbAbsorptionGramsPerHour = safeAbsorption,
+            foodMacrosEnabled = settings.foodMacrosEnabled,
+            insulinPresetsById = insulinPresetsById
+        ).toDouble()
+    }.toFloat()
+
+    val trendSlopePerMinute = if (settings.trendMomentumEnabled) {
+        // Regress over journal-residualized samples so momentum carries only the slope
+        // the journal model does not already explain; the modelled part is re-added
+        // through journalDeltaAt below, and would otherwise be counted twice.
+        recentResidualSlopePerMinute(history, baselineTime, ::journalDeltaAt).let { slope ->
+            val maxSlope = if (isMmol) 0.16f else 3f
+            slope.coerceIn(-maxSlope, maxSlope)
+        }
+    } else {
+        0f
+    }
+
     fun projectedDeltaAt(timestamp: Long): Float {
         val minutesFuture = ((timestamp - baselineTime) / 60_000f).coerceAtLeast(0f)
         val trend = trendSlopePerMinute * minutesFuture * exp(-minutesFuture / 70f)
         val settling = (targetCenter - baseline.value) * (1f - exp(-minutesFuture / 240f)) * 0.18f
-        val journalDelta = relevantEntries.sumOf { entry ->
-            entry.projectedDisplayDelta(
-                atMillis = timestamp,
-                baselineMillis = baselineTime,
-                sensitivityDisplay = sensitivity,
-                carbRatioGramsPerUnit = safeCarbRatio,
-                carbAbsorptionGramsPerHour = safeAbsorption,
-                foodMacrosEnabled = settings.foodMacrosEnabled,
-                insulinPresetsById = insulinPresetsById
-            ).toDouble()
-        }.toFloat()
-        return trend + settling + journalDelta
+        return trend + settling + journalDeltaAt(timestamp)
     }
 
     val lowClamp = if (isMmol) 1.0f else 18f
@@ -116,7 +121,11 @@ fun buildGlucosePrediction(
     }
 }
 
-private fun recentTrendSlopePerMinute(history: List<GlucosePoint>, baselineTime: Long): Float {
+private fun recentResidualSlopePerMinute(
+    history: List<GlucosePoint>,
+    baselineTime: Long,
+    modeledDeltaAt: (Long) -> Float
+): Float {
     val recent = history
         .asReversed()
         .asSequence()
@@ -128,14 +137,15 @@ private fun recentTrendSlopePerMinute(history: List<GlucosePoint>, baselineTime:
     if (recent.size < 2) return 0f
 
     val firstTime = recent.first().timestamp
-    val xMean = recent.map { (it.timestamp - firstTime) / 60_000f }.average().toFloat()
-    val yMean = recent.map { it.value }.average().toFloat()
+    val xs = recent.map { (it.timestamp - firstTime) / 60_000f }
+    val ys = recent.map { it.value - modeledDeltaAt(it.timestamp) }
+    val xMean = xs.average().toFloat()
+    val yMean = ys.average().toFloat()
     var numerator = 0f
     var denominator = 0f
-    recent.forEach { point ->
-        val x = (point.timestamp - firstTime) / 60_000f
-        val dx = x - xMean
-        numerator += dx * (point.value - yMean)
+    for (index in recent.indices) {
+        val dx = xs[index] - xMean
+        numerator += dx * (ys[index] - yMean)
         denominator += dx * dx
     }
     return if (denominator > 0.001f) numerator / denominator else 0f

@@ -37,9 +37,16 @@ public class JugglucoSend   {
 	private static final String TREND_NAME = "glucodata.Minute.TrendName";
     private static final String ALARM = "glucodata.Minute.Alarm";
     private static final String TIME = "glucodata.Minute.Time";
+    // GDH-standard extras: classic remaining-action IOB and COB, plus the
+    // computation timestamp GDH uses for its obsolescence check.
+    private static final String IOB = "glucodata.Minute.IOB";
+    private static final String COB = "glucodata.Minute.COB";
+    private static final String IOBCOBTIME = "gdh.IOB_COB_time";
+    // NG extension: activity-based "effective" IOB (ignored by current GDH).
+    private static final String EIOB = "glucodata.Minute.eIOB";
 private static final String LOG_ID="JugglucoSend";
 
-private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayload payload, int alarm) {
+private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayload payload, int alarm, float[] iobcob, long iobComputedAt) {
       Bundle extras = new Bundle();
         extras.putString(SERIAL,SerialNumber);
 	extras.putInt(MGDL,payload.primaryMgdl);
@@ -49,6 +56,13 @@ private static Bundle mkGlucosebundle(String SerialNumber, ExchangeGlucosePayloa
         extras.putString(TREND_NAME,payload.trendName);
         extras.putInt(ALARM,alarm);
         extras.putLong(TIME,payload.timeMillis);
+	if(iobcob!=null&&iobcob.length>=3) {
+		boolean any=false;
+		if(!Float.isNaN(iobcob[0])) { extras.putFloat(IOB,iobcob[0]); any=true; }
+		if(!Float.isNaN(iobcob[1])) { extras.putFloat(EIOB,iobcob[1]); any=true; }
+		if(!Float.isNaN(iobcob[2])) { extras.putFloat(COB,iobcob[2]); any=true; }
+		if(any) extras.putLong(IOBCOBTIME,iobComputedAt);
+		}
 	return extras;
 	  }
 
@@ -56,13 +70,32 @@ private static String[] names=null;
 public static  void setreceivers() {
 	names=Natives.glucodataRecepters();
 	}
+private static volatile String lastSerial=null;
+private static volatile ExchangeGlucosePayload lastPayload=null;
+private static volatile int lastAlarm=0;
+
+// A journal edit between readings: repeat the last glucose intent so the
+// fresh IOB/COB extras go out right away instead of at the next reading.
+// Receivers treat the unchanged glucose time as a duplicate and only take
+// the insulin data (GlucoDataHandler wants 45s between readings but has a
+// separate path for IOB/COB-only intents).
+public static void rebroadcastIob() {
+	final ExchangeGlucosePayload payload=lastPayload;
+	if(payload==null)
+		return;
+	broadcastglucose(lastSerial,payload,lastAlarm);
+	}
 static void broadcastglucose(String SerialNumber, ExchangeGlucosePayload payload, int alarm) {
 	if(names==null)
 		return;
+	lastSerial=SerialNumber;
+	lastPayload=payload;
+	lastAlarm=alarm;
 	{if(doLog) {Log.i(LOG_ID,"broadcastglucose "+payload.primaryDisplayValue+" rate="+payload.rate);};};
         final Context context=Applic.app;
         Intent intent = new Intent(ACTION);
-	intent.putExtras(mkGlucosebundle(SerialNumber, payload, alarm));
+	final long iobComputedAt=System.currentTimeMillis();
+	intent.putExtras(mkGlucosebundle(SerialNumber, payload, alarm, JournalIobAccess.snapshot(iobComputedAt), iobComputedAt));
 	intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
 	for(var name:names) {
 		if(name!=null) {

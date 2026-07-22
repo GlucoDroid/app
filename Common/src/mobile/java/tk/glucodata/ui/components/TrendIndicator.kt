@@ -27,11 +27,10 @@ fun TrendIndicator(
 ) {
     // "Optically Correct Arrow" Engine
     // 1. Visual: 90-degree Head, Round Caps/Joins, Optical Centering.
-    // 2. Logic: User Tuned (25f).
-    
-    // Formula: Rate 2.0 -> 50 deg.
-    val sensitivity = 25f
-    val targetRotation = (-trendResult.velocity * sensitivity).coerceIn(-90f, 90f)
+    // 2. Logic: shared TrendArrowAngle math — 45 deg per mg/dL/min, vertical
+    // at +/-2 (classic CGM convention), flat below the Flat trend state so a
+    // noise-level drift never tilts the arrow. Must match the notification.
+    val targetRotation = tk.glucodata.TrendArrowAngle.rotationDegrees(trendResult.velocity)
 
     // Animate Rotation
     val rotation by animateFloatAsState(

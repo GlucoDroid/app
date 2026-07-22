@@ -57,6 +57,7 @@ sighandler_t bsd_signal(int signum, sighandler_t handler);
 
 #include "datbackup.hpp"
 #include "error_codes.h"
+#include "exchangetrend.hpp"
 #include "settings/settings.hpp"
 #ifdef DYNLINK
 #define abbottdec(x) (*x)
@@ -1413,7 +1414,13 @@ static void addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
         if (overwriteTemp && temperatureC > 0.0f) {
           preservedTemp = static_cast<uint16_t>(temperatureC * 10.0f);
         }
-        hist->savepollallIDs<60>(timestamp, lifeCount, mgVal, 0, 0.0f,
+        // Managed drivers (Sibionics et al.) report no rate of their own. Storing a
+        // literal 0.0f here made every exchange payload read "Flat" forever; derive
+        // one from the poll series instead, and store NAN when it cannot be derived
+        // so downstream serializers emit no arrow rather than a wrong one.
+        const float change = derivechangeforsample(hist->getPollsData(), 0, lifeCount,
+                                                   mgVal, timestamp);
+        hist->savepollallIDs<60>(timestamp, lifeCount, mgVal, 0, change,
                                  preservedRaw, preservedTemp);
         if (backup) {
           // Kotlin calibration rewrites touch historical stream points. Rewind
@@ -1555,7 +1562,10 @@ fromjava(addRawGlucoseStream)(JNIEnv *env, jclass cl, jlong timestamp,
             rawVal = rawbuf[lifeCount].raw;
           }
         }
-        hist->savepollallIDs<60>(timestamp, lifeCount, preservedAuto, 0, 0.0f,
+        // See addGlucoseStreamInternal(): derive rather than storing a fake flat 0.0f.
+        const float change = derivechangeforsample(hist->getPollsData(), 0, lifeCount,
+                                                   preservedAuto, timestamp);
+        hist->savepollallIDs<60>(timestamp, lifeCount, preservedAuto, 0, change,
                                  rawVal, preservedTemp);
         if (backup) {
           // See addGlucoseStream(): raw-lane rewrites need the same mirror

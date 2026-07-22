@@ -2,7 +2,6 @@ package tk.glucodata.ui.setup
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -28,13 +27,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.microtechmd.blecomm.BlecommLoader
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import tk.glucodata.Log
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
-import tk.glucodata.drivers.aidex.AiDexNativeFactory
 import tk.glucodata.ui.util.BleDeviceScanner
 import tk.glucodata.ui.util.rememberBleScanner
 import java.util.UUID
@@ -58,31 +55,6 @@ fun AiDexSetupWizard(
     var selectedDeviceName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var vendorLibAvailable by remember { mutableStateOf(BlecommLoader.isLibraryPresent(context) || AiDexNativeFactory.isNativeModeEnabled(context)) }
-    val uploadLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val installed = BlecommLoader.installFromDocument(context, uri)
-        vendorLibAvailable = if (installed) true else BlecommLoader.isLibraryPresent(context)
-        val message = if (installed) {
-            context.getString(R.string.installedlibrary)
-        } else {
-            context.getString(R.string.cantextract, BlecommLoader.requiredLibraryFileName())
-        }
-        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-    }
-    val launchUploadPickerSafely = {
-        try {
-            uploadLauncher.launch(arrayOf("*/*"))
-        } catch (e: ActivityNotFoundException) {
-            Log.e(tag, "No document picker activity available: ${e.message}")
-            Toast.makeText(context, context.getString(R.string.unable_to_open_source_file), Toast.LENGTH_LONG).show()
-        } catch (t: Throwable) {
-            Log.e(tag, "Failed to launch document picker: ${t.message}")
-            Toast.makeText(context, context.getString(R.string.unable_to_open_source_file), Toast.LENGTH_LONG).show()
-        }
-    }
     BackHandler {
         if (currentStep == AiDexSetupStep.SCAN) onDismiss() else currentStep = AiDexSetupStep.SCAN
     }
@@ -114,25 +86,9 @@ fun AiDexSetupWizard(
             when (step) {
                 AiDexSetupStep.SCAN -> AiDexScanStep(
                     ui = ui,
-                    vendorLibAvailable = vendorLibAvailable,
                     onNavigateToReadiness = onNavigateToReadiness,
-                    onUploadProprietary = launchUploadPickerSafely,
                     onDeviceSelected = { selectedName, address ->
                         try {
-                            // Native Kotlin driver doesn't need the vendor library
-                            val nativeMode = AiDexNativeFactory.isNativeModeEnabled(context)
-                            if (!nativeMode) {
-                                if (!vendorLibAvailable) {
-                                    Toast.makeText(context, context.getString(R.string.wronglibrary), Toast.LENGTH_LONG).show()
-                                    return@AiDexScanStep
-                                }
-                                val libReady = BlecommLoader.ensureLoaded(context)
-                                vendorLibAvailable = libReady
-                                if (!libReady) {
-                                    Toast.makeText(context, context.getString(R.string.wronglibrary), Toast.LENGTH_LONG).show()
-                                    return@AiDexScanStep
-                                }
-                            }
                             val name = selectedName.trim()
                             if (name.isEmpty()) {
                                 Toast.makeText(
@@ -194,9 +150,7 @@ fun AiDexSetupWizard(
 @Composable
 fun AiDexScanStep(
     ui: WizardUiMetrics,
-    vendorLibAvailable: Boolean,
     onNavigateToReadiness: () -> Unit,
-    onUploadProprietary: () -> Unit,
     onDeviceSelected: (String, String) -> Unit
 ) {
     data class ScanCandidate(
@@ -380,30 +334,6 @@ fun AiDexScanStep(
                 }
             }
         }
-        if (!vendorLibAvailable) {
-            Spacer(Modifier.height(ui.spacerMedium))
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = ui.horizontalPadding)
-                    .fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = stringResource(R.string.wronglibrary),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.height(ui.spacerMedium))
-                    Button(
-                        onClick = onUploadProprietary,
-                        modifier = Modifier.height(ui.buttonHeight)
-                    ) {
-                        Text(stringResource(R.string.upload))
-                    }
-                }
-            }
-        }
-
         LazyColumn {
             items(devices) { device ->
                 val name = device.rawName.ifBlank { stringResource(R.string.unknown) }
@@ -412,7 +342,7 @@ fun AiDexScanStep(
                 // If we're in "sensors only" mode, skip non-matching devices.
                 if (!showAllDevices && !device.isLikelyAiDex) return@items
 
-                val canSelect = vendorLibAvailable && (device.isLikelyAiDex || showAllDevices)
+                val canSelect = device.isLikelyAiDex || showAllDevices
 
                 ListItem(
                     headlineContent = {

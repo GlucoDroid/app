@@ -1,10 +1,12 @@
 #pragma once
 #include "SensorGlucoseData.hpp"
+#include "../../exchangetrend.hpp"
 #include "gltype.hpp"
 #include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <cstring>
+#include <span>
 #include <string_view>
 #include <time.h>
 template <typename T>

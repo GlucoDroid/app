@@ -2,30 +2,66 @@ package tk.glucodata
 
 import kotlin.math.abs
 
+/**
+ * Bridge from the shared code to the app's trend estimator.
+ *
+ * This used to find the estimator by name at runtime. R8 keeps the class name but renames its
+ * members -- mapping.txt of a release build reads
+ * `tk.glucodata.logic.TrendEngine -> tk.glucodata.logic.TrendEngine:` with
+ * `calculateTrend(java.util.List,boolean,boolean) -> a` -- so the method lookup threw in every
+ * minified build. The failure was invisible: [calculateVelocity] just returned [fallbackVelocity],
+ * a slope over the last two readings, and every caller (the notification arrow and the
+ * computed-trend broadcast) shipped that number as if it were the app's trend. After a direction
+ * turn the two disagree outright.
+ *
+ * A keep rule would paper over the symptom and stays fragile -- the commented-out "doesnt work"
+ * attempts in proguard-rules.pro show how that goes here. The detour itself was the problem, so the
+ * implementation is registered explicitly instead ([register], from the mobile Specific.start()),
+ * leaving an ordinary interface call that R8 renames on both sides.
+ */
 object TrendAccess {
-    private const val CLASS_NAME = "tk.glucodata.logic.TrendEngine"
+    private const val LOG_ID = "TrendAccess"
 
-    private val holder by lazy { runCatching { Class.forName(CLASS_NAME) }.getOrNull() }
-    private val instance by lazy { runCatching { holder?.getField("INSTANCE")?.get(null) }.getOrNull() }
-    private val calculateTrendMethod by lazy {
-        runCatching {
-            holder?.getMethod("calculateTrend", List::class.java, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
-        }.getOrNull()
+    @Volatile
+    private var provider: TrendVelocityProvider? = null
+
+    /** Registered at startup, before any reading can be drawn or broadcast. */
+    @JvmStatic
+    fun register(provider: TrendVelocityProvider) {
+        this.provider = provider
     }
-    private val velocityMethod by lazy {
-        runCatching { Class.forName("tk.glucodata.logic.TrendEngine\$TrendResult").getMethod("getVelocity") }.getOrNull()
+
+    internal data class Resolution(val velocity: Float, val usedFallback: Boolean)
+
+    /**
+     * Pure decision, so the degraded path is testable without the Android log: the estimator's
+     * velocity, or the fallback plus the flag that something is wrong.
+     */
+    internal fun resolve(
+        provider: TrendVelocityProvider?,
+        points: List<GlucosePoint>,
+        useRaw: Boolean,
+        isMmol: Boolean
+    ): Resolution {
+        if (provider != null) {
+            val velocity = runCatching { provider.velocity(points, useRaw, isMmol) }.getOrNull()
+            if (velocity != null && velocity.isFinite()) {
+                return Resolution(velocity, usedFallback = false)
+            }
+        }
+        return Resolution(fallbackVelocity(points, useRaw), usedFallback = true)
     }
 
     @JvmStatic
     fun calculateVelocity(points: List<GlucosePoint>, useRaw: Boolean, isMmol: Boolean): Float {
-        val reflected = runCatching {
-            val result = calculateTrendMethod?.invoke(instance, points, useRaw, isMmol)
-            velocityMethod?.invoke(result) as? Float
-        }.getOrNull()
-        if (reflected != null && reflected.isFinite()) {
-            return reflected
+        val resolution = resolve(provider, points, useRaw, isMmol)
+        if (resolution.usedFallback) {
+            // Deliberately not behind doLog: without the provider every arrow and every outgoing
+            // rate quietly carries a two-point slope instead of the app's trend. A value other
+            // apps rotate their arrow by must never degrade in silence.
+            Log.e(LOG_ID, "TrendVelocityProvider missing or unusable - degraded to two-point slope")
         }
-        return fallbackVelocity(points, useRaw)
+        return resolution.velocity
     }
 
     private fun fallbackVelocity(points: List<GlucosePoint>, useRaw: Boolean): Float {

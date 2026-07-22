@@ -39,6 +39,7 @@ enum class ManagedSensorUiFamily {
     ICAN,
     ANYTIME,
     OTTAI,
+    SIBIONICS,
 }
 
 data class ManagedSensorUiSnapshot(
@@ -58,6 +59,9 @@ data class ManagedSensorUiSnapshot(
     val rssi: Int = 0,
     val dataptr: Long = 0L,
     val viewMode: Int = 0,
+    val autoResetDays: Int = 300,
+    val customAlgorithmEnabled: Boolean = false,
+    val customAlgorithmMode: Int = if (customAlgorithmEnabled) 2 else 0,
     val supportsDisplayModes: Boolean = false,
     val supportsManualCalibration: Boolean = false,
     val supportsHardwareReset: Boolean = false,
@@ -115,6 +119,14 @@ interface ManagedBluetoothSensorDriver {
 
     fun softReconnect() {}
 
+    /**
+     * The system Bluetooth adapter became unavailable. Physical BLE drivers must
+     * discard only their current transport/session state here; this is not a
+     * sensor pause or terminal driver shutdown. Network-backed managed drivers
+     * intentionally keep the no-op default.
+     */
+    fun onBluetoothAdapterUnavailable() {}
+
     fun terminateManagedSensor(wipeData: Boolean = false) {}
 
     fun shouldUseSharedCurrentSensorHandoffOnTerminate(): Boolean = true
@@ -126,5 +138,11 @@ interface ManagedBluetoothSensorDriver {
     fun supportsDisplayModes(): Boolean = false
 
     fun supportsManualCalibration(): Boolean = false
+
+    /** True when this driver consumes calibration for the requested display mode. */
+    fun integratesUserCalibration(isRawMode: Boolean): Boolean = false
+
+    /** Calibration points or policy changed; stateful managed models may rebuild locally. */
+    fun onUserCalibrationRevisionChanged(revision: Long) {}
 
 }

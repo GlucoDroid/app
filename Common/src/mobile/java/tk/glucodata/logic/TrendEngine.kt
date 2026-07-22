@@ -65,64 +65,59 @@ object TrendEngine {
 
         if (validPoints.size < 2) return TrendResult(TrendState.Flat, 0f, 0f, 0f, 0f)
 
-        // Calculate Average Velocity (Weighted towards recent)
-        // Simple Linear Regression or Weighted Delta could work. 
-        // Let's use a weighted delta between adjacent points to prioritize recent change 
-        // while smoothing out single-point noise.
-        
-        var totalWeightedVelocity = 0f
-        var totalWeight = 0f
-        
-        // Use correct value source
-        val pFirst = validPoints.first()
-        val firstVal = if (useRaw && pFirst.rawValue > 0) pFirst.rawValue else pFirst.value
-
         // Use explicit flag
         val conversionFactor = if (isMmol) GlucoseFormatter.MGDL_PER_MMOL else 1.0f
 
+        fun pointValue(p: GlucosePoint): Float = if (useRaw && p.rawValue > 0) p.rawValue else p.value
+
         // Collect values for noise calculation (in NATIVE units - no conversion!)
         val rawValueList = mutableListOf<Float>()
-        // Collect values for velocity calculation (in mg/dL)
-        val mgdlValueList = mutableListOf<Float>()
+        validPoints.forEach { rawValueList.add(pointValue(it)) }
 
-        // Analyze pairs
+        // Velocity: least-squares slope over the window, in mg/dL per minute.
+        // The previous estimator averaged adjacent minute-deltas with a 0.6^i
+        // recency decay, which put 40% of the total weight on the newest
+        // single delta — effectively a 3 minute slope that rode every noisy
+        // reading and regularly showed far steeper than the sensor's own
+        // ~15 minute averaged rate, the number every broadcast receiver
+        // rotates its arrow by. A regression reads the trend, not the jitter.
+        //
+        // A non-physiological jump between adjacent points (calibration step,
+        // >20 mg/dL per minute) ends the window: only the segment newer than
+        // the artifact describes the current trend.
+        var usable = validPoints.size
         for (i in 0 until validPoints.size - 1) {
             val p1 = validPoints[i]
-            val p2 = validPoints[i+1]
+            val p2 = validPoints[i + 1]
             val timeDeltaMin = (p1.timestamp - p2.timestamp) / 60000f
-            
-            val v1 = if (useRaw && p1.rawValue > 0) p1.rawValue else p1.value
-            rawValueList.add(v1) // Native units for noise
-            mgdlValueList.add(v1 * conversionFactor) // mg/dL for velocity
-            
-            if (timeDeltaMin > 0) {
-                // Normalize delta to mg/dL
-                val v2 = if (useRaw && p2.rawValue > 0) p2.rawValue else p2.value
-                
-                val valueDelta = (v1 - v2) * conversionFactor
-                val instantVelocity = valueDelta / timeDeltaMin
-
-                // Outlier Rejection: Ignore non-physiological jumps (e.g. calibration artifacts)
-                // Threshold: 20 mg/dL per minute (~1.1 mmol/L per min) is extremely high 
-                // (Max normal rise is ~3-5).
-                if (Math.abs(instantVelocity) > 20f) {
-                    continue
-                }
-                
-                // Weight: More recent = higher weight
-                // Decay weight by 0.6 per step (was 0.8) for higher responsiveness
-                val weight = Math.pow(0.6, i.toDouble()).toFloat()
-                
-                totalWeightedVelocity += instantVelocity * weight
-                totalWeight += weight
+            if (timeDeltaMin > 0f &&
+                Math.abs((pointValue(p1) - pointValue(p2)) * conversionFactor / timeDeltaMin) > 20f
+            ) {
+                usable = i + 1
+                break
             }
         }
-        // Add last point's value
-        val pLast = validPoints.last()
-        val lastVal = if (useRaw && pLast.rawValue > 0) pLast.rawValue else pLast.value
-        rawValueList.add(lastVal)
 
-        val velocity = if (totalWeight > 0) totalWeightedVelocity / totalWeight else 0f
+        val newestTs = validPoints.first().timestamp
+        var sx = 0.0
+        var sy = 0.0
+        var sxy = 0.0
+        var sxx = 0.0
+        for (i in 0 until usable) {
+            val p = validPoints[i]
+            val xMinutes = (p.timestamp - newestTs) / 60000.0
+            val yMgdl = (pointValue(p) * conversionFactor).toDouble()
+            sx += xMinutes
+            sy += yMgdl
+            sxy += xMinutes * yMgdl
+            sxx += xMinutes * xMinutes
+        }
+        val denominator = usable * sxx - sx * sx
+        val velocity = if (usable >= 2 && denominator > 1e-6) {
+            ((usable * sxy - sx * sy) / denominator).toFloat()
+        } else {
+            0f
+        }
 
         // Acceleration: Compare velocity of first half vs second half of window
         // (Rough approximation)

@@ -42,6 +42,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
@@ -156,9 +157,16 @@ public class SensorBluetooth {
     // long unknownfound=0L;
     // String unknownname="";
     private SuperGattCallback getCallback(BluetoothDevice device) {
+        return getCallback(device, null, null);
+    }
+
+    private SuperGattCallback getCallback(BluetoothDevice device, String advertisedName, ScanResult scanResult) {
         try {
             @SuppressLint("MissingPermission")
-            String deviceName = device.getName();
+            String deviceName = advertisedName;
+            if (deviceName == null || deviceName.trim().isEmpty()) {
+                deviceName = device.getName();
+            }
             {
                 if (doLog) {
                     Log.i(LOG_ID, "deviceName=" + deviceName);
@@ -166,39 +174,36 @@ public class SensorBluetooth {
                 ;
             }
             ;
-            if (deviceName == null) {
-                {
-                    if (doLog) {
-                        Log.d(LOG_ID, "Scan returns device without name");
-                    }
-                    ;
-                }
-                ;
-                return null;
-            }
             String address = device.getAddress();
             for (var cb : gattcallbacks) {
                 if (cb.mActiveDeviceAddress != null && address.equals(cb.mActiveDeviceAddress))
                     return cb;
             }
 
-            // 2. If no address match, try name match
-            if (deviceName == null) {
-                return null;
-            }
-
-            for (var cb : gattcallbacks) {
-                if (cb.matchDeviceName(deviceName, address)) {
-                    cb.mDeviceName = deviceName;
-                    return cb;
-                }
-                {
-                    if (doLog) {
-                        Log.d(LOG_ID, "not: " + cb.SerialNumber);
+            if (deviceName != null) {
+                for (var cb : gattcallbacks) {
+                    if (cb.matchDeviceName(deviceName, address)) {
+                        cb.mDeviceName = deviceName;
+                        return cb;
+                    }
+                    {
+                        if (doLog) {
+                            Log.d(LOG_ID, "not: " + cb.SerialNumber);
+                        }
+                        ;
                     }
                     ;
                 }
-                ;
+            } else if (doLog) {
+                Log.d(LOG_ID, "Scan returns device without name");
+            }
+
+            if (scanResult != null) {
+                for (var cb : gattcallbacks) {
+                    if (cb.matchScanResult(scanResult)) {
+                        return cb;
+                    }
+                }
             }
             return null;
         } catch (Throwable e) {
@@ -213,8 +218,12 @@ public class SensorBluetooth {
 
     @SuppressLint("MissingPermission")
     private boolean checkdevice(BluetoothDevice device) {
+        return checkdevice(device, null, null);
+    }
+
+    private boolean checkdevice(BluetoothDevice device, String advertisedName, ScanResult scanResult) {
         try {
-            SuperGattCallback cb = getCallback(device);
+            SuperGattCallback cb = getCallback(device, advertisedName, scanResult);
             if (cb != null) {
                 boolean newdev = true;
                 if (cb.foundtime == 0L) {
@@ -309,7 +318,10 @@ public class SensorBluetooth {
                     SensorBluetooth.this.stopScan(false);
                     return true;
                 }
-                return checkdevice(scanResult.getDevice());
+                String advertisedName = scanResult.getScanRecord() == null
+                        ? null
+                        : scanResult.getScanRecord().getDeviceName();
+                return checkdevice(scanResult.getDevice(), advertisedName, scanResult);
             }
             // private boolean resultbusy=false;
 
@@ -321,7 +333,10 @@ public class SensorBluetooth {
                 }
                 ;
                 processScanResult(scanResult);
-                SuperGattCallback cb = getCallback(scanResult.getDevice());
+                String advertisedName = scanResult.getScanRecord() == null
+                        ? null
+                        : scanResult.getScanRecord().getDeviceName();
+                SuperGattCallback cb = getCallback(scanResult.getDevice(), advertisedName, scanResult);
                 if (cb != null) {
                     cb.onScanResult(scanResult);
                 }
@@ -892,7 +907,7 @@ public class SensorBluetooth {
         }
     }
 
-    private void removeDevice(String str) {
+    private synchronized void removeDevice(String str) {
         // Use SensorIdentity.matches() instead of strict String.equals so that
         // disconnect/forget works regardless of which form of the serial the UI
         // passes in: provisional ICN- alias, 11-char short tail, 16-char
@@ -1063,7 +1078,7 @@ public class SensorBluetooth {
         Natives.setmaxsensors(gattcallbacks.size());
     }
 
-    void addPersistedManagedCallbacks() {
+    synchronized void addPersistedManagedCallbacks() {
         final Context context = Applic.app;
         if (context == null) {
             return;
@@ -1142,6 +1157,17 @@ public class SensorBluetooth {
         return gatt != null && gatt.stop;
     }
 
+    // constatstatusstr records the last connection event ("Loss of signal",
+    // "Status=N", ...) and is never cleared when the link recovers. A reading
+    // processed after that event (charcha[0], set on every successful glucose)
+    // proves recovery, so the recorded status is history, not current state.
+    // Same-package bridge for the Compose UI, like isSensorPaused.
+    public static boolean connectionStatusOutdated(SuperGattCallback gatt) {
+        return gatt != null
+                && gatt.constatchange[1] != 0L
+                && gatt.charcha[0] > gatt.constatchange[1];
+    }
+
     // --- KOTLIN SENSORS (AiDex) SUPPORT ---
     public static void addAiDexSensor(Context context, String name, String address) {
         if (context == null || name == null || name.trim().isEmpty() || address == null || address.trim().isEmpty()) {
@@ -1188,13 +1214,7 @@ public class SensorBluetooth {
                 // if the user had intentionally set another sensor (e.g. Sibionics)
                 // as main. The main sensor is now only changed explicitly by the user
                 // or when the first-ever sensor is added (via addsensor() in C++).
-                Context appCtx = Applic.app != null ? Applic.app : context.getApplicationContext();
-                SuperGattCallback cb;
-                if (tk.glucodata.drivers.aidex.AiDexNativeFactory.isNativeModeEnabled(appCtx)) {
-                    cb = tk.glucodata.drivers.aidex.AiDexNativeFactory.createBleManager(name, dataptr);
-                } else {
-                    cb = new tk.glucodata.drivers.aidex.AiDexSensor(appCtx, name, dataptr);
-                }
+                SuperGattCallback cb = tk.glucodata.drivers.aidex.AiDexNativeFactory.createBleManager(name, dataptr);
                 cb.mActiveDeviceAddress = address;
                 blueone.gattcallbacks.add(cb);
                 blueone.adoptCurrentSensorIfBlank(serial);
@@ -1288,15 +1308,7 @@ public class SensorBluetooth {
         //   Libre: 11 alphanumeric chars
         //   AiDex/LinX: "X-" prefix
         //   Sibionics: serial (variable format)
-        if (name == null || name.trim().isEmpty()) {
-            return false;
-        }
-        for (int i = 0; i < name.length(); i++) {
-            if (Character.isISOControl(name.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
+        return SensorIdentity.isUsableSensorId(name);
     }
 
     private static boolean hasControlCharacter(String name) {
@@ -1334,7 +1346,7 @@ public class SensorBluetooth {
     private static void clearCurrentCorruptSensorName(String name) {
         try {
             final String current = Natives.lastsensorname();
-            if (name.equals(current) || hasControlCharacter(current)) {
+            if (Objects.equals(name, current) || !SensorIdentity.isUsableSensorId(current)) {
                 setCurrentSensorSelection("");
             }
         } catch (Throwable t) {
@@ -1351,7 +1363,16 @@ public class SensorBluetooth {
             if (isValidShortSensorName(name)) {
                 valid.add(name);
             } else {
-                finishCorruptActiveSensorName(name);
+                // Control-character names are known malformed native records and can be
+                // resolved safely by their full value. A placeholder such as "?" has no
+                // identity: never pass it to native lookup/finish, as that could resolve
+                // an unrelated sensor.
+                if (hasControlCharacter(name)) {
+                    finishCorruptActiveSensorName(name);
+                } else {
+                    clearCurrentCorruptSensorName(name);
+                    Log.w(LOG_ID, "Ignored invalid active sensor identity " + name);
+                }
             }
         }
         return valid.toArray(new String[0]);
@@ -1584,10 +1605,7 @@ public class SensorBluetooth {
 
     SuperGattCallback getGattCallback(String name, long dataptr) {
         if (name.startsWith("X-")) {
-            if (tk.glucodata.drivers.aidex.AiDexNativeFactory.isNativeModeEnabled(Applic.app)) {
-                return tk.glucodata.drivers.aidex.AiDexNativeFactory.createBleManager(name, dataptr);
-            }
-            return new tk.glucodata.drivers.aidex.AiDexSensor(Applic.app, name, dataptr);
+            return tk.glucodata.drivers.aidex.AiDexNativeFactory.createBleManager(name, dataptr);
         }
         if (libreVersion == 3 || tk.glucodata.BuildConfig.SiBionics == 1 || tk.glucodata.BuildConfig.DexCom == 1) {
             int vers = Natives.getLibreVersion(dataptr);
@@ -1837,7 +1855,20 @@ public class SensorBluetooth {
                                     cb.constatchange[1] = System.currentTimeMillis();
                                     cb.constatstatusstr = "Bluetooth off"; // "
                                 }
-                                cb.close();
+                                if (cb instanceof ManagedBluetoothSensorDriver managed) {
+                                    // Adapter loss is a temporary transport event. Calling a
+                                    // managed callback's virtual close() may terminate its
+                                    // HandlerThread/executor and make Bluetooth recovery
+                                    // impossible until the whole app is restarted.
+                                    cb.closeGattTransport();
+                                    try {
+                                        managed.onBluetoothAdapterUnavailable();
+                                    } catch (Throwable th) {
+                                        Log.stack(LOG_ID, cb.SerialNumber + " adapter-off cleanup", th);
+                                    }
+                                } else {
+                                    cb.close();
+                                }
                             }
                             if (keepBluetooth)
                                 mBluetoothAdapter.enable();

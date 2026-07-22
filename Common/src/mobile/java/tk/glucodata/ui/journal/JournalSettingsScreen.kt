@@ -173,6 +173,7 @@ fun JournalSettingsScreen(
     val journalDoseCalculatorEnabled by viewModel.journalDoseCalculatorEnabled.collectAsState()
     val journalFoodMacrosEnabled by viewModel.journalFoodMacrosEnabled.collectAsState()
     val journalFoodLibraryEnabled by viewModel.journalFoodLibraryEnabled.collectAsState()
+    val journalEiobDisplayEnabled by viewModel.journalEiobDisplayEnabled.collectAsState()
     val journalHealthConnectActivityEnabled by viewModel.journalHealthConnectActivityEnabled.collectAsState()
     val aapsJournalImportEnabled by viewModel.aapsJournalImportEnabled.collectAsState()
     val allPresets by viewModel.journalInsulinPresets.collectAsState()
@@ -254,6 +255,16 @@ fun JournalSettingsScreen(
                         onCheckedChange = { viewModel.setJournalFoodMacrosEnabled(it) },
                         icon = Icons.Default.Restaurant,
                         iconTint = MaterialTheme.colorScheme.secondary,
+                        position = CardPosition.MIDDLE,
+                        enabled = journalEnabled
+                    )
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.journal_eiob_display_title),
+                        subtitle = stringResource(R.string.journal_eiob_display_desc),
+                        checked = journalEiobDisplayEnabled,
+                        onCheckedChange = { viewModel.setJournalEiobDisplayEnabled(it) },
+                        icon = Icons.Default.Vaccines,
+                        iconTint = MaterialTheme.colorScheme.tertiary,
                         position = CardPosition.MIDDLE,
                         enabled = journalEnabled
                     )

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import tk.glucodata.Applic
+import tk.glucodata.GlucoseDelta
 import tk.glucodata.Natives
 import tk.glucodata.SuperGattCallback
 
@@ -52,6 +53,88 @@ object AlertRepository {
     private fun keyRetryEnabled(type: AlertType) = "alert_${type.id}_retryOn"
     private fun keyRetryInterval(type: AlertType) = "alert_${type.id}_retryInt"
     private fun keyRetryCount(type: AlertType) = "alert_${type.id}_retryCnt"
+    // Delta-counter keys (FALLING_FAST / RISING_FAST)
+    private fun keyDeltaThreshold(type: AlertType) = "alert_${type.id}_deltaThreshold"
+    private fun keyDeltaCount(type: AlertType) = "alert_${type.id}_deltaCount"
+    private fun keyDeltaBorder(type: AlertType) = "alert_${type.id}_deltaBorder"
+    private fun keyDeltaInterval(type: AlertType) = "alert_${type.id}_deltaInterval"
+    private fun keyEarlyTrigger(type: AlertType) = "alert_${type.id}_earlyTrigger"
+
+    // Sound delay ("vibrate first, audio after N seconds")
+    private fun keySoundDelayEnabled(type: AlertType) = "alert_${type.id}_soundDelayEnabled"
+    private fun keySoundDelaySeconds(type: AlertType) = "alert_${type.id}_soundDelay"
+
+    // Cap enforced on every read so a value written by any path (incl. the
+    // apply-to-all bulk edit onto LOW/VERY_LOW) can never exceed the hypo cap.
+    private fun readSoundDelaySeconds(type: AlertType): Int =
+        sanitizeSoundDelaySeconds(type, prefs.getInt(keySoundDelaySeconds(type), 0))
+
+    // Sensor-expiry pre-warning thresholds (minutes), stored as a StringSet.
+    private fun keyExpiryWarnings(type: AlertType) = "alert_${type.id}_expiryWarnings"
+
+    // Thresholds already warned for, entries "endTimeMs:minutes". Saving keeps
+    // only the current sensor's entries, so the set stays bounded.
+    private fun keyExpiryWarned(type: AlertType) = "alert_${type.id}_expiryWarned"
+
+    internal val sensorExpiryWarnedStore: ExpiryWarnedStore = object : ExpiryWarnedStore {
+        override fun load(endTimeMs: Long): Set<Int> {
+            val raw = prefs.getStringSet(keyExpiryWarned(AlertType.SENSOR_EXPIRY), null)
+                ?: return emptySet()
+            val prefix = "$endTimeMs:"
+            return raw.mapNotNull { entry ->
+                entry.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)?.toIntOrNull()
+            }.toSet()
+        }
+
+        override fun save(endTimeMs: Long, thresholds: Set<Int>) {
+            prefs.edit {
+                putStringSet(
+                    keyExpiryWarned(AlertType.SENSOR_EXPIRY),
+                    thresholds.map { "$endTimeMs:$it" }.toSet()
+                )
+            }
+        }
+    }
+
+    /**
+     * A threshold enabled mid-episode whose warning window is already open must
+     * not fire retroactively - not even after a process restart. Persist the
+     * adoption at save time; the runtime baseline then treats it like any
+     * already-warned window. Thresholds that were already configured keep their
+     * state: one that is due but was never warned (process was down at window
+     * entry) stays eligible for the catch-up warning.
+     */
+    private fun adoptOpenWindowsForNewExpiryThresholds(config: AlertConfig) {
+        if (!config.enabled) {
+            return
+        }
+        val nowMs = System.currentTimeMillis()
+        val endTimeMs = resolveSensorExpiryEndMs(preferredSensorId = null, nowMs = nowMs)
+        if (endTimeMs <= 0L) {
+            return
+        }
+        val previous = loadConfig(config.type)
+        val previouslyActive = if (previous.enabled) previous.expiryWarningMinutes else emptySet()
+        val newlyOpen = sanitizeExpiryWarningMinutes(config.expiryWarningMinutes).filter {
+            it !in previouslyActive && endTimeMs - nowMs <= it.toLong() * 60_000L
+        }
+        if (newlyOpen.isEmpty()) {
+            return
+        }
+        sensorExpiryWarnedStore.save(
+            endTimeMs,
+            sensorExpiryWarnedStore.load(endTimeMs) + newlyOpen
+        )
+    }
+
+    /** Missing key -> default (24h migration); present-but-empty -> no pre-warning. */
+    private fun readExpiryWarnings(type: AlertType, default: Set<Int>): Set<Int> {
+        if (!prefs.contains(keyExpiryWarnings(type))) {
+            return default
+        }
+        val raw = prefs.getStringSet(keyExpiryWarnings(type), null) ?: return default
+        return sanitizeExpiryWarningMinutes(raw.mapNotNull { it.toIntOrNull() }.toSet())
+    }
 
     private inline fun <reified T : Enum<T>> parseEnumPref(value: String?, fallback: T): T {
         return value?.let { raw ->
@@ -191,7 +274,9 @@ object AlertRepository {
             activeEndMinute = prefs.getInt(keyActiveEndMinute(type), -1).takeIf { it >= 0 },
             retryEnabled = prefs.getBoolean(keyRetryEnabled(type), false),
             retryIntervalMinutes = prefs.getInt(keyRetryInterval(type), 5),
-            retryCount = prefs.getInt(keyRetryCount(type), 3)
+            retryCount = prefs.getInt(keyRetryCount(type), 3),
+            soundDelayEnabled = prefs.getBoolean(keySoundDelayEnabled(type), false),
+            soundDelaySeconds = readSoundDelaySeconds(type)
         )
     }
 
@@ -241,10 +326,20 @@ object AlertRepository {
             activeEndMinute = prefs.getInt(keyActiveEndMinute(type), -1).takeIf { it >= 0 },
             retryEnabled = prefs.getBoolean(keyRetryEnabled(type), false),
             retryIntervalMinutes = prefs.getInt(keyRetryInterval(type), 5),
-            retryCount = prefs.getInt(keyRetryCount(type), 3)
+            retryCount = prefs.getInt(keyRetryCount(type), 3),
+            deltaThreshold = prefs.getFloat(keyDeltaThreshold(type), default.deltaThreshold ?: 0f).takeIf { it > 0 },
+            deltaCount = prefs.getInt(keyDeltaCount(type), default.deltaCount ?: 0).takeIf { it > 0 },
+            deltaBorder = prefs.getFloat(keyDeltaBorder(type), default.deltaBorder ?: 0f).takeIf { it > 0 },
+            // Missing/0 = follow the Δ readout's global interval.
+            deltaIntervalMinutes = prefs.getInt(keyDeltaInterval(type), 0).takeIf { it > 0 }
+                ?.let { GlucoseDelta.sanitizeIntervalMinutes(it) },
+            earlyTriggerEnabled = prefs.getBoolean(keyEarlyTrigger(type), false),
+            soundDelayEnabled = prefs.getBoolean(keySoundDelayEnabled(type), false),
+            soundDelaySeconds = readSoundDelaySeconds(type),
+            expiryWarningMinutes = readExpiryWarnings(type, default.expiryWarningMinutes)
         )
     }
-    
+
     /**
      * Save configuration for an alert type.
      * For legacy types, writes to both SharedPreferences and Natives.
@@ -262,6 +357,9 @@ object AlertRepository {
     }
     
     private fun saveToPrefs(config: AlertConfig) {
+        if (config.type == AlertType.SENSOR_EXPIRY) {
+            adoptOpenWindowsForNewExpiryThresholds(config)
+        }
         prefs.edit {
             putBoolean(keyEnabled(config.type), config.enabled)
             if (config.threshold != null) putFloat(keyThreshold(config.type), config.threshold) else remove(keyThreshold(config.type))
@@ -289,6 +387,20 @@ object AlertRepository {
             putBoolean(keyRetryEnabled(config.type), config.retryEnabled)
             putInt(keyRetryInterval(config.type), config.retryIntervalMinutes)
             putInt(keyRetryCount(config.type), config.retryCount)
+            if (config.deltaThreshold != null) putFloat(keyDeltaThreshold(config.type), config.deltaThreshold) else remove(keyDeltaThreshold(config.type))
+            if (config.deltaCount != null) putInt(keyDeltaCount(config.type), config.deltaCount) else remove(keyDeltaCount(config.type))
+            if (config.deltaBorder != null) putFloat(keyDeltaBorder(config.type), config.deltaBorder) else remove(keyDeltaBorder(config.type))
+            if (config.deltaIntervalMinutes != null) putInt(keyDeltaInterval(config.type), config.deltaIntervalMinutes) else remove(keyDeltaInterval(config.type))
+            putBoolean(keyEarlyTrigger(config.type), config.earlyTriggerEnabled)
+            putBoolean(keySoundDelayEnabled(config.type), config.soundDelayEnabled)
+            putInt(keySoundDelaySeconds(config.type), sanitizeSoundDelaySeconds(config.type, config.soundDelaySeconds))
+            // Type-specific: only the sensor-expiry alert carries pre-warnings.
+            if (config.type == AlertType.SENSOR_EXPIRY) {
+                putStringSet(
+                    keyExpiryWarnings(config.type),
+                    sanitizeExpiryWarningMinutes(config.expiryWarningMinutes).map { it.toString() }.toSet()
+                )
+            }
         }
     }
     

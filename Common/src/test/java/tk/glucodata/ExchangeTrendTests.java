@@ -71,6 +71,69 @@ public class ExchangeTrendTests {
         assertEquals("\u2193\u2193", ExchangeTrend.arrowForIndex(ExchangeTrend.DOUBLE_DOWN));
     }
 
+    @Test
+    public void deriveRate_convertsSampleGapToMgdlPerMinute() {
+        final long now = 1_700_000_000_000L;
+
+        // +25 mg/dL over 5 minutes == +5 mg/dL per minute.
+        assertEquals(5.0f, ExchangeTrend.deriveRate(100, now - 300_000L, 125, now), 0.001f);
+        // Falling reads negative.
+        assertEquals(-2.0f, ExchangeTrend.deriveRate(120, now - 300_000L, 110, now), 0.001f);
+        // Unchanged glucose is genuinely flat, not unknown.
+        assertEquals(0.0f, ExchangeTrend.deriveRate(120, now - 300_000L, 120, now), 0.001f);
+    }
+
+    @Test
+    public void deriveRate_rejectsGapsOutsideTheUsableWindow() {
+        final long now = 1_700_000_000_000L;
+
+        // Too close together: mg/dL quantisation would dominate.
+        assertTrue(Float.isNaN(ExchangeTrend.deriveRate(100, now - 60_000L, 101, now)));
+        // Too far apart: the old sample no longer describes the current direction.
+        assertTrue(Float.isNaN(ExchangeTrend.deriveRate(100, now - 45L * 60_000L, 140, now)));
+        // Boundaries themselves are usable.
+        assertTrue(Float.isFinite(
+                ExchangeTrend.deriveRate(100, now - ExchangeTrend.MIN_DERIVE_GAP_MS, 110, now)));
+        assertTrue(Float.isFinite(
+                ExchangeTrend.deriveRate(100, now - ExchangeTrend.MAX_DERIVE_GAP_MS, 110, now)));
+    }
+
+    @Test
+    public void deriveRate_rejectsMissingOrNonPositiveGlucose() {
+        final long now = 1_700_000_000_000L;
+
+        assertTrue(Float.isNaN(ExchangeTrend.deriveRate(0, now - 300_000L, 120, now)));
+        assertTrue(Float.isNaN(ExchangeTrend.deriveRate(120, now - 300_000L, 0, now)));
+        // Out-of-order samples must not produce a backwards rate.
+        assertTrue(Float.isNaN(ExchangeTrend.deriveRate(120, now, 130, now - 300_000L)));
+    }
+
+    @Test
+    public void fromSamples_yieldsSevenStateTrendForDriversWithoutARate() {
+        final long now = 1_700_000_000_000L;
+
+        // This is the issue #114 case: a driver that reports no rate at all still gets a
+        // direction rather than the empty string Nightscout was receiving.
+        final ExchangeTrend rising = ExchangeTrend.fromSamples(100, now - 300_000L, 112, now);
+        assertEquals(ExchangeTrend.SINGLE_UP, rising.index);
+        assertEquals("SingleUp", rising.name);
+        assertEquals("derived", rising.source);
+
+        final ExchangeTrend steady = ExchangeTrend.fromSamples(100, now - 300_000L, 102, now);
+        assertEquals(ExchangeTrend.FLAT, steady.index);
+        assertEquals("Flat", steady.name);
+    }
+
+    @Test
+    public void fromSamples_staysUnknownWhenNoRateCanBeDerived() {
+        final long now = 1_700_000_000_000L;
+        final ExchangeTrend trend = ExchangeTrend.fromSamples(100, now - 45L * 60_000L, 140, now);
+
+        // Better an absent arrow than a confidently wrong one.
+        assertEquals(ExchangeTrend.UNKNOWN, trend.index);
+        assertEquals("", trend.name);
+    }
+
     private static void assertTrend(float rate, int expectedIndex, String expectedName) {
         final ExchangeTrend trend = ExchangeTrend.fromRate(rate);
 

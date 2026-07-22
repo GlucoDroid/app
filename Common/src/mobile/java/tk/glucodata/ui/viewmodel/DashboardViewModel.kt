@@ -24,6 +24,7 @@ import tk.glucodata.DataSmoothing
 import tk.glucodata.MultiSensorSelection
 import tk.glucodata.Notify
 import tk.glucodata.SensorBluetooth
+import tk.glucodata.ManagedCurrentSensor
 import tk.glucodata.SensorIdentity
 import tk.glucodata.data.GlucoseRepository
 import tk.glucodata.data.HistorySync
@@ -111,6 +112,13 @@ class DashboardViewModel(
         const val JOURNAL_NAVIGATION_TAB_KEY = "dashboard_journal_navigation_tab_enabled"
         const val JOURNAL_FOOD_MACROS_KEY = "dashboard_journal_food_macros_enabled"
         const val JOURNAL_FOOD_LIBRARY_KEY = "dashboard_journal_food_library_enabled"
+        const val JOURNAL_EIOB_DISPLAY_KEY = "dashboard_journal_eiob_display_enabled"
+        const val GLUCOSE_RANGE_COLORS_KEY = "glucose_value_range_colors_enabled"
+        const val ARROW_FORECAST_COLORS_KEY = "glucose_arrow_forecast_colors_enabled"
+        const val CHART_RANGE_COLORS_KEY = "glucose_chart_range_colors_enabled"
+        const val APP_CHART_RANGE_COLORS_KEY = "glucose_app_chart_range_colors_enabled"
+        const val DASHBOARD_SHOW_DELTA_KEY = "dashboard_show_delta"
+        const val DELTA_INTERVAL_KEY = "delta_interval_minutes"
         const val JOURNAL_HEALTH_CONNECT_ACTIVITY_KEY = "dashboard_journal_health_connect_activity_enabled"
         const val PREDICTION_CARB_RATIO_KEY = "dashboard_prediction_carb_ratio_g_per_u"
         const val PREDICTION_INSULIN_SENSITIVITY_KEY = "dashboard_prediction_insulin_sensitivity_mgdl_per_u"
@@ -183,6 +191,9 @@ class DashboardViewModel(
 
     private val _glucodataBroadcastEnabled = MutableStateFlow(false)
     val glucodataBroadcastEnabled = _glucodataBroadcastEnabled.asStateFlow()
+
+    private val _broadcastComputedTrend = MutableStateFlow(false)
+    val broadcastComputedTrend = _broadcastComputedTrend.asStateFlow()
 
     private val _glucoseHistory = MutableStateFlow<List<tk.glucodata.ui.GlucosePoint>>(emptyList())
     val glucoseHistory = _glucoseHistory.asStateFlow()
@@ -291,6 +302,27 @@ class DashboardViewModel(
 
     private val _journalFoodLibraryEnabled = MutableStateFlow(true)
     val journalFoodLibraryEnabled = _journalFoodLibraryEnabled.asStateFlow()
+
+    private val _journalEiobDisplayEnabled = MutableStateFlow(true)
+    val journalEiobDisplayEnabled = _journalEiobDisplayEnabled.asStateFlow()
+
+    private val _glucoseValueRangeColorsEnabled = MutableStateFlow(false)
+    val glucoseValueRangeColorsEnabled = _glucoseValueRangeColorsEnabled.asStateFlow()
+
+    private val _glucoseArrowForecastColorsEnabled = MutableStateFlow(false)
+    val glucoseArrowForecastColorsEnabled = _glucoseArrowForecastColorsEnabled.asStateFlow()
+
+    private val _glucoseChartRangeColorsEnabled = MutableStateFlow(false)
+    val glucoseChartRangeColorsEnabled = _glucoseChartRangeColorsEnabled.asStateFlow()
+
+    private val _glucoseAppChartRangeColorsEnabled = MutableStateFlow(false)
+    val glucoseAppChartRangeColorsEnabled = _glucoseAppChartRangeColorsEnabled.asStateFlow()
+
+    private val _dashboardShowDelta = MutableStateFlow(false)
+    val dashboardShowDelta = _dashboardShowDelta.asStateFlow()
+
+    private val _deltaIntervalMinutes = MutableStateFlow(tk.glucodata.GlucoseDelta.DEFAULT_INTERVAL_MINUTES)
+    val deltaIntervalMinutes = _deltaIntervalMinutes.asStateFlow()
 
     private val _journalHealthConnectActivityEnabled = MutableStateFlow(false)
     val journalHealthConnectActivityEnabled = _journalHealthConnectActivityEnabled.asStateFlow()
@@ -516,6 +548,32 @@ class DashboardViewModel(
         }
     }
 
+    /**
+     * Call after a glucose history import so the dashboard chart shows the
+     * imported readings. Only pins the imported serial as the display sensor
+     * when there is no current/live sensor to show — never hijacks a live
+     * sensor. [displaySerial] may be a synthetic "imported" id for files
+     * without a sensor serial.
+     */
+    fun onHistoryImported(displaySerial: String?) {
+        val currentSerial = SensorIdentity.resolveMainSensor()?.takeIf { it.isNotBlank() }
+        if (currentSerial == null) {
+            // No live sensor: pin the imported serial so the dashboard shows it.
+            if (!displaySerial.isNullOrBlank()) {
+                ManagedCurrentSensor.set(displaySerial)
+                glucoseRepository.refreshSensorSerial(displaySerial)
+            }
+            refreshData()
+        } else {
+            // Sensor already present: fold overlapping imported data into it now,
+            // then refresh. Never hijacks the live sensor.
+            viewModelScope.launch {
+                glucoseRepository.reconcileImportedIntoCurrentSensor()
+                refreshData()
+            }
+        }
+    }
+
     private fun refreshStatusOnly() {
         viewModelScope.launch {
             refreshSensorSnapshot()
@@ -543,6 +601,15 @@ class DashboardViewModel(
         _journalDoseCalculatorEnabled.value = prefs.getBoolean(JOURNAL_DOSE_CALCULATOR_KEY, false)
         _journalFoodMacrosEnabled.value = prefs.getBoolean(JOURNAL_FOOD_MACROS_KEY, false)
         _journalFoodLibraryEnabled.value = prefs.getBoolean(JOURNAL_FOOD_LIBRARY_KEY, true)
+        _journalEiobDisplayEnabled.value = prefs.getBoolean(JOURNAL_EIOB_DISPLAY_KEY, true)
+        _glucoseValueRangeColorsEnabled.value = prefs.getBoolean(GLUCOSE_RANGE_COLORS_KEY, false)
+        _glucoseArrowForecastColorsEnabled.value = prefs.getBoolean(ARROW_FORECAST_COLORS_KEY, false)
+        _glucoseChartRangeColorsEnabled.value = prefs.getBoolean(CHART_RANGE_COLORS_KEY, false)
+        _glucoseAppChartRangeColorsEnabled.value = prefs.getBoolean(APP_CHART_RANGE_COLORS_KEY, false)
+        _dashboardShowDelta.value = prefs.getBoolean(DASHBOARD_SHOW_DELTA_KEY, false)
+        _deltaIntervalMinutes.value = tk.glucodata.GlucoseDelta.sanitizeIntervalMinutes(
+            prefs.getInt(DELTA_INTERVAL_KEY, tk.glucodata.GlucoseDelta.DEFAULT_INTERVAL_MINUTES)
+        )
         _journalHealthConnectActivityEnabled.value = prefs.getBoolean(JOURNAL_HEALTH_CONNECT_ACTIVITY_KEY, false)
         _aapsJournalImportEnabled.value = AapsJournalImport.isEnabled(context)
         _predictiveSimulationEnabled.value = prefs.getBoolean("dashboard_predictive_simulation_enabled", true)
@@ -575,6 +642,7 @@ class DashboardViewModel(
         _xDripBroadcastEnabled.value = Natives.getxbroadcast()
         _patchedLibreBroadcastEnabled.value = Natives.getlibrelinkused()
         _glucodataBroadcastEnabled.value = Natives.getJugglucobroadcast()
+        _broadcastComputedTrend.value = prefs.getBoolean(tk.glucodata.BroadcastTrendRate.PREF_KEY, false)
 
         _hasLowAlarm.value = Natives.hasalarmlow()
         _lowAlarmThreshold.value = Natives.alarmlow()
@@ -1108,6 +1176,20 @@ class DashboardViewModel(
     fun setTargetRange(low: Float, high: Float) {
         Natives.setTargetRange(low, high)
         refreshData()
+        refreshNotificationPredictionSurfaces(tk.glucodata.Applic.app)
+    }
+
+    // Shared storage with the very-low/very-high alert thresholds; alert
+    // enabled flags and forecast alarms are preserved untouched.
+    fun setVeryLowHighThresholds(veryLow: Float, veryHigh: Float) {
+        Natives.setAdvancedAlarms(
+            veryLow, veryHigh,
+            Natives.hasalarmverylow(), Natives.hasalarmveryhigh(),
+            Natives.hasalarmprelow(), Natives.hasalarmprehigh(),
+            Natives.alarmprelow(), Natives.alarmprehigh()
+        )
+        refreshData()
+        refreshNotificationPredictionSurfaces(tk.glucodata.Applic.app)
     }
 
     fun setGraphLow(value: Float) {
@@ -1151,6 +1233,13 @@ class DashboardViewModel(
              tk.glucodata.XInfuus.setlibrenames()
         }
         _patchedLibreBroadcastEnabled.value = Natives.getlibrelinkused()
+    }
+
+    fun setBroadcastComputedTrend(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(tk.glucodata.BroadcastTrendRate.PREF_KEY, enabled).apply()
+        _broadcastComputedTrend.value = enabled
     }
 
     fun toggleGlucodataBroadcast(enabled: Boolean) {
@@ -1272,6 +1361,64 @@ class DashboardViewModel(
         _journalFoodLibraryEnabled.value = enabled
     }
 
+    fun setJournalEiobDisplayEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(JOURNAL_EIOB_DISPLAY_KEY, enabled).apply()
+        _journalEiobDisplayEnabled.value = enabled
+    }
+
+    fun setGlucoseValueRangeColorsEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(GLUCOSE_RANGE_COLORS_KEY, enabled).apply()
+        _glucoseValueRangeColorsEnabled.value = enabled
+        refreshNotificationPredictionSurfaces(context)
+    }
+
+    fun setDashboardShowDelta(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(DASHBOARD_SHOW_DELTA_KEY, enabled).apply()
+        _dashboardShowDelta.value = enabled
+    }
+
+    /**
+     * Global delta interval (1 or 5 minutes). Drives both the Δ readout and the
+     * FALLING_FAST / RISING_FAST alarms, so it is stored in the shared display prefs.
+     */
+    fun setDeltaIntervalMinutes(minutes: Int) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        val sanitized = tk.glucodata.GlucoseDelta.sanitizeIntervalMinutes(minutes)
+        prefs.edit().putInt(DELTA_INTERVAL_KEY, sanitized).apply()
+        _deltaIntervalMinutes.value = sanitized
+        refreshNotificationPredictionSurfaces(context)
+    }
+
+    fun setGlucoseArrowForecastColorsEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(ARROW_FORECAST_COLORS_KEY, enabled).apply()
+        _glucoseArrowForecastColorsEnabled.value = enabled
+        refreshNotificationPredictionSurfaces(context)
+    }
+
+    fun setGlucoseChartRangeColorsEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(CHART_RANGE_COLORS_KEY, enabled).apply()
+        _glucoseChartRangeColorsEnabled.value = enabled
+        refreshNotificationPredictionSurfaces(context)
+    }
+
+    fun setGlucoseAppChartRangeColorsEnabled(enabled: Boolean) {
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(APP_CHART_RANGE_COLORS_KEY, enabled).apply()
+        _glucoseAppChartRangeColorsEnabled.value = enabled
+    }
+
     fun setJournalHealthConnectActivityEnabled(enabled: Boolean) {
         val context = tk.glucodata.Applic.app
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
@@ -1374,6 +1521,10 @@ class DashboardViewModel(
         prefs.edit().putInt(PREDICTION_HORIZON_MINUTES_KEY, normalized).apply()
         _predictionHorizonMinutes.value = normalized
         refreshNotificationPredictionSurfaces(context)
+    }
+
+    fun refreshNotificationSurfaces() {
+        refreshNotificationPredictionSurfaces(tk.glucodata.Applic.app)
     }
 
     private fun refreshNotificationPredictionSurfaces(context: android.content.Context) {

@@ -46,4 +46,22 @@ object ManagedSensorRuntime {
         return resolveDriver(resolvedSensorId)
             ?.let { driver -> runCatching { driver.getManagedCurrentSnapshot(maxAgeMillis) }.getOrNull() }
     }
+
+    @JvmStatic
+    fun integratesUserCalibration(sensorId: String?, isRawMode: Boolean): Boolean =
+        resolveDriver(sensorId)?.let { driver ->
+            runCatching { driver.integratesUserCalibration(isRawMode) }.getOrDefault(false)
+        } ?: false
+
+    @JvmStatic
+    fun notifyUserCalibrationRevisionChanged(revision: Long) {
+        runCatching {
+            SensorBluetooth.mygatts()
+                .asSequence()
+                .mapNotNull { it as? ManagedBluetoothSensorDriver }
+                .forEach { driver ->
+                    runCatching { driver.onUserCalibrationRevisionChanged(revision) }
+                }
+        }
+    }
 }

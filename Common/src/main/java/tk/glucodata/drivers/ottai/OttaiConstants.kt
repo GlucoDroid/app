@@ -175,28 +175,42 @@ object OttaiConstants {
 
     // ---- Lifetime / cadence ----
 
-    /** Sensor rated lifetime (typical Ottai). */
+    /** Sensor rated lifetime reported by the cloud for the Chinese M8 tested here. */
     const val DEFAULT_RATED_LIFETIME_DAYS = 15
 
     /**
-     * Activation values come from the cloud validate-by-mac response, NOT fabricated
-     * locally. The official app stores them in kotlin.reflect.p.D (activeExpireTime,
-     * ms — the maxActive duration) and p.E (retainTime, ms — the destruction value);
-     * p.E defaults to 172800000 (= 172800 s = 2 days) when the response omits it.
-     * The BLE writes are p.D/1000 and p.E/1000 respectively. Writing a fabricated
-     * absolute epoch to the destruction char made the sensor terminate the link.
+     * The official app writes cloud activeExpireTime to maxActive. Field evidence from
+     * C09B9E4B2B48 proves that the firmware enforces that value: 1209600000 ms stopped
+     * the sensor at exactly 14 days. We deliberately raise maxActive to the managed
+     * lifetime below, while retaining the cloud value for the rated/official end shown
+     * in UI. retainTime remains cloud-driven; writing an absolute epoch to destruction
+     * made the sensor terminate the link.
      */
     const val DEFAULT_RETAIN_TIME_MS = 172_800_000L
     const val DEFAULT_ACTIVE_EXPIRE_MS = DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
 
     /**
-     * These sensors keep streaming well past the vendor's rated lifetime. We surface the
-     * cloud-reported rated end (getOfficialEndMs) for reference, but let the sensor run to
-     * this extended horizon and never hard-stop on the calendar alone: readings continue
-     * past the extended end as long as samples keep arriving (see [OttaiBleManager.isSensorExpired]).
+     * Managed lifetime target. This value must be written to maxActive during activation;
+     * changing app-side metadata alone does not extend the sensor.
      */
-    const val EXTENDED_LIFETIME_DAYS = 25
+    const val EXTENDED_LIFETIME_DAYS = 30
     const val EXTENDED_LIFETIME_MS = EXTENDED_LIFETIME_DAYS * 24L * 3600L * 1000L
+
+    @JvmStatic
+    fun activationMaxActiveMs(cloudActiveExpireMs: Long): Long {
+        val rated = cloudActiveExpireMs.takeIf { it > 0L } ?: DEFAULT_ACTIVE_EXPIRE_MS
+        return maxOf(rated, EXTENDED_LIFETIME_MS)
+    }
+
+    @JvmStatic
+    fun shouldAttemptEndedSensorRecovery(commandStatus: Int, activeTimeMs: Long, nowMs: Long): Boolean =
+        commandStatus == 4 &&
+            activeTimeMs > 0L &&
+            nowMs >= activeTimeMs &&
+            nowMs < activeTimeMs + EXTENDED_LIFETIME_MS
+
+    /** Sensor command state is authoritative; cloud/provisional timestamps are not. */
+    fun commandNeedsActivation(commandStatus: Int): Boolean = commandStatus in 0..2
 
     /** Past the extended end, only declare the sensor expired once samples stop this long. */
     const val EXPIRED_STALE_GRACE_MS = 6L * 3600L * 1000L

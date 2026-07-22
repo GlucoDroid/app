@@ -2,6 +2,7 @@ package tk.glucodata.drivers
 
 import tk.glucodata.Applic
 import android.content.Context
+import tk.glucodata.Log
 import tk.glucodata.SensorIdentity
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.drivers.aidex.AiDexManagedSensorIdentityAdapter
@@ -10,15 +11,19 @@ import tk.glucodata.drivers.anytime.AnytimeManagedSensorIdentityAdapter
 import tk.glucodata.drivers.icanhealth.ICanHealthManagedSensorIdentityAdapter
 import tk.glucodata.drivers.mq.MQManagedSensorIdentityAdapter
 import tk.glucodata.drivers.ottai.OttaiManagedSensorIdentityAdapter
+import tk.glucodata.drivers.sibionics.SibionicsManagedSensorIdentityAdapter
 import tk.glucodata.drivers.nightscout.NightscoutFollowerIdentityAdapter
 
 object ManagedSensorIdentityRegistry {
+    private const val TAG = "ManagedSensorIdentity"
+
     val all: List<ManagedSensorIdentityAdapter> = listOf(
         AiDexManagedSensorIdentityAdapter,
         AnytimeManagedSensorIdentityAdapter,
         ICanHealthManagedSensorIdentityAdapter,
         MQManagedSensorIdentityAdapter,
         OttaiManagedSensorIdentityAdapter,
+        SibionicsManagedSensorIdentityAdapter,
         NightscoutFollowerIdentityAdapter,
         ApiGlucoseSourceIdentityAdapter,
     )
@@ -80,7 +85,26 @@ object ManagedSensorIdentityRegistry {
             .firstOrNull()
 
     fun removePersistedSensor(context: Context, sensorId: String?) {
-        all.forEach { it.removePersistedSensor(context, sensorId) }
+        val normalized = sensorId?.trim().takeIf { !it.isNullOrEmpty() }
+        if (normalized != null) {
+            val exactOwners = all.filter { adapter ->
+                adapter.persistedSensorIds(context).any { it.equals(normalized, ignoreCase = true) }
+            }
+            val owners = if (exactOwners.isNotEmpty()) {
+                exactOwners
+            } else {
+                all.filter { it.hasPersistedManagedRecord(normalized) }
+            }
+            when (owners.size) {
+                0 -> Unit
+                1 -> owners.single().removePersistedSensor(context, normalized)
+                else -> Log.e(
+                    TAG,
+                    "Refusing ambiguous persisted sensor removal for $normalized: " +
+                        owners.joinToString { it.javaClass.simpleName }
+                )
+            }
+        }
         ManagedSensorViewModeStore.clear(context, sensorId)
         SensorIdentity.invalidateCaches()
     }

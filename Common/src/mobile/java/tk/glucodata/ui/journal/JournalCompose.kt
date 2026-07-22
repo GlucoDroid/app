@@ -102,7 +102,6 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import tk.glucodata.Applic
 import tk.glucodata.R
-import tk.glucodata.data.journal.JournalActiveInsulinSummary
 import tk.glucodata.data.journal.JournalChartMarker
 import tk.glucodata.data.journal.JournalCurvePoint
 import tk.glucodata.data.journal.JournalEntry
@@ -234,32 +233,6 @@ fun buildJournalChartMarkers(
             }
         )
     }
-}
-
-fun buildActiveInsulinSummary(
-    entries: List<JournalEntry>,
-    presetsById: Map<Long, JournalInsulinPreset>,
-    atMillis: Long
-): JournalActiveInsulinSummary? {
-    val activeEntries = entries.mapNotNull { entry ->
-        val preset = entry.insulinPresetId?.let(presetsById::get) ?: return@mapNotNull null
-        if (entry.type != JournalEntryType.INSULIN) return@mapNotNull null
-        if (!preset.countsTowardIob) return@mapNotNull null
-        val amount = entry.amount ?: return@mapNotNull null
-        val activity = preset.activityFractionAt(entry.timestamp, atMillis)
-        if (activity <= 0.01f) return@mapNotNull null
-        Triple(entry, preset, amount to activity)
-    }
-    if (activeEntries.isEmpty()) return null
-
-    val totalUnits = activeEntries.sumOf { it.third.first.toDouble() }.toFloat()
-    val weightedActivity = activeEntries.sumOf { (it.third.first * it.third.second).toDouble() }.toFloat()
-    return JournalActiveInsulinSummary(
-        activeEntryCount = activeEntries.size,
-        totalUnits = totalUnits,
-        weightedActivityPercent = ((weightedActivity / totalUnits) * 100f).roundToInt().coerceIn(0, 100),
-        nextEndingAt = activeEntries.minOfOrNull { it.second.activeEndAt(it.first.timestamp) }
-    )
 }
 
 @Composable
@@ -771,7 +744,9 @@ fun JournalEntrySheet(
     }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = draft.timestamp)
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = journalTimestampToPickerUtcDateMillis(draft.timestamp)
+        )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
@@ -3174,15 +3149,6 @@ private fun suggestedCarbAmountForFraction(fraction: Float): String {
 private fun adjustIntegerDraft(value: String, delta: Int, minValue: Int = 0): String {
     val current = value.parseIntOrNull() ?: 0
     return (current + delta).coerceAtLeast(minValue).toString()
-}
-
-private fun mergeJournalDate(currentTimestamp: Long, selectedDayTimestamp: Long): Long {
-    val current = Calendar.getInstance().apply { timeInMillis = currentTimestamp }
-    val selected = Calendar.getInstance().apply { timeInMillis = selectedDayTimestamp }
-    current.set(Calendar.YEAR, selected.get(Calendar.YEAR))
-    current.set(Calendar.MONTH, selected.get(Calendar.MONTH))
-    current.set(Calendar.DAY_OF_MONTH, selected.get(Calendar.DAY_OF_MONTH))
-    return current.timeInMillis
 }
 
 private fun mergeJournalTime(currentTimestamp: Long, selectedTime: Pair<Int, Int>): Long {

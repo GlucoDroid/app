@@ -55,7 +55,7 @@ import tk.glucodata.drivers.icanhealth.ICanHealthRegistry
 
 private const val ICAN_HEALTH_ONBOARDING_EXAMPLE = "726022F50005"
 
-private enum class WizardStep {
+private enum class ICanHealthSetupStep {
     ONBOARDING,
     CONNECTING,
     SUCCESS,
@@ -72,7 +72,7 @@ fun ICanHealthSetupWizard(
     val ui = rememberWizardUiMetrics()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var currentStep by remember { mutableStateOf(WizardStep.ONBOARDING) }
+    var currentStep by remember { mutableStateOf(ICanHealthSetupStep.ONBOARDING) }
     var lastOnboardingCode by remember { mutableStateOf("") }
     var selectedSensorLabel by remember { mutableStateOf("") }
     var showManualEntry by remember { mutableStateOf(false) }
@@ -92,7 +92,7 @@ fun ICanHealthSetupWizard(
             return
         }
         selectedSensorLabel = normalized
-        currentStep = WizardStep.CONNECTING
+        currentStep = ICanHealthSetupStep.CONNECTING
         scope.launch {
             try {
                 ICanHealthRegistry.addSensor(
@@ -104,7 +104,7 @@ fun ICanHealthSetupWizard(
                     null
                 )
                 kotlinx.coroutines.delay(2000)
-                currentStep = WizardStep.SUCCESS
+                currentStep = ICanHealthSetupStep.SUCCESS
             } catch (t: Throwable) {
                 Log.e(tag, "Failed to add iCanHealth sensor: ${t.message}")
                 Toast.makeText(
@@ -112,7 +112,7 @@ fun ICanHealthSetupWizard(
                     context.getString(R.string.nobluetooth),
                     Toast.LENGTH_LONG
                 ).show()
-                currentStep = WizardStep.ONBOARDING
+                currentStep = ICanHealthSetupStep.ONBOARDING
             }
         }
     }
@@ -153,13 +153,13 @@ fun ICanHealthSetupWizard(
     BackHandler {
         when {
             showManualEntry -> showManualEntry = false
-            currentStep == WizardStep.ONBOARDING -> onDismiss()
-            else -> currentStep = WizardStep.ONBOARDING
+            currentStep == ICanHealthSetupStep.ONBOARDING -> onDismiss()
+            else -> currentStep = ICanHealthSetupStep.ONBOARDING
         }
     }
 
     LaunchedEffect(currentStep) {
-        if (currentStep == WizardStep.SUCCESS) {
+        if (currentStep == ICanHealthSetupStep.SUCCESS) {
             delay(SENSOR_SETUP_SUCCESS_AUTO_ADVANCE_MS)
             onComplete()
         }
@@ -194,7 +194,7 @@ fun ICanHealthSetupWizard(
             label = "ICanHealthWizard"
         ) { step ->
             when (step) {
-                WizardStep.ONBOARDING -> ICanHealthOnboardingStep(
+                ICanHealthSetupStep.ONBOARDING -> ICanHealthOnboardingStep(
                     ui = ui,
                     onNavigateToReadiness = onNavigateToReadiness,
                     onInlineScanResult = ::requestPermissionsAndAttach,
@@ -202,7 +202,7 @@ fun ICanHealthSetupWizard(
                     onShowManualEntry = { showManualEntry = true }
                 )
 
-                WizardStep.CONNECTING -> Box(
+                ICanHealthSetupStep.CONNECTING -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
@@ -212,7 +212,7 @@ fun ICanHealthSetupWizard(
                     )
                 }
 
-                WizardStep.SUCCESS -> Box(
+                ICanHealthSetupStep.SUCCESS -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {

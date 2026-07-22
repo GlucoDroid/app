@@ -2,7 +2,6 @@ package tk.glucodata.ui
 
 import android.content.Intent
 import android.net.Uri
-import android.provider.DocumentsContract
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -241,7 +240,6 @@ fun ExportDataSettingsSheet(
     var historyDays by rememberSaveable { mutableStateOf<Long?>(90L) }
     var isExporting by remember { mutableStateOf(false) }
     var pendingRequest by remember { mutableStateOf<ExportPackageExporter.ExportRequest?>(null) }
-    var pendingTreeRequest by remember { mutableStateOf<ExportPackageExporter.ExportRequest?>(null) }
     var pendingCsvRequest by remember { mutableStateOf<ExportPackageExporter.ExportRequest?>(null) }
     var pendingReadableRequest by remember { mutableStateOf<ExportPackageExporter.ExportRequest?>(null) }
 
@@ -344,33 +342,6 @@ fun ExportDataSettingsSheet(
         }
     }
 
-    suspend fun savePackageAndReportToTree(
-        treeUri: Uri,
-        request: ExportPackageExporter.ExportRequest
-    ): Result<Unit> {
-        return withContext(Dispatchers.IO) {
-            runCatching {
-                val jsonUri = DocumentsContract.createDocument(
-                    context.contentResolver,
-                    treeUri,
-                    ExportPackageExporter.mimeTypeFor(request),
-                    ExportPackageExporter.suggestedFileName(request)
-                ) ?: error(context.getString(R.string.unable_to_open_destination_file))
-                ExportPackageExporter.exportToUri(context, jsonUri, request).getOrThrow()
-
-                val reportUri = DocumentsContract.createDocument(
-                    context.contentResolver,
-                    treeUri,
-                    "text/plain",
-                    ExportPackageExporter.suggestedReadableReportFileName()
-                ) ?: error(context.getString(R.string.unable_to_open_destination_file))
-                require(exportReadableReportToUri(reportUri, request)) {
-                    context.getString(R.string.export_failed)
-                }
-            }
-        }
-    }
-
     val saveLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -380,24 +351,6 @@ fun ExportDataSettingsSheet(
             isExporting = true
             scope.launch {
                 val result = ExportPackageExporter.exportToUri(context, uri, request)
-                withContext(Dispatchers.Main) {
-                    isExporting = false
-                    showExportResult(result.isSuccess, result.exceptionOrNull()?.localizedMessage)
-                    if (result.isSuccess) onDismiss()
-                }
-            }
-        }
-    }
-
-    val treeLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        val request = pendingTreeRequest
-        pendingTreeRequest = null
-        if (uri != null && request != null) {
-            isExporting = true
-            scope.launch {
-                val result = savePackageAndReportToTree(uri, request)
                 withContext(Dispatchers.Main) {
                     isExporting = false
                     showExportResult(result.isSuccess, result.exceptionOrNull()?.localizedMessage)
@@ -449,11 +402,8 @@ fun ExportDataSettingsSheet(
             Toast.makeText(context, context.getString(R.string.export_nothing_selected), Toast.LENGTH_SHORT).show()
             return
         }
-        if (request.includeHistory && (request.includeSettings || request.includeCalibrations)) {
-            pendingTreeRequest = request
-            treeLauncher.launch(null)
-            return
-        }
+        // Always save a single JSON package containing every selected section. The
+        // human-readable report stays available via its own button and via Share.
         pendingRequest = request
         saveLauncher.launch(ExportPackageExporter.suggestedFileName(request))
     }

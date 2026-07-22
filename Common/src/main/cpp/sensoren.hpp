@@ -972,7 +972,20 @@ public:
     if (ind < 0) {
       ind = last();
       if (ind < 0) {
-        LOGSTRING("getSensorData last()<0\n");
+        static time_t nextlog = 0;
+        static uint32_t suppressed = 0;
+        const time_t now = time(nullptr);
+        if (now >= nextlog) {
+          if (suppressed) {
+            LOGGER("getSensorData last()<0 (suppressed %u repeats)\n", suppressed);
+          } else {
+            LOGSTRING("getSensorData last()<0\n");
+          }
+          suppressed = 0;
+          nextlog = now + 30;
+        } else {
+          ++suppressed;
+        }
         return nullptr;
       }
     }

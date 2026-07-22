@@ -2514,10 +2514,15 @@ static bool       pebbleinterpret(const char *input,int inputlen,std::string_vie
           //double delta= isnan(iter->ch)?0:iter->ch*deltatimes;
           double delta= getdelta(iter->ch);
 
-         extern double getiob(uint32_t now);
-         double iob=getiob(nu);
+         extern double pebbleiob(uint32_t now);
+         extern bool pebblecob(uint32_t now,double *cob);
+         double iob=pebbleiob(nu);
+         double cob;
          ptr-=2;
-         ptr+=sprintf(ptr,R"(,"bgdelta":"%.2f","iob":"%.2f"},)",delta,iob); //TODO remove ""? xDrip has "", Nightscout hasn't, who is right?
+         ptr+=sprintf(ptr,R"(,"bgdelta":"%.2f","iob":"%.2f")",delta,iob); //TODO remove ""? xDrip has "", Nightscout hasn't, who is right?
+         if(pebblecob(nu,&cob))
+            ptr+=sprintf(ptr,R"(,"cob":%.1f)",cob);
+         addar(ptr,"},");
          }
       return ptr;
       })) {

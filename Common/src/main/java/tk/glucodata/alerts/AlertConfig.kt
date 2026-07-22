@@ -17,7 +17,9 @@ enum class AlertType(val id: Int, val nameResId: Int) {
     PRE_HIGH(8, R.string.alert_forecast_high),         
     MISSED_READING(9, R.string.alert_missed_reading),
     PERSISTENT_HIGH(10, R.string.alert_persistent_high),
-    SENSOR_EXPIRY(11, R.string.alert_sensor_expiry);
+    SENSOR_EXPIRY(11, R.string.alert_sensor_expiry),
+    FALLING_FAST(12, R.string.alert_falling_fast),
+    RISING_FAST(13, R.string.alert_rising_fast);
 
     companion object {
         fun fromId(id: Int): AlertType? = entries.find { it.id == id }
@@ -37,7 +39,9 @@ enum class AlertType(val id: Int, val nameResId: Int) {
             MISSED_READING,
             PERSISTENT_HIGH,
             LOSS,
-            SENSOR_EXPIRY
+            SENSOR_EXPIRY,
+            FALLING_FAST,
+            RISING_FAST
         )
     }
 }
@@ -57,6 +61,32 @@ fun sanitizeAlertDurationSeconds(value: Int): Int {
     return value.takeIf { it in MIN_ALERT_DURATION_SECONDS..MAX_ALERT_DURATION_SECONDS }
         ?: DEFAULT_ALERT_DURATION_SECONDS
 }
+
+// --- Sound-delay caps (single source of truth for the hypo-safety policy) ---
+// A delayed audible alarm on a hypo is a double-edged sword, so LOW and
+// VERY_LOW are capped tighter than the rest. Change the policy here only.
+const val MAX_SOUND_DELAY_SECONDS = 300
+const val MAX_SOUND_DELAY_SECONDS_LOW = 60
+const val MAX_SOUND_DELAY_SECONDS_VERY_LOW = 30
+
+fun maxSoundDelaySecondsFor(type: AlertType): Int = when (type) {
+    AlertType.LOW -> MAX_SOUND_DELAY_SECONDS_LOW
+    AlertType.VERY_LOW -> MAX_SOUND_DELAY_SECONDS_VERY_LOW
+    else -> MAX_SOUND_DELAY_SECONDS
+}
+
+/** Clamp a requested delay to [0, cap-for-type]. Holds on every write path. */
+fun sanitizeSoundDelaySeconds(type: AlertType, value: Int): Int =
+    value.coerceIn(0, maxSoundDelaySecondsFor(type))
+
+// Sensor-expiry pre-warning thresholds (minutes before end), single source of
+// truth for the UI chips and validation. Descending = longest lead time first.
+val EXPIRY_WARNING_PRESETS: List<Int> = listOf(4320, 2880, 1440, 720, 360, 120, 60)
+const val DEFAULT_EXPIRY_WARNING_MINUTES = 1440   // 24h — preserves today's behaviour
+
+/** Keep only recognised presets, so stray persisted values can't leak through. */
+fun sanitizeExpiryWarningMinutes(values: Set<Int>): Set<Int> =
+    values.filter { it in EXPIRY_WARNING_PRESETS }.toSet()
 
 /**
  * Delivery mode for alerts.
@@ -83,7 +113,14 @@ data class AlertConfig(
     val threshold: Float? = null,           // Glucose value (null for non-threshold alerts)
     val durationMinutes: Int? = null,       // For persistent high / missed reading alerts
     val forecastMinutes: Int? = null,       // For forecast alerts (how far ahead to predict)
-    
+
+    // Delta-counter settings (FALLING_FAST / RISING_FAST): GDH-style robust rate-of-change alarm.
+    val deltaThreshold: Float? = null,      // Min change per interval (display units) to count as steep
+    val deltaCount: Int? = null,            // How many consecutive steep intervals must accumulate
+    val deltaBorder: Float? = null,         // Only alarm once the value is past this bound (below/above)
+    val deltaIntervalMinutes: Int? = null,  // Own delta window (1 or 5); null = follow the Δ readout's global interval
+    val earlyTriggerEnabled: Boolean = false, // Also fire once the total distance (count x threshold) is covered
+
     // Delivery settings
     val deliveryMode: AlertDeliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
     val overrideDND: Boolean = false,       // Override Do Not Disturb
@@ -94,6 +131,12 @@ data class AlertConfig(
     val vibrationEnabled: Boolean = true,
     val hapticProfile: HapticProfile = HapticProfile.STRONG,
     val flashEnabled: Boolean = false,
+
+    // Sound delay: vibrate first, add the audible alarm only after this delay.
+    // Only meaningful when soundEnabled && vibrationEnabled. 0 = immediate
+    // (today's behaviour). Capped per type for hypo safety (see caps below).
+    val soundDelayEnabled: Boolean = false,
+    val soundDelaySeconds: Int = 0,
     
     // Snooze settings
     val defaultSnoozeMinutes: Int = 15,
@@ -112,7 +155,11 @@ data class AlertConfig(
     // === NEW: Retry settings ("try again if no reaction") ===
     val retryEnabled: Boolean = false,
     val retryIntervalMinutes: Int = 5,      // Re-alert every X minutes
-    val retryCount: Int = 3                 // Max number of retries (0 = unlimited until dismissed)
+    val retryCount: Int = 3,                // Max number of retries (0 = unlimited until dismissed)
+
+    // Sensor-expiry only: warn this many minutes before the sensor ends. Each
+    // selected threshold fires once per sensor. Empty = no pre-warning.
+    val expiryWarningMinutes: Set<Int> = emptySet()
 ) {
     /**
      * Whether this alert should use the old system alarm path (AlarmActivity).
@@ -203,6 +250,18 @@ object AlertDefaults {
     const val MISSED_READING_MINUTES = 30
     const val PERSISTENT_HIGH_MINUTES = 60
     const val FORECAST_LOOK_AHEAD_MINUTES = 20
+
+    // Delta-counter defaults (FALLING_FAST / RISING_FAST). Tunable; disabled by default.
+    // Change over the delta interval that counts as steep (~10 mg/dL / 0.6 mmol per 5 min).
+    const val DELTA_THRESHOLD_MGDL = 10f
+    const val DELTA_THRESHOLD_MMOL = 0.6f
+    // Consecutive steep readings required.
+    const val DELTA_COUNT_DEFAULT = 3
+    // Only warn once the value is already heading toward trouble.
+    const val FALLING_BORDER_MGDL = 120f     // alarm only at/below this
+    const val FALLING_BORDER_MMOL = 6.7f
+    const val RISING_BORDER_MGDL = 180f      // alarm only at/above this
+    const val RISING_BORDER_MMOL = 10.0f
     
     // Snooze presets (minutes)
     val SNOOZE_PRESETS = listOf(5, 10, 15, 30, 60, 90, 120)
@@ -290,7 +349,8 @@ object AlertDefaults {
                 deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
                 hapticProfile = HapticProfile.SOFT,
                 soundEnabled = true,
-                defaultSnoozeMinutes = 120
+                defaultSnoozeMinutes = 120,
+                expiryWarningMinutes = setOf(DEFAULT_EXPIRY_WARNING_MINUTES)
             )
             AlertType.LOSS -> AlertConfig(
                 type = type,
@@ -298,6 +358,26 @@ object AlertDefaults {
                 durationMinutes = 30,
                 deliveryMode = AlertDeliveryMode.NOTIFICATION_ONLY,
                 hapticProfile = HapticProfile.STEADY,
+                defaultSnoozeMinutes = 30
+            )
+            AlertType.FALLING_FAST -> AlertConfig(
+                type = type,
+                enabled = false,
+                deltaThreshold = if (isMmol) DELTA_THRESHOLD_MMOL else DELTA_THRESHOLD_MGDL,
+                deltaCount = DELTA_COUNT_DEFAULT,
+                deltaBorder = if (isMmol) FALLING_BORDER_MMOL else FALLING_BORDER_MGDL,
+                deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
+                hapticProfile = HapticProfile.SOFT,
+                defaultSnoozeMinutes = 20
+            )
+            AlertType.RISING_FAST -> AlertConfig(
+                type = type,
+                enabled = false,
+                deltaThreshold = if (isMmol) DELTA_THRESHOLD_MMOL else DELTA_THRESHOLD_MGDL,
+                deltaCount = DELTA_COUNT_DEFAULT,
+                deltaBorder = if (isMmol) RISING_BORDER_MMOL else RISING_BORDER_MGDL,
+                deliveryMode = AlertDeliveryMode.SYSTEM_ALARM,
+                hapticProfile = HapticProfile.SOFT,
                 defaultSnoozeMinutes = 30
             )
             else -> AlertConfig(type = type)

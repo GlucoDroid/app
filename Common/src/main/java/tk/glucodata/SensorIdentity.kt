@@ -7,10 +7,22 @@ import tk.glucodata.drivers.ManagedSensorIdentityRegistry
 
 object SensorIdentity {
     private const val NULL_SENTINEL = "\u0000"
+    private const val UNKNOWN_SENSOR_SENTINEL = "?"
     private val nativeCanonicalCache = ConcurrentHashMap<String, String>()
 
     private fun normalized(sensorId: String?): String? {
-        return sensorId?.trim()?.takeIf { it.isNotEmpty() }
+        return sensorId
+            ?.trim()
+            ?.takeIf { isUsableSensorId(it) }
+    }
+
+    /** Reject native/UI placeholders before they can participate in sensor selection. */
+    @JvmStatic
+    fun isUsableSensorId(sensorId: String?): Boolean {
+        val value = sensorId?.trim() ?: return false
+        return value.isNotEmpty() &&
+            value != UNKNOWN_SENSOR_SENTINEL &&
+            value.none { it.isISOControl() }
     }
 
     private fun managedMatches(left: String?, right: String?): Boolean {

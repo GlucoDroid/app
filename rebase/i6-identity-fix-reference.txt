@@ -1,0 +1,302 @@
+commit 60742b797d4f404be156d87e4bd050ba876da286
+Author: robster7674 <70331923+robster7674@users.noreply.github.com>
+Date:   Sat Jul 18 11:05:51 2026 +0200
+
+    fix(iCan): drop post-rebase post-connection identity rejection (#47)
+    
+    * fix(iCan): drop post-rebase post-connection identity rejection
+    
+    The JugglucoNG 1.0.3 rebase (c100893c7) added a strict post-connection
+    identity check (matchesOnboardingIdentity + rejectMismatchedOnboardingCandidate)
+    that rejects any iCan BLE candidate whose DIS serial doesn't share an 8/9-char
+    prefix with the wizard-supplied 'active code' or onboarding SN.
+    
+    This breaks the i6 firmware variant that ships a BLE DIS serial
+    (e.g. 01OR03MS00070101) with no shared prefix with its 12-char active
+    code (e.g. ZA1OR03MSE50). Pre-rebase (April 27 'iCan i6 fix' 87574e093
+    was the working baseline), no such rejection existed: any iCan the BLE
+    scanner claimed was accepted, and handleResolvedSerial promoted the
+    DIS serial into SerialNumber.
+    
+    Drop the rejection call from the SERIAL_NUMBER characteristic handler
+    and remove the rejectMismatchedOnboardingCandidate helper. The
+    matchDeviceName filter (iCGM-/Sinocare CGM/ICN- prefix) already keeps
+    non-iCan peripherals out, so the blacklist isn't load-bearing for
+    single-sensor setups.
+    
+    ICanHealthConstants.matchesOnboardingIdentity is left in place; it's
+    now unused but harmless and might be referenced by future tests.
+    
+    * fix(iCan): remove dead post-rebase identity-check helpers
+    
+    Following commit b9fedb42b ('fix(iCan): drop post-rebase post-connection
+    identity rejection'), the matchesOnboardingIdentity / onboardingIdentityPrefix
+    helpers are no longer called from production code. The rejectedOnboardingAddresses
+    blacklist set is also unreachable — only the .clear() call in setOnboardingDeviceSn
+    remained, and that was just defensive cleanup for code that no longer adds to it.
+    
+    Remove the dead helpers, the unreachable blacklist field, the imports that
+    became unused, and the now-orphaned tests for the prefix-match rule.
+    
+    Also inline sanitizeSensorIdentity back into normalizeOnboardingDeviceSn,
+    which was its only remaining caller after matchesOnboardingIdentity went away.
+    
+    ---------
+    
+    Co-authored-by: Rob <rob@performanceinsights.ai>
+
+diff --git a/Common/src/main/java/tk/glucodata/drivers/icanhealth/ICanHealthBleManager.kt b/Common/src/main/java/tk/glucodata/drivers/icanhealth/ICanHealthBleManager.kt
+index d13c3f2e2..fcc99ebbb 100644
+--- a/Common/src/main/java/tk/glucodata/drivers/icanhealth/ICanHealthBleManager.kt
++++ b/Common/src/main/java/tk/glucodata/drivers/icanhealth/ICanHealthBleManager.kt
+@@ -28,7 +28,6 @@ import java.util.ArrayDeque
+ import java.util.LinkedHashMap
+ import java.util.Locale
+ import java.util.UUID
+-import java.util.concurrent.CopyOnWriteArraySet
+ import kotlin.math.abs
+ import kotlin.math.round
+ import tk.glucodata.Applic
+@@ -207,7 +206,6 @@ class ICanHealthBleManager(
+     @Volatile private var vendorSoftwareVersion: String = ""
+     private val pendingHistoryBatch = LinkedHashMap<Int, PendingHistoryReading>()
+     private val recentLiveGlucoseMgdl = ArrayDeque<Float>(RECENT_GLUCOSE_WINDOW_SIZE)
+-    private val rejectedOnboardingAddresses = CopyOnWriteArraySet<String>()
+ 
+     private var provisionalSensorIdForAdoption: String? =
+         serial.takeIf { ICanHealthConstants.isProvisionalSensorId(it) }
+@@ -814,12 +812,8 @@ class ICanHealthBleManager(
+     }
+ 
+     fun setOnboardingDeviceSn(deviceSnOrCode: String?) {
+-        val normalized = ICanHealthConstants.normalizeOnboardingDeviceSn(deviceSnOrCode)
++        onboardingDeviceSn = ICanHealthConstants.normalizeOnboardingDeviceSn(deviceSnOrCode)
+             .takeIf { it.isNotBlank() }
+-        if (normalized != onboardingDeviceSn) {
+-            rejectedOnboardingAddresses.clear()
+-        }
+-        onboardingDeviceSn = normalized
+     }
+ 
+     fun setConfiguredAuthUserId(userId: String?) {
+@@ -1079,10 +1073,6 @@ class ICanHealthBleManager(
+ 
+     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
+         val trimmedName = deviceName?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+-        val candidateAddress = address?.trim()?.uppercase(Locale.US)
+-        if (candidateAddress != null && candidateAddress in rejectedOnboardingAddresses) {
+-            return false
+-        }
+         val knownAddress = mActiveDeviceAddress?.takeIf { it.isNotBlank() }
+         if (knownAddress != null) {
+             return address != null && address.equals(knownAddress, ignoreCase = true)
+@@ -1122,16 +1112,6 @@ class ICanHealthBleManager(
+ 
+     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+         if (stop) return
+-        val stateAddress = gatt.device?.address?.trim()?.uppercase(Locale.US)
+-        if (stateAddress != null && stateAddress in rejectedOnboardingAddresses) {
+-            Log.d(TAG, "Ignoring GATT state=$newState from rejected onboarding candidate $stateAddress")
+-            if (newState == BluetoothProfile.STATE_CONNECTED) {
+-                runCatching { gatt.disconnect() }
+-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+-                runCatching { gatt.close() }
+-            }
+-            return
+-        }
+         val currentGatt = mBluetoothGatt
+         if (currentGatt != null && currentGatt !== gatt) {
+             Log.d(TAG, "Ignoring stale GATT state=$newState status=$status for $SerialNumber")
+@@ -1353,9 +1333,6 @@ class ICanHealthBleManager(
+                 val rawSerial = ICanHealthParser.parseRawDeviceSerial(data)
+                 val resolvedSerial = ICanHealthParser.parseDeviceSerial(data)
+                 if (resolvedSerial.isNotEmpty()) {
+-                    if (rejectMismatchedOnboardingCandidate(gatt, rawSerial, resolvedSerial)) {
+-                        return
+-                    }
+                     rawSerialFromDevice = rawSerial.takeIf { it.isNotBlank() }
+                     applyBundledGlucoseKey(rawSerialFromDevice, vendorSoftwareVersion)
+                     Log.i(TAG, "Device serial: $resolvedSerial")
+@@ -1429,51 +1406,6 @@ class ICanHealthBleManager(
+         finishGattOp()
+     }
+ 
+-    private fun rejectMismatchedOnboardingCandidate(
+-        gatt: BluetoothGatt,
+-        rawSerial: String,
+-        resolvedSerial: String,
+-    ): Boolean {
+-        val expectedOnboardingSn = onboardingDeviceSn ?: return false
+-        val isAwaitingIdentity = provisionalSensorIdForAdoption != null ||
+-            ICanHealthConstants.isProvisionalSensorId(SerialNumber)
+-        if (!isAwaitingIdentity) {
+-            return false
+-        }
+-        val identityMatches =
+-            ICanHealthConstants.matchesOnboardingIdentity(expectedOnboardingSn, rawSerial) ||
+-                ICanHealthConstants.matchesOnboardingIdentity(expectedOnboardingSn, resolvedSerial)
+-        if (identityMatches) {
+-            rejectedOnboardingAddresses.clear()
+-            return false
+-        }
+-
+-        val address = gatt.device?.address?.trim()?.uppercase(Locale.US)
+-        if (address != null) {
+-            rejectedOnboardingAddresses.add(address)
+-        }
+-        Log.w(
+-            TAG,
+-            "Rejected iCan candidate address=${address ?: "unknown"}: " +
+-                "onboarding=${ICanHealthConstants.onboardingIdentityPrefix(expectedOnboardingSn)} " +
+-                "device=$resolvedSerial"
+-        )
+-
+-        rawSerialFromDevice = null
+-        serialFromDevice = null
+-        close()
+-        setDevice(null)
+-        searchforDeviceAddress()
+-        setUiStatus(UiStatusKind.PREPARING)
+-        UiRefreshBus.requestStatusRefresh()
+-        handler.postDelayed({
+-            if (!stop && !uiPaused && ICanHealthConstants.isProvisionalSensorId(SerialNumber)) {
+-                SensorBluetooth.startscan()
+-            }
+-        }, 250L)
+-        return true
+-    }
+-
+     override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+         if (status != BluetoothGatt.GATT_SUCCESS) {
+             Log.w(TAG, "Descriptor write failed for ${descriptor.characteristic?.uuid} status=$status")
+diff --git a/Common/src/main/java/tk/glucodata/drivers/icanhealth/ICanHealthConstants.kt b/Common/src/main/java/tk/glucodata/drivers/icanhealth/ICanHealthConstants.kt
+index ca80813c3..946591b51 100644
+--- a/Common/src/main/java/tk/glucodata/drivers/icanhealth/ICanHealthConstants.kt
++++ b/Common/src/main/java/tk/glucodata/drivers/icanhealth/ICanHealthConstants.kt
+@@ -11,6 +11,7 @@ package tk.glucodata.drivers.icanhealth
+ 
+ import java.util.UUID
+ import java.util.Locale
++import tk.glucodata.Log
+ 
+ object ICanHealthConstants {
+     private val FULL_CANONICAL_HEX_SENSOR_ID_REGEX = Regex("^[0-9A-Z]{16}$", RegexOption.IGNORE_CASE)
+@@ -205,7 +206,11 @@ object ICanHealthConstants {
+ 
+     @JvmStatic
+     fun normalizeOnboardingDeviceSn(source: String?): String {
+-        val sanitized = sanitizeSensorIdentity(source)
++        val sanitized = source
++            ?.trim()
++            ?.uppercase(Locale.US)
++            ?.filter { it.isLetterOrDigit() }
++            .orEmpty()
+         if (sanitized.isEmpty()) {
+             return ""
+         }
+@@ -215,41 +220,6 @@ object ICanHealthConstants {
+         return sanitized
+     }
+ 
+-    /**
+-     * The launcher QR and DIS serial are different representations of the same
+-     * physical sensor identity. The vendor launcher uses the leading 8 or 9
+-     * characters as its short serial, depending on the active-code family.
+-     */
+-    @JvmStatic
+-    fun onboardingIdentityPrefix(source: String?): String {
+-        val normalized = normalizeOnboardingDeviceSn(source)
+-        return deriveShortSnFromActiveCode(normalized)
+-    }
+-
+-    @JvmStatic
+-    fun matchesOnboardingIdentity(onboardingDeviceSn: String?, deviceSerial: String?): Boolean {
+-        val expected = normalizeOnboardingDeviceSn(onboardingDeviceSn)
+-        val observed = sanitizeSensorIdentity(deviceSerial)
+-        if (expected.isEmpty() || observed.isEmpty()) {
+-            return false
+-        }
+-        val prefix = deriveShortSnFromActiveCode(expected)
+-        if (prefix.length < 8) {
+-            return false
+-        }
+-        if (expected == observed) {
+-            return true
+-        }
+-        return observed.startsWith(prefix)
+-    }
+-
+-    private fun sanitizeSensorIdentity(source: String?): String =
+-        source
+-            ?.trim()
+-            ?.uppercase(Locale.US)
+-            ?.filter { it.isLetterOrDigit() }
+-            .orEmpty()
+-
+     private fun deriveShortSnFromActiveCode(activeCode: String): String {
+         if (activeCode.length < 12) {
+             return activeCode
+diff --git a/Common/src/test/java/tk/glucodata/drivers/icanhealth/ICanHealthConstantsTests.kt b/Common/src/test/java/tk/glucodata/drivers/icanhealth/ICanHealthConstantsTests.kt
+index b9feb67a8..0395b9350 100644
+--- a/Common/src/test/java/tk/glucodata/drivers/icanhealth/ICanHealthConstantsTests.kt
++++ b/Common/src/test/java/tk/glucodata/drivers/icanhealth/ICanHealthConstantsTests.kt
+@@ -43,59 +43,6 @@ class ICanHealthConstantsTests {
+         )
+     }
+ 
+-    @Test
+-    fun matchesOnboardingIdentity_acceptsLauncherCodeForObservedDisSerial() {
+-        assertEquals("8760080A", ICanHealthConstants.onboardingIdentityPrefix("8760080A2604"))
+-        assertTrue(
+-            ICanHealthConstants.matchesOnboardingIdentity(
+-                "8760080A2604",
+-                "8760080a0007000000000000"
+-            )
+-        )
+-        assertTrue(
+-            ICanHealthConstants.matchesOnboardingIdentity(
+-                "8760080A2604",
+-                "8760080A00070000"
+-            )
+-        )
+-    }
+-
+-    @Test
+-    fun matchesOnboardingIdentity_acceptsExactShortSerialFamily() {
+-        assertTrue(
+-            ICanHealthConstants.matchesOnboardingIdentity(
+-                "726022F50005",
+-                "726022f50005"
+-            )
+-        )
+-    }
+-
+-    @Test
+-    fun matchesOnboardingIdentity_rejectsAnotherNearbySensor() {
+-        assertFalse(
+-            ICanHealthConstants.matchesOnboardingIdentity(
+-                "8760080A2604",
+-                "8760080B00070000"
+-            )
+-        )
+-    }
+-
+-    @Test
+-    fun matchesOnboardingIdentity_rejectsWeakPartialIdentity() {
+-        assertFalse(ICanHealthConstants.matchesOnboardingIdentity("8760", "8760080A00070000"))
+-    }
+-
+-    @Test
+-    fun onboardingIdentityPrefix_usesExtendedVendorPrefixRule() {
+-        assertEquals("G760080A2", ICanHealthConstants.onboardingIdentityPrefix("G760080A2604"))
+-        assertTrue(
+-            ICanHealthConstants.matchesOnboardingIdentity(
+-                "G760080A2604",
+-                "G760080A200070000"
+-            )
+-        )
+-    }
+-
+     @Test
+     fun isEndedStatusSequenceCap_onlyMatchesEndedStateAtVendorCap() {
+         assertFalse(

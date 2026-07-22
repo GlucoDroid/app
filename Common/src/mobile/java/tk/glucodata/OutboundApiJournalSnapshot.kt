@@ -1,6 +1,12 @@
 package tk.glucodata
 
+import android.os.Looper
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -11,6 +17,7 @@ import tk.glucodata.data.journal.JournalEntrySource
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalFoodEntity
 import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.data.journal.JournalIobCalculator
 import tk.glucodata.data.journal.JournalInsulinPresetEntity
 import tk.glucodata.data.journal.JournalRepository
 import tk.glucodata.data.journal.JournalTreatmentTransfer
@@ -22,12 +29,111 @@ object OutboundApiJournalSnapshot {
     private const val SNAPSHOT_EVENT_WINDOW_MS = 12L * 60L * 60L * 1000L
     private const val DEFAULT_ACTIVE_WINDOW_MS = 24L * 60L * 60L * 1000L
     private const val API_SOURCE_PREFIX = "api"
+    private const val JOURNAL_ENABLED_KEY = "dashboard_journal_enabled"
 
     @JvmStatic
     fun snapshotJson(timeMillis: Long): String = runBlocking {
         withContext(Dispatchers.IO) {
             buildSnapshot(timeMillis.takeIf { it > 0L } ?: System.currentTimeMillis()).toString()
         }
+    }
+
+    private class BroadcastIobCache(val atMillis: Long, val values: FloatArray?)
+
+    @Volatile
+    private var broadcastIobCache: BroadcastIobCache? = null
+    private const val BROADCAST_IOB_CACHE_MS = 30_000L
+
+    private val journalChangedScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile
+    private var journalChangedJob: Job? = null
+    private const val JOURNAL_CHANGED_DEBOUNCE_MS = 400L
+
+    /**
+     * Called by JournalRepository after IOB-relevant mutations so the surfaces
+     * outside the app catch up right away instead of at the next glucose
+     * reading: the persistent notification, the glucodata.Minute broadcast and
+     * the webserver's /pebble store. Bursts (importer sync cycles) coalesce
+     * into a single refresh.
+     */
+    @JvmStatic
+    fun journalChanged() {
+        broadcastIobCache = null
+        journalChangedJob?.cancel()
+        journalChangedJob = journalChangedScope.launch {
+            delay(JOURNAL_CHANGED_DEBOUNCE_MS)
+            val now = System.currentTimeMillis()
+            val values = runCatching { buildBroadcastIob(now) }.getOrNull()
+            broadcastIobCache = BroadcastIobCache(now, values)
+            JournalIobAccess.pushWatchserver(now)
+            if (values != null) JugglucoSend.rebroadcastIob()
+            Notify.showoldglucose()
+        }
+    }
+
+    /**
+     * Compact insulin/carb snapshot for the glucodata.Minute broadcast and the
+     * persistent notification, resolved from src/main (JugglucoSend, Notify)
+     * via reflection because the journal only exists in the mobile source set.
+     * Returns [classicIob, eiob, cob, iobNext30min, cobNext30min] with NaN
+     * marking "no data of that kind",
+     * or null when the journal feature is disabled or has never seen
+     * insulin/carb entries — users of the legacy native amounts must not have
+     * their /pebble-polled IOB clobbered with journal zeros.
+     *
+     * Results are cached briefly; on the main thread the cache (possibly
+     * stale) is returned instead of blocking on Room.
+     */
+    @JvmStatic
+    fun broadcastIobSnapshot(timeMillis: Long): FloatArray? {
+        val atMillis = timeMillis.takeIf { it > 0L } ?: System.currentTimeMillis()
+        val cached = broadcastIobCache
+        if (cached != null && atMillis - cached.atMillis < BROADCAST_IOB_CACHE_MS) return cached.values
+        if (Looper.myLooper() == Looper.getMainLooper()) return cached?.values
+        val fresh = runBlocking {
+            withContext(Dispatchers.IO) {
+                runCatching { buildBroadcastIob(atMillis) }.getOrNull()
+            }
+        }
+        broadcastIobCache = BroadcastIobCache(atMillis, fresh)
+        return fresh
+    }
+
+    private suspend fun buildBroadcastIob(atMillis: Long): FloatArray? {
+        val app = Applic.app ?: return null
+        val prefs = app.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(JOURNAL_ENABLED_KEY, true)) return null
+        val dao = HistoryDatabase.getInstance(app).journalDao()
+        val hasInsulin = dao.countEntriesByType(JournalEntryType.INSULIN.storageValue) > 0
+        val hasCarbs = dao.countEntriesByType(JournalEntryType.CARBS.storageValue) > 0
+        if (!hasInsulin && !hasCarbs) return null
+        val presetsById = dao.getInsulinPresets().map { toPresetModel(it) }.associateBy { it.id }
+        val maxPresetDurationMs = presetsById.values.maxOfOrNull { it.durationMinutes.coerceAtLeast(0) }
+            ?.times(60_000L)
+            ?: DEFAULT_ACTIVE_WINDOW_MS
+        val startMillis = (atMillis - maxOf(DEFAULT_ACTIVE_WINDOW_MS, maxPresetDurationMs) - 60_000L)
+            .coerceAtLeast(0L)
+        val entries = dao.getEntriesBetween(startMillis, atMillis)
+        val doses = JournalIobCalculator.dosesFromEntities(entries, presetsById)
+        val insulin = JournalIobCalculator.compute(doses, atMillis)
+        // Insulin delivering / carbs absorbing within the next 30 minutes —
+        // the "soon" quantities the notification risk warning projects with.
+        val windowMillis = 30L * 60L * 1000L
+        val insulinAfterWindow = JournalIobCalculator.compute(doses, atMillis + windowMillis)
+        val iobNextWindow = (insulin.iobUnits - insulinAfterWindow.iobUnits).coerceAtLeast(0f)
+        val cobNow = if (hasCarbs) activeCarbsGrams(entries, atMillis) else Float.NaN
+        val cobNextWindow = if (hasCarbs) {
+            (cobNow - activeCarbsGrams(entries, atMillis + windowMillis)).coerceAtLeast(0f)
+        } else {
+            Float.NaN
+        }
+        return floatArrayOf(
+            if (hasInsulin) insulin.iobUnits else Float.NaN,
+            if (hasInsulin) insulin.eiobUnits else Float.NaN,
+            cobNow,
+            if (hasInsulin) iobNextWindow else Float.NaN,
+            cobNextWindow
+        )
     }
 
     @JvmStatic
@@ -57,7 +163,10 @@ object OutboundApiJournalSnapshot {
         val startMillis = (atMillis - maxOf(DEFAULT_ACTIVE_WINDOW_MS, maxPresetDurationMs) - 60_000L)
             .coerceAtLeast(0L)
         val entries = dao.getEntriesBetween(startMillis, atMillis)
-        val iob = activeInsulinUnits(entries, presetsById, atMillis)
+        val insulin = JournalIobCalculator.compute(
+            JournalIobCalculator.dosesFromEntities(entries, presetsById),
+            atMillis
+        )
         val cob = activeCarbsGrams(entries, atMillis)
         val eventWindowStart = atMillis - SNAPSHOT_EVENT_WINDOW_MS
         val events = JSONArray()
@@ -68,8 +177,10 @@ object OutboundApiJournalSnapshot {
         return JSONObject()
             .put("schema", "tk.glucodata.journal.snapshot.v2")
             .put("timestamp", atMillis)
-            .put("iob", finiteOrNull(iob))
-            .put("journal_iob", finiteOrNull(iob))
+            .put("iob", finiteOrNull(insulin.iobUnits))
+            .put("journal_iob", finiteOrNull(insulin.iobUnits))
+            .put("eiob", finiteOrNull(insulin.eiobUnits))
+            .put("journal_eiob", finiteOrNull(insulin.eiobUnits))
             .put("cob", finiteOrNull(cob))
             .put("journal_cob", finiteOrNull(cob))
             .put("events", events)
@@ -213,20 +324,6 @@ object OutboundApiJournalSnapshot {
             .put("nsRemoteId", nsRemoteId)
     }
 
-    private fun activeInsulinUnits(
-        entries: List<JournalEntryEntity>,
-        presetsById: Map<Long, JournalInsulinPreset>,
-        atMillis: Long
-    ): Float {
-        return entries.sumOf { entry ->
-            if (JournalEntryType.fromStorage(entry.entryType) != JournalEntryType.INSULIN) return@sumOf 0.0
-            val preset = entry.insulinPresetId?.let(presetsById::get) ?: return@sumOf 0.0
-            if (!preset.countsTowardIob) return@sumOf 0.0
-            val amount = entry.amount?.takeIf { it.isFinite() && it > 0f } ?: return@sumOf 0.0
-            (amount * remainingCurveFraction(preset.curvePoints, entry.timestamp, atMillis)).toDouble()
-        }.toFloat()
-    }
-
     private fun activeCarbsGrams(entries: List<JournalEntryEntity>, atMillis: Long): Float {
         val prefs = Applic.app.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         val absorptionGramsPerHour = prefs
@@ -240,41 +337,6 @@ object OutboundApiJournalSnapshot {
             val progress = linearProgress(entry.timestamp, absorptionMinutes, atMillis)
             (grams * (1f - progress)).coerceAtLeast(0f).toDouble()
         }.toFloat()
-    }
-
-    private fun remainingCurveFraction(
-        points: List<tk.glucodata.data.journal.JournalCurvePoint>,
-        doseTimestamp: Long,
-        atMillis: Long
-    ): Float {
-        if (points.size < 2 || atMillis < doseTimestamp) return 0f
-        val elapsedMinutes = ((atMillis - doseTimestamp) / 60_000f).coerceAtLeast(0f)
-        val total = integrateCurve(points, points.last().minute.toFloat())
-        if (total <= 0.0001f) return 0f
-        val delivered = (integrateCurve(points, elapsedMinutes) / total).coerceIn(0f, 1f)
-        return (1f - delivered).coerceIn(0f, 1f)
-    }
-
-    private fun integrateCurve(
-        points: List<tk.glucodata.data.journal.JournalCurvePoint>,
-        upToMinute: Float
-    ): Float {
-        if (points.size < 2 || upToMinute <= points.first().minute) return 0f
-        var area = 0f
-        for (index in 0 until points.lastIndex) {
-            val start = points[index]
-            val end = points[index + 1]
-            if (upToMinute <= start.minute) break
-            val segmentEndMinute = minOf(upToMinute, end.minute.toFloat())
-            val segmentWidth = segmentEndMinute - start.minute
-            if (segmentWidth <= 0f) continue
-            val fullWidth = (end.minute - start.minute).coerceAtLeast(1).toFloat()
-            val endFraction = ((segmentEndMinute - start.minute) / fullWidth).coerceIn(0f, 1f)
-            val segmentEndActivity = start.activity + ((end.activity - start.activity) * endFraction)
-            area += ((start.activity + segmentEndActivity) * 0.5f) * segmentWidth
-            if (upToMinute <= end.minute) break
-        }
-        return area
     }
 
     private fun linearProgress(startMillis: Long, durationMinutes: Float, atMillis: Long): Float {

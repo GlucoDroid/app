@@ -109,6 +109,7 @@ fun AlarmScreen(
         PixelAlarmContent(
             primaryGlucose = primaryGlucose,
             alarmLabel = alarmLabel,
+            supportingText = supportingText,
             trend = trend,
             trendResult = trendResult,
             typographyChoice = typographyChoice,
@@ -122,6 +123,7 @@ fun AlarmScreen(
 private fun PixelAlarmContent(
     primaryGlucose: String,
     alarmLabel: String,
+    supportingText: String,
     trend: Trend,
     trendResult: TrendEngine.TrendResult,
     typographyChoice: AlarmTypographyChoice,
@@ -189,6 +191,7 @@ private fun PixelAlarmContent(
             ) {
                 AlarmHeader(
                     alarmLabel = alarmLabel,
+                    supportingText = supportingText,
                     compact = compact,
                     fontFamily = typographyChoice.fontFamily,
                     modifier = Modifier.padding(top = if (compact) 28.dp else 40.dp)
@@ -235,6 +238,7 @@ private fun PixelAlarmContent(
 @Composable
 private fun AlarmHeader(
     alarmLabel: String,
+    supportingText: String,
     compact: Boolean,
     fontFamily: FontFamily,
     modifier: Modifier = Modifier
@@ -266,6 +270,21 @@ private fun AlarmHeader(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            // What the alert actually says beyond its type name: expiry lead
+            // time, missed-reading duration, forecast horizon.
+            if (supportingText.isNotBlank()) {
+                Text(
+                    text = supportingText,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = fontFamily,
+                        fontWeight = FontWeight.W300,
+                        letterSpacing = 0.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

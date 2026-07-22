@@ -19,6 +19,7 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -634,6 +635,10 @@ class ICanHealthBleManager(
         provisionalSensorIdForAdoption = null
     }
 
+    override fun removeManagedPersistence(context: Context) {
+        ICanHealthRegistry.removeSensor(context, SerialNumber)
+    }
+
     override fun hasNativeSensorBacking(): Boolean {
         if (SerialNumber.isBlank() || ICanHealthConstants.isProvisionalSensorId(SerialNumber)) {
             return false
@@ -1069,7 +1074,21 @@ class ICanHealthBleManager(
         super.close()
     }
 
-    override fun getService(): UUID = ICanHealthConstants.CGM_SERVICE
+    override fun onBluetoothAdapterUnavailable() {
+        resetConnectionAttemptState()
+        clearGattTransportState()
+        mActiveBluetoothDevice = null
+        setUiStatus(
+            UiStatusKind.CUSTOM,
+            Applic.getContext().getString(tk.glucodata.R.string.status_bluetooth_off),
+        )
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    // Unpaired regional i3/i6 discovery cannot rely on 0x181F being present in
+    // every delivered advertisement, so use the existing unfiltered scan path.
+    override fun getService(): UUID? =
+        if (mActiveDeviceAddress.isNullOrBlank()) null else ICanHealthConstants.CGM_SERVICE
 
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
         val trimmedName = deviceName?.trim()?.takeIf { it.isNotEmpty() } ?: return false
@@ -1089,6 +1108,21 @@ class ICanHealthBleManager(
             return true
         }
         return ICanHealthConstants.isICanHealthDevice(trimmedName)
+    }
+
+    override fun matchScanResult(result: ScanResult): Boolean {
+        val address = result.device?.address?.trim()?.uppercase(Locale.US)
+        val knownAddress = mActiveDeviceAddress?.takeIf { it.isNotBlank() }
+        if (knownAddress != null) {
+            return address != null && address.equals(knownAddress, ignoreCase = true)
+        }
+        val record = result.scanRecord ?: return false
+        val advertisesCgmService = record.serviceUuids
+            ?.any { it.uuid == ICanHealthConstants.CGM_SERVICE } == true
+        val carriesCgmServiceData = record.serviceData
+            ?.keys
+            ?.any { it.uuid == ICanHealthConstants.CGM_SERVICE } == true
+        return advertisesCgmService || carriesCgmServiceData
     }
 
     override fun reconnect(now: Long): Boolean {

@@ -17,9 +17,11 @@ import androidx.compose.ui.unit.dp
 import tk.glucodata.R
 import tk.glucodata.alerts.AlertConfig
 import tk.glucodata.alerts.AlertDeliveryMode
+import tk.glucodata.alerts.AlertType
 import tk.glucodata.alerts.MAX_ALERT_DURATION_SECONDS
 import tk.glucodata.alerts.MIN_ALERT_DURATION_SECONDS
 import tk.glucodata.alerts.HapticProfile
+import tk.glucodata.alerts.maxSoundDelaySecondsFor
 import tk.glucodata.ui.components.StyledSwitch
 import tk.glucodata.ui.util.ConnectedButtonGroup
 
@@ -195,6 +197,54 @@ fun CommonAlertSettings(
                 modifier = Modifier.padding(horizontal = sectionHorizontalPadding),
                 valueText = { seconds -> "$seconds ${stringResource(R.string.sec)}" }
             )
+        }
+
+        // === Sound delay (vibrate first, audio after N seconds) ===
+        // Only meaningful when both sound and vibration are on: otherwise there
+        // is nothing to delay, or a silent gap with no signal at all.
+        AnimatedVisibility(visible = config.soundEnabled && config.vibrationEnabled) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ClickableToggleRow(
+                    icon = Icons.Default.Timer,
+                    title = stringResource(R.string.sound_delay_title),
+                    subtitle = stringResource(R.string.sound_delay_desc),
+                    checked = config.soundDelayEnabled,
+                    onCheckedChange = { onConfigChange(config.copy(soundDelayEnabled = it)) }
+                )
+                AnimatedVisibility(visible = config.soundDelayEnabled) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val maxDelay = maxSoundDelaySecondsFor(config.type)
+                        DurationSlider(
+                            label = stringResource(R.string.sound_delay_label),
+                            value = config.soundDelaySeconds.coerceIn(0, maxDelay),
+                            range = 0..maxDelay,
+                            stepSize = 5,
+                            onValueChange = { onConfigChange(config.copy(soundDelaySeconds = it)) },
+                            modifier = Modifier.padding(horizontal = sectionHorizontalPadding),
+                            valueText = { seconds -> "$seconds ${stringResource(R.string.sec)}" }
+                        )
+                        if (config.type == AlertType.LOW || config.type == AlertType.VERY_LOW) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = sectionHorizontalPadding),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    stringResource(R.string.sound_delay_hypo_warning),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // === Sound Settings (Conditional) ===

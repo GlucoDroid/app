@@ -1,4 +1,6 @@
 #include <math.h>
+#include <mutex>
+#include <stdint.h>
 #include "nums/numdata.hpp"
 #include "nightnumcategories.hpp"
 #include "settings/settings.hpp"
@@ -77,6 +79,72 @@ static long double iobformula(long double level, long double agemin,Insulin in) 
 
 
     
+/*
+The Java journal pushes its insulin/carb totals here on every glucose reading
+(Natives.setJournalIob). While fresh, they take precedence over the
+numdatas computation below, so webserver pollers (e.g. GlucoDataHandler's
+Juggluco IOB support reading /pebble) see the same numbers as the
+glucodata.Minute broadcast instead of zeros from an unused native store.
+The next30 arguments are the amounts delivered/absorbed in the 30 minutes
+after the push; they let serve time interpolate the decay between pushes.
+A push older than that window is stale (sensor gone, app layer dead) and
+/pebble falls back to the native computation. NAN means no journal data of
+that kind: iob falls back, cob is simply not served.
+*/
+static std::mutex journalmutex;
+static float journaliob=NAN,journaliobnext30=NAN,journalcob=NAN,journalcobnext30=NAN;
+static int64_t journaltime=0;
+constexpr int64_t journalwindowmsec=30LL*60LL*1000LL;
+
+void setjournaliob(float iob,float iobnext30,float cob,float cobnext30,int64_t timmsec) {
+   std::lock_guard<std::mutex> lock(journalmutex);
+   journaliob=iob;
+   journaliobnext30=iobnext30;
+   journalcob=cob;
+   journalcobnext30=cobnext30;
+   journaltime=timmsec;
+   }
+
+static double journalvalue(float value,float next30,int64_t agemsec) {
+   if(isnan(value))
+      return NAN;
+   if(isnan(next30)||agemsec<=0)
+      return value;
+   const double gone=next30*((double)agemsec/journalwindowmsec);
+   return fmax(0.0,value-gone);
+   }
+
+static bool journalfresh(int64_t agemsec) {
+   return journaltime!=0&&agemsec>=0&&agemsec<=journalwindowmsec;
+   }
+
+double getiob(uint32_t now);
+
+double pebbleiob(uint32_t now) {
+   {
+   std::lock_guard<std::mutex> lock(journalmutex);
+   const int64_t agemsec=now*1000LL-journaltime;
+   if(journalfresh(agemsec)) {
+      const double iob=journalvalue(journaliob,journaliobnext30,agemsec);
+      if(!isnan(iob))
+         return iob;
+      }
+   }
+   return getiob(now);
+   }
+
+bool pebblecob(uint32_t now,double *cob) {
+   std::lock_guard<std::mutex> lock(journalmutex);
+   const int64_t agemsec=now*1000LL-journaltime;
+   if(!journalfresh(agemsec))
+      return false;
+   const double value=journalvalue(journalcob,journalcobnext30,agemsec);
+   if(isnan(value))
+      return false;
+   *cob=value;
+   return true;
+   }
+
 double getiob(uint32_t now) {
 //   uint32_t oldage=now-6*60*60;
    uint32_t oldage=now-16*60*60;

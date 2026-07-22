@@ -240,8 +240,8 @@ object AnytimeConstants {
     /** Sensor rated lifetime. CT3 is 14, 15 or 16 days depending on chemistry. */
     const val DEFAULT_RATED_LIFETIME_DAYS = 16
 
-    /** Reading cadence — CT3 transmitter pushes ~every 1 minute via opcode 0x07. */
-    const val DEFAULT_READING_INTERVAL_MINUTES = 1
+    /** Reading cadence — CT3 records one glucose point every 3 minutes. */
+    const val DEFAULT_READING_INTERVAL_MINUTES = 3
 
     /** Warmup window before reliable readings. */
     const val DEFAULT_WARMUP_MINUTES = 60
@@ -284,7 +284,8 @@ object AnytimeConstants {
     /**
      * Per-prefix descriptor. `algorithm` is the int the JNI uses to dispatch into
      * the correct chemistry-specific pipeline inside libalgorithm-jni.so.
-     * `endNumber` is the maximum 5-min-tick packet count before session ends.
+     * `endNumber` is the approximate maximum 3-minute record count before the
+     * session ends (vendor tables include a small initialization allowance).
      */
     data class FamilyEntry(
         val prefix: String,
@@ -293,7 +294,7 @@ object AnytimeConstants {
         val endNumber: Int,
     ) {
         val ratedLifetimeDays: Int
-            get() = endNumber / 12 / 24 // 12 readings/hour × 24 hours
+            get() = endNumber / 20 / 24 // 20 readings/hour × 24 hours
 
         val matchUpper: String get() = prefix.uppercase(Locale.US)
     }

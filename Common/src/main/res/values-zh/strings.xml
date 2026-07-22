@@ -165,6 +165,7 @@
  <string name="addsensorenddate">将传感器结束日期添加到日历应用程序</string>
  <string name="enddatesensor">"传感器结束日期 "</string>
  <string name="open">打开</string>
+ <string name="share">分享</string>
  <string name="withoutsensor">没有传感器</string>
  <string name="wronglibrary">库功能不正常，请尝试另一个</string>
  <string name="installedlibrary">已安装库</string>
@@ -411,10 +412,10 @@
 
     <!-- Newly Extracted Strings -->
     <string name="import_history">导入历史记录</string>
-    <string name="import_history_desc">从 CSV 文件导入血糖数据</string>
+    <string name="import_history_desc">从 JugglucoNG 导出文件或 CSV 文件导入血糖数据</string>
     <string name="get_started_desc">首先添加您的传感器</string>
     <string name="select_sensor">选择传感器类型</string>
-    <string name="select_sibionics_type">选择传感器类型</string>
+    <string name="select_sibionics_type">选择 Sibionics 传感器</string>
     <string name="or_divider">"  或  "</string>
     <string name="no_sensors_connected">没有连接的传感器</string>
     <string name="enter_sensor_codes">输入传感器代码</string>
@@ -434,7 +435,7 @@
     <string name="select_gallery_button">从图库选择</string>
     <string name="skip_fake_sensor">跳过 (使用模拟传感器)</string>
     <string name="enter_code_manually">手动输入代码</string>
-    <string name="choose_sibionics_variant">选择您的 Sibionics 传感器型号</string>
+    <string name="choose_sibionics_variant">请选择包装上标示的型号。</string>
     <string name="continue_action">继续</string>
     <string name="sensor_init_failed">传感器初始化失败</string>
     <string name="sensor_lost_restart">错误：传感器丢失。重新开始设置。</string>
@@ -454,7 +455,9 @@
     <string name="export_history_title">导出历史记录</string>
     <string name="export_history_sub">将读数保存到 CSV 或文本文件</string>
     <string name="import_history_title">导入历史记录</string>
-    <string name="import_history_sub">从 CSV 文件恢复读数</string>
+    <string name="import_history_sub">从 JugglucoNG 导出文件或 CSV 文件恢复血糖读数</string>
+    <string name="import_no_glucose">此文件中没有血糖数据</string>
+    <string name="import_unsupported_file">不支持此文件。请选择 JugglucoNG 导出文件（JSON）或血糖历史 CSV 文件。</string>
     <string name="clear_history_title">清除历史记录？</string>
     <string name="clear_history_confirmation">这将从数据库中删除所有血糖读数。此操作无法撤销。</string>
     <string name="delete_reading_title">删除读数？</string>
@@ -550,7 +553,12 @@
     <string name="hostname">主机名</string>
 
     <!-- New Code Translations -->
-    <string name="auto_calibration_mode">自动校准模式</string>
+    <string name="auto_calibration_mode">传感器算法</string>
+    <string name="sibionics_custom_algorithm">自适应传感器模型（实验性）</string>
+    <string name="sibionics_custom_algorithm_desc">补偿传感器漂移、生理延迟和信号伪影</string>
+    <string name="sibionics_stock_algorithm_desc">Sibionics 默认</string>
+    <string name="sibionics_stock_algorithm_detail">在传感器算法内部使用血糖仪校准</string>
+    <string name="sibionics_restart_algorithm_desc">从已保存的传感器历史重建每分钟算法状态</string>
     <string name="juggluco_native">Juggluco 原生</string>
     <string name="window_label">窗口</string>
     <string name="auto_restart_algorithm">自动重启算法</string>
@@ -676,7 +684,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibrate_a">视觉模式</string>
     <string name="calibrated">Calibrated</string>
     <string name="calibratepast">Apply to past</string>
-    <string name="calibration">Calibration</string>
+    <string name="calibration">校准</string>
     <string name="calibration_algorithm">Calibration Algorithm</string>
     <string name="calibrations">Calibrations</string>
     <string name="caresens_air_scan_instruction">扫描 CareSens Air 包装上的传感器代码</string>
@@ -708,7 +716,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dexfuture">Predict (Dexcom)</string>
     <string name="disabled_status">Disabled</string>
     <string name="disconnect">Disconnect</string>
-    <string name="disconnect_sensor_aidex_desc">这将断开传感器的连接。配对密钥和历史记录都会被保留 - 您可以稍后重新连接。</string>
+    <string name="disconnect_sensor_aidex_desc">传感器将从此设备中移除，其历史记录仍会保留。</string>
+    <string name="unbind_sensor">解除传感器绑定</string>
+    <string name="unbind_sensor_desc">解除配对，以便其他设备可以连接。</string>
     <string name="disconnect_sensor_desc">This will permanently stop the sensor session.</string>
     <string name="disconnect_sensor_title">Disconnect Sensor?</string>
     <string name="enabled_status">Enabled</string>
@@ -1337,6 +1347,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_probe_empty">暂未发现 FF30 Sibionics 设备。</string>
     <string name="sibionics_ble_selected">已选择：%1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">使用该 BLE 名称生成伪二维码信息</string>
+    <string name="sibionics_use_ble_device">使用此 Bluetooth 设备</string>
+    <string name="sibionics_legacy_driver_title">旧版驱动</string>
+    <string name="sibionics_legacy_driver_desc">仅为兼容现有设置时使用旧版专有驱动。</string>
+    <string name="sibionics_managed_sensor_added">已添加托管 Sibionics 传感器：%1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
     <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
@@ -1945,4 +1959,75 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_import_export_ready">%1$s 的已保存材料已就绪。</string>
     <string name="ottai_credentials_import">导入</string>
     <string name="ottai_credentials_replace">替换</string>
+
+    <!-- PR feature translations: trend, alerts, palette, and expiry. -->
+    <string name="alert_falling_fast">快速下降</string>
+    <string name="alert_rising_fast">快速崛起</string>
+    <string name="broadcast_computed_trend_title">广播应用趋势</string>
+    <string name="broadcast_computed_trend_desc">使用应用趋势代替传感器趋势</string>
+    <string name="dashboard_show_delta_desc">趋势箭头下方的 Delta 间隔内测得的变化</string>
+    <string name="dashboard_show_delta_title">仪表板上的 Delta (Δ)</string>
+    <string name="delta_alarm_interval_follow">类似于 Δ 读数（当前为 %1$d 分钟）</string>
+    <string name="delta_alarm_interval_label">德尔塔窗</string>
+    <string name="delta_border_above_label">仅在上方报警</string>
+    <string name="delta_border_below_label">仅在下方报警</string>
+    <string name="delta_change_label">每 %1$d 分钟变化</string>
+    <string name="delta_count_label">连续读数</string>
+    <string name="delta_early_trigger_desc">一旦跑完总距离 (%1$s %2$s)，无论经过了多少个间隔，也会立即开火</string>
+    <string name="delta_early_trigger_label">早期触发</string>
+    <string name="delta_interval_1min">1分钟</string>
+    <string name="delta_interval_5min">5分钟</string>
+    <string name="delta_interval_desc">Δ 读数的时间窗口；除非给定自己的窗口，否则下降/上升警报会跟随它</string>
+    <string name="delta_interval_title">增量 (Δ) 间隔</string>
+    <string name="falling_fast_explanation">当连续 %1$d 个 %2$d 分钟区间均下降至少 %3$s（约持续下降 %4$d 分钟），且数值等于或低于 %5$s 时发出警告。不做预测，只依据原始趋势。</string>
+    <string name="glucose_palette_band_high">高</string>
+    <string name="glucose_palette_band_in_range">在范围内</string>
+    <string name="glucose_palette_band_low">低</string>
+    <string name="glucose_palette_band_very_high">非常高</string>
+    <string name="glucose_palette_band_very_low">很低</string>
+    <string name="glucose_palette_bands_label">每频段颜色</string>
+    <string name="glucose_palette_custom_suffix">+ 调整</string>
+    <string name="glucose_palette_edit">编辑</string>
+    <string name="glucose_palette_edit_title">葡萄糖颜色</string>
+    <string name="glucose_palette_preset_custom">定制</string>
+    <string name="glucose_palette_preset_gdh">类GDH</string>
+    <string name="glucose_palette_preset_label">预设</string>
+    <string name="glucose_palette_preset_muted">静音</string>
+    <string name="glucose_palette_preset_vibrant">充满活力</string>
+    <string name="glucose_palette_reset">重置</string>
+    <string name="glucose_palette_reset_all">重置所有颜色</string>
+    <string name="glucose_palette_title">葡萄糖调色板</string>
+    <string name="notification_show_delta_desc">箭头旁边测量的增量间隔变化</string>
+    <string name="notification_show_delta_title">显示增量 (Δ)</string>
+    <string name="rising_fast_explanation">当连续 %1$d 个 %2$d 分钟区间均上升至少 %3$s（约持续上升 %4$d 分钟），且数值等于或高于 %5$s 时发出警告。不做预测，只依据原始趋势。</string>
+    <string name="sensor_expiry_group_days">天数</string>
+    <string name="sensor_expiry_group_hours">时间</string>
+    <string name="sensor_expiry_warnings_desc">每个选定的时间每个传感器都会发出一次警告</string>
+    <string name="sensor_expiry_warnings_title">到期前警告</string>
+    <string name="sound_delay_desc">先振动；仅在延迟后添加声音警报</string>
+    <string name="sound_delay_hypo_warning">注意：这会延迟低血糖警报的声音警报。</string>
+    <string name="sound_delay_label">声音延迟</string>
+    <string name="sound_delay_title">延时报警声</string>
+    <plurals name="sensor_expires_in_days">
+        <item quantity="one">传感器在 %d 天到期</item>
+        <item quantity="other">传感器在 %d 天后过期</item>
+    </plurals>
+    <plurals name="sensor_expires_in_hours">
+        <item quantity="one">传感器在 %d 小时后过期</item>
+        <item quantity="other">传感器在 %d 小时后过期</item>
+    </plurals>
+    <string name="sibionics_glucose_model">葡萄糖模型</string>
+    <string name="sibionics_stock_model_detail">精确的 Sibionics 原厂算法</string>
+    <string name="sibionics_responsive_algorithm">快速响应</string>
+    <string name="sibionics_responsive_algorithm_desc">原始的趋势感知葡萄糖与变化速度估算模型</string>
+    <string name="sibionics_balanced_algorithm">轻度平滑</string>
+    <string name="sibionics_balanced_algorithm_desc">紧随原厂模型的有限降噪</string>
+    <string name="sibionics_state_algorithm">自适应校正</string>
+    <string name="sibionics_state_algorithm_desc">补偿传感器漂移、生理延迟和信号伪影</string>
+    <string name="sibionics_auto_reset_22_desc">接近第 22 天时重置，并优先选择血糖较平稳的时段。即使关闭此项，也会在到期前执行安全重置。</string>
+    <string name="sibionics_reset_reminder_title">Sibionics 2 即将需要重置</string>
+    <string name="sibionics_reset_reminder_text">传感器约在 %1$d 小时后到达重置时间。请及时重置以保持运行。</string>
+    <string name="sibionics_reset_postpone">推迟 2 小时</string>
+    <string name="sibionics_reset_reminder_channel">Sibionics 重置提醒</string>
+    <string name="sibionics_reset_reminder_channel_desc">Sibionics 2 到期前的重置提醒和操作</string>
 </resources>
