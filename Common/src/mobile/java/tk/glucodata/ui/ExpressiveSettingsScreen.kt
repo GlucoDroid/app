@@ -272,6 +272,15 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.MIDDLE
                 )
 
+                SettingsItem(
+                    title = stringResource(R.string.display_colors_title),
+                    subtitle = stringResource(R.string.display_colors_desc),
+                    icon = Icons.Default.Palette,
+                    iconTint = glucoseColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/display-colors") }
+                )
+
                 ManualCalibrationSettingsItem(
                     calibrationEnabled = calibrationEnabled,
                     modeLabel = calibrationModeLabel,

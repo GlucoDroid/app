@@ -1,59 +1,66 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package tk.glucodata.ui
 
 import android.graphics.Color as AndroidColor
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.GlucoseRangeColors.Band
 import tk.glucodata.GlucoseRangeColors.Palette
 import tk.glucodata.R
 import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.CompactSheetDragHandle
+import tk.glucodata.ui.components.ExpressiveHueWheelPicker
 import tk.glucodata.ui.components.SettingsItem
 
-// The three selectable base presets (CUSTOM is a derived state, not a chip).
 private val BASE_PRESETS = listOf(Palette.MUTED, Palette.VIBRANT, Palette.GDH_LIKE)
+private val BAND_ORDER = listOf(Band.VERY_LOW, Band.LOW, Band.IN_RANGE, Band.HIGH, Band.VERY_HIGH)
 
 private fun presetLabelRes(palette: Palette): Int = when (palette) {
     Palette.MUTED -> R.string.glucose_palette_preset_muted
@@ -61,10 +68,6 @@ private fun presetLabelRes(palette: Palette): Int = when (palette) {
     Palette.GDH_LIKE -> R.string.glucose_palette_preset_gdh
     Palette.CUSTOM -> R.string.glucose_palette_preset_custom
 }
-
-private val BAND_ORDER = listOf(
-    Band.VERY_LOW, Band.LOW, Band.IN_RANGE, Band.HIGH, Band.VERY_HIGH
-)
 
 private fun bandLabelRes(band: Band): Int = when (band) {
     Band.VERY_LOW -> R.string.glucose_palette_band_very_low
@@ -74,7 +77,6 @@ private fun bandLabelRes(band: Band): Int = when (band) {
     Band.VERY_HIGH -> R.string.glucose_palette_band_very_high
 }
 
-/** Effective ARGB for a band (override or preset), for the given theme. */
 private fun effectiveBandColor(band: Band, dark: Boolean): Int = when (band) {
     Band.VERY_LOW -> GlucoseRangeColors.veryLow(dark)
     Band.LOW -> GlucoseRangeColors.low(dark)
@@ -83,26 +85,17 @@ private fun effectiveBandColor(band: Band, dark: Boolean): Int = when (band) {
     Band.VERY_HIGH -> GlucoseRangeColors.veryHigh(dark)
 }
 
-/**
- * Settings entry for the glucose colour palette. Renders a row with an inline
- * live preview of the five bands; tapping it opens the editor (preset choice +
- * per-band custom colours). Reads [GlucosePaletteState.revision] so both the
- * preview and the editor update the instant a colour changes.
- */
 @Composable
 fun GlucosePaletteCard(position: CardPosition = CardPosition.SINGLE) {
     val revision = GlucosePaletteState.revision
     val isDark = isSystemInDarkTheme()
     var showEditor by remember { mutableStateOf(false) }
-
     val activePreset = remember(revision) { GlucosePaletteState.palette() }
     val hasOverrides = remember(revision) { GlucosePaletteState.hasAnyOverride() }
-    val subtitle = buildString {
-        append(stringResource(presetLabelRes(activePreset)))
-        if (hasOverrides) {
-            append(" ")
-            append(stringResource(R.string.glucose_palette_custom_suffix))
-        }
+    val subtitle = if (hasOverrides) {
+        stringResource(R.string.glucose_palette_preset_custom)
+    } else {
+        stringResource(presetLabelRes(activePreset))
     }
 
     SettingsItem(
@@ -125,259 +118,271 @@ fun GlucosePaletteCard(position: CardPosition = CardPosition.SINGLE) {
     )
 
     if (showEditor) {
-        GlucosePaletteEditorDialog(onDismiss = { showEditor = false })
+        GlucosePaletteEditorSheet(onDismiss = { showEditor = false })
     }
 }
 
 @Composable
-private fun GlucosePaletteEditorDialog(onDismiss: () -> Unit) {
-    val context = LocalContext.current
+private fun GlucosePaletteEditorSheet(onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val revision = GlucosePaletteState.revision
     val isDark = isSystemInDarkTheme()
     val activePreset = remember(revision) { GlucosePaletteState.palette() }
     val hasOverrides = remember(revision) { GlucosePaletteState.hasAnyOverride() }
     var editingBand by remember { mutableStateOf<Band?>(null) }
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.glucose_palette_edit_title)) },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text(
-                    stringResource(R.string.glucose_palette_preset_label),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        dragHandle = { CompactSheetDragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            val band = editingBand
+            if (band == null) {
+                PaletteOverview(
+                    activePreset = activePreset,
+                    hasOverrides = hasOverrides,
+                    isDark = isDark,
+                    onPresetSelected = { GlucosePaletteState.setPalette(context, it) },
+                    onBandSelected = { editingBand = it },
+                    onResetAll = { GlucosePaletteState.clearOverrides(context) },
+                    onDismiss = onDismiss
                 )
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BASE_PRESETS.forEach { preset ->
-                        FilterChip(
-                            selected = activePreset == preset && !hasOverrides,
-                            onClick = { GlucosePaletteState.setPalette(context, preset) },
-                            label = { Text(stringResource(presetLabelRes(preset))) }
-                        )
-                    }
+            } else {
+                key(band, revision) {
+                    BandColorEditor(
+                        band = band,
+                        initialArgb = effectiveBandColor(band, isDark),
+                        isOverridden = GlucosePaletteState.override(band) != null,
+                        onBack = { editingBand = null },
+                        onSave = { color ->
+                            GlucosePaletteState.setOverride(context, band, color)
+                            editingBand = null
+                        },
+                        onReset = {
+                            GlucosePaletteState.setOverride(context, band, null)
+                            editingBand = null
+                        }
+                    )
                 }
+            }
+        }
+    }
+}
 
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    stringResource(R.string.glucose_palette_bands_label),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(6.dp))
-                BAND_ORDER.forEach { band ->
-                    val overridden = GlucosePaletteState.override(band) != null
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ColumnScope.PaletteOverview(
+    activePreset: Palette,
+    hasOverrides: Boolean,
+    isDark: Boolean,
+    onPresetSelected: (Palette) -> Unit,
+    onBandSelected: (Band) -> Unit,
+    onResetAll: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    SheetHeader(
+        title = stringResource(R.string.glucose_palette_edit_title),
+        onClose = onDismiss
+    )
+    Text(
+        text = stringResource(R.string.glucose_palette_sheet_desc),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(34.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        BAND_ORDER.forEachIndexed { index, band ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(34.dp)
+                    .background(
+                        Color(effectiveBandColor(band, isDark)),
+                        when (index) {
+                            0 -> RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)
+                            BAND_ORDER.lastIndex -> RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp)
+                            else -> RoundedCornerShape(4.dp)
+                        }
+                    )
+            )
+        }
+    }
+
+    Text(
+        text = stringResource(R.string.glucose_palette_preset_label),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary
+    )
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        BASE_PRESETS.forEach { preset ->
+            FilterChip(
+                selected = activePreset == preset && !hasOverrides,
+                onClick = { onPresetSelected(preset) },
+                label = { Text(stringResource(presetLabelRes(preset))) }
+            )
+        }
+    }
+
+    Text(
+        text = stringResource(R.string.glucose_palette_bands_label),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        BAND_ORDER.forEachIndexed { index, band ->
+            val overridden = GlucosePaletteState.override(band) != null
+            SettingsItem(
+                title = stringResource(bandLabelRes(band)),
+                subtitle = if (overridden) stringResource(R.string.glucose_palette_preset_custom) else null,
+                onClick = { onBandSelected(band) },
+                position = when (index) {
+                    0 -> CardPosition.TOP
+                    BAND_ORDER.lastIndex -> CardPosition.BOTTOM
+                    else -> CardPosition.MIDDLE
+                },
+                trailingContent = {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                                .background(Color(effectiveBandColor(band, isDark)), RoundedCornerShape(8.dp))
-                                .pointerInput(band) { detectTapGestures { editingBand = band } }
+                                .size(30.dp)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                                .background(Color(effectiveBandColor(band, isDark)), RoundedCornerShape(10.dp))
                         )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            stringResource(bandLabelRes(band)),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f)
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (overridden) {
-                            TextButton(onClick = { GlucosePaletteState.setOverride(context, band, null) }) {
-                                Text(stringResource(R.string.glucose_palette_reset))
-                            }
-                        }
-                        TextButton(onClick = { editingBand = band }) {
-                            Text(stringResource(R.string.glucose_palette_edit))
-                        }
                     }
                 }
-
-                if (hasOverrides) {
-                    Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = { GlucosePaletteState.clearOverrides(context) }) {
-                        Text(stringResource(R.string.glucose_palette_reset_all))
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) }
+            )
         }
-    )
-
-    editingBand?.let { band ->
-        val initial = effectiveBandColor(band, isDark)
-        HsvColorPickerDialog(
-            title = stringResource(bandLabelRes(band)),
-            initialArgb = initial,
-            isOverridden = GlucosePaletteState.override(band) != null,
-            onConfirm = { argb ->
-                GlucosePaletteState.setOverride(context, band, argb)
-                editingBand = null
-            },
-            onReset = {
-                GlucosePaletteState.setOverride(context, band, null)
-                editingBand = null
-            },
-            onDismiss = { editingBand = null }
-        )
+    }
+    if (hasOverrides) {
+        TextButton(onClick = onResetAll, modifier = Modifier.align(Alignment.End)) {
+            Text(stringResource(R.string.glucose_palette_reset_all))
+        }
     }
 }
 
-/**
- * Lightweight HSV colour picker (saturation/value panel + hue slider). No
- * external dependency. Overrides intentionally apply to both themes.
- */
 @Composable
-private fun HsvColorPickerDialog(
-    title: String,
+private fun ColumnScope.BandColorEditor(
+    band: Band,
     initialArgb: Int,
     isOverridden: Boolean,
-    onConfirm: (Int) -> Unit,
-    onReset: () -> Unit,
-    onDismiss: () -> Unit
+    onBack: () -> Unit,
+    onSave: (Int) -> Unit,
+    onReset: () -> Unit
 ) {
-    val hsv = remember(initialArgb) {
+    val initialHsv = remember(initialArgb) {
         FloatArray(3).also { AndroidColor.colorToHSV(initialArgb or (0xFF shl 24), it) }
     }
-    var hue by remember(initialArgb) { mutableFloatStateOf(hsv[0]) }
-    var sat by remember(initialArgb) { mutableFloatStateOf(hsv[1]) }
-    var value by remember(initialArgb) { mutableFloatStateOf(hsv[2]) }
+    var hue by remember { mutableFloatStateOf(initialHsv[0]) }
+    var saturation by remember { mutableFloatStateOf(initialHsv[1]) }
+    var brightness by remember { mutableFloatStateOf(initialHsv[2]) }
+    val currentArgb = AndroidColor.HSVToColor(floatArrayOf(hue, saturation, brightness))
 
-    val currentArgb = AndroidColor.HSVToColor(floatArrayOf(hue, sat, value))
-    val hexText = String.format("#%06X", currentArgb and 0xFFFFFF)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                            .background(Color(currentArgb), RoundedCornerShape(8.dp))
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(hexText, style = MaterialTheme.typography.titleMedium)
-                }
-                Spacer(Modifier.height(12.dp))
-                SaturationValuePanel(
-                    hue = hue,
-                    saturation = sat,
-                    value = value,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1.4f)
-                ) { s, v -> sat = s; value = v }
-                Spacer(Modifier.height(12.dp))
-                HueSlider(
-                    hue = hue,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                ) { hue = it }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(currentArgb or (0xFF shl 24)) }) {
-                Text(stringResource(android.R.string.ok))
-            }
-        },
-        dismissButton = {
-            Row {
-                if (isOverridden) {
-                    TextButton(onClick = onReset) {
-                        Text(stringResource(R.string.glucose_palette_reset))
-                    }
-                }
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.navigate_back))
         }
+        Text(
+            text = stringResource(bandLabelRes(band)),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
+        )
+    }
+    Surface(
+        modifier = Modifier
+            .size(68.dp)
+            .align(Alignment.CenterHorizontally),
+        shape = CircleShape,
+        color = Color(currentArgb),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {}
+    Text(
+        text = String.format("#%06X", currentArgb and 0xFFFFFF),
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.align(Alignment.CenterHorizontally)
     )
-}
-
-@Composable
-private fun SaturationValuePanel(
-    hue: Float,
-    saturation: Float,
-    value: Float,
-    modifier: Modifier = Modifier,
-    onChange: (Float, Float) -> Unit
-) {
-    var panelSize by remember { mutableStateOf(IntSize.Zero) }
-    val hueColor = Color(AndroidColor.HSVToColor(floatArrayOf(hue, 1f, 1f)))
-
-    fun report(pos: Offset) {
-        val w = panelSize.width.coerceAtLeast(1)
-        val h = panelSize.height.coerceAtLeast(1)
-        val s = (pos.x / w).coerceIn(0f, 1f)
-        val v = (1f - pos.y / h).coerceIn(0f, 1f)
-        onChange(s, v)
-    }
-
-    Box(
-        modifier = modifier
-            .onSizeChanged { panelSize = it }
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-            .pointerInput(Unit) { detectTapGestures { report(it) } }
-            .pointerInput(Unit) {
-                detectDragGestures(onDragStart = { report(it) }) { change, _ -> report(change.position) }
-            }
+    ExpressiveHueWheelPicker(hue = hue, onHueChange = { hue = it })
+    PaletteSlider(
+        label = stringResource(R.string.glucose_palette_saturation),
+        value = saturation,
+        onValueChange = { saturation = it }
+    )
+    PaletteSlider(
+        label = stringResource(R.string.glucose_palette_brightness),
+        value = brightness,
+        onValueChange = { brightness = it }
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawRect(hueColor)
-            drawRect(Brush.horizontalGradient(listOf(Color.White, Color.Transparent)))
-            drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
-            val cx = saturation * size.width
-            val cy = (1f - value) * size.height
-            drawCircle(Color.White, radius = 7f, center = Offset(cx, cy))
-            drawCircle(Color.Black, radius = 7f, center = Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f))
+        if (isOverridden) {
+            TextButton(onClick = onReset) {
+                Text(stringResource(R.string.glucose_palette_reset))
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick = onBack) {
+            Text(stringResource(R.string.cancel))
+        }
+        Button(onClick = { onSave(currentArgb or (0xFF shl 24)) }) {
+            Text(stringResource(R.string.save))
         }
     }
 }
 
 @Composable
-private fun HueSlider(
-    hue: Float,
-    modifier: Modifier = Modifier,
-    onHueChange: (Float) -> Unit
+private fun PaletteSlider(
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit
 ) {
-    var barSize by remember { mutableStateOf(IntSize.Zero) }
-    val hueColors = remember {
-        (0..360 step 30).map { Color(AndroidColor.HSVToColor(floatArrayOf(it.toFloat(), 1f, 1f))) }
-    }
-
-    fun report(x: Float) {
-        val w = barSize.width.coerceAtLeast(1)
-        onHueChange((x / w).coerceIn(0f, 1f) * 360f)
-    }
-
-    Box(
-        modifier = modifier
-            .onSizeChanged { barSize = it }
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-            .pointerInput(Unit) { detectTapGestures { report(it.x) } }
-            .pointerInput(Unit) {
-                detectDragGestures(onDragStart = { report(it.x) }) { change, _ -> report(change.position.x) }
-            }
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawRoundRect(
-                brush = Brush.horizontalGradient(hueColors),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f)
+    Column {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Text(
+                text = "${(value * 100).toInt()}%",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            val cx = (hue / 360f) * size.width
-            drawCircle(Color.White, radius = size.height / 2f - 2f, center = Offset(cx, size.height / 2f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f))
+        }
+        Slider(value = value, onValueChange = onValueChange, valueRange = 0f..1f)
+    }
+}
+
+@Composable
+private fun SheetHeader(title: String, onClose: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onClose) {
+            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel))
         }
     }
 }

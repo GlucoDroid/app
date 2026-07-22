@@ -784,6 +784,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/notification-display") {
                         NotificationSettingsScreen(navController, dashboardViewModel)
                     }
+                    composable("settings/display-colors") {
+                        DisplayAndColorSettingsScreen(navController, dashboardViewModel)
+                    }
                     composable("settings/data-smoothing") {
                         DataSmoothingSettingsScreen(navController, dashboardViewModel)
                     }
@@ -926,6 +929,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/webserver") { WebServerSettingsScreen(navController) }
                 composable("settings/notification-display") {
                     NotificationSettingsScreen(navController, dashboardViewModel)
+                }
+                composable("settings/display-colors") {
+                    DisplayAndColorSettingsScreen(navController, dashboardViewModel)
                 }
                 composable("settings/data-smoothing") {
                     DataSmoothingSettingsScreen(navController, dashboardViewModel)
