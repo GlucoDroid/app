@@ -1414,12 +1414,6 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="wear_transport_runtime_unavailable">Wear-Transport-Laufzeit ist in dieser App-Sitzung nicht verfügbar.</string>
     <string name="wear_transport_gms_unavailable">Google Play Dienste nicht verfügbar; Wear-Transport ist deaktiviert.</string>
     <string name="wear_transport_reinit_desc">Neue Uhrensuche und Netzwerk-Synchronisierung erzwingen.</string>
-    <string name="wear_transport">Wear transport</string>
-    <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
-    <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
-    <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
-    <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
-    <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
     <string name="wear_watch_app_missing">Watch-App fehlt</string>
     <string name="wear_watch_app_missing_hint">Installieren Sie Juggluco auf dieser Watch und tippen Sie dann auf Aktualisieren.</string>
     <string name="wear_direct_sensor_on_watch">Direkter Sensor auf der Watch</string>

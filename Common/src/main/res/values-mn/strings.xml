@@ -517,9 +517,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="sensor_state">Төлөв</string>
     <string name="no_sensors_found">Мэдрэгч олдсонгүй</string>
     <string name="add_sensor">Мэдрэгч нэмэх</string>
-    <string name="no_sensors_found">No sensors found</string>
     <string name="wear_libre_nfc_caveat">Libre мэдрэгчийг эхлээд утасны NFC-ээр идэвхжүүлнэ. Идэвхжүүлсний дараа энэ цаг үргэлжлүүлэн хүлээн авч чадна.</string>
-    <string name="add_sensor">Add Sensor</string>
     <string name="sensors_title">Мэдрэгчүүд</string>
     <string name="add_sensor_title">Мэдрэгч нэмэх</string>
     <!-- Sensor Screen Strings -->

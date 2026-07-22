@@ -1,12 +1,22 @@
 package tk.glucodata.ui.components
 
-import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.unit.dp
 import tk.glucodata.logic.TrendEngine
 
-// Thin wrapper: the actual arrow lives in src/main TrendArrowCanvas so the
-// wear hero card renders the identical arrow.
 @Composable
 fun TrendIndicator(
     trendResult: TrendEngine.TrendResult,
@@ -15,13 +25,6 @@ fun TrendIndicator(
     outlineColor: Color? = null,
     shadowColor: Color? = null
 ) {
-    TrendArrowCanvas(
-        velocity = trendResult.velocity,
-        pulseKey = trendResult,
-        modifier = modifier,
-        color = color,
-        outlineColor = outlineColor,
-        shadowColor = shadowColor,
     // "Optically Correct Arrow" Engine
     // 1. Visual: 90-degree Head, Round Caps/Joins, Optical Centering.
     // 2. Logic: shared TrendArrowAngle math — 45 deg per mg/dL/min, vertical
