@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -310,6 +311,7 @@ fun WearOsConfigScreen(navController: NavController) {
     var directOnWatch by rememberSaveable { mutableStateOf(false) }
     var enterOnWatch by rememberSaveable { mutableStateOf(false) }
     var refreshingNodes by remember { mutableStateOf(false) }
+    var syncStatus by remember { mutableStateOf(WatchInterop.getWearSyncStatus()) }
 
     fun applyNodes(latest: List<WatchInterop.WearNodeInfo>) {
         nodes = latest
@@ -326,6 +328,7 @@ fun WearOsConfigScreen(navController: NavController) {
                 WatchInterop.getWearNodes()
             }
             applyNodes(latest)
+            syncStatus = WatchInterop.getWearSyncStatus()
         } finally {
             refreshingNodes = false
         }
@@ -355,6 +358,11 @@ fun WearOsConfigScreen(navController: NavController) {
     val selectedAppInstalled = selected?.appInstalled == true
     val canSetDirect = selectedAppInstalled && (selected?.directSensorMode?.let { it >= 0 } == true)
     val canSetNums = selectedAppInstalled && (selected?.watchNumsMode?.let { it >= 0 } == true)
+    fun timeStatus(timeMs: Long): String = if (timeMs <= 0L) {
+        "Never"
+    } else {
+        DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(timeMs))
+    }
 
     Scaffold(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
@@ -382,7 +390,7 @@ fun WearOsConfigScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item("wear_nodes") {
-                SectionLabel("Connected watches", topPadding = 0.dp)
+                SectionLabel("Watch status", topPadding = 0.dp)
                 if (nodes.isEmpty()) {
                     SettingsItem(
                         title = "No Wear OS watches found",
@@ -405,8 +413,13 @@ fun WearOsConfigScreen(navController: NavController) {
                             } else {
                                 stringResource(R.string.wear_watch_app_missing)
                             }
+                            val liveStatus = if (isSelected) {
+                                val chunks = syncStatus.lastChunkCount
+                                "\nHistory served: ${timeStatus(syncStatus.lastServedMs)}${if (chunks > 0) " ($chunks chunks)" else ""}" +
+                                    "\nNetwork info: ${timeStatus(syncStatus.lastNetInfoExchangeMs)}"
+                            } else ""
                             val appSubtitle = if (node.appInstalled) {
-                                "$appStatus • ${node.id}"
+                                "$appStatus • ${node.id}$liveStatus"
                             } else {
                                 "$appStatus • ${node.id}\n${stringResource(R.string.wear_watch_app_missing_hint)}"
                             }
@@ -469,9 +482,9 @@ fun WearOsConfigScreen(navController: NavController) {
                     SettingsItem(
                         title = "Enter amounts on watch",
                         subtitle = if (enterOnWatch) {
-                            "Watch entry enabled"
+                            "Entries made on the watch are stored and synced to the phone."
                         } else {
-                            "Phone entry only"
+                            "Amounts can only be entered on the phone."
                         },
                         icon = Icons.Filled.Edit,
                         iconTint = MaterialTheme.colorScheme.primary,
@@ -497,22 +510,18 @@ fun WearOsConfigScreen(navController: NavController) {
             }
 
             item("wear_actions") {
+                SectionLabel("Actions", topPadding = 0.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
+                    FilledTonalButton(
                         onClick = {
                             if (selected == null) {
                                 Toast.makeText(context, "No watch selected", Toast.LENGTH_SHORT).show()
                             } else {
-                                // Blocking Data Layer awaits inside — never on main.
                                 scope.launch {
-                                    val ok = withContext(Dispatchers.IO) {
-                                        WatchInterop.applyStandaloneSensorMode(
-                                            nodeId = selected.id,
-                                            isGalaxy = selected.isGalaxy,
-                                            directOnWatch = directOnWatch,
-                                            enterOnWatch = enterOnWatch
-                                        )
+                                    val routingOk = withContext(Dispatchers.IO) {
+                                        WatchInterop.applyStandaloneSensorMode(selected.id, selected.isGalaxy, directOnWatch, enterOnWatch)
                                     }
+                                    val ok = routingOk && WatchInterop.syncWearNow()
                                     Toast.makeText(
                                         context,
                                         if (ok) context.getString(R.string.saved) else context.getString(R.string.wentwrong),
@@ -523,11 +532,11 @@ fun WearOsConfigScreen(navController: NavController) {
                             }
                         },
                         enabled = selectedAppInstalled,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Icon(Icons.Filled.Sync, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Apply routing")
+                        Text("Sync now")
                     }
                     OutlinedButton(
                         onClick = {
@@ -540,18 +549,18 @@ fun WearOsConfigScreen(navController: NavController) {
                                     }
                                     Toast.makeText(
                                         context,
-                                        if (ok) "Start command sent to watch" else context.getString(R.string.wentwrong),
+                                        if (ok) "Restart command sent to watch" else context.getString(R.string.wentwrong),
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
                             }
                         },
                         enabled = selectedAppInstalled,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                        Icon(Icons.Filled.Refresh, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Start watch app")
+                        Text("Restart watch app")
                     }
                     OutlinedButton(
                         onClick = {
@@ -571,18 +580,16 @@ fun WearOsConfigScreen(navController: NavController) {
                             }
                         },
                         enabled = selectedAppInstalled,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Icon(Icons.Filled.Settings, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Apply defaults")
+                        Text("Send defaults")
                     }
-                    OutlinedButton(
+                    TextButton(
                         onClick = { uriHandler.openUri("https://www.juggluco.nl/JugglucoWearOS/intro/index.html") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(Icons.Filled.Info, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.helpname))
                     }
                 }

@@ -1373,7 +1373,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="wear_watch_app_missing">Saat uygulaması eksik</string>
     <string name="wear_watch_app_missing_hint">Bu saate Juggluco\'yu yükleyin, ardından yenile\'ye dokunun.</string>
     <string name="wear_direct_sensor_on_watch">Saatte doğrudan sensör</string>
-    <string name="wear_direct_sensor_watch_desc">Bağımsız mod: saat sensörü tarar.</string>
+    <string name="wear_direct_sensor_watch_desc">Saat sensörü arar ve ilk kabul edilen ölçümden sonra Bluetooth\'u devralır.</string>
     <string name="wear_direct_sensor_phone_desc">Yardımcı mod: telefon tarar ve değerleri gönderir.</string>
     <string name="web_server_desc">Nightscout uyumlu web sunucusu</string>
     <string name="invalid_interval">Invalid interval value</string>

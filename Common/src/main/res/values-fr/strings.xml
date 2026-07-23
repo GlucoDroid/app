@@ -1351,7 +1351,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_watch_app_missing">Appli montre manquante</string>
     <string name="wear_watch_app_missing_hint">Installez Juggluco sur cette montre, puis touchez Actualiser.</string>
     <string name="wear_direct_sensor_on_watch">Capteur direct sur la montre</string>
-    <string name="wear_direct_sensor_watch_desc">Mode autonome : la montre scanne le capteur.</string>
+    <string name="wear_direct_sensor_watch_desc">La montre recherche le capteur et prend le contrôle du Bluetooth après la première mesure acceptée.</string>
     <string name="wear_direct_sensor_phone_desc">Mode compagnon : le téléphone scanne et envoie les valeurs.</string>
     <string name="web_server_desc">Serveur Web compatible Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>

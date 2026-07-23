@@ -625,6 +625,30 @@ object CurrentDisplaySource {
     @JvmStatic
     fun resolveViewModeForSensor(sensorName: String?): Int = resolveSensorViewMode(sensorName)
 
+    /** Updates the same resolved driver identity used by [resolveViewModeForSensor]. */
+    @JvmStatic
+    fun setViewModeForSensor(sensorName: String?, mode: Int): Boolean {
+        val normalized = tk.glucodata.drivers.ManagedSensorViewModeStore.sanitize(mode)
+        tk.glucodata.drivers.ManagedSensorRuntime.resolveDriver(sensorName)?.let { driver ->
+            driver.viewMode = normalized
+            val ptr = driver.getManagedUiSnapshot()?.dataptr ?: 0L
+            if (ptr != 0L) {
+                runCatching { Natives.setViewMode(ptr, normalized) }
+            }
+            return true
+        }
+        if (sensorName.isNullOrEmpty() || !SensorIdentity.hasNativeSensorBacking(sensorName)) {
+            return false
+        }
+        return runCatching {
+            val dataptr = Natives.getdataptr(sensorName)
+            if (dataptr == 0L) false else {
+                Natives.setViewMode(dataptr, normalized)
+                true
+            }
+        }.getOrDefault(false)
+    }
+
     private fun resolveSensorViewMode(sensorName: String?): Int {
         if (sensorName.isNullOrEmpty()) {
             return 0

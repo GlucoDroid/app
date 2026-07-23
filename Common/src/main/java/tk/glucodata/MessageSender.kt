@@ -38,6 +38,7 @@ import tk.glucodata.Applic.JUGGLUCOIDENT;
 import tk.glucodata.Applic.isWearable
 import tk.glucodata.Log.doLog
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 //import tk.glucodata.Applic.messagesender
 
@@ -302,6 +303,15 @@ companion object {
     private var messagesender: MessageSender? = null
     @Volatile private var wearableApiUnavailable = false
     @Volatile private var wearableApiUnavailableLoggedAt = 0L
+    private val lastNetInfoExchangeMs = AtomicLong(0L)
+
+    @JvmStatic
+    fun markNetInfoExchanged() {
+        lastNetInfoExchangeMs.set(System.currentTimeMillis())
+    }
+
+    @JvmStatic
+    fun lastNetInfoExchangeMs(): Long = lastNetInfoExchangeMs.get()
 
     private fun markWearableApiUnavailable(where: String, th: Throwable?) {
         wearableApiUnavailable = true
@@ -564,27 +574,15 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
             // sendstream=false (netinfo.cpp), i.e. it drops its own sensor AND
             // stops feeding the watch. A stale persisted flag (0) therefore
             // strands both devices with no data.
-            netinfo = if(isWearable) { Natives.getmynetinfo(sender.localnode, true, watchOwnsSensor(),true,0) } else { Natives.getmynetinfo(id, false, 0, isGalaxy(othernode),0) }
+            netinfo = if(isWearable) { Natives.getmynetinfo(sender.localnode, true, WearSensorClaim.netInfoValue(),true,0) } else { Natives.getmynetinfo(id, false, 0, isGalaxy(othernode),0) }
             if(netinfo == null) {
                 Log.e(LOG_ID,"netinfo=null")
                 return
                 }
             if(doLog) {Log.i(LOG_ID, "sender.sendnetinfo($id, netinfo)");};
             sender.sendnetinfo(id, netinfo)
+            markNetInfoExchanged()
             times[it] = nu + netwait
-        }
-
-        /**
-         * Does this watch really own a direct sensor connection right now?
-         * Truthful answer only — see the netinfo call site for why lying here
-         * strands both devices.
-         */
-        private fun watchOwnsSensor(): Int {
-            if (!isWearable) return 0
-            val hasLocalGatt = runCatching {
-                SensorBluetooth.mygatts()?.isNotEmpty() == true
-            }.getOrDefault(false)
-            return if (hasLocalGatt) 1 else -1
         }
 
         @JvmStatic     public fun sendnetinfo(id: String) {
@@ -623,8 +621,10 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
                         Log.d(LOG_ID,"name=null")
                         continue
                         }
-                    val netinfo = Natives.getmynetinfo(name, isWearable, 0, isGalaxy(node),0) ?: continue
+                    val watchSensor = if (isWearable) WearSensorClaim.netInfoValue() else 0
+                    val netinfo = Natives.getmynetinfo(name, isWearable, watchSensor, isGalaxy(node),0) ?: continue
                     sender.sendnetinfo(node, netinfo)
+                    markNetInfoExchanged()
                     times[i] = nextnetinfo
                 } else {
                     Log.i(LOG_ID, "sendnetinfo already done " + node.id)

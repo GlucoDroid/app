@@ -34,6 +34,8 @@ object WearSync2 {
         Thread(r, "WearSync2").apply { isDaemon = true }
     }
     private val lastPushMs = AtomicLong(0L)
+    private val lastServedMs = AtomicLong(0L)
+    private val lastServedChunkCount = AtomicLong(0L)
     private val removalTombstones = ConcurrentHashMap<String, Long>()
 
     // ---- phone side ----
@@ -130,14 +132,23 @@ object WearSync2 {
         if (triples == null || triples.size < 3) return
         val total = triples.size / 3
         var index = 0
+        var chunks = 0L
         while (index < total) {
             val count = minOf(MAX_TRIPLES_PER_CHUNK, total - index)
             val final = index + count >= total
             sendChunk(serial, triples, index, count, final)
+            chunks++
             index += count
         }
+        lastServedChunkCount.set(chunks)
+        lastServedMs.set(System.currentTimeMillis())
         if (doLog) Log.i(LOG_ID, "served $total triples for $serial since $fromSec")
     }
+
+    data class ServeStatus(val lastServedMs: Long, val lastChunkCount: Long)
+
+    @JvmStatic
+    fun serveStatus(): ServeStatus = ServeStatus(lastServedMs.get(), lastServedChunkCount.get())
 
     private fun sendChunk(serial: String, triples: LongArray, offset: Int, count: Int, final: Boolean) {
         val serialBytes = serial.toByteArray(Charsets.UTF_8)

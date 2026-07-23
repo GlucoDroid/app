@@ -1417,7 +1417,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="wear_watch_app_missing">Watch-App fehlt</string>
     <string name="wear_watch_app_missing_hint">Installieren Sie Juggluco auf dieser Watch und tippen Sie dann auf Aktualisieren.</string>
     <string name="wear_direct_sensor_on_watch">Direkter Sensor auf der Watch</string>
-    <string name="wear_direct_sensor_watch_desc">Standalone-Modus: Die Watch scannt den Sensor.</string>
+    <string name="wear_direct_sensor_watch_desc">Die Watch sucht den Sensor und übernimmt Bluetooth nach dem ersten gültigen Messwert.</string>
     <string name="wear_direct_sensor_phone_desc">Begleitmodus: Das Smartphone scannt und sendet Messwerte.</string>
     <string name="web_server_desc">Nightscout-kompatibler Webserver</string>
     <string name="invalid_interval">Ungültiger Intervallwert</string>

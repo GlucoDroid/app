@@ -131,6 +131,7 @@ internal fun InteractiveWearChartPanel(
     requestInitialFocus: Boolean = true,
     rangeIndexOverride: Int? = null,
     showRangeOverlay: Boolean = true,
+    onRangeIndexChange: ((Int) -> Unit)? = null,
     headlineTopPadding: androidx.compose.ui.unit.Dp = 3.dp,
 ) {
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
@@ -251,7 +252,10 @@ internal fun InteractiveWearChartPanel(
             )
             if (showRangeOverlay) WearChartRangeChip(
                 rangeIndex = rangeIndex,
-                onClick = { rangeIndex = (rangeIndex + 1) % CHART_RANGES.size },
+                onClick = {
+                    rangeIndex = (rangeIndex + 1) % CHART_RANGES.size
+                    onRangeIndexChange?.invoke(rangeIndex)
+                },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
             )
             val headline = selected?.let {

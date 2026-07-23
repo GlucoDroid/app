@@ -2266,4 +2266,5 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="display_colors_title">Muuqaalka &amp; midabada</string>
     <string name="display_colors_desc">Midabada gulukooska, akhrisyada dashboard-ka iyo muuqaalka guud</string>
     <string name="display_readouts_section">Akhrisyada dashboard-ka</string>
+    <string name="wear_direct_sensor_watch_desc">Saacaddu waxay raadisaa dareemaha waxayna la wareegtaa Bluetooth ka dib akhriska ugu horreeya ee la aqbalo.</string>
 </resources>

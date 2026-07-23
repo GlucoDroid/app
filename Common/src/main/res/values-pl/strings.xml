@@ -1380,7 +1380,7 @@
     <string name="wear_watch_app_missing">Brak aplikacji na zegarku</string>
     <string name="wear_watch_app_missing_hint">Zainstaluj Juggluco na tym zegarku, a potem stuknij odśwież.</string>
     <string name="wear_direct_sensor_on_watch">Bezpośredni sensor na zegarku</string>
-    <string name="wear_direct_sensor_watch_desc">Tryb samodzielny: zegarek skanuje sensor.</string>
+    <string name="wear_direct_sensor_watch_desc">Zegarek wyszukuje sensor i przejmuje Bluetooth po pierwszym zaakceptowanym odczycie.</string>
     <string name="wear_direct_sensor_phone_desc">Tryb towarzyszący: telefon skanuje i wysyła odczyty.</string>
     <string name="web_server_desc">Serwer WWW zgodny z Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>

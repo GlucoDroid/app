@@ -95,6 +95,7 @@ class MessageReceiver: WearableListenerService() {
                 }
             }
             MessageSender.NET_PATH   -> {
+                MessageSender.markNetInfoExchanged()
                 val sender = tk.glucodata.MessageSender.getMessageSender()
                 if (sender == null) {
                     Log.d(LOG_ID, "messagesender==null")
@@ -157,6 +158,7 @@ class MessageReceiver: WearableListenerService() {
                 val context=if(MainActivity.thisone==null)Applic.app;else MainActivity.thisone;
                 val on=booldata(data)
                 if(tk.glucodata.Log.doLog) {Log.i(LOG_ID,"set bluetooth $on  ${data[0]}");}
+                if (isWearable) WearSensorClaim.setDirectRequested(on)
                 Applic.setbluetooth(context,on )
                 }
              MessageSender.ASKFORSTART_PATH -> {

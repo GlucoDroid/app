@@ -160,7 +160,8 @@ fun MainScreen(
                         initialRangeIndex = 0,
                         requestInitialFocus = false,
                         rangeIndexOverride = chartRangeIndex,
-                        showRangeOverlay = false,
+                        showRangeOverlay = true,
+                        onRangeIndexChange = { chartRangeIndex = it },
                         headlineTopPadding = 58.dp,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -205,14 +206,6 @@ fun MainScreen(
                     onOpenSensor,
                     modifier = Modifier.padding(horizontal = 18.dp),
                 )
-            }
-            item {
-                Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp), contentAlignment = Alignment.Center) {
-                    WearChartRangeChip(
-                        rangeIndex = chartRangeIndex,
-                        onClick = { chartRangeIndex = (chartRangeIndex + 1) % CHART_RANGES.size },
-                    )
-                }
             }
             item {
                 Box(Modifier.padding(horizontal = 18.dp)) {

@@ -69,6 +69,17 @@ object CustomAlertAccess {
             .getOrDefault(false)
     }
 
+    /**
+     * Wear alarm actions. The controller interface only exposes dismissal, so
+     * snooze stops the current alarm and relies on the engine's own re-trigger
+     * spacing; a per-alert timed snooze needs a controller-level API first.
+     */
+    @JvmStatic
+    fun snoozeAlert(alertId: String, snoozeMinutes: Int): Boolean = dismissAlert(alertId)
+
+    @JvmStatic
+    fun ignoreAlert(alertId: String): Boolean = dismissAlert(alertId)
+
     // Deliberately not behind doLog: without the engine registered, custom alerts do not fire at
     // all. That is precisely the failure that went unnoticed for as long as this was reflection.
     private fun warnMissing(what: String) {

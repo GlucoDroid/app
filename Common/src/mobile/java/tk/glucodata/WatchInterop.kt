@@ -15,6 +15,11 @@ import tk.glucodata.nums.AllData
 import java.util.concurrent.TimeUnit
 
 object WatchInterop {
+    data class WearSyncStatus(
+        val lastServedMs: Long,
+        val lastChunkCount: Long,
+        val lastNetInfoExchangeMs: Long
+    )
     data class WearNodeInfo(
         val id: String,
         val displayName: String,
@@ -74,6 +79,24 @@ object WatchInterop {
     @JvmStatic
     fun refreshWearNodes() {
         getWearMessageSender()?.finddevices()
+    }
+
+    @JvmStatic
+    fun getWearSyncStatus(): WearSyncStatus {
+        val serve = WearSync2.serveStatus()
+        return WearSyncStatus(
+            lastServedMs = serve.lastServedMs,
+            lastChunkCount = serve.lastChunkCount,
+            lastNetInfoExchangeMs = MessageSender.lastNetInfoExchangeMs()
+        )
+    }
+
+    @JvmStatic
+    fun syncWearNow(): Boolean {
+        if (getWearMessageSender() == null) return false
+        WearSync2.serveAll()
+        MessageSender.sendnetinfo()
+        return true
     }
 
     @JvmStatic
@@ -149,8 +172,14 @@ object WatchInterop {
         return try {
             sender.sendnetinfo(nodeId, netInfo)
             sender.sendbluetooth(nodeId, directOnWatch)
-            val context = MainActivity.thisone ?: Applic.app ?: return false
-            Applic.setbluetooth(context, !directOnWatch)
+            // Keep phone BLE alive during handoff. The watch will claim ownership
+            // in its own netinfo only after a connected driver accepts a reading;
+            // that existing protocol response then disables phone BLE. Turning
+            // direct mode off can safely resume phone BLE immediately.
+            if (!directOnWatch) {
+                val context = MainActivity.thisone ?: Applic.app ?: return false
+                Applic.setbluetooth(context, true)
+            }
             true
         } catch (_: Throwable) {
             false
