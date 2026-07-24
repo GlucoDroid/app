@@ -1605,10 +1605,10 @@ class SibionicsBleManager(
     private fun writeCommand(bytes: ByteArray, label: String): Boolean {
         val gatt = mBluetoothGatt ?: return false
         val ch = writeChar ?: return false
-        val writeType = if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
-            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-        } else {
+        val writeType = if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) {
             BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        } else {
+            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
         }
         ch.writeType = writeType
         ch.value = bytes
