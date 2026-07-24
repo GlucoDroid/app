@@ -509,6 +509,14 @@ object OttaiRegistry {
 
     @JvmStatic
     fun connectSensor(context: Context, sensorId: String) {
+        connectSensor(context, sensorId, awaitFreshActivationAdvertisement = false)
+    }
+
+    private fun connectSensor(
+        context: Context,
+        sensorId: String,
+        awaitFreshActivationAdvertisement: Boolean,
+    ) {
         val blue = SensorBluetooth.blueone ?: return
         val record = findRecord(context, sensorId) ?: return
         val existing = SensorBluetooth.gattcallbacks.firstOrNull { cb ->
@@ -523,7 +531,10 @@ object OttaiRegistry {
             val bleAddress = OttaiConstants.normalizeBleAddress(record.address, allowPlain = false)
             callback.mActiveDeviceAddress = bleAddress
             callback.mActiveBluetoothDevice = null
-            if (bleAddress != null && BluetoothAdapter.checkBluetoothAddress(bleAddress)) {
+            if (!awaitFreshActivationAdvertisement &&
+                bleAddress != null &&
+                BluetoothAdapter.checkBluetoothAddress(bleAddress)
+            ) {
                 val adapter = runCatching {
                     (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
                         ?: BluetoothAdapter.getDefaultAdapter()
@@ -533,7 +544,12 @@ object OttaiRegistry {
             callback.restoreFromPersistence(context)
         }
         runCatching { SensorBluetooth.ensureCurrentSensorSelection() }
-        if (SensorBluetooth.blueone === blue) callback.connectDevice(0)
+        if (SensorBluetooth.blueone === blue) {
+            val awaitingAdvertisement =
+                awaitFreshActivationAdvertisement &&
+                    (callback as? OttaiBleManager)?.awaitFreshActivationAdvertisement() == true
+            if (!awaitingAdvertisement) callback.connectDevice(0)
+        }
         ManagedSensorUiSignals.markDeviceListDirty()
     }
 
@@ -554,7 +570,7 @@ object OttaiRegistry {
         // The Advanced "Activate" is an explicit user action — force it so it can also
         // attempt to re-arm/extend an already-started or expired (cmd>3) sensor.
         if (mgr != null && mgr.requestForceActivation()) return true
-        connectSensor(context, canonical)
+        connectSensor(context, canonical, awaitFreshActivationAdvertisement = true)
         return false
     }
 }

@@ -75,6 +75,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tk.glucodata.Log
 import tk.glucodata.R
+import tk.glucodata.SensorBluetooth
+import tk.glucodata.drivers.ottai.OttaiBleManager
 import tk.glucodata.drivers.ottai.OttaiCloudClient
 import tk.glucodata.drivers.ottai.OttaiConstants
 import tk.glucodata.drivers.ottai.OttaiNfc
@@ -105,7 +107,7 @@ private enum class OttaiRegion(
     GLOBAL(R.string.ottai_region_global, OttaiConstants.API_BASE_GLOBAL, false, OttaiConstants.WEB_BASE_OTTAI),
     SYAI(R.string.ottai_region_syai, OttaiConstants.API_BASE_SYAI, false, OttaiConstants.WEB_BASE_SYAI),
 }
-private const val OTTAI_OFFICIAL_SCAN_DURATION_MS = 10_000L
+private const val OTTAI_SCAN_DURATION_MS = 30_000L
 private const val OTTAI_OFFICIAL_RSSI_THRESHOLD = -70
 
 /**
@@ -277,6 +279,7 @@ fun OttaiSetupWizard(
     // Locally-saved sensors (imported or fetched) that can connect with no network.
     var savedSensors by remember { mutableStateOf<List<OttaiRegistry.SensorRecord>>(emptyList()) }
     var savedRefresh by remember { mutableStateOf(0) }
+    var nfcScanRestartKey by remember { mutableStateOf(0) }
 
     // When signed in and the account picker is relevant, pull the account's sensor list once.
     LaunchedEffect(signedIn, step) {
@@ -358,9 +361,25 @@ fun OttaiSetupWizard(
         }
     }
 
-    // Never leave debug NFC-dump mode armed (it would swallow normal/Libre taps).
+    // Keep one callback for the whole wizard so an automatically armed CN wake also
+    // restarts BLE discovery. Never leave NFC routing armed after the wizard closes.
     DisposableEffect(Unit) {
-        onDispose { OttaiNfc.dumpMode = false; OttaiNfc.onResult = null }
+        val callback: (OttaiNfc.Result) -> Unit = { result ->
+            scope.launch {
+                savedRefresh += 1
+                if (result.wakeDetected) nfcScanRestartKey += 1
+                status = if (result.wakeDetected) {
+                    context.getString(R.string.ottai_nfc_read_ok)
+                } else {
+                    context.getString(R.string.ottai_nfc_read_failed)
+                }
+            }
+        }
+        OttaiNfc.onResult = callback
+        onDispose {
+            OttaiNfc.dumpMode = false
+            if (OttaiNfc.onResult === callback) OttaiNfc.onResult = null
+        }
     }
 
     // Save the decrypted per-sensor materials to a file (portable to any device).
@@ -577,18 +596,6 @@ fun OttaiSetupWizard(
 
                     val armNfcRead: () -> Unit = {
                         status = context.getString(R.string.ottai_nfc_dump_armed)
-                        OttaiNfc.onResult = { result ->
-                            OttaiNfc.dumpMode = false
-                            OttaiNfc.onResult = null
-                            scope.launch {
-                                savedRefresh += 1
-                                status = if (result.wakeDetected) {
-                                    context.getString(R.string.ottai_nfc_read_ok)
-                                } else {
-                                    context.getString(R.string.ottai_nfc_read_failed)
-                                }
-                            }
-                        }
                         OttaiNfc.armForSetup()
                     }
 
@@ -623,6 +630,7 @@ fun OttaiSetupWizard(
                         OttaiBleScanPanel(
                             ui = ui,
                             selectedAddress = bleAddress,
+                            restartKey = nfcScanRestartKey,
                             onAddressSelected = { address ->
                                 bleAddress = address
                                 val id = OttaiConstants.canonicalSensorId(address)
@@ -954,9 +962,33 @@ fun OttaiSetupWizard(
                 }
 
                 OttaiSetupStep.CONNECTING -> {
-                    LaunchedScreenAdvance { step = OttaiSetupStep.SUCCESS }
+                    var connectionStatus by remember(cloudId) {
+                        mutableStateOf(context.getString(R.string.connecting_to_sensor_wait))
+                    }
+                    LaunchedEffect(cloudId) {
+                        val canonical = OttaiConstants.canonicalSensorId(cloudId)
+                        while (true) {
+                            val manager = SensorBluetooth.gattcallbacks
+                                .filterIsInstance<OttaiBleManager>()
+                                .firstOrNull { it.matchesManagedSensorId(canonical) }
+                            if (manager != null) {
+                                connectionStatus = manager.getDetailedBleStatus()
+                                    .takeIf { it.isNotBlank() }
+                                    ?: context.getString(R.string.connecting_to_sensor_wait)
+                                if (manager.isSetupConnectionComplete()) {
+                                    step = OttaiSetupStep.SUCCESS
+                                    break
+                                }
+                            }
+                            delay(500L)
+                        }
+                    }
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        SensorSetupConnectingScreen(ui = ui, sensorLabel = cloudId.ifBlank { null })
+                        SensorSetupConnectingScreen(
+                            ui = ui,
+                            sensorLabel = cloudId.ifBlank { null },
+                            supportingText = connectionStatus,
+                        )
                     }
                 }
 
@@ -1118,6 +1150,7 @@ private fun OttaiSensorMaterialCard(
 private fun OttaiBleScanPanel(
     ui: WizardUiMetrics,
     selectedAddress: String,
+    restartKey: Int,
     onAddressSelected: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -1163,7 +1196,7 @@ private fun OttaiBleScanPanel(
         }
     }
 
-    DisposableEffect(scanPermissionGranted, bluetoothEnabled, scanRetryKey) {
+    DisposableEffect(scanPermissionGranted, bluetoothEnabled, scanRetryKey, restartKey) {
         if (!scanPermissionGranted || !bluetoothEnabled) {
             scanner.stopScan()
             scanStats = emptyMap()
@@ -1171,7 +1204,6 @@ private fun OttaiBleScanPanel(
             return@DisposableEffect onDispose { scanner.stopScan() }
         }
 
-        scanStats = emptyMap()
         scanError = null
         scanActive = true
         scanner.startScan(
@@ -1217,9 +1249,9 @@ private fun OttaiBleScanPanel(
         onDispose { scanner.stopScan() }
     }
 
-    LaunchedEffect(scanPermissionGranted, bluetoothEnabled, scanRetryKey) {
+    LaunchedEffect(scanPermissionGranted, bluetoothEnabled, scanRetryKey, restartKey) {
         if (scanPermissionGranted && bluetoothEnabled) {
-            delay(OTTAI_OFFICIAL_SCAN_DURATION_MS)
+            delay(OTTAI_SCAN_DURATION_MS)
             scanActive = false
             scanner.stopScan()
         }
@@ -1250,12 +1282,12 @@ private fun OttaiBleScanPanel(
             )
             OutlinedButton(
                 onClick = {
+                    scanStats = emptyMap()
                     scanError = null
                     scanPermissionGranted = hasBleScanPermissions(context)
                     bluetoothEnabled = scanner.isBluetoothEnabled()
                     scanRetryKey += 1
                 },
-                enabled = !scanActive,
             ) {
                 Text(stringResource(R.string.search_bluetooth))
             }
@@ -1487,14 +1519,6 @@ private fun UUID.toLittleEndianBytes(): ByteArray {
     val text = toString().replace("-", "")
     val bigEndian = text.chunked(2).map { it.toInt(16).toByte() }
     return bigEndian.asReversed().toByteArray()
-}
-
-@Composable
-private fun LaunchedScreenAdvance(onAdvance: () -> Unit) {
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        delay(2000)
-        onAdvance()
-    }
 }
 
 @Composable

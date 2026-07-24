@@ -163,6 +163,7 @@ class OttaiBleManager(
     @Volatile private var pendingActivation = false
     // Set by an explicit activation request to bypass a stale cloud/provisional start time.
     @Volatile private var forceActivationRequested = false
+    @Volatile private var awaitingFreshActivationAdvertisement = false
 
     @Volatile private var lastGlucoseAtMs = 0L
     @Volatile private var lastGlucoseMmol = Float.NaN
@@ -327,6 +328,7 @@ class OttaiBleManager(
         authStep = AuthStep.NONE
         actStep = ActStep.NONE
         if (!preserveActivationNegotiation) resetActivationNegotiation()
+        awaitingFreshActivationAdvertisement = false
         notifyEnableIndex = 0
         discoveryStarted = false
         pendingActivation = false
@@ -358,6 +360,7 @@ class OttaiBleManager(
     @Synchronized
     override fun connectDevice(delayMillis: Long): Boolean {
         if (stop) return false
+        if (mActiveBluetoothDevice != null) awaitingFreshActivationAdvertisement = false
         if (phase != Phase.IDLE && (mBluetoothGatt != null || mActiveBluetoothDevice != null)) {
             if (isConnectionStale() || constatstatusstr == "Loss of signal" || constatstatusstr == lossOfSignalText()) {
                 clearGattTransport(
@@ -435,6 +438,32 @@ class OttaiBleManager(
         mActiveBluetoothDevice = runCatching { adapter.getRemoteDevice(address) }.getOrNull()
         return mActiveBluetoothDevice != null
     }
+
+    /**
+     * Fresh/NFC-woken sensors can advertise only briefly. Wait for the exact saved
+     * address in the managed scanner and connect from that scan result instead of
+     * parking an address-only autoConnect GATT that may never receive a callback.
+     */
+    @Synchronized
+    fun awaitFreshActivationAdvertisement(): Boolean {
+        val address = knownBleAddress() ?: return false
+        if (phase != Phase.IDLE || mBluetoothGatt != null || mActiveBluetoothDevice != null) {
+            clearGattTransport(
+                "fresh activation waiting for exact advertisement",
+                markSignalLoss = false,
+            )
+        }
+        searchforDeviceAddress()
+        mActiveDeviceAddress = address
+        awaitingFreshActivationAdvertisement = true
+        constatstatusstr = appString(R.string.looking_for_transmitters, "Looking for nearby transmitters...")
+        SensorBluetooth.blueone?.scanStarter(0L)
+        UiRefreshBus.requestStatusRefresh()
+        return true
+    }
+
+    fun isSetupConnectionComplete(): Boolean =
+        phase == Phase.STREAMING && sessionKeyHex.isNotBlank() && commandStatus >= 3
 
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
         val scanned = OttaiConstants.normalizeBleAddress(address, allowPlain = false) ?: return false
@@ -2088,6 +2117,10 @@ class OttaiBleManager(
         )
         return when (phase) {
             Phase.IDLE -> if (hasLossStatus) loss
+                else if (awaitingFreshActivationAdvertisement) appString(
+                    R.string.looking_for_transmitters,
+                    "Looking for nearby transmitters...",
+                )
                 else if (authKeys == null) "Needs cloud bind"
                 else if (knownBleAddress() == null) appString(
                     R.string.ottai_status_needs_ble_address,
