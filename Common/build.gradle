@@ -542,6 +542,15 @@ buildTypes {
     lint {
         abortOnError false
     }
+    testOptions {
+        unitTests {
+            // tk.glucodata.Log falls back to android.util.Log whenever Applic.Nativesloaded is
+            // false, which it always is under plain JVM unit tests. Without this, any test that
+            // reaches a logging statement dies with "Method i in android.util.Log not mocked"
+            // instead of testing anything.
+            returnDefaultValues = true
+        }
+    }
     dependenciesInfo {
         includeInApk true
         includeInBundle true
