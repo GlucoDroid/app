@@ -505,7 +505,15 @@ object OttaiRegistry {
             }
             return null
         }
-        if (activate) requestActivation(context, stableId) else connectSensor(context, stableId)
+        if (activate) {
+            requestActivation(context, stableId)
+        } else {
+            connectSensor(
+                context,
+                stableId,
+                awaitFreshActivationAdvertisement = armActivation,
+            )
+        }
         return stableId
     }
 

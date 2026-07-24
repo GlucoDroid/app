@@ -128,6 +128,54 @@ class OttaiLifetimeTests {
         )
     }
 
+    @Test
+    fun activationAdvertisementProbeAcceptsExpectedOrNamedOttaiOnlyWhileArmed() {
+        val expected = "B4:89:31:21:4A:D5"
+        val rotated = "20:A7:16:EE:FA:B0"
+
+        assertTrue(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = expected,
+                expectedAddress = expected,
+                advertisedName = null,
+            ),
+        )
+        assertTrue(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = rotated,
+                expectedAddress = expected,
+                advertisedName = "Ottai",
+            ),
+        )
+        assertFalse(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = false,
+                scannedAddress = rotated,
+                expectedAddress = expected,
+                advertisedName = "Ottai",
+            ),
+        )
+        assertFalse(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = rotated,
+                expectedAddress = expected,
+                advertisedName = "Sinocare CGM",
+            ),
+        )
+        assertFalse(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = rotated,
+                expectedAddress = expected,
+                advertisedName = "Ottai",
+                rejectedAddresses = setOf(rotated.lowercase()),
+            ),
+        )
+    }
+
     private companion object {
         const val DAY_MS = 24L * 60L * 60L * 1000L
     }

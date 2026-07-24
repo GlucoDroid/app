@@ -49,6 +49,9 @@ class OttaiBleManager(
         const val SENSOR_GEN = 0
         private const val RECONNECT_DELAY_MS = 3_000L
         private const val MTU = 247
+        private const val MTU_SETTLE_BEFORE_DISCOVERY_MS = 1_250L
+        private const val MTU_CALLBACK_FALLBACK_MS = 2_500L
+        private const val SERVICE_DISCOVERY_TIMEOUT_MS = 10_000L
 
         /**
          * Set (by the setup wizard) to a canonical sensorId to request a one-time
@@ -164,6 +167,7 @@ class OttaiBleManager(
     // Set by an explicit activation request to bypass a stale cloud/provisional start time.
     @Volatile private var forceActivationRequested = false
     @Volatile private var awaitingFreshActivationAdvertisement = false
+    @Volatile private var pendingServiceDiscoveryGatt: BluetoothGatt? = null
 
     @Volatile private var lastGlucoseAtMs = 0L
     @Volatile private var lastGlucoseMmol = Float.NaN
@@ -218,6 +222,15 @@ class OttaiBleManager(
 
     private val connectionWatchdogRunnable = Runnable {
         checkConnectionWatchdog()
+    }
+    private val serviceDiscoveryRunnable = Runnable {
+        pendingServiceDiscoveryGatt?.let { startServiceDiscovery(it) }
+    }
+    private val serviceDiscoveryTimeoutRunnable = Runnable {
+        if (stop || mBluetoothGatt == null) return@Runnable
+        if ((phase == Phase.DISCOVERING && discoveryStarted) || pendingActivation) {
+            recoverGattAndReconnect("service discovery callback timeout")
+        }
     }
 
     private val notifyOrder = listOf(
@@ -337,6 +350,9 @@ class OttaiBleManager(
         handler.removeCallbacks(endedHistoryBackfillRunnable)
         handler.removeCallbacks(connectionWatchdogRunnable)
         handler.removeCallbacks(pendingActivationNfcPromptRunnable)
+        handler.removeCallbacks(serviceDiscoveryRunnable)
+        handler.removeCallbacks(serviceDiscoveryTimeoutRunnable)
+        pendingServiceDiscoveryGatt = null
         clearPendingHistoryRange()
         svcDeviceInfo = null
         svcCgm = null
@@ -362,11 +378,28 @@ class OttaiBleManager(
     }
 
     private fun recoverGattAndReconnect(reason: String) {
+        val explicitActivationRequest =
+            activateRequestedFor?.let { matchesManagedSensorId(it) } == true
+        val scanForPendingActivation = OttaiConstants.shouldRescanPendingSetupActivation(
+            commandStatus,
+            explicitActivationRequest,
+        )
+        val previousAddress = knownBleAddress()
         clearGattTransport(
             reason,
             markSignalLoss = true,
             preserveActivationNegotiation = activationNegotiationActive,
         )
+        if (scanForPendingActivation && previousAddress != null) {
+            mActiveDeviceAddress = previousAddress
+            val scanning = awaitFreshActivationAdvertisement()
+            Log.w(TAG, "pre-auth transport stalled; authenticated advertisement scan " +
+                "started=$scanning previousAddress=$previousAddress")
+            if (scanning) {
+                handler.postDelayed(pendingActivationNfcPromptRunnable, 10_000L)
+                return
+            }
+        }
         scheduleReconnect(reason, 250L)
     }
 
@@ -377,6 +410,21 @@ class OttaiBleManager(
     @Synchronized
     override fun connectDevice(delayMillis: Long): Boolean {
         if (stop) return false
+        val explicitActivationRequest =
+            activateRequestedFor?.let { matchesManagedSensorId(it) } == true
+        if (!activationCandidateDiscoveryPending &&
+            phase == Phase.IDLE &&
+            mBluetoothGatt == null &&
+            OttaiConstants.shouldRescanPendingSetupActivation(
+                commandStatus,
+                explicitActivationRequest,
+            )
+        ) {
+            val scanning = awaitFreshActivationAdvertisement()
+            Log.i(TAG, "pending setup activation uses authenticated advertisement scan " +
+                "started=$scanning previousAddress=${knownBleAddress()}")
+            if (scanning) return true
+        }
         if (mActiveBluetoothDevice != null) awaitingFreshActivationAdvertisement = false
         if (phase != Phase.IDLE && (mBluetoothGatt != null || mActiveBluetoothDevice != null)) {
             if (isConnectionStale() || constatstatusstr == "Loss of signal" || constatstatusstr == lossOfSignalText()) {
@@ -457,9 +505,10 @@ class OttaiBleManager(
     }
 
     /**
-     * Fresh/NFC-woken sensors can advertise only briefly. Wait for the exact saved
-     * address in the managed scanner and connect from that scan result instead of
-     * parking an address-only autoConnect GATT that may never receive a callback.
+     * Fresh/NFC-woken sensors can advertise only briefly and may use a new Android
+     * BLE address. Connect from the managed scan result instead of parking an
+     * address-only autoConnect GATT. A changed address remains a transport candidate
+     * until the sensor proves possession of this sensor's saved auth material.
      */
     @Synchronized
     fun awaitFreshActivationAdvertisement(): Boolean {
@@ -471,6 +520,10 @@ class OttaiBleManager(
             )
         }
         searchforDeviceAddress()
+        activationRetryAddress = address
+        activationCandidateDiscoveryPending = true
+        activationCandidateProbeActive = false
+        clearDeferredActivationCandidateCgmInfo()
         mActiveDeviceAddress = address
         awaitingFreshActivationAdvertisement = true
         constatstatusstr = appString(R.string.looking_for_transmitters, "Looking for nearby transmitters...")
@@ -485,7 +538,7 @@ class OttaiBleManager(
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
         val scanned = OttaiConstants.normalizeBleAddress(address, allowPlain = false) ?: return false
         if (activationCandidateDiscoveryPending) {
-            return scanned.equals(activationRetryAddress, ignoreCase = true)
+            return selectActivationCandidate(scanned, deviceName)
         }
         val known = OttaiConstants.normalizeBleAddress(mActiveDeviceAddress, allowPlain = false)
             ?: OttaiConstants.normalizeBleAddress(
@@ -501,7 +554,28 @@ class OttaiBleManager(
             runCatching { result.device.address }.getOrNull(),
             allowPlain = false,
         ) ?: return false
-        return scanned.equals(activationRetryAddress, ignoreCase = true)
+        val advertisedName = runCatching { result.scanRecord?.deviceName }.getOrNull()
+            ?: runCatching { result.device.name }.getOrNull()
+        return selectActivationCandidate(scanned, advertisedName)
+    }
+
+    @Synchronized
+    private fun selectActivationCandidate(scannedAddress: String, advertisedName: String?): Boolean {
+        val expectedAddress = activationRetryAddress
+        val selected = OttaiConstants.shouldProbeActivationAdvertisement(
+            discoveryPending = activationCandidateDiscoveryPending,
+            scannedAddress = scannedAddress,
+            expectedAddress = expectedAddress,
+            advertisedName = advertisedName,
+            rejectedAddresses = rejectedActivationCandidateAddresses,
+        )
+        if (!selected) return false
+        if (!scannedAddress.equals(expectedAddress, ignoreCase = true)) {
+            Log.i(TAG, "probing NFC-woken Ottai address=$scannedAddress previous=$expectedAddress")
+        }
+        activationRetryAddress = scannedAddress
+        mActiveDeviceAddress = scannedAddress
+        return true
     }
 
     override fun setDeviceAddress(address: String?) {
@@ -521,6 +595,9 @@ class OttaiBleManager(
                 Log.i(TAG, "connected ${gatt.device?.address}")
                 handler.removeCallbacks(reconnectRunnable)
                 handler.removeCallbacks(pendingActivationNfcPromptRunnable)
+                handler.removeCallbacks(serviceDiscoveryRunnable)
+                handler.removeCallbacks(serviceDiscoveryTimeoutRunnable)
+                pendingServiceDiscoveryGatt = null
                 SerialNumber?.let { sensorId ->
                     OttaiNfc.disarmActivationRetry(sensorId)
                     Applic.app?.let { OttaiNfcWakeReminder.cancel(it, sensorId) }
@@ -545,15 +622,16 @@ class OttaiBleManager(
                 // CGM links drop quickly at default (balanced) params; request a fast
                 // interval so auth/activation completes before the sensor drops idle.
                 runCatching { gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
-                // Start discovery ONLY after MTU settles (in onMtuChanged). A fixed-delay
-                // discoverServices() raced the MTU exchange on the Mi9T: an MTU change
-                // landing mid-discovery dropped the discovery callback (onServicesDiscovered
-                // never fired → no auth → sensor terminates after ~60s, status=19). Do NOT
-                // call gatt.refresh() either — where it actually runs it wipes the cache
-                // mid-setup and breaks discovery the same way.
+                // Start discovery after the final MTU callback settles. Some V1.5 sensors
+                // report MTU twice about a second apart; discovery started from the first
+                // callback then loses onServicesDiscovered when the second callback lands.
+                // Do NOT call gatt.refresh(): it breaks discovery on the Mi9T.
                 val mtuRequested = runCatching { gatt.requestMtu(MTU) }.getOrDefault(false)
                 // Fallback: if onMtuChanged never fires, discover anyway.
-                handler.postDelayed({ startServiceDiscovery(gatt) }, if (mtuRequested) 1500 else 300)
+                scheduleServiceDiscovery(
+                    gatt,
+                    if (mtuRequested) MTU_CALLBACK_FALLBACK_MS else 300L,
+                )
                 scheduleConnectionWatchdog()
                 UiRefreshBus.requestStatusRefresh()
             }
@@ -576,6 +654,9 @@ class OttaiBleManager(
                 handler.removeCallbacks(pendingHistoryChunkRunnable)
                 handler.removeCallbacks(endedHistoryBackfillRunnable)
                 handler.removeCallbacks(connectionWatchdogRunnable)
+                handler.removeCallbacks(serviceDiscoveryRunnable)
+                handler.removeCallbacks(serviceDiscoveryTimeoutRunnable)
+                pendingServiceDiscoveryGatt = null
                 clearPendingHistoryRange()
                 svcDeviceInfo = null; svcCgm = null; svcAuth = null
                 sessionKeyHex = ""
@@ -632,25 +713,45 @@ class OttaiBleManager(
     override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
         Log.d(TAG, "mtu=$mtu status=$status")
         noteGattActivity()
-        startServiceDiscovery(gatt)
+        scheduleServiceDiscovery(gatt, MTU_SETTLE_BEFORE_DISCOVERY_MS)
+    }
+
+    private fun scheduleServiceDiscovery(gatt: BluetoothGatt, delayMs: Long) {
+        if (gatt !== mBluetoothGatt || phase != Phase.DISCOVERING || discoveryStarted) return
+        pendingServiceDiscoveryGatt = gatt
+        handler.removeCallbacks(serviceDiscoveryRunnable)
+        handler.postDelayed(serviceDiscoveryRunnable, delayMs)
     }
 
     /** Idempotent: kicks off service discovery exactly once per connection. */
     private fun startServiceDiscovery(gatt: BluetoothGatt) {
-        if (discoveryStarted || phase != Phase.DISCOVERING) return
+        if (gatt !== mBluetoothGatt || discoveryStarted || phase != Phase.DISCOVERING) return
+        handler.removeCallbacks(serviceDiscoveryRunnable)
+        pendingServiceDiscoveryGatt = null
         discoveryStarted = true
         val started = runCatching { gatt.discoverServices() }.getOrDefault(false)
         Log.i(TAG, "discoverServices() started=$started")
-        if (!started) {
+        if (started) {
+            handler.removeCallbacks(serviceDiscoveryTimeoutRunnable)
+            handler.postDelayed(serviceDiscoveryTimeoutRunnable, SERVICE_DISCOVERY_TIMEOUT_MS)
+        } else {
             discoveryStarted = false
-            handler.postDelayed({ startServiceDiscovery(gatt) }, 800)
+            scheduleServiceDiscovery(gatt, 800L)
         }
     }
 
     override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+        if (gatt !== mBluetoothGatt) {
+            Log.w(TAG, "ignoring service discovery callback from stale GATT")
+            return
+        }
+        handler.removeCallbacks(serviceDiscoveryRunnable)
+        handler.removeCallbacks(serviceDiscoveryTimeoutRunnable)
+        pendingServiceDiscoveryGatt = null
         noteGattActivity()
         if (status != BluetoothGatt.GATT_SUCCESS) {
-            scheduleReconnect("discover failed $status"); return
+            recoverGattAndReconnect("discover failed $status")
+            return
         }
         // One-time GATT map dump: service UUID + instanceId (≈ATT handle), then each
         // characteristic's short UUID, handle and properties. Reveals duplicate-UUID
@@ -1595,7 +1696,10 @@ class OttaiBleManager(
         pendingActivation = true
         discoveryStarted = true // suppress the connect-time discovery guard
         Log.i(TAG, "re-discovering services before activation")
-        if (!runCatching { gatt.discoverServices() }.getOrDefault(false)) {
+        if (runCatching { gatt.discoverServices() }.getOrDefault(false)) {
+            handler.removeCallbacks(serviceDiscoveryTimeoutRunnable)
+            handler.postDelayed(serviceDiscoveryTimeoutRunnable, SERVICE_DISCOVERY_TIMEOUT_MS)
+        } else {
             pendingActivation = false
             startActivationWrites(gatt)
         }

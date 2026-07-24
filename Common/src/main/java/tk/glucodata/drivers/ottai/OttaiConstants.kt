@@ -227,6 +227,32 @@ object OttaiConstants {
         explicitlyRequested: Boolean,
     ): Boolean = commandStatus < 0 && explicitlyRequested
 
+    /**
+     * A Chinese sensor can resume advertising under a different Android BLE address
+     * after NFC wake. Only admit that address while an activation recovery scan is
+     * already armed; the BLE manager still requires the sensor's auth signature before
+     * persisting the candidate.
+     */
+    fun shouldProbeActivationAdvertisement(
+        discoveryPending: Boolean,
+        scannedAddress: String?,
+        expectedAddress: String?,
+        advertisedName: String?,
+        rejectedAddresses: Set<String> = emptySet(),
+    ): Boolean {
+        if (!discoveryPending) return false
+        val scanned = normalizeBleAddress(scannedAddress, allowPlain = false) ?: return false
+        if (rejectedAddresses.any {
+                normalizeBleAddress(it, allowPlain = false)?.equals(scanned, ignoreCase = true) == true
+            }
+        ) {
+            return false
+        }
+        val expected = normalizeBleAddress(expectedAddress, allowPlain = false)
+        if (expected?.equals(scanned, ignoreCase = true) == true) return true
+        return advertisedName?.trim()?.contains("ottai", ignoreCase = true) == true
+    }
+
     /** Past the extended end, only declare the sensor expired once samples stop this long. */
     const val EXPIRED_STALE_GRACE_MS = 6L * 3600L * 1000L
 
