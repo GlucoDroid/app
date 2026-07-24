@@ -99,16 +99,17 @@ fun GlucosePaletteResetAllButton(modifier: Modifier = Modifier) {
     val revision = GlucosePaletteState.revision
     val hasOverrides = remember(revision) { GlucosePaletteState.hasAnyOverride() }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-        )
-        TextButton(
-            onClick = { GlucosePaletteState.clearOverrides(context) },
-            enabled = hasOverrides,
-            modifier = Modifier.align(Alignment.End)
-        ) {
-            Text(stringResource(R.string.glucose_palette_reset_all))
+    if (hasOverrides) {
+        Column(modifier = modifier.fillMaxWidth()) {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+            TextButton(
+                onClick = { GlucosePaletteState.clearOverrides(context) },
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(stringResource(R.string.glucose_palette_reset_all))
+            }
         }
     }
 }
@@ -133,14 +134,17 @@ fun GlucoseBandColorButton(
     )
 
     if (showDialog) {
-        PaletteColorDialog(
+        ExpressiveColorPickerDialog(
             title = stringResource(bandLabelRes(band)),
             initialColor = color,
-            isOverridden = GlucosePaletteState.override(band) != null,
             onDismiss = { showDialog = false },
-            onReset = {
-                GlucosePaletteState.setOverride(context, band, null)
-                showDialog = false
+            onReset = if (GlucosePaletteState.override(band) != null) {
+                {
+                    GlucosePaletteState.setOverride(context, band, null)
+                    showDialog = false
+                }
+            } else {
+                null
             },
             onConfirm = { updatedColor ->
                 GlucosePaletteState.setOverride(context, band, updatedColor)
@@ -151,13 +155,12 @@ fun GlucoseBandColorButton(
 }
 
 @Composable
-private fun PaletteColorDialog(
+fun ExpressiveColorPickerDialog(
     title: String,
     initialColor: Int,
-    isOverridden: Boolean,
     onDismiss: () -> Unit,
-    onReset: () -> Unit,
-    onConfirm: (Int) -> Unit
+    onConfirm: (Int) -> Unit,
+    onReset: (() -> Unit)? = null
 ) {
     var colorState by remember(initialColor) { mutableStateOf(initialColor.toPaletteColorState()) }
     var colorText by remember(initialColor) { mutableStateOf(formatColorHex(initialColor)) }
@@ -252,7 +255,7 @@ private fun PaletteColorDialog(
         },
         dismissButton = {
             Row {
-                if (isOverridden) {
+                if (onReset != null) {
                     TextButton(onClick = onReset) {
                         Text(stringResource(R.string.glucose_palette_reset))
                     }

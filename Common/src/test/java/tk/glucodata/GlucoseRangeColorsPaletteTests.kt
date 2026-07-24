@@ -79,6 +79,14 @@ class GlucoseRangeColorsPaletteTests {
     }
 
     @Test
+    fun veryLowOverrideResolvesForBothThemes() {
+        val custom = 0xFF9CCC8A.toInt()
+        GlucoseRangeColors.setOverride(Band.VERY_LOW, custom)
+        assertEquals(custom, GlucoseRangeColors.veryLow(false))
+        assertEquals(custom, GlucoseRangeColors.veryLow(true))
+    }
+
+    @Test
     fun clearingOverrideFallsBackToPreset() {
         GlucoseRangeColors.setPalette(Palette.GDH_LIKE)
         GlucoseRangeColors.setOverride(Band.LOW, 0xFF00FF00.toInt())

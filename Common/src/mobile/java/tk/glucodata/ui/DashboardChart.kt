@@ -2179,7 +2179,7 @@ fun InteractiveGlucoseChart(
             // Multi-sensor: the primary trace carries a subtle identity tint so
             // it pairs with its (tinted) values, like the peer traces do.
             val primaryLineTintFraction = if (peerChartSeries.isNotEmpty()) 0.22f else 0f
-            val appTrafficDark = isSystemInDarkTheme()
+            val appRangeDark = isSystemInDarkTheme()
             val gradientBrush = remember(
                 limitYVeryHigh,
                 limitYHigh,
@@ -2192,7 +2192,7 @@ fun InteractiveGlucoseChart(
                 primaryLineTintFraction,
                 primaryIdentityColor,
                 appChartRangeColors,
-                appTrafficDark,
+                appRangeDark,
                 glucosePaletteRevision
             ) {
                 if (chartHeightPx <= 0f) {
@@ -2205,26 +2205,26 @@ fun InteractiveGlucoseChart(
                             color
                         }
 
-                    // Traffic mode swaps the muted tints for the same palette
-                    // the value/notification coloring uses, incl. green in range.
+                    // Range-color mode uses the same five effective colors shown
+                    // in settings, including every per-band override.
                     val veryHighTint = identityTinted(
-                        if (appChartRangeColors) Color(GlucoseRangeColors.valueOut(appTrafficDark))
+                        if (appChartRangeColors) Color(GlucoseRangeColors.veryHigh(appRangeDark))
                         else Color(GlucoseRangeColors.veryHigh(isDark))
                     )
                     val highTint = identityTinted(
-                        if (appChartRangeColors) Color(GlucoseRangeColors.valueBorderline(appTrafficDark))
+                        if (appChartRangeColors) Color(GlucoseRangeColors.high(appRangeDark))
                         else highOutOfRangeTintBase
                     )
                     val lowTint = identityTinted(
-                        if (appChartRangeColors) Color(GlucoseRangeColors.valueBorderline(appTrafficDark))
+                        if (appChartRangeColors) Color(GlucoseRangeColors.low(appRangeDark))
                         else lowOutOfRangeTintBase
                     )
                     val veryLowTint = identityTinted(
-                        if (appChartRangeColors) Color(GlucoseRangeColors.valueOut(appTrafficDark))
+                        if (appChartRangeColors) Color(GlucoseRangeColors.veryLow(appRangeDark))
                         else Color(GlucoseRangeColors.veryLow(isDark))
                     )
                     val inRangeTint = identityTinted(
-                        if (appChartRangeColors) Color(GlucoseRangeColors.valueInRange(appTrafficDark))
+                        if (appChartRangeColors) Color(GlucoseRangeColors.inRange(appRangeDark))
                         else primaryColor
                     )
                     val fadePx = 18f
