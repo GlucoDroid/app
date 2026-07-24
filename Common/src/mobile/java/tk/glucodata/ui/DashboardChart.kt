@@ -3579,13 +3579,16 @@ fun InteractiveGlucoseChart(
                 val remainingLabel = summary.nextEndingAt
                     ?.let { formatRemainingDuration(it - System.currentTimeMillis()) }
                     ?.takeIf { it.isNotBlank() }
+                val activeInsulinShape =
+                    if (isActiveInsulinExpanded) RoundedCornerShape(18.dp) else CircleShape
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(start = 12.dp, top = 12.dp)
                         .zIndex(1.6f)
+                        .clip(activeInsulinShape)
                         .clickable { isActiveInsulinExpanded = !isActiveInsulinExpanded },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = activeInsulinShape,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
                     tonalElevation = 0.dp,
                     shadowElevation = 0.dp
