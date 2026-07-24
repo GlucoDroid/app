@@ -509,6 +509,27 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="log_unchecked">Log unchecked. Enable to start.</string>
     <string name="error_reading_file">"Error reading file: "</string>
     <string name="error_saving_file">"Error saving file: "</string>
+    <string name="debug_howto_title">How to report a bug</string>
+    <string name="debug_howto_step1">Turn on recording below.</string>
+    <string name="debug_howto_step2">Reproduce the problem, then come back to this screen.</string>
+    <string name="debug_howto_step3">Tap Share and attach the file to your bug report.</string>
+    <string name="debug_howto_hint">Recording keeps running while you use the app. It stays on your phone until you share it.</string>
+    <string name="debug_record_title">Record diagnostics</string>
+    <string name="debug_record_on">Recording — reproduce the problem now</string>
+    <string name="debug_record_off">Off — nothing is being collected</string>
+    <string name="debug_source_label">Log source</string>
+    <string name="debug_log_stats">%1$s · %2$d lines</string>
+    <string name="debug_log_stats_tail">%1$s · showing last %2$d lines</string>
+    <string name="debug_log_empty">No entries yet</string>
+    <string name="debug_loading">Loading…</string>
+    <string name="debug_cleared">Cleared.</string>
+    <string name="debug_truncated">[…older entries omitted…]</string>
+    <string name="debug_share_log">Share</string>
+    <string name="debug_share_chooser">Share debug log</string>
+    <string name="debug_nothing_to_share">Nothing recorded yet</string>
+    <string name="debug_jump_to_latest">Jump to latest</string>
+    <string name="debug_expand_howto">Show instructions</string>
+    <string name="debug_collapse_howto">Hide instructions</string>
 
     <!-- Mirror Settings Strings -->
     <string name="mirror_settings_title">Mirror Settings</string>
