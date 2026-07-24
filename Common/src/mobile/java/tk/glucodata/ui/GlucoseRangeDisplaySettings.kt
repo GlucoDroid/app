@@ -385,33 +385,38 @@ private fun GlucoseRangeSliderRow(
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = formatRangeValue(value, isMmol),
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontFeatureSettings = "tnum"
-                ),
-                fontWeight = FontWeight.SemiBold
-            )
-            colorBand?.let { band ->
-                Spacer(Modifier.width(16.dp))
-                RangeColorButton(band)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = formatRangeValue(value, isMmol),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontFeatureSettings = "tnum"
+                    ),
+                    fontWeight = FontWeight.SemiBold
+                )
             }
+            Slider(
+                value = value,
+                onValueChange = onValueChange,
+                onValueChangeFinished = onValueChangeFinished,
+                valueRange = bounds,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            onValueChangeFinished = onValueChangeFinished,
-            valueRange = bounds,
-            modifier = Modifier.fillMaxWidth()
-        )
+        colorBand?.let { band ->
+            Spacer(Modifier.width(16.dp))
+            RangeColorButton(band)
+        }
     }
 }
 
