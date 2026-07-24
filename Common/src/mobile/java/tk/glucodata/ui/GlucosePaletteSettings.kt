@@ -2,14 +2,11 @@ package tk.glucodata.ui
 
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
@@ -17,7 +14,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,8 +25,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import tk.glucodata.GlucoseRangeColors
@@ -137,8 +140,11 @@ private fun PaletteColorDialog(
 ) {
     var colorState by remember(initialColor) { mutableStateOf(initialColor.toPaletteColorState()) }
     var colorText by remember(initialColor) { mutableStateOf(formatColorHex(initialColor)) }
+    var showHexEditor by remember(initialColor) { mutableStateOf(false) }
     val composedColor = remember(colorState) { colorState.toColorInt() }
     val parsedColor = remember(colorText) { parseColorHex(colorText) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(colorState) {
         val resolvedHex = formatColorHex(composedColor)
@@ -160,60 +166,81 @@ private fun PaletteColorDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Surface(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .align(Alignment.CenterHorizontally),
-                    shape = CircleShape,
-                    color = Color(composedColor)
-                ) {}
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 tk.glucodata.ui.components.ExpressiveHueWheelPicker(
                     hue = colorState.hue,
-                    onHueChange = { hue -> colorState = colorState.copy(hue = hue) }
+                    onHueChange = { hue -> colorState = colorState.copy(hue = hue) },
+                    previewColor = Color(composedColor)
                 )
-                ColorControlRow(icon = Icons.Default.Palette) {
-                    Slider(
-                        value = colorState.saturation,
-                        onValueChange = { saturation ->
-                            colorState = colorState.copy(saturation = saturation.coerceIn(0f, 1f))
-                        }
-                    )
-                }
-                ColorControlRow(
-                    indicator = {
-                        Text(
-                            text = "${(colorState.alpha * 100f).roundToInt()}%",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                LabeledColorSlider(
+                    label = stringResource(R.string.glucose_palette_saturation),
+                    value = colorState.saturation,
+                    onValueChange = { saturation ->
+                        colorState = colorState.copy(saturation = saturation.coerceIn(0f, 1f))
                     }
+                )
+                LabeledColorSlider(
+                    label = stringResource(R.string.glucose_palette_brightness),
+                    value = colorState.value,
+                    onValueChange = { brightness ->
+                        colorState = colorState.copy(value = brightness.coerceIn(0f, 1f))
+                    }
+                )
+                LabeledColorSlider(
+                    label = stringResource(
+                        R.string.opacity_percent,
+                        (colorState.alpha * 100f).roundToInt()
+                    ),
+                    value = colorState.alpha,
+                    showTrailingValue = false,
+                    onValueChange = { alpha ->
+                        colorState = colorState.copy(alpha = alpha.coerceIn(0f, 1f))
+                    }
+                )
+                TextButton(
+                    onClick = { showHexEditor = !showHexEditor },
+                    modifier = Modifier.align(Alignment.End)
                 ) {
-                    Slider(
-                        value = colorState.alpha,
-                        onValueChange = { alpha ->
-                            colorState = colorState.copy(alpha = alpha.coerceIn(0f, 1f))
-                        }
+                    Icon(imageVector = Icons.Default.Edit, contentDescription = null)
+                    Text(
+                        text = "${stringResource(R.string.edit)}  $colorText",
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                 }
-                OutlinedTextField(
-                    value = colorText,
-                    onValueChange = { colorText = it.trim() },
-                    label = { Text(stringResource(R.string.colors)) },
-                    singleLine = true,
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Palette,
-                            contentDescription = null
-                        )
-                    }
-                )
+                if (showHexEditor) {
+                    OutlinedTextField(
+                        value = colorText,
+                        onValueChange = { raw ->
+                            colorText = raw.trim().uppercase().take(9)
+                        },
+                        label = { Text(stringResource(R.string.colors)) },
+                        singleLine = true,
+                        isError = parsedColor == null,
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = null
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Characters,
+                            keyboardType = KeyboardType.Ascii,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                            }
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(composedColor) },
-                enabled = parsedColor != null
+                onClick = { onConfirm(composedColor) }
             ) {
                 Text(stringResource(R.string.save))
             }
@@ -234,33 +261,32 @@ private fun PaletteColorDialog(
 }
 
 @Composable
-private fun ColorControlRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    indicator: @Composable (() -> Unit)? = null,
-    content: @Composable () -> Unit
+private fun LabeledColorSlider(
+    label: String,
+    value: Float,
+    showTrailingValue: Boolean = true,
+    onValueChange: (Float) -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
             )
-        } else {
-            Box(
-                modifier = Modifier.width(24.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                indicator?.invoke()
+            if (showTrailingValue) {
+                Text(
+                    text = "${(value * 100f).roundToInt()}%",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-        Box(modifier = Modifier.weight(1f)) {
-            content()
-        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
