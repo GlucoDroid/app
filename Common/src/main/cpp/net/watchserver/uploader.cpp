@@ -7,6 +7,7 @@
 #include <cmath>
 #include <ctime>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -177,8 +178,16 @@ static void makeuploadsecret(JNIEnv *env) {
             jnightuploadsecret=  (jstring)env->NewGlobalRef(local);
             }
         }
+//Live managed readings wake the uploader from their own BLE driver threads, while the settings
+//screen and MainActivity wake it from the UI thread. Both reach inituploader() whenever the
+//uploader thread is not running yet, and makeuploadsecret()/makeuploadurl() replace shared
+//global refs with DeleteGlobalRef+NewGlobalRef. Serialize the whole init so no caller can be
+//left holding a freed global ref.
+static std::mutex inituploadermutex;
+
 bool inituploader(JNIEnv *env) {
-    if(!settings->data()->nightuploadon)  
+    std::lock_guard<std::mutex> initlock(inituploadermutex);
+    if(!settings->data()->nightuploadon)
         return false;
     if(!ensureNightscoutBaseUrl()) {
         lastNightUploadCode = -2;
