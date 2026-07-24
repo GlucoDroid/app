@@ -2046,6 +2046,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="glucose_palette_edit_title">Glucose kleuren</string>
     <string name="glucose_palette_preset_custom">Aangepast</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_label">Palet</string>
     <string name="glucose_palette_preset_muted">Gedempt</string>
     <string name="glucose_palette_preset_vibrant">Levendig</string>

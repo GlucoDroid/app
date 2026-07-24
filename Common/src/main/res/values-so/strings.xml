@@ -2232,6 +2232,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="glucose_palette_edit_title">Midabada gulukooska</string>
     <string name="glucose_palette_preset_custom">La habeeyey</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_label">Palette</string>
     <string name="glucose_palette_preset_muted">Deggan</string>
     <string name="glucose_palette_preset_vibrant">Firfircoon</string>

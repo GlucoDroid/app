@@ -2019,6 +2019,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">葡萄糖颜色</string>
     <string name="glucose_palette_preset_custom">自定义</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">极光</string>
     <string name="glucose_palette_preset_label">配色</string>
     <string name="glucose_palette_preset_muted">柔和</string>
     <string name="glucose_palette_preset_vibrant">鲜明</string>

@@ -2046,6 +2046,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">Цвета глюкозы</string>
     <string name="glucose_palette_preset_custom">Своя</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Аврора</string>
     <string name="glucose_palette_preset_label">Палитра</string>
     <string name="glucose_palette_preset_muted">Спокойная</string>
     <string name="glucose_palette_preset_vibrant">Яркая</string>

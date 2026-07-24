@@ -2132,6 +2132,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="glucose_palette_edit_title">Глюкозын өнгө</string>
     <string name="glucose_palette_preset_custom">Захиалгат</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Туйлын туяа</string>
     <string name="glucose_palette_preset_label">Палитр</string>
     <string name="glucose_palette_preset_muted">Бүдэг</string>
     <string name="glucose_palette_preset_vibrant">Эрч хүчтэй</string>

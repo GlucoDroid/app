@@ -1933,6 +1933,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_preset_muted">Muted</string>
     <string name="glucose_palette_preset_vibrant">Vibrant</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_custom">Custom</string>
     <string name="glucose_palette_custom_suffix">· custom</string>
     <string name="glucose_palette_band_very_low">Very low</string>

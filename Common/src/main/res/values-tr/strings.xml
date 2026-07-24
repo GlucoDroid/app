@@ -2031,6 +2031,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="glucose_palette_edit_title">Glikoz renkleri</string>
     <string name="glucose_palette_preset_custom">Özel</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_label">Palet</string>
     <string name="glucose_palette_preset_muted">Yumuşak</string>
     <string name="glucose_palette_preset_vibrant">Canlı</string>

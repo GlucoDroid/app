@@ -1993,6 +1993,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">Colori del glucosio</string>
     <string name="glucose_palette_preset_custom">Personalizzato</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_label">Palette</string>
     <string name="glucose_palette_preset_muted">Attenuata</string>
     <string name="glucose_palette_preset_vibrant">Vibrante</string>

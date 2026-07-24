@@ -233,6 +233,7 @@ fun GlucoseRangeDisplaySettings(viewModel: DashboardViewModel) {
                     viewModel.setVeryLowHighThresholds(veryLowSlider, veryHighSlider)
                 }
             )
+            GlucosePaletteResetAllButton()
         }
     }
 }

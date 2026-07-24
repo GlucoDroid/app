@@ -2038,6 +2038,7 @@
     <string name="glucose_palette_edit_title">Kolory glukozy</string>
     <string name="glucose_palette_preset_custom">Niestandardowe</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Zorza</string>
     <string name="glucose_palette_preset_label">Paleta</string>
     <string name="glucose_palette_preset_muted">Stonowana</string>
     <string name="glucose_palette_preset_vibrant">Żywy</string>

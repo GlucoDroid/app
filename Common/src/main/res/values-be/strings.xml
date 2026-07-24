@@ -2070,6 +2070,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">Колер глюкозы</string>
     <string name="glucose_palette_preset_custom">Уласная</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Аўрора</string>
     <string name="glucose_palette_preset_label">Палітра</string>
     <string name="glucose_palette_preset_muted">Прыглушаны</string>
     <string name="glucose_palette_preset_vibrant">Жывы</string>

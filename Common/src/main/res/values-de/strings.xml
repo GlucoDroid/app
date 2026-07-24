@@ -1672,6 +1672,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="glucose_palette_preset_muted">Gedämpft</string>
     <string name="glucose_palette_preset_vibrant">Kräftig</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_custom">Benutzerdefiniert</string>
     <string name="glucose_palette_custom_suffix">· angepasst</string>
     <string name="glucose_palette_band_very_low">Sehr niedrig</string>

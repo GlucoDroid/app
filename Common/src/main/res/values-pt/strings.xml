@@ -2004,6 +2004,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">Cores de glicose</string>
     <string name="glucose_palette_preset_custom">Personalizado</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_label">Paleta</string>
     <string name="glucose_palette_preset_muted">Suave</string>
     <string name="glucose_palette_preset_vibrant">Vibrante</string>

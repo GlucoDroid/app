@@ -2003,6 +2003,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">Glukos färger</string>
     <string name="glucose_palette_preset_custom">Anpassad</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Norrsken</string>
     <string name="glucose_palette_preset_label">Palett</string>
     <string name="glucose_palette_preset_muted">Dämpad</string>
     <string name="glucose_palette_preset_vibrant">Levande</string>

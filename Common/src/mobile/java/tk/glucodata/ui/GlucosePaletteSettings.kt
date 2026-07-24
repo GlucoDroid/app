@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -17,7 +17,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,11 +41,13 @@ import tk.glucodata.GlucoseRangeColors.Palette
 import tk.glucodata.R
 import tk.glucodata.ui.components.ColorSwatchButton
 
-private val BASE_PRESETS = listOf(Palette.MUTED, Palette.VIBRANT, Palette.GDH_LIKE)
+private val BASE_PRESETS =
+    listOf(Palette.MUTED, Palette.VIBRANT, Palette.AURORA, Palette.GDH_LIKE)
 
 private fun presetLabelRes(palette: Palette): Int = when (palette) {
     Palette.MUTED -> R.string.glucose_palette_preset_muted
     Palette.VIBRANT -> R.string.glucose_palette_preset_vibrant
+    Palette.AURORA -> R.string.glucose_palette_preset_aurora
     Palette.GDH_LIKE -> R.string.glucose_palette_preset_gdh
     Palette.CUSTOM -> R.string.glucose_palette_preset_custom
 }
@@ -88,6 +89,26 @@ fun GlucosePalettePresetSelector(modifier: Modifier = Modifier) {
                 label = { Text(stringResource(presetLabelRes(preset))) },
                 modifier = Modifier.weight(1f)
             )
+        }
+    }
+}
+
+@Composable
+fun GlucosePaletteResetAllButton(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val revision = GlucosePaletteState.revision
+    val hasOverrides = remember(revision) { GlucosePaletteState.hasAnyOverride() }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        )
+        TextButton(
+            onClick = { GlucosePaletteState.clearOverrides(context) },
+            enabled = hasOverrides,
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Text(stringResource(R.string.glucose_palette_reset_all))
         }
     }
 }
@@ -140,26 +161,14 @@ private fun PaletteColorDialog(
 ) {
     var colorState by remember(initialColor) { mutableStateOf(initialColor.toPaletteColorState()) }
     var colorText by remember(initialColor) { mutableStateOf(formatColorHex(initialColor)) }
-    var showHexEditor by remember(initialColor) { mutableStateOf(false) }
     val composedColor = remember(colorState) { colorState.toColorInt() }
     val parsedColor = remember(colorText) { parseColorHex(colorText) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(colorState) {
-        val resolvedHex = formatColorHex(composedColor)
-        if (colorText != resolvedHex) {
-            colorText = resolvedHex
-        }
-    }
-
-    LaunchedEffect(parsedColor) {
-        parsedColor?.let { parsed ->
-            val parsedState = parsed.toPaletteColorState()
-            if (parsedState != colorState) {
-                colorState = parsedState
-            }
-        }
+    fun updateColorState(updated: PaletteColorState) {
+        colorState = updated
+        colorText = formatColorHex(updated.toColorInt())
     }
 
     AlertDialog(
@@ -169,21 +178,25 @@ private fun PaletteColorDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 tk.glucodata.ui.components.ExpressiveHueWheelPicker(
                     hue = colorState.hue,
-                    onHueChange = { hue -> colorState = colorState.copy(hue = hue) },
+                    onHueChange = { hue ->
+                        updateColorState(colorState.copy(hue = hue))
+                    },
                     previewColor = Color(composedColor)
                 )
                 LabeledColorSlider(
                     label = stringResource(R.string.glucose_palette_saturation),
                     value = colorState.saturation,
                     onValueChange = { saturation ->
-                        colorState = colorState.copy(saturation = saturation.coerceIn(0f, 1f))
+                        updateColorState(
+                            colorState.copy(saturation = saturation.coerceIn(0f, 1f))
+                        )
                     }
                 )
                 LabeledColorSlider(
                     label = stringResource(R.string.glucose_palette_brightness),
                     value = colorState.value,
                     onValueChange = { brightness ->
-                        colorState = colorState.copy(value = brightness.coerceIn(0f, 1f))
+                        updateColorState(colorState.copy(value = brightness.coerceIn(0f, 1f)))
                     }
                 )
                 LabeledColorSlider(
@@ -194,48 +207,40 @@ private fun PaletteColorDialog(
                     value = colorState.alpha,
                     showTrailingValue = false,
                     onValueChange = { alpha ->
-                        colorState = colorState.copy(alpha = alpha.coerceIn(0f, 1f))
+                        updateColorState(colorState.copy(alpha = alpha.coerceIn(0f, 1f)))
                     }
                 )
-                TextButton(
-                    onClick = { showHexEditor = !showHexEditor },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Icon(imageVector = Icons.Default.Edit, contentDescription = null)
-                    Text(
-                        text = "${stringResource(R.string.edit)}  $colorText",
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                }
-                if (showHexEditor) {
-                    OutlinedTextField(
-                        value = colorText,
-                        onValueChange = { raw ->
-                            colorText = raw.trim().uppercase().take(9)
-                        },
-                        label = { Text(stringResource(R.string.colors)) },
-                        singleLine = true,
-                        isError = parsedColor == null,
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Palette,
-                                contentDescription = null
-                            )
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Characters,
-                            keyboardType = KeyboardType.Ascii,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                focusManager.clearFocus()
-                                keyboardController?.hide()
-                            }
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                OutlinedTextField(
+                    value = colorText,
+                    onValueChange = { raw ->
+                        val updatedText = raw.trim().uppercase().take(9)
+                        colorText = updatedText
+                        parseColorHex(updatedText)?.let { parsed ->
+                            colorState = parsed.toPaletteColorState()
+                        }
+                    },
+                    label = { Text(stringResource(R.string.colors)) },
+                    singleLine = true,
+                    isError = parsedColor == null,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = null
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                        }
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {

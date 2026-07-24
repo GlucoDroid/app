@@ -2009,6 +2009,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">Couleurs de glucose</string>
     <string name="glucose_palette_preset_custom">Personnalisé</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurore</string>
     <string name="glucose_palette_preset_label">Palette</string>
     <string name="glucose_palette_preset_muted">Discrète</string>
     <string name="glucose_palette_preset_vibrant">Vibrant</string>
