@@ -222,6 +222,11 @@ object OttaiConstants {
     fun shouldStartActivation(commandStatus: Int, explicitlyRequested: Boolean): Boolean =
         explicitlyRequested && commandNeedsActivation(commandStatus)
 
+    fun shouldRescanPendingSetupActivation(
+        commandStatus: Int,
+        explicitlyRequested: Boolean,
+    ): Boolean = commandStatus < 0 && explicitlyRequested
+
     /** Past the extended end, only declare the sensor expired once samples stop this long. */
     const val EXPIRED_STALE_GRACE_MS = 6L * 3600L * 1000L
 

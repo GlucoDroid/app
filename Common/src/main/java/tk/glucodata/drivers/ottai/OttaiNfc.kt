@@ -68,6 +68,12 @@ object OttaiNfc {
         }
     }
 
+    internal fun isActivationRetryArmed(sensorId: String?): Boolean =
+        activationSensorId.equals(
+            OttaiConstants.canonicalSensorId(sensorId),
+            ignoreCase = true,
+        )
+
     @JvmStatic
     fun consumeWakeHaptic(): Boolean {
         if (!wakeHapticPending) return false

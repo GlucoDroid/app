@@ -258,6 +258,22 @@ class OttaiBleManager(
         if (stop) return@Runnable
         connectDevice(0)
     }
+    private val pendingActivationNfcPromptRunnable = Runnable {
+        val id = SerialNumber ?: return@Runnable
+        if (stop ||
+            !awaitingFreshActivationAdvertisement ||
+            activateRequestedFor?.let { matchesManagedSensorId(it) } != true ||
+            OttaiRegistry.loadApiBase(Applic.app) != OttaiConstants.API_BASE
+        ) {
+            return@Runnable
+        }
+        Log.i(TAG, "pending setup activation still has no advertisement; arming NFC wake")
+        OttaiNfc.armForActivationRetry(id)
+        Applic.app?.let { OttaiNfcWakeReminder.show(it, id) }
+        constatstatusstr = appString(R.string.ottai_nfc_dump_armed, "Hold the sensor near NFC")
+        UiRefreshBus.requestStatusRefresh()
+    }
+
     private fun scheduleReconnect(reason: String, delay: Long = RECONNECT_DELAY_MS) {
         if (stop) return
         Log.i(TAG, "reconnect: $reason")
@@ -320,6 +336,7 @@ class OttaiBleManager(
         handler.removeCallbacks(pendingHistoryChunkRunnable)
         handler.removeCallbacks(endedHistoryBackfillRunnable)
         handler.removeCallbacks(connectionWatchdogRunnable)
+        handler.removeCallbacks(pendingActivationNfcPromptRunnable)
         clearPendingHistoryRange()
         svcDeviceInfo = null
         svcCgm = null
@@ -503,6 +520,11 @@ class OttaiBleManager(
             BluetoothProfile.STATE_CONNECTED -> {
                 Log.i(TAG, "connected ${gatt.device?.address}")
                 handler.removeCallbacks(reconnectRunnable)
+                handler.removeCallbacks(pendingActivationNfcPromptRunnable)
+                SerialNumber?.let { sensorId ->
+                    OttaiNfc.disarmActivationRetry(sensorId)
+                    Applic.app?.let { OttaiNfcWakeReminder.cancel(it, sensorId) }
+                }
                 mBluetoothGatt = gatt
                 mActiveBluetoothDevice = gatt.device
                 gatt.device?.address?.let { setDeviceAddress(it) }
@@ -537,6 +559,12 @@ class OttaiBleManager(
             }
             BluetoothProfile.STATE_DISCONNECTED -> {
                 Log.i(TAG, "disconnected status=$status")
+                val disconnectedAddress = OttaiConstants.normalizeBleAddress(
+                    gatt.device?.address,
+                    allowPlain = false,
+                ) ?: knownBleAddress()
+                val explicitActivationRequest =
+                    activateRequestedFor?.let { matchesManagedSensorId(it) } == true
                 val resumeActivation = activationNegotiationActive &&
                     activationRetryPending &&
                     maxActiveCandidateIndex in maxActiveCandidatesMs.indices
@@ -578,6 +606,21 @@ class OttaiBleManager(
                     failActivation("connection closed before activation command was accepted")
                     Log.e(TAG, "activation did not reach command=3; automatic reconnect stopped " +
                         "until the user requests Reconnect")
+                } else if (OttaiConstants.shouldRescanPendingSetupActivation(
+                        commandStatus,
+                        explicitActivationRequest,
+                    )
+                ) {
+                    mActiveDeviceAddress = disconnectedAddress
+                    val scanning = awaitFreshActivationAdvertisement()
+                    Log.w(TAG, "setup activation disconnected before command status=$status; " +
+                        "fresh advertisement scan started=$scanning address=$mActiveDeviceAddress")
+                    if (scanning) {
+                        handler.removeCallbacks(pendingActivationNfcPromptRunnable)
+                        handler.postDelayed(pendingActivationNfcPromptRunnable, 10_000L)
+                    } else {
+                        scheduleReconnect("setup activation pre-status disconnect", 1_000L)
+                    }
                 } else if (!stop) {
                     scheduleReconnect("gatt disconnect")
                 }
@@ -778,6 +821,11 @@ class OttaiBleManager(
             if (activateRequestedFor?.let { matchesManagedSensorId(it) } == true) {
                 activateRequestedFor = null
             }
+            handler.removeCallbacks(pendingActivationNfcPromptRunnable)
+            SerialNumber?.let { sensorId ->
+                OttaiNfc.disarmActivationRetry(sensorId)
+                Applic.app?.let { OttaiNfcWakeReminder.cancel(it, sensorId) }
+            }
             handler.removeCallbacks(endedHistoryBackfillRunnable)
             needsActivationAttempted = false
             resetActivationNegotiation()
@@ -791,6 +839,14 @@ class OttaiBleManager(
 
         handler.removeCallbacks(livePollRunnable)
         handler.removeCallbacks(postHistoryLiveRunnable)
+        if (activateRequestedFor?.let { matchesManagedSensorId(it) } == true) {
+            activateRequestedFor = null
+        }
+        handler.removeCallbacks(pendingActivationNfcPromptRunnable)
+        SerialNumber?.let { sensorId ->
+            OttaiNfc.disarmActivationRetry(sensorId)
+            Applic.app?.let { OttaiNfcWakeReminder.cancel(it, sensorId) }
+        }
         Log.w(TAG, "sensor ended cmd=$status; no lifetime write will be attempted automatically")
         // The ended-history path needs the final dataNo from the live buffer before it can
         // request the missing range. Reading this characteristic is safe after expiry;
@@ -2117,6 +2173,12 @@ class OttaiBleManager(
         )
         return when (phase) {
             Phase.IDLE -> if (hasLossStatus) loss
+                else if (awaitingFreshActivationAdvertisement &&
+                    OttaiNfc.isActivationRetryArmed(SerialNumber)
+                ) appString(
+                    R.string.ottai_nfc_dump_armed,
+                    "Hold the sensor near NFC",
+                )
                 else if (awaitingFreshActivationAdvertisement) appString(
                     R.string.looking_for_transmitters,
                     "Looking for nearby transmitters...",

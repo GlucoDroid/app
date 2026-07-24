@@ -180,6 +180,10 @@ private fun connectOttaiSensor(
         ble,
         OttaiConstants.DEFAULT_DISPLAY_NAME,
         activate = activate,
+        // Cloud activeTime is not authoritative. The explicit setup action may safely
+        // arm activation and let the authenticated command byte decide: <3 activates,
+        // 3 streams, and >=4 remains ended without a lifetime write.
+        activateIfNeeded = true,
     ) != null
 }
 

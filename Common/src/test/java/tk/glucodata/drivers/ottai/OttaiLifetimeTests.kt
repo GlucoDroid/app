@@ -106,6 +106,28 @@ class OttaiLifetimeTests {
         assertFalse(OttaiConstants.shouldStartActivation(commandStatus = 4, explicitlyRequested = true))
     }
 
+    @Test
+    fun setupActivationRescansOnlyBeforeCommandStatusIsKnown() {
+        assertTrue(
+            OttaiConstants.shouldRescanPendingSetupActivation(
+                commandStatus = -1,
+                explicitlyRequested = true,
+            ),
+        )
+        assertFalse(
+            OttaiConstants.shouldRescanPendingSetupActivation(
+                commandStatus = -1,
+                explicitlyRequested = false,
+            ),
+        )
+        assertFalse(
+            OttaiConstants.shouldRescanPendingSetupActivation(
+                commandStatus = 2,
+                explicitlyRequested = true,
+            ),
+        )
+    }
+
     private companion object {
         const val DAY_MS = 24L * 60L * 60L * 1000L
     }
