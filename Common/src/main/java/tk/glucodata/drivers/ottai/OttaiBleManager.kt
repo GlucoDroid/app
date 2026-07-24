@@ -1862,6 +1862,12 @@ class OttaiBleManager(
         actStep = ActStep.NONE
         Log.w(TAG, "maxActive rejected duration=${rejectedMs / 1000L}s status=$status; " +
             "will reconnect and retry ${nextMs / 1000L}s")
+        if (OttaiRegistry.loadApiBase(Applic.app) == OttaiConstants.API_BASE) {
+            SerialNumber?.takeIf { it.isNotBlank() }?.let { sensorId ->
+                OttaiNfc.armForActivationRetry(sensorId)
+                Applic.app?.let { OttaiNfcWakeReminder.show(it, sensorId) }
+            }
+        }
         UiRefreshBus.requestStatusRefresh()
         handler.postDelayed({
             if (activationNegotiationActive && activationRetryPending && mBluetoothGatt === gatt) {
@@ -2265,6 +2271,12 @@ class OttaiBleManager(
             "Expired or ended",
         )
         if (activationNegotiationActive) {
+            if (activationRetryPending && OttaiNfc.isActivationRetryArmed(SerialNumber)) {
+                return appString(
+                    R.string.ottai_nfc_dump,
+                    "Wake sensor with NFC",
+                )
+            }
             return activationProgressStatus()
         }
         if (activationFailed) return appString(
