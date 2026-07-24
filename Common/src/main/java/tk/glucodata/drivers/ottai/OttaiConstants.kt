@@ -286,5 +286,7 @@ object OttaiConstants {
     const val PREF_LAST_DATA_NO_PREFIX = "ottai_last_datano_"
     const val PREF_DEVICE_ID_PREFIX = "ottai_device_id_"
     const val PREF_ACTIVATION_ATTEMPTED_PREFIX = "ottai_act_tried_"  // one-shot auto-activate guard
+    // "dataNo,sampleMs,tempC*10;" per accepted reading — feeds the stats temperature card.
+    const val PREF_TEMPERATURE_HISTORY_PREFIX = "ottai_temp_history_"
     const val PREF_SELF_DEVICE_ID = "ottai_self_device_id"
 }

@@ -25,6 +25,8 @@ object OttaiRegistry {
     private const val TAG = OttaiConstants.TAG
     private const val PREFS_NAME = "tk.glucodata_preferences"
     private const val PREF_DRAFT_SENSORS_KEY = "ottai_draft_sensors"
+    // ~1 min cadence: 9000 samples is about 6 days of temperature, matching Anytime.
+    private const val TEMPERATURE_HISTORY_LIMIT = 9000
 
     data class SensorRecord(
         val sensorId: String, // canonical cloud id used by server + BLE auth
@@ -240,6 +242,7 @@ object OttaiRegistry {
                 OttaiConstants.PREF_DEVICE_VERSION_PREFIX, OttaiConstants.PREF_LAST_DATA_NO_PREFIX,
                 OttaiConstants.PREF_DEVICE_ID_PREFIX, OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX,
                 OttaiConstants.PREF_CONTINUITY_BASELINE_PREFIX,
+                OttaiConstants.PREF_TEMPERATURE_HISTORY_PREFIX,
             ).forEach { remove(it + canonical) }
         }.apply()
     }
@@ -358,6 +361,65 @@ object OttaiRegistry {
             mmol = parts[2].toFloatOrNull()?.takeIf { it.isFinite() } ?: return null,
             rawCurrent = parts[3].toIntOrNull() ?: return null,
         )
+    }
+
+    // ---- temperature history ----
+    //
+    // Every record the sensor sends carries a skin temperature; the stats screen shows
+    // it, so keep the accepted samples alongside the glucose the Room store already has.
+
+    data class TemperatureRecord(
+        val dataNo: Int,
+        val timestampMs: Long,
+        val temperatureC: Float,
+    )
+
+    private fun isPlausibleTemperature(t: Float): Boolean = t.isFinite() && t > -20f && t < 80f
+
+    @JvmStatic
+    fun loadTemperatureHistory(c: Context, id: String): List<TemperatureRecord> {
+        val key = OttaiConstants.PREF_TEMPERATURE_HISTORY_PREFIX + OttaiConstants.canonicalSensorId(id)
+        val encoded = prefs(c).getString(key, null).orEmpty()
+        if (encoded.isBlank()) return emptyList()
+        val out = ArrayList<TemperatureRecord>()
+        encoded.split(';').forEach { token ->
+            if (token.isBlank()) return@forEach
+            val parts = token.split(',')
+            if (parts.size != 3) return@forEach
+            val dataNo = parts[0].toIntOrNull() ?: return@forEach
+            val timestampMs = parts[1].toLongOrNull() ?: return@forEach
+            val temperatureC = (parts[2].toIntOrNull() ?: return@forEach) / 10f
+            if (timestampMs <= 0L || !isPlausibleTemperature(temperatureC)) return@forEach
+            out.add(TemperatureRecord(dataNo, timestampMs, temperatureC))
+        }
+        return out.distinctBy { it.timestampMs }.sortedBy { it.timestampMs }
+    }
+
+    @JvmStatic
+    fun appendTemperatureHistory(c: Context, id: String, records: Collection<TemperatureRecord>) {
+        if (records.isEmpty()) return
+        val key = OttaiConstants.PREF_TEMPERATURE_HISTORY_PREFIX + OttaiConstants.canonicalSensorId(id)
+        val merged = (loadTemperatureHistory(c, id).asSequence() + records.asSequence())
+            .filter { it.timestampMs > 0L && isPlausibleTemperature(it.temperatureC) }
+            .distinctBy { it.timestampMs }
+            .sortedBy { it.timestampMs }
+            .toList()
+            .takeLast(TEMPERATURE_HISTORY_LIMIT)
+        if (merged.isEmpty()) {
+            prefs(c).edit().remove(key).apply()
+            return
+        }
+        val encoded = buildString(merged.size * 24) {
+            merged.forEach { rec ->
+                append(rec.dataNo)
+                append(',')
+                append(rec.timestampMs)
+                append(',')
+                append(Math.round(rec.temperatureC * 10f))
+                append(';')
+            }
+        }
+        prefs(c).edit().putString(key, encoded).apply()
     }
 
     // ---- portable export / import ----

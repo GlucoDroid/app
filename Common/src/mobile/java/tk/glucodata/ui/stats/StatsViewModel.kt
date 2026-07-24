@@ -27,6 +27,7 @@ import tk.glucodata.data.calibration.CalibrationManager
 import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.drivers.ManagedSensorViewModeStore
 import tk.glucodata.drivers.anytime.AnytimeRegistry
+import tk.glucodata.drivers.ottai.OttaiRegistry
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.DisplayValueResolver
 import tk.glucodata.ui.util.GlucoseFormatter
@@ -874,6 +875,9 @@ class StatsViewModel : ViewModel() {
         readAnytimeTemperaturePoints(serial, history).takeIf { it.isNotEmpty() }?.let {
             return it
         }
+        readOttaiTemperaturePoints(serial, history).takeIf { it.isNotEmpty() }?.let {
+            return it
+        }
         return try {
             val tempRaw = Natives.getTemperatureDataByName(serial)
             if (tempRaw == null || tempRaw.isEmpty()) return emptyList()
@@ -932,6 +936,64 @@ class StatsViewModel : ViewModel() {
             Log.e(tag, "readAnytimeTemperaturePoints failed", e)
             emptyList()
         }
+    }
+
+    private fun readOttaiTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {
+        return try {
+            val context = Applic.app ?: return emptyList()
+            val records = resolveOttaiTemperatureSensorIds(context, serial)
+                .asSequence()
+                .map { OttaiRegistry.loadTemperatureHistory(context, it) }
+                .firstOrNull { it.isNotEmpty() }
+                .orEmpty()
+            if (records.isEmpty()) return emptyList()
+
+            val firstTs = history.firstOrNull()?.timestamp ?: Long.MIN_VALUE
+            val lastTs = history.lastOrNull()?.timestamp ?: Long.MAX_VALUE
+            records.asSequence()
+                .filter { it.timestampMs > 0L }
+                .filter { history.isEmpty() || it.timestampMs in firstTs..lastTs }
+                .filter { it.temperatureC.isFinite() && it.temperatureC > -20f && it.temperatureC < 80f }
+                .distinctBy { it.timestampMs }
+                .sortedBy { it.timestampMs }
+                .map {
+                    TemperaturePoint(
+                        timestamp = it.timestampMs,
+                        temperatureCelsius = it.temperatureC
+                    )
+                }
+                .toList()
+        } catch (e: Throwable) {
+            Log.e(tag, "readOttaiTemperaturePoints failed", e)
+            emptyList()
+        }
+    }
+
+    private fun resolveOttaiTemperatureSensorIds(
+        context: android.content.Context,
+        serial: String
+    ): List<String> {
+        val candidates = LinkedHashSet<String>()
+        fun add(value: String?) {
+            value
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let(candidates::add)
+        }
+
+        add(serial)
+        add(SensorIdentity.resolveAppSensorId(serial))
+        add(SensorIdentity.resolveNativeSensorName(serial))
+        add(runCatching { Natives.resolveFullSensorName(serial) }.getOrNull())
+
+        candidates.toList().forEach { candidate ->
+            add(OttaiRegistry.resolveCanonicalSensorId(context, candidate))
+        }
+
+        val known = OttaiRegistry.persistedRecords(context)
+        known.firstOrNull { record -> candidates.any { record.matchesId(it) } }?.let { add(it.sensorId) }
+
+        return candidates.toList()
     }
 
     private fun resolveAnytimeTemperatureSensorIds(

@@ -101,6 +101,8 @@ class OttaiBleManager(
         val displayValue: Float,
         val publishCurrent: Boolean,
         val persist: Boolean,
+        val dataNo: Int,
+        val temperatureC: Float,
     )
     private data class RejectedSample(
         val rawCurrent: Int,
@@ -1421,6 +1423,8 @@ class OttaiBleManager(
             displayValue = if (Applic.unit == 1) mmol else mgdl,
             publishCurrent = freshLiveSample && sampleMs > previousGlucoseAtMs,
             persist = shouldPersist,
+            dataNo = r.record.dataNo,
+            temperatureC = r.record.temperatureC.toFloat(),
         )
     }
 
@@ -1586,6 +1590,7 @@ class OttaiBleManager(
         val id = SerialNumber ?: return
         val toPersist = readings.filter { it.persist }
         if (toPersist.isEmpty()) return
+        storeTemperatures(id, toPersist)
         if (live && toPersist.size == 1) {
             val reading = toPersist.single()
             HistorySyncAccess.storeCurrentReadingAsync(reading.sampleMs, reading.mgdl, 0f, 0f, id)
@@ -1596,6 +1601,17 @@ class OttaiBleManager(
         // Ottai rawCurrent is an electrode/current diagnostic, not raw glucose mg/dL.
         val rawValues = FloatArray(toPersist.size) { 0f }
         HistorySyncAccess.storeSensorHistoryBatchAsync(id, timestamps, values, rawValues)
+    }
+
+    /** Keeps the per-sample skin temperature so the stats screen can chart it. */
+    private fun storeTemperatures(id: String, readings: List<EmittedReading>) {
+        val context = Applic.app ?: return
+        val records = readings
+            .filter { it.temperatureC.isFinite() && it.sampleMs > 0L }
+            .map { OttaiRegistry.TemperatureRecord(it.dataNo, it.sampleMs, it.temperatureC) }
+        if (records.isEmpty()) return
+        runCatching { OttaiRegistry.appendTemperatureHistory(context, id, records) }
+            .onFailure { Log.stack(TAG, "persist Ottai temperature", it) }
     }
 
     private fun publishCurrentReading(reading: EmittedReading) {
