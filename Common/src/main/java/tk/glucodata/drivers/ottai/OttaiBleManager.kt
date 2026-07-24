@@ -1588,9 +1588,12 @@ class OttaiBleManager(
 
     private fun storeDecodedReadings(readings: List<EmittedReading>, live: Boolean) {
         val id = SerialNumber ?: return
+        // Temperature is keyed by sample time and deduped on write, so keep it for every
+        // accepted reading — a live sample whose glucose is a re-send of one already in
+        // Room still carries a temperature the stats card wants.
+        storeTemperatures(id, readings)
         val toPersist = readings.filter { it.persist }
         if (toPersist.isEmpty()) return
-        storeTemperatures(id, toPersist)
         if (live && toPersist.size == 1) {
             val reading = toPersist.single()
             HistorySyncAccess.storeCurrentReadingAsync(reading.sampleMs, reading.mgdl, 0f, 0f, id)

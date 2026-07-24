@@ -114,6 +114,7 @@ class StatsViewModel : ViewModel() {
     private var cachedTemperatureSerial: String? = null
     private var cachedTemperaturePoints: List<TemperaturePoint> = emptyList()
     private var cachedTemperatureHistoryStartMs: Long = Long.MAX_VALUE
+    private var cachedTemperatureHistoryEndMs: Long = Long.MIN_VALUE
     private var lastTemperatureRefreshMs: Long = 0L
     private var availableRangeJob: Job? = null
     @Volatile private var statsDisplayHistoryCacheKey: StatsDisplayHistoryCacheKey? = null
@@ -272,6 +273,7 @@ class StatsViewModel : ViewModel() {
                 cachedTemperatureSerial = null
                 cachedTemperaturePoints = emptyList()
                 cachedTemperatureHistoryStartMs = Long.MAX_VALUE
+                cachedTemperatureHistoryEndMs = Long.MIN_VALUE
                 lastTemperatureRefreshMs = 0L
                 historyJob?.cancel()
                 availableRangeJob?.cancel()
@@ -818,9 +820,14 @@ class StatsViewModel : ViewModel() {
     private fun maybeRefreshTemperaturePoints(serial: String, history: List<GlucosePoint>): List<TemperaturePoint> {
         val now = System.currentTimeMillis()
         val historyStartMs = history.firstOrNull()?.timestamp ?: Long.MAX_VALUE
+        val historyEndMs = history.lastOrNull()?.timestamp ?: Long.MIN_VALUE
         val historyWindowExpanded = historyStartMs < cachedTemperatureHistoryStartMs
+        // A new reading means a new temperature sample too — without this the card is
+        // stuck on whatever it read up to 15 minutes ago and looks like it never grows.
+        val newerReadingArrived = historyEndMs > cachedTemperatureHistoryEndMs
         val shouldRefresh = serial != cachedTemperatureSerial ||
             historyWindowExpanded ||
+            newerReadingArrived ||
             (cachedTemperaturePoints.isEmpty() && history.isNotEmpty()) ||
             now - lastTemperatureRefreshMs > TEMPERATURE_REFRESH_INTERVAL_MS
 
@@ -832,6 +839,7 @@ class StatsViewModel : ViewModel() {
         cachedTemperatureSerial = serial
         cachedTemperaturePoints = refreshed
         cachedTemperatureHistoryStartMs = historyStartMs
+        cachedTemperatureHistoryEndMs = historyEndMs
         lastTemperatureRefreshMs = now
         return refreshed
     }
