@@ -387,57 +387,44 @@ private fun GlucoseRangeSliderRow(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = formatRangeValue(value, isMmol),
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFeatureSettings = "tnum"
-                    ),
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            if (colorBand != null) {
-                Spacer(Modifier.width(72.dp))
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Slider(
-                value = value,
-                onValueChange = onValueChange,
-                onValueChangeFinished = onValueChangeFinished,
-                valueRange = bounds,
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = formatRangeValue(value, isMmol),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontFeatureSettings = "tnum"
+                ),
+                fontWeight = FontWeight.SemiBold
             )
             colorBand?.let { band ->
                 Spacer(Modifier.width(16.dp))
                 RangeColorButton(band)
             }
         }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            onValueChangeFinished = onValueChangeFinished,
+            valueRange = bounds,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
 @Composable
 private fun TargetRangeColorRow() {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = stringResource(R.string.target_range_title),
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.weight(1f))
-            Spacer(Modifier.width(16.dp))
-            RangeColorButton(Band.IN_RANGE)
-        }
+        RangeColorButton(Band.IN_RANGE)
     }
 }
 
