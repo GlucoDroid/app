@@ -173,36 +173,20 @@ fun GlucoseRangeDisplaySettings(viewModel: DashboardViewModel) {
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
             )
             GlucoseThresholdSliderRow(
-                label = stringResource(R.string.very_low_label),
-                value = veryLowSlider,
-                bounds = veryLowBounds,
+                label = stringResource(R.string.very_high_label),
+                value = veryHighSlider,
+                bounds = veryHighBounds,
                 isMmol = isMmol,
-                colorBand = Band.VERY_LOW,
+                colorBand = Band.VERY_HIGH,
                 onValueChange = { candidate ->
-                    veryLowSlider = clampLowerRangeValue(
-                        candidate, veryHighSlider, veryLowBounds, valueStep, isMmol
+                    veryHighSlider = clampUpperRangeValue(
+                        candidate, veryLowSlider, veryHighBounds, valueStep, isMmol
                     )
                 },
                 onValueChangeFinished = {
                     viewModel.setVeryLowHighThresholds(veryLowSlider, veryHighSlider)
                 }
             )
-            GlucoseThresholdSliderRow(
-                label = stringResource(R.string.low_label),
-                value = targetLowSlider,
-                bounds = targetLowBounds,
-                isMmol = isMmol,
-                colorBand = Band.LOW,
-                onValueChange = { candidate ->
-                    targetLowSlider = clampLowerRangeValue(
-                        candidate, targetHighSlider, targetLowBounds, valueStep, isMmol
-                    )
-                },
-                onValueChangeFinished = {
-                    viewModel.setTargetRange(targetLowSlider, targetHighSlider)
-                }
-            )
-            TargetRangeColorRow()
             GlucoseThresholdSliderRow(
                 label = stringResource(R.string.high_label),
                 value = targetHighSlider,
@@ -218,15 +202,31 @@ fun GlucoseRangeDisplaySettings(viewModel: DashboardViewModel) {
                     viewModel.setTargetRange(targetLowSlider, targetHighSlider)
                 }
             )
+            TargetRangeColorRow()
             GlucoseThresholdSliderRow(
-                label = stringResource(R.string.very_high_label),
-                value = veryHighSlider,
-                bounds = veryHighBounds,
+                label = stringResource(R.string.low_label),
+                value = targetLowSlider,
+                bounds = targetLowBounds,
                 isMmol = isMmol,
-                colorBand = Band.VERY_HIGH,
+                colorBand = Band.LOW,
                 onValueChange = { candidate ->
-                    veryHighSlider = clampUpperRangeValue(
-                        candidate, veryLowSlider, veryHighBounds, valueStep, isMmol
+                    targetLowSlider = clampLowerRangeValue(
+                        candidate, targetHighSlider, targetLowBounds, valueStep, isMmol
+                    )
+                },
+                onValueChangeFinished = {
+                    viewModel.setTargetRange(targetLowSlider, targetHighSlider)
+                }
+            )
+            GlucoseThresholdSliderRow(
+                label = stringResource(R.string.very_low_label),
+                value = veryLowSlider,
+                bounds = veryLowBounds,
+                isMmol = isMmol,
+                colorBand = Band.VERY_LOW,
+                onValueChange = { candidate ->
+                    veryLowSlider = clampLowerRangeValue(
+                        candidate, veryHighSlider, veryLowBounds, valueStep, isMmol
                     )
                 },
                 onValueChangeFinished = {
@@ -336,20 +336,20 @@ private fun GlucoseRangeSliderSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         GlucoseRangeSliderRow(
-            label = lowLabel,
-            value = lowValue,
-            bounds = lowBounds,
-            isMmol = isMmol,
-            onValueChange = onLowValueChange,
-            onValueChangeFinished = onLowValueChangeFinished
-        )
-        GlucoseRangeSliderRow(
             label = highLabel,
             value = highValue,
             bounds = highBounds,
             isMmol = isMmol,
             onValueChange = onHighValueChange,
             onValueChangeFinished = onHighValueChangeFinished
+        )
+        GlucoseRangeSliderRow(
+            label = lowLabel,
+            value = lowValue,
+            bounds = lowBounds,
+            isMmol = isMmol,
+            onValueChange = onLowValueChange,
+            onValueChangeFinished = onLowValueChangeFinished
         )
     }
 }
