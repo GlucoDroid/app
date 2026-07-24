@@ -74,6 +74,7 @@ class SibionicsBleManager(
 
     companion object {
         private const val RECONNECT_DELAY_MS = 8_000L
+        private const val ADVERTISEMENT_RECOVERY_FALLBACK_MS = 30_000L
         private const val CONNECT_CALLBACK_TIMEOUT_MS = 20_000L
         private const val SETUP_STAGE_TIMEOUT_MS = 15_000L
         private const val CHINESE_PROBE_TIMEOUT_MS = 5_000L
@@ -132,6 +133,7 @@ class SibionicsBleManager(
     @Volatile private var discardNotificationsUntilResetDisconnect: Boolean = false
     @Volatile private var loggedDiscardedPostResetNotification: Boolean = false
     @Volatile private var connectionPrioritySettled: Boolean = false
+    @Volatile private var consecutiveGattConnectionTimeouts: Int = 0
     @Volatile private var uiPaused: Boolean = false
     @Volatile private var pendingMatchedBleName: String = ""
     @Volatile private var autoResetDays: Int = 300
@@ -513,6 +515,7 @@ class SibionicsBleManager(
         }
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
+                handler.removeCallbacks(reconnectRunnable)
                 handler.removeCallbacks(connectCallbackTimeoutRunnable)
                 mBluetoothGatt = gatt
                 mActiveBluetoothDevice = gatt.device
@@ -549,10 +552,34 @@ class SibionicsBleManager(
                 handler.removeCallbacks(chineseProbeTimeoutRunnable)
                 handler.removeCallbacks(chineseDataTimeoutRunnable)
                 if (!stop && !uiPaused) {
-                    scheduleReconnect(
-                        reason = "disconnect status=$status",
-                        delayMs = SibionicsSessionPolicy.reconnectDelayMs(status, RECONNECT_DELAY_MS),
-                    )
+                    consecutiveGattConnectionTimeouts =
+                        if (SibionicsSessionPolicy.isGattConnectionTimeout(status)) {
+                            if (consecutiveGattConnectionTimeouts == Int.MAX_VALUE) {
+                                Int.MAX_VALUE
+                            } else {
+                                consecutiveGattConnectionTimeouts + 1
+                            }
+                        } else {
+                            0
+                        }
+                    if (SibionicsSessionPolicy.isGattConnectionTimeout(status) &&
+                        beginAdvertisementGatedRecovery()
+                    ) {
+                        scheduleReconnect(
+                            reason = "status=$status advertisement fallback " +
+                                "timeoutStreak=$consecutiveGattConnectionTimeouts",
+                            delayMs = ADVERTISEMENT_RECOVERY_FALLBACK_MS,
+                        )
+                    } else {
+                        scheduleReconnect(
+                            reason = "disconnect status=$status timeoutStreak=$consecutiveGattConnectionTimeouts",
+                            delayMs = SibionicsSessionPolicy.reconnectDelayMs(
+                                status = status,
+                                normalDelayMs = RECONNECT_DELAY_MS,
+                                consecutiveConnectionTimeouts = consecutiveGattConnectionTimeouts,
+                            ),
+                        )
+                    }
                 }
                 UiRefreshBus.requestStatusRefresh()
             }
@@ -698,6 +725,7 @@ class SibionicsBleManager(
             }
 
             is SibionicsProtocol.ParseResult.ChineseData -> {
+                consecutiveGattConnectionTimeouts = 0
                 if (protocolMode != SibionicsConstants.ProtocolMode.CHINESE) {
                     protocolMode = SibionicsConstants.ProtocolMode.CHINESE
                     Applic.app?.let { SibionicsRegistry.saveProtocolMode(it, SerialNumber, protocolMode) }
@@ -743,6 +771,7 @@ class SibionicsBleManager(
         when (result) {
             is SibionicsProtocol.ParseResult.Handshake -> handleV120Handshake(result.response)
             is SibionicsProtocol.ParseResult.V120Data -> {
+                consecutiveGattConnectionTimeouts = 0
                 confirmProtocolMode(SibionicsConstants.ProtocolMode.V120)
                 handler.removeCallbacks(handshakeTimeoutRunnable)
                 phase = Phase.STREAMING
@@ -2034,6 +2063,23 @@ class SibionicsBleManager(
         }.getOrNull() ?: return false
         mActiveBluetoothDevice = runCatching { adapter.getRemoteDevice(address) }.getOrNull()
         return mActiveBluetoothDevice != null
+    }
+
+    private fun beginAdvertisementGatedRecovery(): Boolean {
+        val bluetooth = SensorBluetooth.blueone ?: return false
+        val address = knownBleAddress() ?: return false
+        searchforDeviceAddress()
+        mActiveDeviceAddress = address
+        mActiveBluetoothDevice = null
+        phase = Phase.IDLE
+        setStatus(connectingStatus())
+        bluetooth.scanStarter(250L)
+        Log.i(
+            SibionicsConstants.TAG,
+            "waiting for fresh advertisement after GATT timeout serial=$SerialNumber " +
+                "address=$address",
+        )
+        return true
     }
 
     private fun scheduleReconnect(reason: String, delayMs: Long = RECONNECT_DELAY_MS) {
