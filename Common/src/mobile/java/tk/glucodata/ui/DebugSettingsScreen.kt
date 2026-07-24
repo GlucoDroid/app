@@ -285,7 +285,14 @@ fun DebugSettingsScreen(navController: NavController) {
                 icon = Icons.Default.BugReport,
                 onCheckedChange = { enabled ->
                     isRecording = enabled
-                    if (logType == LogType.TRACE) Natives.dolog(enabled) else Natives.dologcat(enabled)
+                    if (logType == LogType.TRACE) {
+                        Natives.dolog(enabled)
+                        // Java-side guards mirror the native switch — refresh or they stay
+                        // short-circuited and the trace comes back empty.
+                        tk.glucodata.Log.refreshDoLog()
+                    } else {
+                        Natives.dologcat(enabled)
+                    }
                 }
             )
 

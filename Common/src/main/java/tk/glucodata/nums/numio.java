@@ -127,7 +127,11 @@ if(true) {
    int ret=130;
    final String nativedir=con.getApplicationInfo().nativeLibraryDir;
    Natives.setlocale(locstr);
-   switch (ret=Natives.setfilesdir(filespath, country,nativedir)) {
+   ret=Natives.setfilesdir(filespath, country,nativedir);
+   // Settings are live now, so the native logging switch is authoritative — mirror it into
+   // Log.doLog so guarded call sites stop building strings when tracing is off.
+   Log.refreshDoLog();
+   switch (ret) {
       case 1:
          settingsnull();
          break;

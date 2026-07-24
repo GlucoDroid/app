@@ -37,7 +37,46 @@ import dalvik.system.BaseDexClassLoader;
 
 
 public class Log {
-public static final boolean doLog=BuildConfig.doLog==1;
+/**
+ * Compile-time ceiling. Builds that set {@code doLog=0} strip logging entirely and can never
+ * turn it back on at runtime.
+ */
+private static final boolean buildAllowsLog=BuildConfig.doLog==1;
+
+/**
+ * Whether log calls should do any work at all.
+ *
+ * <p>Not a constant: the native side keeps the real switch ({@code Natives.islogging()}, backed
+ * by the {@code nolog} setting and the Debug Settings toggle) and drops everything when it is
+ * off. Mirroring it here lets the {@code if(doLog)} guards short-circuit <em>before</em> the
+ * message string is concatenated and pushed across JNI, which is pure waste on the BLE paths.
+ *
+ * <p>Seeded optimistically so logging works during startup, before natives are loaded; refreshed
+ * by {@link #refreshDoLog()} once they are, and again whenever the user flips the toggle.
+ */
+public static volatile boolean doLog=buildAllowsLog;
+
+/**
+ * Re-read the native logging switch. Call after natives load and after any
+ * {@code Natives.dolog(...)} change.
+ */
+public static void refreshDoLog() {
+	if(!buildAllowsLog) {
+		doLog=false;
+		return;
+		}
+	if(!Applic.Nativesloaded) {
+		doLog=true;
+		return;
+		}
+	try {
+		doLog=Natives.islogging();
+		}
+	catch(Throwable e) {
+		android.util.Log.e(LOG_ID,"islogging() unavailable, keeping logging on");
+		doLog=true;
+		}
+	}
 static final private String LOG_ID="Log";
 private static void log(String type,String one,String two) {
    	if(!Applic.Nativesloaded)  {

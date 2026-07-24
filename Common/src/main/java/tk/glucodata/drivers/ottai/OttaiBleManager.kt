@@ -32,6 +32,8 @@ import kotlin.math.abs
 import tk.glucodata.Applic
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
+import tk.glucodata.logd
+import tk.glucodata.logi
 import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
@@ -1146,8 +1148,7 @@ class OttaiBleManager(
     }
 
     private fun handleCgmInfo(value: ByteArray, source: String) {
-        val hex = OttaiCrypto.bytesToHex(value).take(160)
-        Log.i(TAG, "cgm-info $source len=${value.size} hex=$hex")
+        logi(TAG) { "cgm-info $source len=${value.size} hex=${OttaiCrypto.bytesToHex(value).take(160)}" }
         if (activationCandidateProbeActive) {
             synchronized(deferredActivationCandidateCgmInfo) {
                 if (deferredActivationCandidateCgmInfo.size >= 8) {
@@ -1283,8 +1284,8 @@ class OttaiBleManager(
         val activeMs = effectiveActiveTimeMs()
         val receivedAtMs = System.currentTimeMillis()
         val kind = if (live) "live" else "history"
-        val cipherHex = OttaiCrypto.bytesToHex(cipher).take(96)
-        Log.i(TAG, "$kind $source cipher len=${cipher.size} hex=$cipherHex")
+        // Lazy: hex-encoding the cipher on every notification is pure waste when tracing is off.
+        logi(TAG) { "$kind $source cipher len=${cipher.size} hex=${OttaiCrypto.bytesToHex(cipher).take(96)}" }
         val payload = OttaiCrypto.decryptPayload(cipher, sessionKeyHex)
         if (payload == null) {
             Log.w(TAG, "$kind $source decrypt failed len=${cipher.size} blockMod=${cipher.size % 16}")
@@ -1296,7 +1297,7 @@ class OttaiBleManager(
             if (live) handler.postDelayed({ requestRecentHistory("empty-live") }, 1_800L)
             return
         }
-        Log.i(TAG, "$kind $source decrypted payloadLen=${payload.size} records=${records.size} front=${OttaiParser.frontDataNo(payload)}")
+        logi(TAG) { "$kind $source decrypted payloadLen=${payload.size} records=${records.size} front=${OttaiParser.frontDataNo(payload)}" }
         val readings = if (live) {
             listOf(OttaiParser.toReading(records.last(), materials.method, materials.coefficients, activeMs))
         } else {

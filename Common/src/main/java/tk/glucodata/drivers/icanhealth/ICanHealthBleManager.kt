@@ -35,6 +35,8 @@ import kotlin.math.round
 import tk.glucodata.Applic
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
+import tk.glucodata.logd
+import tk.glucodata.logi
 import tk.glucodata.Natives
 import tk.glucodata.NightscoutUploadWake
 import tk.glucodata.Notify
@@ -1358,7 +1360,8 @@ class ICanHealthBleManager(
             ICanHealthConstants.CGM_MEASUREMENT -> handleGlucoseNotification(data)
             ICanHealthConstants.CGM_SPECIFIC_OPS -> handleVendorAuthResponse(data)
             ICanHealthConstants.RACP -> handleRacpResponse(data)
-            else -> Log.d(TAG, "Unhandled notify ${characteristic.uuid}: ${data.toHexString()}")
+            // Lazy: hex-encodes the whole payload, and this fires per unhandled notification.
+            else -> logd(TAG) { "Unhandled notify ${characteristic.uuid}: ${data.toHexString()}" }
         }
     }
 
@@ -1659,10 +1662,9 @@ class ICanHealthBleManager(
                 currentSequenceObservedAtMs = nowMs
             }
             if (historyBackfillRequested && historyBackfillPhase == HistoryBackfillPhase.GLUCOSE) {
-                Log.d(
-                    TAG,
+                logd(TAG) {
                     "Delivering live seq=${reading.sequenceNumber} while iCan history backfill continues"
-                )
+                }
             }
             val historyCoveredLiveEdge = historySampleTimeMs?.let {
                 shouldSkipHistoryOverlap(reading.sequenceNumber, it)

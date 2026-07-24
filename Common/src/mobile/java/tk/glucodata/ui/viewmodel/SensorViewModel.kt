@@ -118,6 +118,15 @@ class SensorViewModel : ViewModel() {
         private val sibionicsFreshRestartSeq = java.util.concurrent.atomic.AtomicLong(1L)
         private val sibionicsCustomToggleSeq = java.util.concurrent.atomic.AtomicLong(1L)
         private val sibionicsDisableSeq = java.util.concurrent.atomic.AtomicLong(1L)
+
+        /** Refresh cadence while the list is actually moving. */
+        private const val ACTIVE_POLL_INTERVAL_MS = 2000L
+
+        /** Refresh cadence once the list has been static for a while. */
+        private const val IDLE_POLL_INTERVAL_MS = 5000L
+
+        /** Consecutive unchanged ticks before backing off to [IDLE_POLL_INTERVAL_MS]. */
+        private const val IDLE_POLL_AFTER_TICKS = 3
     }
 
     private val _sensors = MutableStateFlow<List<SensorInfo>>(emptyList())
@@ -219,13 +228,26 @@ class SensorViewModel : ViewModel() {
             } else {
                 refreshSensors()
             }
+            // Ticks are awaited rather than fired-and-forgotten so a slow refresh can never
+            // stack up behind the next one. Idle ticks (nothing in the published list moved)
+            // back off toward IDLE_POLL_INTERVAL_MS; any real change snaps straight back to
+            // the responsive interval, so a visible screen still feels live.
+            var idleTicks = 0
             while (true) {
-                if (ManagedSensorUiSignals.consumeDeviceListDirty()) {
-                    refreshSensorsWithDeviceSync()
-                } else {
-                    refreshSensors()
+                val deviceListDirty = ManagedSensorUiSignals.consumeDeviceListDirty()
+                if (deviceListDirty) {
+                    lastDeviceSyncElapsedMs = SystemClock.elapsedRealtime()
                 }
-                kotlinx.coroutines.delay(2000) // 2 second refresh for real-time feel
+                val changed = refreshSensorsSuspend(syncDeviceList = deviceListDirty)
+                // A dirty signal is an explicit "state moved" hint, so it resets the back-off
+                // even when the rebuilt list happens to compare equal.
+                idleTicks = if (changed || deviceListDirty) 0 else (idleTicks + 1)
+                val interval = if (idleTicks >= IDLE_POLL_AFTER_TICKS) {
+                    IDLE_POLL_INTERVAL_MS
+                } else {
+                    ACTIVE_POLL_INTERVAL_MS
+                }
+                kotlinx.coroutines.delay(interval)
             }
         }
     }
@@ -384,7 +406,23 @@ class SensorViewModel : ViewModel() {
     }
 
     private fun refreshSensorsInternal(syncDeviceList: Boolean) {
-        viewModelScope.launch {
+        viewModelScope.launch { refreshSensorsSuspend(syncDeviceList) }
+    }
+
+    /**
+     * Rebuild the published sensor list and return whether it actually changed.
+     *
+     * Runs on [kotlinx.coroutines.Dispatchers.Default]: per sensor this does a handful of JNI
+     * calls, `SimpleDateFormat` work via [bluediag.datestr] and resource lookups, none of which
+     * belong on the UI thread when the polling loop repeats them every couple of seconds.
+     * Publishing to [_sensors] at the end is safe from any thread — `StateFlow` handles the
+     * hand-off, and Compose collects it back on Main.
+     *
+     * The returned flag lets the polling loop back off while nothing is moving.
+     */
+    private suspend fun refreshSensorsSuspend(syncDeviceList: Boolean): Boolean =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val previous = _sensors.value
             if (syncDeviceList) {
                 SensorBluetooth.updateDevices()
             }
@@ -580,9 +618,10 @@ class SensorViewModel : ViewModel() {
                     }.thenBy { indexed -> indexed.index }
                 )
                 .map { it.value }
-            _sensors.value = assignVisibleSensorColors(sortedSensors)
+            val published = assignVisibleSensorColors(sortedSensors)
+            _sensors.value = published
+            published != previous
         }
-    }
 
     fun setAutoResetDays(serial: String, days: Int) {
         val gatt = findGatt(serial)

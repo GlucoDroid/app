@@ -68,7 +68,7 @@ static void make(MainActivity act,View parent) {
         var save=getbutton(act,R.string.save);
        save.setOnClickListener(v-> savefile(act));
         var log=getcheckbox(act,R.string.logging, Natives.islogging());
-        log.setOnCheckedChangeListener( (buttonView,  isChecked) -> Natives.dolog(isChecked));
+        log.setOnCheckedChangeListener( (buttonView,  isChecked) -> { Natives.dolog(isChecked); tk.glucodata.Log.refreshDoLog(); });
         log.setPadding(0,0,subpad,0);
 
         var logcat=getlabel(act,"logcat");
