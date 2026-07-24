@@ -219,8 +219,9 @@ bool inituploader(JNIEnv *env) {
         LOGSTRING("Nightscout uploader disabled until URL is valid\n");
         return false;
         }
-    extern void startuploaderthread();
-    startuploaderthread();
+    extern bool startuploaderthread();
+    if(!startuploaderthread())
+        return false;
     LOGAR("end inituploader");
     return true;
        }
@@ -360,8 +361,47 @@ int nightuploadTreatments(const char *data,int len) {
 int nightuploadTreatments3(const char *data,int len) {
     return nightupload(jnightuploadTreatments3url,data,len,false);
     }
-int nightuploadDevicestatus(const char *data,int len) {
-    return nightupload(jnightuploadDevicestatusurl,data,len,false);
+static bool queueNightuploadDevicestatus(const char *data,int len) {
+    if(jnightuploadDevicestatusurl==nullptr || nightpostclass==nullptr)
+        return false;
+    auto env=getenv();
+    if(env==nullptr)
+        return false;
+    const static jmethodID uploadAsync=env->GetStaticMethodID(
+        nightpostclass,
+        "uploadDeviceStatusAsync",
+        "(Ljava/lang/String;[BLjava/lang/String;Z)Z"
+    );
+    if(uploadAsync==nullptr) {
+        if(env->ExceptionCheck())
+            env->ExceptionClear();
+        LOGSTRING("Nightscout device-status async method unavailable\n");
+        return false;
+        }
+    jbyteArray payload=env->NewByteArray(len);
+    if(payload==nullptr)
+        return false;
+    env->SetByteArrayRegion(payload,0,len,reinterpret_cast<const jbyte *>(data));
+    if(env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(payload);
+        return false;
+        }
+    const jboolean queued=env->CallStaticBooleanMethod(
+        nightpostclass,
+        uploadAsync,
+        jnightuploadDevicestatusurl,
+        payload,
+        jnightuploadsecret,
+        JNI_FALSE
+    );
+    env->DeleteLocalRef(payload);
+    if(env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        return false;
+        }
+    return queued==JNI_TRUE;
     }
 
 //Phone battery percentage via NightPost.batteryPercent(), or -1 when unavailable.
@@ -388,17 +428,19 @@ static int getUploaderBatteryPercent() {
 
 //Nightscout reads its uploader-battery pill from devicestatus[].uploader.battery. Matches the
 //shape xDrip+ posts, so existing Nightscout installs pick it up with no configuration. Issue #113.
-static time_t lastdevicestatusupload=0;
+static time_t lastdevicestatusattempt=0;
 //The uploader wakes on every new reading, which is once a minute for some sensors. Battery does
-//not move that fast and a devicestatus row per minute would bloat the Nightscout collection.
-static constexpr const int devicestatusintervalsecs=5*60;
+//not move that fast and a devicestatus attempt per minute would waste power when the endpoint is
+//unsupported. Throttle attempts rather than only successes so failures remain best-effort.
+static constexpr const int devicestatusintervalsecs=15*60;
 
 static bool uploadDeviceStatus() {
     if(jnightuploadDevicestatusurl==nullptr)
         return true;
     const time_t nu=time(nullptr);
-    if(lastdevicestatusupload && (nu-lastdevicestatusupload)<devicestatusintervalsecs)
+    if(lastdevicestatusattempt && (nu-lastdevicestatusattempt)<devicestatusintervalsecs)
         return true;
+    lastdevicestatusattempt=nu;
     const int battery=getUploaderBatteryPercent();
     if(battery<0||battery>100)
         return true;
@@ -410,12 +452,9 @@ static bool uploadDeviceStatus() {
     addjsonint(ptr,battery);
     addar(ptr,R"(,"type":"PHONE"}}])");
     *ptr='\0';
-    const int res=nightuploadDevicestatus(buf,ptr-buf);
-    LOGGER("devicestatus battery=%d res=%d\n",battery,res);
-    if(!isNightUploadAccepted(res))
-        return false;
-    lastdevicestatusupload=nu;
-    return true;
+    const bool queued=queueNightuploadDevicestatus(buf,ptr-buf);
+    LOGGER("Nightscout device-status battery=%d queued=%d\n",battery,queued);
+    return queued;
     }
 
 
@@ -772,7 +811,8 @@ static bool uploadCGM(const bool prioritizeRecent=false) {
 
 #include "datbackup.hpp"
 Backup::condvar_t  uploadercondition;
-bool uploaderrunning=false;
+static std::atomic<bool> uploaderrunning{false};
+static std::atomic<bool> uploaderthreadstarted{false};
 
 extern bool networkpresent;
 
@@ -824,6 +864,7 @@ static void uploaderthread() {
         if(uploadercondition.dobackup&Backup::wakeend) {
             uploadercondition.dobackup=0;
             uploaderrunning=false;
+            uploaderthreadstarted=false;
             LOGSTRING("end uploaderthread\n");
             return;
             }
@@ -867,34 +908,67 @@ static void uploaderthread() {
                 continue;
                 }
             }
-        //Best effort: a devicestatus failure must never delay or block glucose upload.
+        //Best effort: Java posts this on a bounded, dedicated executor. Its endpoint status never
+        //overwrites the primary glucose uploader status or blocks this serialized upload loop.
         uploadDeviceStatus();
         waitmin=5*60;
         lastNightUploadWaitMinutes = waitmin;
         }
     }
 
-void startuploaderthread();
+bool startuploaderthread();
 void wakeuploader() {
-    if(!uploaderrunning && settings->data()->nightuploadon) {
+    bool ready=uploaderrunning.load();
+    if(!ready && settings->data()->nightuploadon) {
         auto env=getenv();
         if(env && inituploader(env)) {
             lastNightUploadConfigError = false;
+            ready=true;
             }
     }
-    if(uploaderrunning) {
+    if(ready) {
         lastNightUploadWaitMinutes = 0;
         uploadercondition.wakebackup(Backup::wakeall);
+        LOGSTRING("Nightscout wake source=full mask=all\n");
     }
     }
-void wakestreamuploader() {
-    if(uploaderrunning) 
+
+static bool wakestreamuploader(JNIEnv *env,const char *source,const long long timestampMillis) {
+    if(!settings->data()->nightuploadon)
+        return false;
+    bool ready=uploaderrunning.load();
+    if(!ready && env && inituploader(env)) {
+        lastNightUploadConfigError=false;
+        ready=true;
+        }
+    if(ready) {
+        lastNightUploadWaitMinutes=0;
         uploadercondition.wakebackup(Backup::wakestream);
+        LOGGER(
+            "Nightscout wake source=%.48s timestamp=%lld mask=stream running=%d\n",
+            source?source:"native",
+            timestampMillis,
+            uploaderrunning.load()
+        );
+        }
+    return ready;
+    }
+
+void wakestreamuploader() {
+    wakestreamuploader(getenv(),"native",0);
     }
 #include "fromjava.h"    
 extern "C" JNIEXPORT void JNICALL fromjava(wakeuploader) (JNIEnv *env, jclass clazz) {
     wakeuploader();
     } 
+extern "C" JNIEXPORT jboolean JNICALL fromjava(wakeNightscoutForLiveReading)
+    (JNIEnv *env,jclass clazz,jstring jsource,jlong timestampMillis) {
+    const char *source=jsource?env->GetStringUTFChars(jsource,nullptr):nullptr;
+    const bool ready=wakestreamuploader(env,source,timestampMillis);
+    if(source)
+        env->ReleaseStringUTFChars(jsource,source);
+    return ready?JNI_TRUE:JNI_FALSE;
+    }
 extern "C" JNIEXPORT void JNICALL fromjava(resetuploader) (JNIEnv *env, jclass clazz) {
     reset();
     wakeuploader();
@@ -913,18 +987,27 @@ extern "C" JNIEXPORT jint JNICALL fromjava(getnightscoutretryminutes) (JNIEnv *e
     return lastNightUploadWaitMinutes.load();
     }
 extern "C" JNIEXPORT jboolean JNICALL fromjava(getnightscoutuploaderrunning) (JNIEnv *env, jclass clazz) {
-    return uploaderrunning;
+    return uploaderrunning.load()?JNI_TRUE:JNI_FALSE;
     }
 
 void enduploaderthread() {
-    if(uploaderrunning) {
+    if(uploaderthreadstarted.load()) {
         uploadercondition.wakebackup(Backup::wakeend);
         }
     }
-void startuploaderthread() {
-    if(!uploaderrunning) {
-        std::thread libre(uploaderthread);
-        libre.detach();
-        } 
+bool startuploaderthread() {
+    bool expected=false;
+    if(uploaderthreadstarted.compare_exchange_strong(expected,true)) {
+        try {
+            std::thread libre(uploaderthread);
+            libre.detach();
+            }
+        catch(...) {
+            uploaderthreadstarted=false;
+            LOGSTRING("Nightscout uploader thread failed to start\n");
+            return false;
+            }
+        }
+    return true;
     }
 #endif

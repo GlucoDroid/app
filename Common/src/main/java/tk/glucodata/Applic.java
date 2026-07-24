@@ -438,7 +438,15 @@ public class Applic extends Application implements androidx.work.Configuration.P
     }
 
     public static void updateservice(Context context, boolean usebluetooth) {
-        if (usebluetooth || Natives.backuphostNr() > 0) {
+        final int backupHosts = Natives.backuphostNr();
+        final boolean keepAliveRequired = usebluetooth || backupHosts > 0;
+        if (doLog) {
+            Log.i(LOG_ID, "updateservice decision bluetooth=" + usebluetooth
+                    + " backupHosts=" + backupHosts
+                    + " nightscoutEnabled=" + Natives.getuseuploader()
+                    + " keepAlive=" + keepAliveRequired);
+        }
+        if (keepAliveRequired) {
             if (keeprunning.start(context)) {
                 if (doLog) {
                     Log.i(LOG_ID, "updateservice: keeprunning started");

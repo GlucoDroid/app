@@ -20,6 +20,7 @@ import tk.glucodata.Applic
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
 import tk.glucodata.Natives
+import tk.glucodata.NightscoutUploadWake
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
@@ -1443,18 +1444,17 @@ class SibionicsBleManager(
     // .mirrorReadingIntoNative): shell + stream write keyed by SerialNumber.
     // Native scales glucose ×10 internally; callers pass mgdl/10 by
     // convention (verified against g.cpp addGlucoseStreamInternal).
-    private fun mirrorReadingIntoNative(reading: EmittedReading) {
+    private fun mirrorReadingIntoNative(reading: EmittedReading): Boolean =
         mirrorReadingsIntoNative(listOf(reading))
-    }
 
-    private fun mirrorReadingsIntoNative(readings: List<EmittedReading>) {
-        val name = SerialNumber ?: return
+    private fun mirrorReadingsIntoNative(readings: List<EmittedReading>): Boolean {
+        val name = SerialNumber ?: return false
         val validReadings = readings.filter {
             val sampleSec = it.sampleMs / 1000L
             sampleSec > 0L && it.glucoseMgdl.isFinite() && it.glucoseMgdl > 0f
         }
-        if (validReadings.isEmpty()) return
-        runCatching {
+        if (validReadings.isEmpty()) return false
+        return runCatching {
             val firstSampleSec = validReadings.first().sampleMs / 1000L
             val startSec = when {
                 startTimeMs > 0L -> startTimeMs / 1000L
@@ -1462,23 +1462,27 @@ class SibionicsBleManager(
                 else -> 1L
             }.coerceAtLeast(1L)
             Natives.ensureSensorShell(name, startSec)
+            var stored = false
             for (reading in validReadings) {
-                if (Thread.currentThread().isInterrupted) return@runCatching
+                if (Thread.currentThread().isInterrupted) return@runCatching false
                 val temperatureC = reading.temperatureC
                     .takeIf { it.isFinite() && it > -20f && it < 80f }
                     ?: 0f
                 val rawMgdl = reading.rawMgdl
                     .takeIf { it.isFinite() && it > 0f }
                     ?: reading.glucoseMgdl
-                Natives.addGlucoseStreamWithRawTemp(
+                stored = Natives.addGlucoseStreamWithRawTemp(
                     reading.sampleMs / 1000L,
                     reading.glucoseMgdl / 10f,
                     rawMgdl,
                     temperatureC,
                     name,
-                )
+                ) || stored
             }
-        }.onFailure { Log.stack(SibionicsConstants.TAG, "mirrorReadingIntoNative", it) }
+            stored
+        }.onFailure {
+            Log.stack(SibionicsConstants.TAG, "mirrorReadingIntoNative", it)
+        }.getOrDefault(false)
     }
 
     private fun publishLiveReading(reading: EmittedReading) {
@@ -1498,7 +1502,9 @@ class SibionicsBleManager(
         Applic.app?.let {
             SibionicsRegistry.saveLastReading(it, SerialNumber, reading.sampleMs, reading.glucoseMgdl, reading.rawMgdl)
         }
-        mirrorReadingIntoNative(reading)
+        if (mirrorReadingIntoNative(reading)) {
+            NightscoutUploadWake.afterLiveNativeWrite("sibionics-managed", reading.sampleMs)
+        }
         HistorySyncAccess.storeCurrentReadingAsync(
             reading.sampleMs,
             reading.glucoseMgdl,

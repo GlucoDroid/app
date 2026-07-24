@@ -1359,27 +1359,28 @@ static int compactRawMgdl(jfloat rawGlucose) {
   return (int)roundf(rawGlucose * mgdlToMmol * 10.0f);
 }
 
-static void addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucose,
+static bool addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucose,
                                      jfloat rawGlucose, jfloat temperatureC,
                                      jstring sensorId, bool overwriteRaw,
                                      bool overwriteTemp) {
   if (!sensors || !sensorId)
-    return;
+    return false;
   const char *str = env->GetStringUTFChars(sensorId, NULL);
   if (!str)
-    return;
+    return false;
 
+  bool stored = false;
   if (timestamp > 0) {
     if (SensorGlucoseData *hist = ensureDirectStreamShellForId(str, 0)) {
       if (hist->error()) {
         env->ReleaseStringUTFChars(sensorId, str);
-        return;
+        return false;
       }
       seedDirectStreamStateIfMissing(hist, timestamp);
       auto *info = hist->getinfo();
       if (!info) {
         env->ReleaseStringUTFChars(sensorId, str);
-        return;
+        return false;
       }
 
       uint32_t start = info->starttime;
@@ -1423,6 +1424,7 @@ static void addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
                                                    mgVal, timestamp);
         hist->savepollallIDs<60>(timestamp, lifeCount, mgVal, 0, change,
                                  preservedRaw, preservedTemp);
+        stored = true;
         if (backup) {
           // Kotlin calibration rewrites touch historical stream points. Rewind
           // both stream and history mirror cursors so followers receive the
@@ -1435,26 +1437,33 @@ static void addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
     }
   }
   env->ReleaseStringUTFChars(sensorId, str);
+  return stored;
 }
 
-extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseStream)(
+extern "C" JNIEXPORT jboolean JNICALL fromjava(addGlucoseStream)(
     JNIEnv *env, jclass cl, jlong timestamp, jfloat glucose, jstring sensorId) {
-  addGlucoseStreamInternal(env, timestamp, glucose, 0.0f, 0.0f, sensorId, false,
-                           false);
+  return addGlucoseStreamInternal(env, timestamp, glucose, 0.0f, 0.0f, sensorId,
+                                  false, false)
+             ? JNI_TRUE
+             : JNI_FALSE;
 }
 
-extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseStreamWithTemp)(
+extern "C" JNIEXPORT jboolean JNICALL fromjava(addGlucoseStreamWithTemp)(
     JNIEnv *env, jclass cl, jlong timestamp, jfloat glucose, jfloat temperatureC,
     jstring sensorId) {
-  addGlucoseStreamInternal(env, timestamp, glucose, 0.0f, temperatureC,
-                           sensorId, false, true);
+  return addGlucoseStreamInternal(env, timestamp, glucose, 0.0f, temperatureC,
+                                  sensorId, false, true)
+             ? JNI_TRUE
+             : JNI_FALSE;
 }
 
-extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseStreamWithRawTemp)(
+extern "C" JNIEXPORT jboolean JNICALL fromjava(addGlucoseStreamWithRawTemp)(
     JNIEnv *env, jclass cl, jlong timestamp, jfloat glucose, jfloat rawGlucose,
     jfloat temperatureC, jstring sensorId) {
-  addGlucoseStreamInternal(env, timestamp, glucose, rawGlucose, temperatureC,
-                           sensorId, true, true);
+  return addGlucoseStreamInternal(env, timestamp, glucose, rawGlucose,
+                                  temperatureC, sensorId, true, true)
+             ? JNI_TRUE
+             : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(

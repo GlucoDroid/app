@@ -71,6 +71,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLContext;
 
@@ -79,8 +83,25 @@ import tk.glucodata.settings.LibreNumbers;
 public class NightPost  {
     private static final String LOG_ID="NightPost";
     private static final int ERROR_INVALID_URL = -2;
+    private static final int UPLOAD_CONNECT_TIMEOUT_MS = 15_000;
+    private static final int UPLOAD_READ_TIMEOUT_MS = 60_000;
+    private static final int DEVICE_STATUS_CONNECT_TIMEOUT_MS = 3_000;
+    private static final int DEVICE_STATUS_READ_TIMEOUT_MS = 5_000;
+    private static final AtomicBoolean deviceStatusUploadInFlight = new AtomicBoolean(false);
+    private static final ThreadPoolExecutor deviceStatusExecutor = new ThreadPoolExecutor(
+            0,
+            1,
+            30L,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(1),
+            runnable -> {
+                Thread thread = new Thread(runnable, "Nightscout-device-status");
+                thread.setDaemon(true);
+                return thread;
+            }
+    );
 
-private static void patch() {
+private static synchronized void patch() {
       try {
           ProviderInstaller.installIfNeeded(Applic.app);
       }
@@ -130,7 +151,8 @@ static private String uploadstatus=nothing;
 static public boolean deleteUrl(String urlstring,String secret) {
     patch();
     uploadtime=System.currentTimeMillis();
-    {if(doLog) {Log.i(LOG_ID,"deleteUrl "+urlstring+" "+ secret);};};
+    {if(doLog) {Log.i(LOG_ID,"deleteUrl "+urlstring);};};
+    HttpURLConnection urlConnection=null;
     try {
         URL url = new URL(urlstring);
         if(url==null)  {
@@ -138,13 +160,18 @@ static public boolean deleteUrl(String urlstring,String secret) {
             return false;
             }
     uploadstatus=" start deleteURL "+urlstring;
-        HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-        urlConnection.setConnectTimeout(15000);
-        urlConnection.setReadTimeout(60000);
+        urlConnection = (HttpURLConnection) url.openConnection();
+        urlConnection.setConnectTimeout(UPLOAD_CONNECT_TIMEOUT_MS);
+        urlConnection.setReadTimeout(UPLOAD_READ_TIMEOUT_MS);
         if(secret!=null)
                 urlConnection.setRequestProperty("api-secret", secret);
         else {
-            final String auth = gettoken(uploadtime);
+            final String auth = gettoken(
+                    uploadtime,
+                    UPLOAD_CONNECT_TIMEOUT_MS,
+                    UPLOAD_READ_TIMEOUT_MS,
+                    true
+            );
             if(auth.isEmpty()) {
                 return false;
             }
@@ -174,6 +201,10 @@ static public boolean deleteUrl(String urlstring,String secret) {
         Log.e(LOG_ID,error);
         return false;
         }
+    finally {
+        if(urlConnection!=null)
+            urlConnection.disconnect();
+        }
     }
 
 /*
@@ -200,18 +231,24 @@ static JSONObject  readJSONObject(HttpURLConnection urlConnection)  throws IOExc
      return new JSONObject(ant);
     }
 
-private static String gettoken(long now) {
+private static synchronized String gettoken(
+        long now,
+        int connectTimeoutMs,
+        int readTimeoutMs,
+        boolean updateVisibleStatus
+) {
     if(now<expire)
         return token;
     var Nighturl=Natives.getnightuploadurl();
     var secret=Natives.getnightuploadsecret();
     var authstr=Nighturl+ "/api/v2/authorization/request/"+secret;
+    HttpURLConnection urlConnection=null;
     try {
 
         URL url = new URL(authstr);
-        HttpURLConnection  urlConnection = (HttpURLConnection) url.openConnection();
-        urlConnection.setConnectTimeout(15000);
-        urlConnection.setReadTimeout(60000);
+        urlConnection = (HttpURLConnection) url.openConnection();
+        urlConnection.setConnectTimeout(connectTimeoutMs);
+        urlConnection.setReadTimeout(readTimeoutMs);
         urlConnection.setRequestMethod("GET");
         final int code=urlConnection.getResponseCode();
         if(code==HTTP_OK) {
@@ -223,17 +260,29 @@ private static String gettoken(long now) {
             return token;
             }
         else {
-            uploadstatus="gettoken failed code="+code;
-            Log.e(LOG_ID,uploadstatus);
+            final String error="gettoken failed code="+code;
+            if(updateVisibleStatus)
+                uploadstatus=error;
+            Log.e(LOG_ID,error);
             return "";
             }
 
         }
     catch(Throwable th) {
-        uploadstatus="gettoken:\n"+(th==null?"Network error ":th.getMessage());
-        Log.e(LOG_ID,uploadstatus);
+        final String error="gettoken:\n"+(th==null?"Network error ":th.getMessage());
+        if(updateVisibleStatus)
+            uploadstatus=error;
+        Log.e(LOG_ID,error);
         return "";
         }
+    finally {
+        if(urlConnection!=null)
+            urlConnection.disconnect();
+        }
+    }
+
+private static synchronized String getCachedToken(long now) {
+    return now<expire ? token : "";
     }
 
 private static long uploadtime=System.currentTimeMillis();
@@ -297,30 +346,119 @@ static public int batteryPercent() {
 
 @Keep
 static public int upload(String httpurl,byte[] postdata,String secret,boolean put) {
-    patch();
-    uploadtime=System.currentTimeMillis();
-    {if(doLog) {Log.i(LOG_ID,"upload("+httpurl+",#"+postdata.length+","+ secret+","+(put?"PUT":"POST")+")");};};
+    return uploadWithTimeouts(
+            httpurl,
+            postdata,
+            secret,
+            put,
+            UPLOAD_CONNECT_TIMEOUT_MS,
+            UPLOAD_READ_TIMEOUT_MS,
+            true,
+            "primary"
+    );
+    }
+
+/**
+ * Queues uploader-battery status away from the serialized glucose uploader.
+ *
+ * <p>The native caller throttles attempts. This additional in-flight gate prevents a slow
+ * endpoint from accumulating work if a future caller bypasses that throttle.
+ */
+@Keep
+static public boolean uploadDeviceStatusAsync(
+        String httpurl,
+        byte[] postdata,
+        String secret,
+        boolean put
+) {
+    if(!deviceStatusUploadInFlight.compareAndSet(false, true)) {
+        Log.i(LOG_ID,"device-status upload already in flight; dropping duplicate");
+        return false;
+    }
+    try {
+        deviceStatusExecutor.execute(() -> {
+            try {
+                final int code=uploadWithTimeouts(
+                        httpurl,
+                        postdata,
+                        secret,
+                        put,
+                        DEVICE_STATUS_CONNECT_TIMEOUT_MS,
+                        DEVICE_STATUS_READ_TIMEOUT_MS,
+                        false,
+                        "device-status"
+                );
+                if(code==HTTP_OK || code==HttpURLConnection.HTTP_CREATED)
+                    Log.i(LOG_ID,"device-status upload accepted code="+code);
+                else
+                    Log.e(LOG_ID,"device-status upload failed code="+code);
+            }
+            finally {
+                deviceStatusUploadInFlight.set(false);
+            }
+        });
+        return true;
+    }
+    catch(Throwable th) {
+        deviceStatusUploadInFlight.set(false);
+        Log.e(LOG_ID,"device-status scheduling failure:\n"+stackline(th));
+        return false;
+    }
+    }
+
+private static int uploadWithTimeouts(
+        String httpurl,
+        byte[] postdata,
+        String secret,
+        boolean put,
+        int connectTimeoutMs,
+        int readTimeoutMs,
+        boolean updateVisibleStatus,
+        String requestKind
+) {
+    if(updateVisibleStatus)
+        patch();
+    final long requestTime=System.currentTimeMillis();
+    if(updateVisibleStatus)
+        uploadtime=requestTime;
+    final int payloadLength=postdata==null ? 0 : postdata.length;
+    {if(doLog) {Log.i(LOG_ID,requestKind+" upload("+httpurl+",#"+payloadLength+","+(put?"PUT":"POST")+")");};};
+    HttpURLConnection urlConnection=null;
     try {
 
       if(httpurl==null || !(httpurl.startsWith("https://") || httpurl.startsWith("http://"))) {
-        final String invalid="upload failure:\nInvalid Nightscout URL: "+httpurl;
-        uploadstatus=invalid;
+        final String invalid=requestKind+" upload failure:\nInvalid Nightscout URL: "+httpurl;
+        if(updateVisibleStatus)
+            uploadstatus=invalid;
         Log.e(LOG_ID,invalid);
         return ERROR_INVALID_URL;
       }
+      if(postdata==null) {
+        final String invalid=requestKind+" upload failure: empty payload";
+        if(updateVisibleStatus)
+            uploadstatus=invalid;
+        Log.e(LOG_ID,invalid);
+        return -1;
+      }
 
-      uploadstatus="start upload "+httpurl;
+        if(updateVisibleStatus)
+            uploadstatus="start upload "+httpurl;
         URL url = new URL(httpurl);
-        HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-        urlConnection.setConnectTimeout(15000);
-        urlConnection.setReadTimeout(60000);
+        urlConnection = (HttpURLConnection) url.openConnection();
+        urlConnection.setConnectTimeout(connectTimeoutMs);
+        urlConnection.setReadTimeout(readTimeoutMs);
         urlConnection.setRequestMethod(put?"PUT":"POST");
         urlConnection.setDoOutput(true);
         if(secret!=null)
             urlConnection.setRequestProperty("api-secret", secret);
         else {
-            final String auth = gettoken(uploadtime);
+            // Ancillary device status never performs authorization network work. It is queued
+            // only after a primary upload, so a valid v3 token should already be cached.
+            final String auth = updateVisibleStatus
+                    ? gettoken(requestTime, connectTimeoutMs, readTimeoutMs, true)
+                    : getCachedToken(requestTime);
             if(auth.isEmpty()) {
+                Log.e(LOG_ID,requestKind+" upload skipped: no cached Nightscout token");
                 return -1;
             }
             urlConnection.setRequestProperty("Authorization", auth);
@@ -328,28 +466,35 @@ static public int upload(String httpurl,byte[] postdata,String secret,boolean pu
         urlConnection.setRequestProperty("Content-Type", "application/json");
            urlConnection.setRequestProperty( "Content-Length", Integer.toString( postdata.length ));
 
-        OutputStream outputPost = new BufferedOutputStream(urlConnection.getOutputStream());
-        outputPost.write(postdata);
-        outputPost.flush();
-        outputPost.close();
+        try(OutputStream outputPost = new BufferedOutputStream(urlConnection.getOutputStream())) {
+            outputPost.write(postdata);
+            outputPost.flush();
+        }
         final int code=urlConnection.getResponseCode();
         String res=getstring(urlConnection);
-        final String resstr="upload ResponseCode="+code+"\n"+res;
+        final String resstr=requestKind+" upload ResponseCode="+code+"\n"+res;
         if(code!=200&&code!=201) {
-            uploadstatus=resstr;
+            if(updateVisibleStatus)
+                uploadstatus=resstr;
             Log.e(LOG_ID,resstr);
             }
         else {
-            uploadstatus=success;
+            if(updateVisibleStatus)
+                uploadstatus=success;
             {if(doLog) {Log.i(LOG_ID,resstr);};};
             }
         return code;
          }
     catch(Throwable th) {
-        final String posterror="upload failure:\n"+stackline(th);
-        uploadstatus=posterror;
+        final String posterror=requestKind+" upload failure:\n"+stackline(th);
+        if(updateVisibleStatus)
+            uploadstatus=posterror;
         Log.e(LOG_ID,posterror);
         return -1;
+        }
+    finally {
+        if(urlConnection!=null)
+            urlConnection.disconnect();
         }
      }
 private static    void askclearupload(Context context) {

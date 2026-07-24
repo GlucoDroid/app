@@ -36,6 +36,20 @@ public class keeprunning extends Service {
 static boolean started=false;
 static keeprunning theservice=null;
 static final String LOG_ID="keeprunning";
+
+private void logLifecycleState(String event, Intent intent) {
+   try {
+      Log.i(LOG_ID,event
+              +" intent="+(intent==null?"null":intent.getAction())
+              +" bluetooth="+Natives.getusebluetooth()
+              +" backupHosts="+Natives.backuphostNr()
+              +" nightscoutEnabled="+Natives.getuseuploader()
+              +" nightscoutRunning="+Natives.getnightscoutuploaderrunning());
+      }
+   catch(Throwable error) {
+      stack(LOG_ID,event+" state unavailable",error);
+      }
+   }
 /*
 static void turnonwakelock() {
    PowerManager powerManager = (PowerManager) Applic.app.getSystemService(POWER_SERVICE);
@@ -65,18 +79,25 @@ static PowerManager.WakeLock wakeLock =null;
  @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
        {if(doLog) {Log.i(LOG_ID,"onStartCommand flags="+flags+" startId="+startId+" started="+started);};};
-       if(started) {
+       if(started&&theservice==this) {
+                logLifecycleState("onStartCommand-already-started",intent);
                 return Service.START_STICKY;//NODIG?
+                }
+       if(started) {
+                Log.w(LOG_ID,"repairing stale service state before start");
+                started=false;
                 }
        started=true;
        Applic app=(Applic) getApplicationContext();
        app.initproc();
+       logLifecycleState("onStartCommand",intent);
        if(Natives.getfloatglucose()&&!Natives.gethidefloatinJuggluco()) 
                 Floating.makefloat();
         try {
           if(intent==null) {
              if(!Applic.possiblybluetooth(this)) {
                 if(Natives.backuphostNr( )<=0) {
+                   Log.w(LOG_ID,"sticky restart stopped: no Bluetooth or backup-host work");
                    started=false;
                    stopSelf();
                    return Service.START_NOT_STICKY;
@@ -99,6 +120,23 @@ static PowerManager.WakeLock wakeLock =null;
   public IBinder onBind(Intent intent) {
     return null;
   }
+
+  @Override
+  public void onTaskRemoved(Intent rootIntent) {
+    logLifecycleState("onTaskRemoved",rootIntent);
+    super.onTaskRemoved(rootIntent);
+  }
+
+  @Override
+  public void onDestroy() {
+    logLifecycleState("onDestroy",null);
+    if(theservice==this) {
+      theservice=null;
+      started=false;
+    }
+    super.onDestroy();
+  }
+
 static boolean start(Context context) {
       try {
        if(!started||theservice==null) {
@@ -116,6 +154,7 @@ static boolean start(Context context) {
    return false;
    }
 void stopper() {
+   logLifecycleState("stopper",null);
    stopForeground(true);
    stopSelf();
 //   turnoffwakelock();

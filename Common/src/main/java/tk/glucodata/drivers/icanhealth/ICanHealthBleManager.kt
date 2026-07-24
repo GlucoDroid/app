@@ -36,6 +36,7 @@ import tk.glucodata.Applic
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
 import tk.glucodata.Natives
+import tk.glucodata.NightscoutUploadWake
 import tk.glucodata.Notify
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
@@ -1894,12 +1895,15 @@ class ICanHealthBleManager(
             // Native addGlucoseStream() multiplies its float input by 10 before
             // storing the internal mg/dL value. Feed mg/dL / 10 here so native
             // stream storage matches the driver-decoded glucose value.
-            Natives.addGlucoseStreamWithTemp(
+            val stored = Natives.addGlucoseStreamWithTemp(
                 sampleTimeSec,
                 nativeStreamValue,
                 latestTemperatureC,
                 nativeWriteName
             )
+            if (stored) {
+                NightscoutUploadWake.afterLiveNativeWrite("ican", sampleTimeMs)
+            }
             applyNativeSensorMetadata()
             val sensorPtr = resolveNativeSensorPtr(SerialNumber)
             if (sensorPtr != 0L || nativeWriteName.isNotBlank()) {

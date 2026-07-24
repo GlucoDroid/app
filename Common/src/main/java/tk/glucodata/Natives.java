@@ -728,11 +728,11 @@ public class Natives {
 
         public static native void addGlucoseInjection(long time, float glucose, String sensorId);
 
-        public static native void addGlucoseStream(long time, float glucose, String sensorId);
+        public static native boolean addGlucoseStream(long time, float glucose, String sensorId);
 
-        public static native void addGlucoseStreamWithTemp(long time, float glucose, float temperatureC, String sensorId);
+        public static native boolean addGlucoseStreamWithTemp(long time, float glucose, float temperatureC, String sensorId);
 
-        public static native void addGlucoseStreamWithRawTemp(long time, float glucose, float rawGlucose, float temperatureC, String sensorId);
+        public static native boolean addGlucoseStreamWithRawTemp(long time, float glucose, float rawGlucose, float temperatureC, String sensorId);
 
         public static native long ensureSensorShell(String sensorId, long startTimeSec);
 
@@ -1030,6 +1030,8 @@ public class Natives {
         public static native void setNightUploader(String jurl, String Secret, boolean active, boolean v3);
 
         public static native void wakeuploader();
+
+        public static native boolean wakeNightscoutForLiveReading(String source, long timestampMillis);
 
         public static native void resetuploader();
 
