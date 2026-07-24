@@ -2077,4 +2077,24 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Ecrã e cores</string>
     <string name="display_colors_desc">Cores, valores do painel e gráficos</string>
     <string name="display_readouts_section">Leituras do painel</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Como relatar um erro</string>
+    <string name="debug_howto_step1">Ative a gravação abaixo.</string>
+    <string name="debug_howto_step2">Reproduza o problema e volte para esta tela.</string>
+    <string name="debug_howto_step3">Toque em Compartilhar e anexe o arquivo ao seu relato.</string>
+    <string name="debug_howto_hint">A gravação continua enquanto você usa o app. Ela fica no seu telefone até você compartilhá-la.</string>
+    <string name="debug_record_title">Gravar diagnóstico</string>
+    <string name="debug_record_on">Gravando — reproduza o problema agora</string>
+    <string name="debug_record_off">Desativado — nada está sendo coletado</string>
+    <string name="debug_log_stats">%1$s · %2$d linhas</string>
+    <string name="debug_log_stats_tail">%1$s · mostrando as últimas %2$d linhas</string>
+    <string name="debug_log_empty">Nenhuma entrada ainda</string>
+    <string name="debug_loading">Carregando…</string>
+    <string name="debug_truncated">[…entradas antigas omitidas…]</string>
+    <string name="debug_share_log">Compartilhar</string>
+    <string name="debug_share_chooser">Compartilhar log de depuração</string>
+    <string name="debug_nothing_to_share">Nada foi gravado ainda</string>
+    <string name="debug_jump_to_latest">Ir para o fim</string>
+    <string name="debug_dismiss_howto">Ocultar estas instruções</string>
 </resources>

@@ -2119,4 +2119,24 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="display_colors_title">Weergave &amp; kleuren</string>
     <string name="display_colors_desc">Kleuren, dashboardwaarden en grafieken</string>
     <string name="display_readouts_section">Dashboardwaarden</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Een bug melden</string>
+    <string name="debug_howto_step1">Schakel de opname hieronder in.</string>
+    <string name="debug_howto_step2">Reproduceer het probleem en kom dan terug naar dit scherm.</string>
+    <string name="debug_howto_step3">Tik op Delen en voeg het bestand toe aan je bugmelding.</string>
+    <string name="debug_howto_hint">De opname loopt door terwijl je de app gebruikt. Het bestand blijft op je telefoon tot je het deelt.</string>
+    <string name="debug_record_title">Diagnostiek opnemen</string>
+    <string name="debug_record_on">Neemt op — reproduceer nu het probleem</string>
+    <string name="debug_record_off">Uit — er wordt niets verzameld</string>
+    <string name="debug_log_stats">%1$s · %2$d regels</string>
+    <string name="debug_log_stats_tail">%1$s · laatste %2$d regels</string>
+    <string name="debug_log_empty">Nog geen vermeldingen</string>
+    <string name="debug_loading">Laden…</string>
+    <string name="debug_truncated">[…oudere regels weggelaten…]</string>
+    <string name="debug_share_log">Delen</string>
+    <string name="debug_share_chooser">Debuglogboek delen</string>
+    <string name="debug_nothing_to_share">Nog niets opgenomen</string>
+    <string name="debug_jump_to_latest">Naar het einde</string>
+    <string name="debug_dismiss_howto">Deze instructies verbergen</string>
 </resources>

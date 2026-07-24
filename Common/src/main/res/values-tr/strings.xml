@@ -2104,4 +2104,24 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="display_colors_title">Görünüm ve renkler</string>
     <string name="display_colors_desc">Renkler, pano değerleri ve grafikler</string>
     <string name="display_readouts_section">Pano değerleri</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Hata nasıl bildirilir</string>
+    <string name="debug_howto_step1">Aşağıdan kaydı açın.</string>
+    <string name="debug_howto_step2">Sorunu yeniden oluşturun, sonra bu ekrana dönün.</string>
+    <string name="debug_howto_step3">Paylaş\'a dokunun ve dosyayı hata bildiriminize ekleyin.</string>
+    <string name="debug_howto_hint">Uygulamayı kullanırken kayıt devam eder. Dosya, siz paylaşana kadar telefonunuzda kalır.</string>
+    <string name="debug_record_title">Tanılama kaydı</string>
+    <string name="debug_record_on">Kaydediliyor — sorunu şimdi yeniden oluşturun</string>
+    <string name="debug_record_off">Kapalı — hiçbir veri toplanmıyor</string>
+    <string name="debug_log_stats">%1$s · %2$d satır</string>
+    <string name="debug_log_stats_tail">%1$s · son %2$d satır</string>
+    <string name="debug_log_empty">Henüz kayıt yok</string>
+    <string name="debug_loading">Yükleniyor…</string>
+    <string name="debug_truncated">[…eski kayıtlar atlandı…]</string>
+    <string name="debug_share_log">Paylaş</string>
+    <string name="debug_share_chooser">Hata ayıklama günlüğünü paylaş</string>
+    <string name="debug_nothing_to_share">Henüz bir şey kaydedilmedi</string>
+    <string name="debug_jump_to_latest">Sona git</string>
+    <string name="debug_dismiss_howto">Bu talimatları gizle</string>
 </resources>

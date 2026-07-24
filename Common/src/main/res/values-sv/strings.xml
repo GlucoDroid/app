@@ -2076,4 +2076,24 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Visning och färger</string>
     <string name="display_colors_desc">Färger, översiktsvärden och diagram</string>
     <string name="display_readouts_section">Översiktsvärden</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Så rapporterar du ett fel</string>
+    <string name="debug_howto_step1">Aktivera inspelning nedan.</string>
+    <string name="debug_howto_step2">Återskapa problemet och kom sedan tillbaka till den här skärmen.</string>
+    <string name="debug_howto_step3">Tryck på Dela och bifoga filen till din felrapport.</string>
+    <string name="debug_howto_hint">Inspelningen fortsätter medan du använder appen. Filen stannar på telefonen tills du delar den.</string>
+    <string name="debug_record_title">Spela in diagnostik</string>
+    <string name="debug_record_on">Spelar in — återskapa problemet nu</string>
+    <string name="debug_record_off">Av — inget samlas in</string>
+    <string name="debug_log_stats">%1$s · %2$d rader</string>
+    <string name="debug_log_stats_tail">%1$s · visar de senaste %2$d raderna</string>
+    <string name="debug_log_empty">Inga poster ännu</string>
+    <string name="debug_loading">Läser in…</string>
+    <string name="debug_truncated">[…äldre poster utelämnade…]</string>
+    <string name="debug_share_log">Dela</string>
+    <string name="debug_share_chooser">Dela felsökningslogg</string>
+    <string name="debug_nothing_to_share">Inget inspelat ännu</string>
+    <string name="debug_jump_to_latest">Hoppa till slutet</string>
+    <string name="debug_dismiss_howto">Dölj instruktionerna</string>
 </resources>

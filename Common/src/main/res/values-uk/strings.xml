@@ -2148,4 +2148,24 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Екран і кольори</string>
     <string name="display_colors_desc">Кольори, дані на головній і графіки</string>
     <string name="display_readouts_section">Дані на головній</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Як повідомити про помилку</string>
+    <string name="debug_howto_step1">Увімкніть запис нижче.</string>
+    <string name="debug_howto_step2">Відтворіть проблему, а потім поверніться на цей екран.</string>
+    <string name="debug_howto_step3">Натисніть «Поділитися» і додайте файл до звіту про помилку.</string>
+    <string name="debug_howto_hint">Запис триває, поки ви користуєтеся застосунком. Файл лишається на телефоні, доки ви ним не поділитеся.</string>
+    <string name="debug_record_title">Запис діагностики</string>
+    <string name="debug_record_on">Триває запис — відтворіть проблему</string>
+    <string name="debug_record_off">Вимкнено — дані не збираються</string>
+    <string name="debug_log_stats">%1$s · рядків: %2$d</string>
+    <string name="debug_log_stats_tail">%1$s · останні рядки: %2$d</string>
+    <string name="debug_log_empty">Записів ще немає</string>
+    <string name="debug_loading">Завантаження…</string>
+    <string name="debug_truncated">[…старіші записи пропущено…]</string>
+    <string name="debug_share_log">Поділитися</string>
+    <string name="debug_share_chooser">Поділитися журналом налагодження</string>
+    <string name="debug_nothing_to_share">Ще нічого не записано</string>
+    <string name="debug_jump_to_latest">До останніх</string>
+    <string name="debug_dismiss_howto">Сховати ці інструкції</string>
 </resources>

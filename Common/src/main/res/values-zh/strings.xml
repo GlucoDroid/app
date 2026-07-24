@@ -2092,4 +2092,24 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">显示与颜色</string>
     <string name="display_colors_desc">颜色、仪表板数值和图表</string>
     <string name="display_readouts_section">仪表板读数</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">如何反馈问题</string>
+    <string name="debug_howto_step1">在下方开启记录。</string>
+    <string name="debug_howto_step2">复现问题，然后返回此界面。</string>
+    <string name="debug_howto_step3">点按分享，并将文件附到问题反馈中。</string>
+    <string name="debug_howto_hint">使用应用期间记录会持续进行。文件保存在手机上，直到你分享它。</string>
+    <string name="debug_record_title">记录诊断日志</string>
+    <string name="debug_record_on">正在记录 — 现在请复现问题</string>
+    <string name="debug_record_off">已关闭 — 未收集任何数据</string>
+    <string name="debug_log_stats">%1$s · %2$d 行</string>
+    <string name="debug_log_stats_tail">%1$s · 显示最后 %2$d 行</string>
+    <string name="debug_log_empty">暂无记录</string>
+    <string name="debug_loading">加载中…</string>
+    <string name="debug_truncated">[…已省略较早的记录…]</string>
+    <string name="debug_share_log">分享</string>
+    <string name="debug_share_chooser">分享调试日志</string>
+    <string name="debug_nothing_to_share">尚未记录任何内容</string>
+    <string name="debug_jump_to_latest">跳到最新</string>
+    <string name="debug_dismiss_howto">隐藏这些说明</string>
 </resources>

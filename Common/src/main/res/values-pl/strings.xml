@@ -2111,4 +2111,24 @@
     <string name="display_colors_title">Wyświetlanie i kolory</string>
     <string name="display_colors_desc">Kolory, wartości pulpitu i wykresy</string>
     <string name="display_readouts_section">Odczyty pulpitu</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Jak zgłosić błąd</string>
+    <string name="debug_howto_step1">Włącz nagrywanie poniżej.</string>
+    <string name="debug_howto_step2">Odtwórz problem, a następnie wróć na ten ekran.</string>
+    <string name="debug_howto_step3">Dotknij Udostępnij i dołącz plik do zgłoszenia błędu.</string>
+    <string name="debug_howto_hint">Nagrywanie działa dalej podczas korzystania z aplikacji. Plik pozostaje w telefonie, dopóki go nie udostępnisz.</string>
+    <string name="debug_record_title">Nagrywaj diagnostykę</string>
+    <string name="debug_record_on">Nagrywanie — odtwórz teraz problem</string>
+    <string name="debug_record_off">Wyłączone — nic nie jest zbierane</string>
+    <string name="debug_log_stats">%1$s · %2$d wierszy</string>
+    <string name="debug_log_stats_tail">%1$s · ostatnie %2$d wierszy</string>
+    <string name="debug_log_empty">Brak wpisów</string>
+    <string name="debug_loading">Ładowanie…</string>
+    <string name="debug_truncated">[…pominięto starsze wpisy…]</string>
+    <string name="debug_share_log">Udostępnij</string>
+    <string name="debug_share_chooser">Udostępnij dziennik debugowania</string>
+    <string name="debug_nothing_to_share">Nic jeszcze nie nagrano</string>
+    <string name="debug_jump_to_latest">Przejdź na koniec</string>
+    <string name="debug_dismiss_howto">Ukryj te instrukcje</string>
 </resources>

@@ -2115,4 +2115,24 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="display_colors_title">Anzeige &amp; Farben</string>
     <string name="display_colors_desc">Farben, Dashboard-Werte und Diagramme</string>
     <string name="display_readouts_section">Dashboard-Anzeigen</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Fehler melden</string>
+    <string name="debug_howto_step1">Schalten Sie unten die Aufzeichnung ein.</string>
+    <string name="debug_howto_step2">Reproduzieren Sie das Problem und kehren Sie dann zu diesem Bildschirm zurück.</string>
+    <string name="debug_howto_step3">Tippen Sie auf Teilen und hängen Sie die Datei an Ihren Fehlerbericht an.</string>
+    <string name="debug_howto_hint">Die Aufzeichnung läuft weiter, während Sie die App nutzen. Sie bleibt auf Ihrem Telefon, bis Sie sie teilen.</string>
+    <string name="debug_record_title">Diagnose aufzeichnen</string>
+    <string name="debug_record_on">Zeichnet auf — reproduzieren Sie jetzt das Problem</string>
+    <string name="debug_record_off">Aus — es werden keine Daten erfasst</string>
+    <string name="debug_log_stats">%1$s · %2$d Zeilen</string>
+    <string name="debug_log_stats_tail">%1$s · zeigt die letzten %2$d Zeilen</string>
+    <string name="debug_log_empty">Noch keine Einträge</string>
+    <string name="debug_loading">Wird geladen…</string>
+    <string name="debug_truncated">[…ältere Einträge ausgelassen…]</string>
+    <string name="debug_share_log">Teilen</string>
+    <string name="debug_share_chooser">Debug-Protokoll teilen</string>
+    <string name="debug_nothing_to_share">Noch nichts aufgezeichnet</string>
+    <string name="debug_jump_to_latest">Zum Ende springen</string>
+    <string name="debug_dismiss_howto">Diese Anleitung ausblenden</string>
 </resources>

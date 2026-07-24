@@ -1,5 +1,6 @@
 package tk.glucodata.ui
 
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.text.format.Formatter
@@ -9,7 +10,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -18,7 +18,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,11 +25,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -57,6 +56,7 @@ import tk.glucodata.BuildConfig
 import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.ui.components.MasterSwitchCard
+import tk.glucodata.ui.util.ConnectedButtonGroup
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -67,6 +67,7 @@ enum class LogType {
 }
 
 private const val LOG_TAIL_BYTES = 50L * 1024L
+private const val PREF_HOWTO_DISMISSED = "debug_howto_dismissed"
 
 private fun LogType.fileName(): String =
     if (this == LogType.TRACE) "logs/trace.log" else "logs/logcat.txt"
@@ -126,11 +127,17 @@ fun DebugSettingsScreen(navController: NavController) {
     val scope = rememberCoroutineScope()
     val snackbarHost = remember { SnackbarHostState() }
 
+    val prefs = remember(context) {
+        context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+    }
+
     var logType by remember { mutableStateOf(LogType.TRACE) }
     var isRecording by remember { mutableStateOf(false) }
     var snapshot by remember { mutableStateOf(LogSnapshot()) }
     var loading by remember { mutableStateOf(true) }
-    var showHowTo by remember { mutableStateOf(true) }
+    // Shown until the user dismisses it with the X; the title-bar help button brings it back
+    // without clearing that choice, so the card never returns uninvited.
+    var showHowTo by remember { mutableStateOf(!prefs.getBoolean(PREF_HOWTO_DISMISSED, false)) }
 
     val truncationNotice = stringResource(R.string.debug_truncated)
     val nothingToShare = stringResource(R.string.debug_nothing_to_share)
@@ -237,6 +244,12 @@ fun DebugSettingsScreen(navController: NavController) {
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showHowTo = !showHowTo }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.HelpOutline,
+                            contentDescription = stringResource(R.string.debug_howto_title)
+                        )
+                    }
                     IconButton(onClick = {
                         if (logType == LogType.TRACE) Natives.zeroLog() else Natives.zeroLogcat()
                         snapshot = LogSnapshot()
@@ -254,10 +267,14 @@ fun DebugSettingsScreen(navController: NavController) {
                 .padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            HowToReportCard(
-                expanded = showHowTo,
-                onToggle = { showHowTo = !showHowTo }
-            )
+            AnimatedVisibility(visible = showHowTo) {
+                HowToReportCard(
+                    onDismiss = {
+                        showHowTo = false
+                        prefs.edit().putBoolean(PREF_HOWTO_DISMISSED, true).apply()
+                    }
+                )
+            }
 
             MasterSwitchCard(
                 title = stringResource(R.string.debug_record_title),
@@ -272,20 +289,25 @@ fun DebugSettingsScreen(navController: NavController) {
                 }
             )
 
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = logType == LogType.TRACE,
-                    onClick = { logType = LogType.TRACE },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                    label = { Text(stringResource(R.string.trace_log)) }
-                )
-                SegmentedButton(
-                    selected = logType == LogType.LOGCAT,
-                    onClick = { logType = LogType.LOGCAT },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                    label = { Text(stringResource(R.string.logcat)) }
-                )
-            }
+            val logTypeLabels = mapOf(
+                LogType.TRACE to stringResource(R.string.trace_log),
+                LogType.LOGCAT to stringResource(R.string.logcat)
+            )
+            ConnectedButtonGroup(
+                options = LogType.entries,
+                selectedOption = logType,
+                onOptionSelected = { logType = it },
+                labelText = { logTypeLabels[it].orEmpty() },
+                label = { Text(logTypeLabels[it].orEmpty()) },
+                modifier = Modifier.fillMaxWidth(),
+                // The alerts screen sits on a card, so its translucent unselected colour reads as
+                // grey there. This screen is on the bare background, so use the group's own
+                // container tone or the unselected half vanishes.
+                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                selectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                unselectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurface
+            )
 
             LogStatsRow(
                 recording = isRecording,
@@ -326,8 +348,7 @@ fun DebugSettingsScreen(navController: NavController) {
 }
 
 @Composable
-private fun HowToReportCard(expanded: Boolean, onToggle: () -> Unit) {
-    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "howToChevron")
+private fun HowToReportCard(onDismiss: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -336,69 +357,65 @@ private fun HowToReportCard(expanded: Boolean, onToggle: () -> Unit) {
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onToggle)
-                    .padding(start = 16.dp, end = 4.dp, top = 14.dp, bottom = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Column(modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = stringResource(R.string.debug_howto_title),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
-                Icon(
-                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = stringResource(
-                        if (expanded) R.string.debug_collapse_howto else R.string.debug_expand_howto
-                    ),
-                    modifier = Modifier.padding(12.dp)
-                )
-            }
-            AnimatedVisibility(visible = expanded) {
-                Column(
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    NumberedStep(1, stringResource(R.string.debug_howto_step1))
-                    NumberedStep(2, stringResource(R.string.debug_howto_step2))
-                    NumberedStep(3, stringResource(R.string.debug_howto_step3))
-                    Text(
-                        text = stringResource(R.string.debug_howto_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.debug_dismiss_howto),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier.padding(end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                NumberedStep(1, stringResource(R.string.debug_howto_step1))
+                NumberedStep(2, stringResource(R.string.debug_howto_step2))
+                NumberedStep(3, stringResource(R.string.debug_howto_step3))
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.debug_howto_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 8.dp)
+            )
         }
     }
 }
 
 @Composable
 private fun NumberedStep(number: Int, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(verticalAlignment = Alignment.Top) {
         Surface(
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(20.dp),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primary
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
                     text = number.toString(),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(10.dp))
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
+            lineHeight = 20.sp,
             modifier = Modifier.weight(1f)
         )
     }

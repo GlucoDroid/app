@@ -2082,4 +2082,24 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Affichage et couleurs</string>
     <string name="display_colors_desc">Couleurs, valeurs du tableau de bord et graphiques</string>
     <string name="display_readouts_section">Valeurs du tableau de bord</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Comment signaler un bug</string>
+    <string name="debug_howto_step1">Activez l\'enregistrement ci-dessous.</string>
+    <string name="debug_howto_step2">Reproduisez le problème, puis revenez à cet écran.</string>
+    <string name="debug_howto_step3">Touchez Partager et joignez le fichier à votre rapport de bug.</string>
+    <string name="debug_howto_hint">L\'enregistrement continue pendant que vous utilisez l\'application. Il reste sur votre téléphone jusqu\'à ce que vous le partagiez.</string>
+    <string name="debug_record_title">Enregistrer les diagnostics</string>
+    <string name="debug_record_on">Enregistrement — reproduisez le problème maintenant</string>
+    <string name="debug_record_off">Désactivé — aucune donnée n\'est collectée</string>
+    <string name="debug_log_stats">%1$s · %2$d lignes</string>
+    <string name="debug_log_stats_tail">%1$s · %2$d dernières lignes affichées</string>
+    <string name="debug_log_empty">Aucune entrée pour l\'instant</string>
+    <string name="debug_loading">Chargement…</string>
+    <string name="debug_truncated">[…entrées plus anciennes omises…]</string>
+    <string name="debug_share_log">Partager</string>
+    <string name="debug_share_chooser">Partager le journal de débogage</string>
+    <string name="debug_nothing_to_share">Rien n\'a encore été enregistré</string>
+    <string name="debug_jump_to_latest">Aller à la fin</string>
+    <string name="debug_dismiss_howto">Masquer ces instructions</string>
 </resources>
