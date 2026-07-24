@@ -559,6 +559,9 @@
     <string name="sibionics_custom_algorithm_desc">Компенсація дрейфу датчика, фізіологічної затримки й артефактів</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics за замовчуванням</string>
     <string name="sibionics_stock_algorithm_detail">Використовувати калібрування усередині алгоритму датчика</string>
+    <string name="sibionics_sensitivity">Чутливість</string>
+    <string name="sibionics_sensor_sensitivity">Значення датчика: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Використовувати значення датчика</string>
     <string name="sibionics_restart_algorithm_desc">Відновити хвилинний стан алгоритму зі збереженої історії датчика</string>
     <string name="juggluco_native">Рідний Juggluco</string>
     <string name="window_label">вікно</string>

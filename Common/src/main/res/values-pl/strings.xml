@@ -623,6 +623,9 @@
     <string name="sibionics_custom_algorithm_desc">Kompensacja dryfu sensora, opóźnienia fizjologicznego i artefaktów</string>
     <string name="sibionics_stock_algorithm_desc">Domyślny Sibionics</string>
     <string name="sibionics_stock_algorithm_detail">Używaj kalibracji wewnątrz algorytmu sensora</string>
+    <string name="sibionics_sensitivity">Czułość</string>
+    <string name="sibionics_sensor_sensitivity">Wartość sensora: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Użyj wartości sensora</string>
     <string name="sibionics_restart_algorithm_desc">Odtwórz stan minutowego algorytmu z zapisanej historii sensora</string>
     <string name="juggluco_native">Natywny Juggluco</string>
     <string name="window_label">okno</string>

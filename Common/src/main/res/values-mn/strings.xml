@@ -821,6 +821,9 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="sibionics_custom_algorithm_desc">Мэдрэгчийн хазайлт, физиологийн хоцролт ба артефактын нөхөн олговор</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics үндсэн</string>
     <string name="sibionics_stock_algorithm_detail">Глюкометрийн тохируулгыг мэдрэгчийн алгоритмд ашиглах</string>
+    <string name="sibionics_sensitivity">Мэдрэмж</string>
+    <string name="sibionics_sensor_sensitivity">Мэдрэгчийн утга: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Мэдрэгчийн утгыг ашиглах</string>
     <string name="sibionics_restart_algorithm_desc">Хадгалсан мэдрэгчийн түүхээс минутын алгоритмын төлөвийг сэргээнэ</string>
     <string name="juggluco_native">Juggluco native</string>
     <string name="window_label">цонх</string>

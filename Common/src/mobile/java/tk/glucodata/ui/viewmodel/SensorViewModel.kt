@@ -63,6 +63,9 @@ data class SensorInfo(
     val customCalEnabled: Boolean,
     val customCalIndex: Int,
     val customCalAutoReset: Boolean,
+    val algorithmSensitivity: Float = Float.NaN,
+    val automaticAlgorithmSensitivity: Float = Float.NaN,
+    val hasAlgorithmSensitivityOverride: Boolean = false,
     val supportsDisplayModes: Boolean = false,
     val supportsManualCalibration: Boolean = false,
     val supportsHardwareReset: Boolean = false,
@@ -352,6 +355,9 @@ class SensorViewModel : ViewModel() {
             customCalEnabled = snapshot.customAlgorithmEnabled,
             customCalIndex = snapshot.customAlgorithmMode,
             customCalAutoReset = false,
+            algorithmSensitivity = snapshot.algorithmSensitivity,
+            automaticAlgorithmSensitivity = snapshot.automaticAlgorithmSensitivity,
+            hasAlgorithmSensitivityOverride = snapshot.hasAlgorithmSensitivityOverride,
             supportsDisplayModes = snapshot.supportsDisplayModes,
             supportsManualCalibration = snapshot.supportsManualCalibration,
             supportsHardwareReset = snapshot.supportsHardwareReset,
@@ -612,6 +618,22 @@ class SensorViewModel : ViewModel() {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 val success = runCatching { gatt.setCustomAlgorithmMode(mode) }.getOrDefault(false)
                 android.util.Log.i("SensorVM", "Managed Sibionics algorithm mode=$mode result=$success serial=$serial")
+                refreshSensors()
+            }
+        }
+    }
+
+    fun setSibionicsAlgorithmSensitivity(serial: String, sensitivity: Float?) {
+        val gatt = findGatt(serial) ?: return
+        if (gatt is ManagedSensorMaintenanceDriver && gatt.supportsAlgorithmSensitivity()) {
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val success = runCatching {
+                    gatt.setAlgorithmSensitivityOverride(sensitivity)
+                }.getOrDefault(false)
+                android.util.Log.i(
+                    "SensorVM",
+                    "Managed Sibionics sensitivity=$sensitivity result=$success serial=$serial",
+                )
                 refreshSensors()
             }
         }

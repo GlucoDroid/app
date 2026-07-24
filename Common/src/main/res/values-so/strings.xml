@@ -2258,6 +2258,9 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
         <item quantity="other">Dareemuhu wuxuu dhacaa saacadaha %d</item>
     </plurals>
     <string name="sibionics_stock_algorithm_desc">Sibionics caadiga ah</string>
+    <string name="sibionics_sensitivity">Dareen</string>
+    <string name="sibionics_sensor_sensitivity">Qiimaha dareemaha: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Isticmaal qiimaha dareemaha</string>
     <string name="sibionics_responsive_algorithm">Jawaab degdeg ah</string>
     <string name="sibionics_balanced_algorithm">Simid fudud</string>
     <string name="sibionics_state_algorithm">Sixid la-qabsi leh</string>

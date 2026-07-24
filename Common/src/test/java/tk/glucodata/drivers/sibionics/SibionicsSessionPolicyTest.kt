@@ -53,4 +53,54 @@ class SibionicsSessionPolicyTest {
         assertEquals(500L, SibionicsSessionPolicy.reconnectDelayMs(status = 147, normalDelayMs = 8_000L))
         assertEquals(8_000L, SibionicsSessionPolicy.reconnectDelayMs(status = 133, normalDelayMs = 8_000L))
     }
+
+    @Test
+    fun setupTimeoutOnlyRecoversAnActivePendingStage() {
+        assertTrue(
+            SibionicsSessionPolicy.shouldRecoverSetupTimeout(
+                isPending = true,
+                isStopped = false,
+                isPaused = false,
+            ),
+        )
+        assertFalse(
+            SibionicsSessionPolicy.shouldRecoverSetupTimeout(
+                isPending = false,
+                isStopped = false,
+                isPaused = false,
+            ),
+        )
+        assertFalse(
+            SibionicsSessionPolicy.shouldRecoverSetupTimeout(
+                isPending = true,
+                isStopped = true,
+                isPaused = false,
+            ),
+        )
+        assertFalse(
+            SibionicsSessionPolicy.shouldRecoverSetupTimeout(
+                isPending = true,
+                isStopped = false,
+                isPaused = true,
+            ),
+        )
+    }
+
+    @Test
+    fun connectCallbackDeadlineStartsAfterRequestedDelay() {
+        assertEquals(
+            25_000L,
+            SibionicsSessionPolicy.connectCallbackTimeoutDelayMs(
+                requestedDelayMs = 5_000L,
+                callbackTimeoutMs = 20_000L,
+            ),
+        )
+        assertEquals(
+            20_000L,
+            SibionicsSessionPolicy.connectCallbackTimeoutDelayMs(
+                requestedDelayMs = -1L,
+                callbackTimeoutMs = 20_000L,
+            ),
+        )
+    }
 }

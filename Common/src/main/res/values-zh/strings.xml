@@ -559,6 +559,9 @@
     <string name="sibionics_custom_algorithm_desc">补偿传感器漂移、生理延迟和信号伪影</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics 默认</string>
     <string name="sibionics_stock_algorithm_detail">在传感器算法内部使用血糖仪校准</string>
+    <string name="sibionics_sensitivity">灵敏度</string>
+    <string name="sibionics_sensor_sensitivity">传感器值：%1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">使用传感器值</string>
     <string name="sibionics_restart_algorithm_desc">从已保存的传感器历史重建每分钟算法状态</string>
     <string name="juggluco_native">Juggluco 原生</string>
     <string name="window_label">窗口</string>

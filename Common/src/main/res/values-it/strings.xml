@@ -420,6 +420,9 @@
     <string name="sibionics_custom_algorithm_desc">Compensazione della deriva del sensore, del ritardo fisiologico e degli artefatti</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics predefinito</string>
     <string name="sibionics_stock_algorithm_detail">Usa le calibrazioni nell’algoritmo del sensore</string>
+    <string name="sibionics_sensitivity">Sensibilità</string>
+    <string name="sibionics_sensor_sensitivity">Valore del sensore: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Usa il valore del sensore</string>
     <string name="sibionics_restart_algorithm_desc">Ricostruisci lo stato minuto per minuto dalla cronologia del sensore</string>
     <string name="juggluco_native">Juggluco nativo</string>
     <string name="window_label">finestra</string>

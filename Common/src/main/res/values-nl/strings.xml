@@ -633,6 +633,9 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="sibionics_custom_algorithm_desc">Compensatie van sensordrift, fysiologische vertraging en artefacten</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics-standaard</string>
     <string name="sibionics_stock_algorithm_detail">Meterkalibraties binnen het sensoralgoritme gebruiken</string>
+    <string name="sibionics_sensitivity">Gevoeligheid</string>
+    <string name="sibionics_sensor_sensitivity">Sensorwaarde: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Sensorwaarde gebruiken</string>
     <string name="sibionics_restart_algorithm_desc">Bouw de minuutstatus opnieuw op uit de opgeslagen sensorgeschiedenis</string>
     <string name="juggluco_native">Juggluco natief</string>
     <string name="window_label">venster</string>

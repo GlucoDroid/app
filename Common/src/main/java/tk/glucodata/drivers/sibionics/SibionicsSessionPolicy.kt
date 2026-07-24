@@ -21,4 +21,17 @@ internal object SibionicsSessionPolicy {
 
     fun reconnectDelayMs(status: Int, normalDelayMs: Long): Long =
         if (status == GATT_CONNECTION_TIMEOUT) TIMEOUT_RECOVERY_DELAY_MS else normalDelayMs
+
+    fun shouldRecoverSetupTimeout(
+        isPending: Boolean,
+        isStopped: Boolean,
+        isPaused: Boolean,
+    ): Boolean =
+        isPending && !isStopped && !isPaused
+
+    fun connectCallbackTimeoutDelayMs(
+        requestedDelayMs: Long,
+        callbackTimeoutMs: Long,
+    ): Long =
+        requestedDelayMs.coerceAtLeast(0L) + callbackTimeoutMs.coerceAtLeast(0L)
 }

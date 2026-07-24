@@ -37,6 +37,7 @@ object SibionicsRegistry {
     private const val PREF_RESET_REQUESTED_PREFIX = "sibionics_managed_reset_requested_"
     private const val PREF_CUSTOM_ALGORITHM_PREFIX = "sibionics_managed_custom_algorithm_"
     private const val PREF_ALGORITHM_SELECTION_PREFIX = "sibionics_managed_algorithm_selection_"
+    private const val PREF_ALGORITHM_SENSITIVITY_PREFIX = "sibionics_managed_algorithm_sensitivity_"
     private const val PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX = "sibionics_managed_rebuild_fingerprint_"
     private const val PREF_INTEGRATED_CALIBRATION_BASELINE_PREFIX = "sibionics_managed_calibration_baseline_"
 
@@ -277,6 +278,7 @@ object SibionicsRegistry {
                 remove(PREF_AUTO_RESET_DAYS_PREFIX + id)
                 remove(PREF_CUSTOM_ALGORITHM_PREFIX + id)
                 remove(PREF_ALGORITHM_SELECTION_PREFIX + id)
+                remove(PREF_ALGORITHM_SENSITIVITY_PREFIX + id)
                 remove(PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX + id)
                 remove(PREF_INTEGRATED_CALIBRATION_BASELINE_PREFIX + id)
             }
@@ -516,6 +518,25 @@ object SibionicsRegistry {
         prefs(context).edit()
             .putInt(PREF_ALGORITHM_SELECTION_PREFIX + sensorId, selection.storageId)
             .apply()
+    }
+
+    fun loadAlgorithmSensitivityOverride(context: Context, sensorId: String): Float? =
+        prefs(context)
+            .getFloat(PREF_ALGORITHM_SENSITIVITY_PREFIX + sensorId, Float.NaN)
+            .takeIf(SibionicsSensitivity::isSupported)
+
+    fun saveAlgorithmSensitivityOverride(
+        context: Context,
+        sensorId: String,
+        sensitivity: Float?,
+    ) {
+        prefs(context).edit().apply {
+            if (sensitivity == null) {
+                remove(PREF_ALGORITHM_SENSITIVITY_PREFIX + sensorId)
+            } else if (SibionicsSensitivity.isSupported(sensitivity)) {
+                putFloat(PREF_ALGORITHM_SENSITIVITY_PREFIX + sensorId, sensitivity)
+            }
+        }.apply()
     }
 
     fun loadLocalRebuildFingerprint(context: Context, sensorId: String): String =

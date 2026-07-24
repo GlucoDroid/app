@@ -932,6 +932,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_custom_algorithm_desc">Sensor drift, physiological lag and artifact compensation</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics default</string>
     <string name="sibionics_stock_algorithm_detail">Use calibrations inside the sensor algorithm</string>
+    <string name="sibionics_sensitivity">Sensitivity</string>
+    <string name="sibionics_sensor_sensitivity">Sensor value: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Use sensor value</string>
     <string name="sibionics_restart_algorithm_desc">Rebuild the one-minute algorithm state from saved sensor history</string>
     <string name="juggluco_native">Juggluco native</string>
     <string name="window_label">window</string>
