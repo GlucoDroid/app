@@ -549,10 +549,7 @@ class SibionicsBleManager(
                 handler.removeCallbacks(chineseProbeTimeoutRunnable)
                 handler.removeCallbacks(chineseDataTimeoutRunnable)
                 if (!stop && !uiPaused) {
-                    scheduleReconnect(
-                        reason = "disconnect status=$status",
-                        delayMs = SibionicsSessionPolicy.reconnectDelayMs(status, RECONNECT_DELAY_MS),
-                    )
+                    scheduleReconnect("disconnect status=$status")
                 }
                 UiRefreshBus.requestStatusRefresh()
             }

@@ -49,12 +49,6 @@ class SibionicsSessionPolicyTest {
     }
 
     @Test
-    fun gattConnectionTimeoutUsesShortRecoveryDelay() {
-        assertEquals(500L, SibionicsSessionPolicy.reconnectDelayMs(status = 147, normalDelayMs = 8_000L))
-        assertEquals(8_000L, SibionicsSessionPolicy.reconnectDelayMs(status = 133, normalDelayMs = 8_000L))
-    }
-
-    @Test
     fun setupTimeoutOnlyRecoversAnActivePendingStage() {
         assertTrue(
             SibionicsSessionPolicy.shouldRecoverSetupTimeout(
