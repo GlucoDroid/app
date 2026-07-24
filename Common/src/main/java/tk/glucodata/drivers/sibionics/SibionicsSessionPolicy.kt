@@ -2,11 +2,7 @@ package tk.glucodata.drivers.sibionics
 
 internal object SibionicsSessionPolicy {
     private const val GATT_CONNECTION_TIMEOUT = 147
-    private val CONNECTION_TIMEOUT_BACKOFF_MS = longArrayOf(
-        2_000L,
-        4_000L,
-        8_000L,
-    )
+    private const val TIMEOUT_RECOVERY_DELAY_MS = 500L
 
     fun isConfirmedIndexRestart(
         index: Int,
@@ -23,19 +19,8 @@ internal object SibionicsSessionPolicy {
     ): Boolean =
         !hasReceivedLiveReading && receivedCount > 0 && totalCount > receivedCount
 
-    fun isGattConnectionTimeout(status: Int): Boolean =
-        status == GATT_CONNECTION_TIMEOUT
-
-    fun reconnectDelayMs(
-        status: Int,
-        normalDelayMs: Long,
-        consecutiveConnectionTimeouts: Int,
-    ): Long {
-        if (!isGattConnectionTimeout(status)) return normalDelayMs
-        val index = (consecutiveConnectionTimeouts - 1)
-            .coerceIn(0, CONNECTION_TIMEOUT_BACKOFF_MS.lastIndex)
-        return CONNECTION_TIMEOUT_BACKOFF_MS[index]
-    }
+    fun reconnectDelayMs(status: Int, normalDelayMs: Long): Long =
+        if (status == GATT_CONNECTION_TIMEOUT) TIMEOUT_RECOVERY_DELAY_MS else normalDelayMs
 
     fun shouldRecoverSetupTimeout(
         isPending: Boolean,
