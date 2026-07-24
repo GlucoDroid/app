@@ -226,3 +226,27 @@ internal fun buildDisplayReadings(
         .sortedByDescending { it.timestamp }
         .take(limit)
 }
+
+/**
+ * The most points [tk.glucodata.logic.TrendEngine] can regress over: it cuts to a
+ * 20 minute window and then caps at 30 samples, so handing it more is never read.
+ */
+internal const val TREND_HISTORY_LIMIT = 30
+
+/**
+ * The point list the row arrows regress over, as opposed to the rows actually drawn.
+ *
+ * These are two different lengths on purpose. The dashboard draws 10 recent readings,
+ * but every row's arrow is a 20 minute regression, and at a one-a-minute cadence 10
+ * points is only 10 minutes of it. Feeding [ReadingRow] the displayed list starved
+ * that window here while the history and journal screens — which pass a whole day
+ * section — got the full one, so the same reading drew a rising arrow on the dashboard
+ * and a falling one in history, and neither matched the hero.
+ *
+ * Same source, ordering and de-duplication as [buildDisplayReadings], just long enough,
+ * which keeps the displayed readings an exact prefix of this list. ReadingRow slices it
+ * with `history.drop(index)` using the *display* index, so that prefix relationship is
+ * what makes the row-to-window alignment correct.
+ */
+internal fun buildTrendHistory(consumerHistory: List<GlucosePoint>): List<GlucosePoint> =
+    buildDisplayReadings(consumerHistory, limit = TREND_HISTORY_LIMIT)

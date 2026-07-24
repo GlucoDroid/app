@@ -1204,9 +1204,15 @@ class DefaultParamCatalogCompareTests {
                 modelName = "GX-01S",
                 firmwareVersion = "1.5.1",
             )
+
             val best = comparisons.first()
-            assertEquals(AiDexDefaultParamProvisioning.CatalogSource.IMPORTED, best.entry.source)
+            assertEquals(
+                AiDexDefaultParamProvisioning.CatalogSource.IMPORTED,
+                best.entry.source
+            )
             assertEquals("parameters_x_contact.ini", best.entry.settingVersion)
+
+
         } finally {
             AiDexDpCatalogProvider.setStorageForTests(null)
         }

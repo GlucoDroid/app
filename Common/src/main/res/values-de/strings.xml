@@ -1308,6 +1308,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="settings_changed_press_to_apply">Einstellungen geändert – zum Übernehmen drücken</string>
     <string name="shortcuthelp">Hilfe zu Verknüpfungen</string>
     <string name="show_trend_arrow">Trendpfeil anzeigen</string>
+    <string name="notification_large_arrow_title">Größerer Trendpfeil</string>
+    <string name="notification_large_arrow_desc">Trendpfeil überall mit längerem Schaft zeichnen (Benachrichtigungen, Widgets, AOD)</string>
     <string name="slope">Steigung</string>
     <string name="stathelp">Stat-Hilfe</string>
     <string name="staticnum">Staticnum</string>
@@ -1618,6 +1620,10 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="journal_metric_eiob">eIOB %1$s E</string>
     <string name="journal_eiob_display_title">Effektives IOB (eIOB) anzeigen</string>
     <string name="journal_eiob_display_desc">Aktivitätsbasiertes Insulin an Bord zusätzlich zum klassischen IOB anzeigen</string>
+    <string name="journal_quickadd_always_now_title">Schnelleintrag immer zur aktuellen Zeit</string>
+    <string name="journal_quickadd_always_now_desc">Die Plus-Taste legt neue Einträge auch bei ausgewähltem Diagrammpunkt zur aktuellen Zeit an. Nachtragen über das Zeitfeld des Eintrags, das Diagramm-Menü oder eine Messwertzeile</string>
+    <string name="journal_dashboard_quickadd_title">Schnelleintrag auf dem Dashboard</string>
+    <string name="journal_dashboard_quickadd_desc">Journal-Plus-Taste auf dem Dashboard anzeigen</string>
     <string name="notification_show_iob_title">Insulin an Bord anzeigen</string>
     <string name="notification_show_iob_desc">IOB/eIOB aus dem Journal in der Statuszeile</string>
     <string name="notification_show_cob_title">Kohlenhydrate an Bord anzeigen</string>
