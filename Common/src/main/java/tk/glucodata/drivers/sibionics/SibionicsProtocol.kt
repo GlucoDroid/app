@@ -360,8 +360,15 @@ object SibionicsSensitivity {
         return if (candidate.length == 8) candidate else fallback
     }
 
-    fun sensitivityFor(shortCode: String?): Float =
-        tryDecode(shortCode).takeIf { it != null } ?: 1.27f
+    fun sensitivityFor(
+        shortCode: String?,
+        variant: SibionicsConstants.Variant,
+    ): Float =
+        tryDecode(shortCode)
+            // The legacy library retries this variant token when QR initialization
+            // rejects an otherwise valid sensor identity (notably V120 XPT codes).
+            ?: tryDecode(variant.fallbackShortCode)
+            ?: DEFAULT_SENSITIVITY
 
     fun tryDecode(shortCode: String?): Float? {
         val token = SibionicsConstants.normalizeBleName(shortCode).takeLast(4)
@@ -380,6 +387,8 @@ object SibionicsSensitivity {
         }
         return null
     }
+
+    private const val DEFAULT_SENSITIVITY = 1.27f
 
     private fun decodedDigits(token: String, base: Char): Int? {
         val mapped = token.uppercase(Locale.US).map {

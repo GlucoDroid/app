@@ -7,22 +7,50 @@ import org.junit.Test
 
 class OttaiLifetimeTests {
     @Test
-    fun activationPromotesCloudRatedLifetimeToManagedTarget() {
+    fun activationNegotiatesDownToCloudRatedLifetime() {
         val cloudFourteenDays = 14L * DAY_MS
 
         assertEquals(
-            OttaiConstants.EXTENDED_LIFETIME_MS,
-            OttaiConstants.activationMaxActiveMs(cloudFourteenDays),
+            ((30L downTo 15L) + 14L).map { it * DAY_MS },
+            OttaiConstants.activationMaxActiveCandidatesMs(cloudFourteenDays),
         )
     }
 
     @Test
-    fun activationPreservesLongerCloudLifetime() {
+    fun activationTriesLongerCloudLifetimeFirst() {
         val cloudFortyDays = 40L * DAY_MS
 
         assertEquals(
-            cloudFortyDays,
-            OttaiConstants.activationMaxActiveMs(cloudFortyDays),
+            (listOf(40L) + (30L downTo 15L)).map { it * DAY_MS },
+            OttaiConstants.activationMaxActiveCandidatesMs(cloudFortyDays),
+        )
+    }
+
+    @Test
+    fun activationDoesNotDuplicateCloudDurationInsideLadder() {
+        val cloudTwentyFiveDays = 25L * DAY_MS
+
+        assertEquals(
+            (30L downTo 15L).map { it * DAY_MS },
+            OttaiConstants.activationMaxActiveCandidatesMs(cloudTwentyFiveDays),
+        )
+    }
+
+    @Test
+    fun expectedLifetimeUsesAcceptedMaxActive() {
+        assertEquals(
+            25L * DAY_MS,
+            OttaiConstants.expectedLifetimeMs(
+                cloudActiveExpireMs = 14L * DAY_MS,
+                acceptedMaxActiveMs = 25L * DAY_MS,
+            ),
+        )
+        assertEquals(
+            14L * DAY_MS,
+            OttaiConstants.expectedLifetimeMs(
+                cloudActiveExpireMs = 14L * DAY_MS,
+                acceptedMaxActiveMs = 0L,
+            ),
         )
     }
 
@@ -68,6 +96,14 @@ class OttaiLifetimeTests {
         assertTrue(OttaiConstants.commandNeedsActivation(2))
         assertFalse(OttaiConstants.commandNeedsActivation(3))
         assertFalse(OttaiConstants.commandNeedsActivation(4))
+    }
+
+    @Test
+    fun activationRequiresExplicitUserRequest() {
+        assertFalse(OttaiConstants.shouldStartActivation(commandStatus = 2, explicitlyRequested = false))
+        assertTrue(OttaiConstants.shouldStartActivation(commandStatus = 2, explicitlyRequested = true))
+        assertFalse(OttaiConstants.shouldStartActivation(commandStatus = 3, explicitlyRequested = true))
+        assertFalse(OttaiConstants.shouldStartActivation(commandStatus = 4, explicitlyRequested = true))
     }
 
     private companion object {

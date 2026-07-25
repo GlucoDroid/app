@@ -2,6 +2,7 @@
 #include "jniclass.hpp"
 #include "settings/settings.hpp"
 #include "share/hexstr.hpp"
+#include <cmath>
 #include <jni.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -64,29 +65,35 @@ extern Numdata *getherenums();
 extern void addCalibration(uint32_t tim, int type, Num *num,
                            const Numdata *numdata);
 extern void setnumchanged(uint32_t tim);
-extern "C" JNIEXPORT jboolean JNICALL fromjava(GlucoseMeterSave)(
-    JNIEnv *env, jclass cl, jint meterIndex, jbyteArray value) {
-  const auto bloodvar = settings->data()->bloodvar;
-  if (bloodvar >= maxvarnr) {
-    LOGAR("GlucoseMeterSave: no bloodvar set");
-    return false;
-  }
+struct MeterSaveResult {
+  uint32_t timestamp{};
+  int mgdlTenths{};
+  bool stored{};
+  bool recentLegacyValue{};
+};
+
+static MeterSaveResult saveGlucoseMeter(JNIEnv *env, jint meterIndex,
+                                        jbyteArray value) {
   const auto arlen = env->GetArrayLength(value);
   if (arlen < 14) {
     LOGGER("GlucoseMeterSave length (%d) <14\n", arlen);
-    return false;
+    return {};
   }
   const CritAr bluedata(env, value);
   const MeterData *glu = reinterpret_cast<const MeterData *>(bluedata.data());
   GlucoseMeter *meter = settings->data()->getGlucoseMeter(meterIndex);
   if (!meter) {
     LOGGER("GlucoseMeterSave no meter at %d\n", meterIndex);
-    return false;
+    return {};
   }
   const auto timeoffset = glu->getTimeoffset();
   const uint32_t timeorig = glu->time.getLocaltime();
   const uint32_t timcorrected = timeorig + meter->timeoffset + timeoffset * 60;
   auto mgdL = glu->getmgdL();
+  if (!std::isfinite(mgdL) || mgdL <= 0.0f) {
+    LOGGER("GlucoseMeterSave invalid glucose %.2f\n", mgdL);
+    return {};
+  }
 #ifndef NOLOG
   char timebuf1[27], timebuf2[27];
   time_t ort = timeorig, cort = timcorrected;
@@ -99,29 +106,58 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(GlucoseMeterSave)(
          ctime_r(&ort, timebuf1), meter->timeoffset, timeoffset,
          ctime_r(&cort, timebuf2));
 #endif
-  bool ret = false;
+  MeterSaveResult result;
   if (timcorrected > meter->lastTime) {
-    float value;
-    if (settings->data()->unit == 1) {
-      value = std::round(convertmultmmol * 100.0f * mgdL) * .1f;
-    } else
-      value = std::roundf(mgdL);
-    Numdata *numda = getherenums();
-    if (Num *num = numda->numsaveonly(timcorrected, value, bloodvar, 0)) {
-      uint32_t now = time(nullptr);
-      if (abs((int)(now - timcorrected)) < 60) {
-        addCalibration(timcorrected, bloodvar, num, numda);
-        if (backup)
-          backup->wakebackup(Backup::wakenums);
-        setnumchanged(now);
-        ret = true;
+    result.timestamp = timcorrected;
+    result.mgdlTenths = std::lround(mgdL * 10.0f);
+    result.stored = true;
+
+    const auto bloodvar = settings->data()->bloodvar;
+    if (bloodvar < maxvarnr) {
+      float displayValue;
+      if (settings->data()->unit == 1) {
+        displayValue = std::round(convertmultmmol * 100.0f * mgdL) * .1f;
+      } else {
+        displayValue = std::roundf(mgdL);
       }
+      Numdata *numda = getherenums();
+      if (Num *num =
+              numda->numsaveonly(timcorrected, displayValue, bloodvar, 0)) {
+        uint32_t now = time(nullptr);
+        if (abs((int)(now - timcorrected)) < 60) {
+          addCalibration(timcorrected, bloodvar, num, numda);
+          if (backup)
+            backup->wakebackup(Backup::wakenums);
+          setnumchanged(now);
+          result.recentLegacyValue = true;
+        }
+      }
+    } else {
+      LOGAR("GlucoseMeterSave: no legacy blood glucose label set; journal only");
     }
+    meter->lastTime = timcorrected;
   }
   meter->nextIndex = glu->index + 1;
-  meter->lastTime = timcorrected;
+  return result;
+}
 
-  return ret;
+extern "C" JNIEXPORT jboolean JNICALL fromjava(GlucoseMeterSave)(
+    JNIEnv *env, jclass cl, jint meterIndex, jbyteArray value) {
+  return saveGlucoseMeter(env, meterIndex, value).recentLegacyValue;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL fromjava(GlucoseMeterSaveResult)(
+    JNIEnv *env, jclass cl, jint meterIndex, jbyteArray value) {
+  const auto result = saveGlucoseMeter(env, meterIndex, value);
+  if (!result.stored)
+    return nullptr;
+  const jlong data[]{static_cast<jlong>(result.timestamp) * 1000LL,
+                     static_cast<jlong>(result.mgdlTenths),
+                     result.recentLegacyValue ? 1LL : 0LL};
+  jlongArray out = env->NewLongArray(3);
+  if (out)
+    env->SetLongArrayRegion(out, 0, 3, data);
+  return out;
 }
 #include "Context.hpp"
 extern "C" JNIEXPORT jboolean JNICALL fromjava(GlucoseMeterProcessContext)(

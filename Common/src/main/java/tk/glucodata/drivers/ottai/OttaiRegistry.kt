@@ -24,6 +24,7 @@ import tk.glucodata.drivers.ManagedSensorUiSignals
 object OttaiRegistry {
     private const val TAG = OttaiConstants.TAG
     private const val PREFS_NAME = "tk.glucodata_preferences"
+    private const val PREF_DRAFT_SENSORS_KEY = "ottai_draft_sensors"
 
     data class SensorRecord(
         val sensorId: String, // canonical cloud id used by server + BLE auth
@@ -124,7 +125,56 @@ object OttaiRegistry {
 
     @JvmStatic
     fun persistedRecords(context: Context): List<SensorRecord> {
-        val raw = prefs(context).getStringSet(OttaiConstants.PREF_SENSORS_KEY, emptySet()) ?: return emptyList()
+        return readRecords(context, OttaiConstants.PREF_SENSORS_KEY)
+    }
+
+    /**
+     * Credentials fetched or imported during setup are drafts. Managed sensor discovery
+     * must not see them until the user explicitly presses Connect.
+     */
+    @JvmStatic
+    fun saveDraftRecord(context: Context, sensorId: String, address: String, displayName: String) {
+        val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+        val records = draftRecords(context).toMutableList()
+        val index = records.indexOfFirst { it.matchesId(canonical) }
+        val existing = records.getOrNull(index)
+        val normalizedAddress = OttaiConstants.normalizeBleAddress(address, allowPlain = false)
+            ?: existing?.address.orEmpty()
+        val record = SensorRecord(canonical, normalizedAddress, displayName.ifBlank { canonical })
+        if (index >= 0) records[index] = record else records.add(record)
+        writeRecords(context, records, PREF_DRAFT_SENSORS_KEY)
+    }
+
+    @JvmStatic
+    fun draftRecords(context: Context): List<SensorRecord> =
+        readRecords(context, PREF_DRAFT_SENSORS_KEY)
+
+    @JvmStatic
+    fun findDraftRecord(context: Context, sensorId: String): SensorRecord? {
+        val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+        return draftRecords(context).firstOrNull { it.matchesId(canonical) }
+    }
+
+    @JvmStatic
+    fun savedMaterialRecords(context: Context): List<SensorRecord> {
+        val managed = persistedRecords(context)
+        val drafts = draftRecords(context).filter { draft ->
+            managed.none { it.matchesId(draft.sensorId) }
+        }
+        return (managed + drafts).filter { hasStoredAuthMaterial(context, it.sensorId) }
+    }
+
+    @JvmStatic
+    fun isManagedConnectionAuthorized(context: Context, sensorId: String): Boolean {
+        val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+        val materials = loadMaterials(context, canonical)
+        return materials.activeTimeMs > 0L ||
+            loadProvisionalActiveTime(context, canonical) > 0L ||
+            loadActivationAttempted(context, canonical)
+    }
+
+    private fun readRecords(context: Context, key: String): List<SensorRecord> {
+        val raw = prefs(context).getStringSet(key, emptySet()) ?: return emptyList()
         return raw.mapNotNull { line ->
             val parts = line.split('|')
             if (parts.size < 3) null else SensorRecord(parts[0], parts[1], parts[2])
@@ -160,9 +210,13 @@ object OttaiRegistry {
     fun resolveCanonicalSensorId(context: Context?, sensorId: String?): String? =
         findRecord(context, sensorId)?.sensorId
 
-    private fun writeRecords(context: Context, records: List<SensorRecord>) {
+    private fun writeRecords(
+        context: Context,
+        records: List<SensorRecord>,
+        key: String = OttaiConstants.PREF_SENSORS_KEY,
+    ) {
         val set = records.map { "${it.sensorId}|${it.address}|${it.displayName}" }.toSet()
-        prefs(context).edit().putStringSet(OttaiConstants.PREF_SENSORS_KEY, set).apply()
+        prefs(context).edit().putStringSet(key, set).apply()
     }
 
     @JvmStatic
@@ -170,12 +224,18 @@ object OttaiRegistry {
         val id = sensorId?.trim() ?: return
         val canonical = OttaiConstants.canonicalSensorId(id).ifEmpty { id }
         writeRecords(context, persistedRecords(context).filter { !it.matchesId(canonical) })
+        writeRecords(
+            context,
+            draftRecords(context).filter { !it.matchesId(canonical) },
+            PREF_DRAFT_SENSORS_KEY,
+        )
         prefs(context).edit().apply {
             listOf(
                 OttaiConstants.PREF_KEYA_PREFIX, OttaiConstants.PREF_METHOD_PREFIX,
                 OttaiConstants.PREF_COEFF_PREFIX, OttaiConstants.PREF_ACTIVE_TIME_PREFIX,
                 OttaiConstants.PREF_PROVISIONAL_ACTIVE_TIME_PREFIX,
                 OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX, OttaiConstants.PREF_RETAIN_TIME_PREFIX,
+                OttaiConstants.PREF_ACCEPTED_MAX_ACTIVE_PREFIX,
                 OttaiConstants.PREF_PREHEAT_PERIOD_PREFIX,
                 OttaiConstants.PREF_DEVICE_VERSION_PREFIX, OttaiConstants.PREF_LAST_DATA_NO_PREFIX,
                 OttaiConstants.PREF_DEVICE_ID_PREFIX, OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX,
@@ -243,6 +303,23 @@ object OttaiRegistry {
         }.apply()
     }
 
+    @JvmStatic fun loadAcceptedMaxActive(c: Context, id: String): Long =
+        prefs(c).getLong(
+            OttaiConstants.PREF_ACCEPTED_MAX_ACTIVE_PREFIX + OttaiConstants.canonicalSensorId(id),
+            0L,
+        )
+
+    @JvmStatic fun saveAcceptedMaxActive(c: Context, id: String, durationMs: Long) {
+        val canonical = OttaiConstants.canonicalSensorId(id)
+        prefs(c).edit().apply {
+            if (durationMs > 0L) {
+                putLong(OttaiConstants.PREF_ACCEPTED_MAX_ACTIVE_PREFIX + canonical, durationMs)
+            } else {
+                remove(OttaiConstants.PREF_ACCEPTED_MAX_ACTIVE_PREFIX + canonical)
+            }
+        }.apply()
+    }
+
     /**
      * One-shot guard for auto-activate-on-first-connect: true once the driver has
      * fired (or been asked to fire) the irreversible activation for this sensor, so a
@@ -295,7 +372,9 @@ object OttaiRegistry {
     @JvmStatic
     fun exportJson(context: Context, sensorId: String): String? {
         val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
-        val record = findRecord(context, canonical) ?: return null
+        val record = findRecord(context, canonical)
+            ?: findDraftRecord(context, canonical)
+            ?: SensorRecord(canonical, "", OttaiConstants.DEFAULT_DISPLAY_NAME)
         val m = loadMaterials(context, canonical)
         if (m.keyAHex.isBlank()) return null
         return org.json.JSONObject().apply {
@@ -308,6 +387,7 @@ object OttaiRegistry {
             put("coefficient", m.coefficient)
             put("activeTimeMs", m.activeTimeMs)
             put("activeExpireTimeMs", m.activeExpireTimeMs)
+            put("acceptedMaxActiveMs", loadAcceptedMaxActive(context, canonical))
             put("retainTimeMs", m.retainTimeMs)
             put("preheatPeriodMs", m.preheatPeriodMs)
             put("provisionalActiveTimeMs", loadProvisionalActiveTime(context, canonical))
@@ -323,7 +403,7 @@ object OttaiRegistry {
         val id = OttaiConstants.canonicalSensorId(o.optString("sensorId")).ifEmpty { return null }
         val keyA = o.optString("keyAHex")
         if (OttaiCrypto.parseAuthKeys(keyA) == null) return null // must be 192 hex = 6 auth keys
-        ensureSensorRecord(
+        saveDraftRecord(
             context, id, o.optString("bleAddress"),
             o.optString("displayName").ifBlank { OttaiConstants.DEFAULT_DISPLAY_NAME },
         )
@@ -342,6 +422,7 @@ object OttaiRegistry {
             ),
         )
         saveProvisionalActiveTime(context, id, o.optLong("provisionalActiveTimeMs", 0L))
+        saveAcceptedMaxActive(context, id, o.optLong("acceptedMaxActiveMs", 0L))
         return id
     }
 
@@ -370,11 +451,59 @@ object OttaiRegistry {
     ): String? {
         val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
         if (canonical.isBlank()) return null
-        val bleAddress = OttaiConstants.normalizeBleAddress(address, allowPlain = false).orEmpty()
+        val draft = findDraftRecord(context, canonical)
+        val bleAddress = OttaiConstants.normalizeBleAddress(address, allowPlain = false)
+            ?: OttaiConstants.normalizeBleAddress(draft?.address, allowPlain = false)
+            ?: ""
         ensureSensorRecord(context, canonical, bleAddress, displayName ?: OttaiConstants.DEFAULT_DISPLAY_NAME)
+        writeRecords(
+            context,
+            draftRecords(context).filter { !it.matchesId(canonical) },
+            PREF_DRAFT_SENSORS_KEY,
+        )
         val stableId = resolveCanonicalSensorId(context, canonical) ?: canonical
         if (connectNow) connectSensor(context, stableId)
         ManagedSensorUiSignals.markDeviceListDirty()
+        return stableId
+    }
+
+    /**
+     * The setup button is the sole transition from saved credentials to a managed
+     * sensor. Arm activation before publishing the record so a device refresh cannot
+     * race ahead and connect without the user's request.
+     */
+    @JvmStatic
+    fun addSensorForUserConnect(
+        context: Context,
+        sensorId: String,
+        address: String,
+        displayName: String? = null,
+        activate: Boolean,
+    ): String? {
+        val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+        val activationWasAttempted = loadActivationAttempted(context, canonical)
+        if (activate) {
+            // Authorize the managed record before publishing it. updateDevices() can run
+            // immediately after callback creation; without this marker it removes the
+            // fresh sensor and closes its GATT before the first connection callback.
+            setActivationAttempted(context, canonical, true)
+            OttaiBleManager.activateRequestedFor = canonical
+        }
+        val stableId = addSensor(
+            context,
+            canonical,
+            address,
+            displayName,
+            connectNow = false,
+        )
+        if (stableId == null) {
+            if (activate) setActivationAttempted(context, canonical, activationWasAttempted)
+            if (activate && OttaiBleManager.activateRequestedFor == canonical) {
+                OttaiBleManager.activateRequestedFor = null
+            }
+            return null
+        }
+        if (activate) requestActivation(context, stableId) else connectSensor(context, stableId)
         return stableId
     }
 
@@ -417,6 +546,7 @@ object OttaiRegistry {
     @JvmStatic
     fun requestActivation(context: Context, sensorId: String): Boolean {
         val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
+        setActivationAttempted(context, canonical, true)
         OttaiBleManager.activateRequestedFor = canonical
         val mgr = SensorBluetooth.gattcallbacks.firstOrNull { cb ->
             (cb as? OttaiBleManager)?.matchesManagedSensorId(canonical) == true

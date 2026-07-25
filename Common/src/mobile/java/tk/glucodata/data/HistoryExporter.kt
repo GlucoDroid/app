@@ -117,18 +117,22 @@ object HistoryExporter {
                 val journalEntries = loadExportJournalEntries(journalDao, data, startMillis, endMillis)
                 val insulinPresets = journalDao.getInsulinPresets()
 
+                // Non-destructive software calibration for the CalibratedValue column
+                // (issue #130): mirrors the on-screen/Nightscout projection. Empty when
+                // no calibration applies, so the raw Value/RawValue archive is untouched.
+                val viewModeOf = ExportCalibration.viewModeResolver()
                 context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                     outputStream.bufferedWriter().use { writer ->
-                        // Header — new format with SensorSerial
+                        // Header — CalibratedValue sits in the glucose block, after RawValue.
                         writer.write(
-                            "Timestamp,Date,Value,RawValue,Unit,SensorSerial,RecordType," +
+                            "Timestamp,Date,Value,RawValue,CalibratedValue,Unit,SensorSerial,RecordType," +
                                 "JournalId,JournalType,JournalTitle,JournalNote,JournalAmount,JournalGlucoseMgDl," +
                                 "JournalDurationMinutes,JournalIntensity,JournalInsulinPresetId,JournalSource," +
                                 "JournalSourceRecordId,JournalCreatedAt,JournalUpdatedAt," +
                                 "PresetId,PresetName,PresetOnsetMinutes,PresetDurationMinutes,PresetAccentColor," +
                                 "PresetCurveJson,PresetBuiltIn,PresetArchived,PresetCountsTowardIob,PresetSortOrder\n"
                         )
-                        
+
                         // Data
                         for (point in data) {
                             val dateStr = CSV_DATE_FORMAT.format(Date(point.timestamp))
@@ -136,8 +140,18 @@ object HistoryExporter {
                             val valueStr = tk.glucodata.ui.util.GlucoseFormatter.formatCsv(point.value, unit)
                             val rawStr = tk.glucodata.ui.util.GlucoseFormatter.formatCsv(point.rawValue, unit)
                             val serial = resolveExportSensorSerial(point, serialByTimestamp)
-                            
-                            writer.write("${point.timestamp},$dateStr,$valueStr,$rawStr,$unit,$serial,$RECORD_TYPE_GLUCOSE\n")
+                            val calibrated = ExportCalibration.calibratedDisplayValue(
+                                autoDisplayValue = point.value,
+                                rawDisplayValue = point.rawValue,
+                                timestamp = point.timestamp,
+                                sensorId = point.sensorSerial,
+                                viewMode = viewModeOf(point.sensorSerial)
+                            )
+                            val calibratedStr = calibrated
+                                ?.let { tk.glucodata.ui.util.GlucoseFormatter.formatCsv(it, unit) }
+                                .orEmpty()
+
+                            writer.write("${point.timestamp},$dateStr,$valueStr,$rawStr,$calibratedStr,$unit,$serial,$RECORD_TYPE_GLUCOSE\n")
                         }
                         for (entry in journalEntries) {
                             val dateStr = CSV_DATE_FORMAT.format(Date(entry.timestamp))
@@ -145,6 +159,7 @@ object HistoryExporter {
                                 listOf(
                                     entry.timestamp,
                                     dateStr,
+                                    "",
                                     "",
                                     "",
                                     "",
@@ -170,6 +185,7 @@ object HistoryExporter {
                             writer.write(
                                 listOf(
                                     0,
+                                    "",
                                     "",
                                     "",
                                     "",
@@ -283,15 +299,25 @@ object HistoryExporter {
         writer.write("Generated on: ${READABLE_DATE_FORMAT.format(Date())}\n")
         writer.write("Total Readings: ${data.size}\n\n")
 
+        val isMmol = GlucoseFormatter.isMmol(unit)
+        // Non-destructive software calibration for the readable report (issue #130).
+        val viewModeOf = ExportCalibration.viewModeResolver()
         for (point in data) {
             val dateStr = READABLE_DATE_FORMAT.format(Date(point.timestamp))
-            val isMmol = GlucoseFormatter.isMmol(unit)
             val valueStr = GlucoseFormatter.format(point.value, isMmol)
             val rawStr = GlucoseFormatter.format(point.rawValue, isMmol)
             val serial = resolveExportSensorSerial(point, serialByTimestamp, fallback = "")
+            val calibrated = ExportCalibration.calibratedDisplayValue(
+                autoDisplayValue = point.value,
+                rawDisplayValue = point.rawValue,
+                timestamp = point.timestamp,
+                sensorId = point.sensorSerial,
+                viewMode = viewModeOf(point.sensorSerial)
+            )
+            val calibratedTag = calibrated?.let { " (Calibrated: ${GlucoseFormatter.format(it, isMmol)})" }.orEmpty()
 
             val sensorTag = if (serial.isNotEmpty() && serial != "unknown") " [$serial]" else ""
-            val line = "$dateStr: $valueStr $unit (Raw: $rawStr)$sensorTag\n"
+            val line = "$dateStr: $valueStr $unit (Raw: $rawStr)$calibratedTag$sensorTag\n"
             writer.write(line)
         }
         if (journalEntries.isNotEmpty()) {
@@ -347,6 +373,15 @@ object HistoryExporter {
                         }
                         val headerColumns = parseCsvLine(normalizedHeader).map { it.trim() }
                         val recordTypeIndex = headerColumns.indexOf("RecordType")
+                        // Resolve glucose columns by header name so every export
+                        // generation imports correctly, including the format that
+                        // inserted CalibratedValue (issue #130). Fall back to the
+                        // legacy fixed positions for headerless/old files. The derived
+                        // CalibratedValue column is intentionally NOT imported — the
+                        // raw Value/RawValue stay the source of truth.
+                        val valueIndex = headerColumns.indexOf("Value").let { if (it >= 0) it else 2 }
+                        val rawIndex = headerColumns.indexOf("RawValue").let { if (it >= 0) it else 3 }
+                        val unitIndex = headerColumns.indexOf("Unit").let { if (it >= 0) it else 4 }
 
                         reader.forEachLine { line ->
                             if (line.isBlank()) return@forEachLine
@@ -361,11 +396,14 @@ object HistoryExporter {
                                     if (!recordType.equals(RECORD_TYPE_GLUCOSE, ignoreCase = true)) {
                                         return@forEachLine
                                     }
+                                    if (parts.size <= maxOf(valueIndex, rawIndex, unitIndex)) {
+                                        return@forEachLine
+                                    }
                                     val timestamp = parts[0].trim().toLong()
                                     // parts[1] is Date string, skip
-                                    var value = parts[2].trim().toFloat()
-                                    var rawValue = parts[3].trim().toFloat()
-                                    val unit = parts[4].trim()
+                                    var value = parts[valueIndex].trim().toFloat()
+                                    var rawValue = parts[rawIndex].trim().toFloat()
+                                    val unit = parts[unitIndex].trim()
 
                                     // Convert back to mg/dL if needed
                                     if (GlucoseFormatter.isMmol(unit)) {

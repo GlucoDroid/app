@@ -84,13 +84,14 @@ object SibionicsRegistry {
         // The native V120 identity window is defined against the framed QR payload. Keep GS
         // separators here: normalizing first shortens a 65-byte payload and selects the wrong
         // extraction branch, shifting both the leading and trailing identity characters.
-        val framedQrName = deriveNativeQrName(rawInput)
+        val useStructuredV120Serial = variant == SibionicsConstants.Variant.SIBIONICS2
+        val framedQrName = deriveNativeQrName(rawInput, useStructuredV120Serial)
         val source = when {
             normalizedRaw.isNotBlank() -> normalizedRaw
             normalizedBle.isNotBlank() -> normalizedBle
             else -> variant.displayLabel
         }
-        val qrName = framedQrName ?: deriveNativeQrName(source)
+        val qrName = framedQrName ?: deriveNativeQrName(source, useStructuredV120Serial)
         val qrShortView = qrName?.takeLast(11)?.takeIf { it.length == 11 }
         val resolvedBleName = deriveBleName(normalizedBle.takeIf { it.isNotBlank() } ?: source).orEmpty()
         val display = qrShortView ?: deriveDisplayName(source, variant)
@@ -762,10 +763,28 @@ object SibionicsRegistry {
         return -1
     }
 
-    private fun deriveNativeQrName(source: String?): String? {
+    private fun deriveNativeQrName(
+        source: String?,
+        useStructuredV120Serial: Boolean = false,
+    ): String? {
         val payload = cleanQrPayload(source)
         val magic = "0697283164"
         if (!payload.contains(magic) || payload.length < 50) return null
+
+        // V120 AI (21) values beginning with P contain the calibration-bearing
+        // serial consumed by the validated local decoder. Some labels use an XPT
+        // probe identifier as the entire AI (21) value instead; it does not expose
+        // that P-format token, so retain the native identity window below rather
+        // than deriving calibration data from unrelated characters.
+        if (useStructuredV120Serial) {
+            deriveGs1V120CalibrationSerial(payload)?.let { serial ->
+                // The legacy/native visible identity excludes the serial check
+                // character: its 16-byte end window consists of the final AI digit
+                // followed by the first 15 serial characters.
+                return "1" + serial.dropLast(1)
+            }
+        }
+
         return if (payload.length < 65) {
             val endLen = payload.length - 49
             val startLen = 16 - endLen
@@ -779,6 +798,35 @@ object SibionicsRegistry {
             val start = payload.length - 17
             payload.substring(start, start + 16).takeIf { it.length == 16 }
         }?.let { SibionicsConstants.normalizeBleName(it) }
+    }
+
+    private fun deriveGs1V120CalibrationSerial(payload: String): String? {
+        val magicPos = payload.indexOf("0697283164")
+        if (magicPos < 0) return null
+
+        val explicitAi21 = payload.indexOf("\u001D21", startIndex = magicPos + 10)
+        val valueStart = if (explicitAi21 >= 0) {
+            explicitAi21 + 3
+        } else {
+            // Some scanners omit FNC1/group separators. In that representation,
+            // locate AI (21) only after the validated variable-length AI (10)
+            // batch field rather than matching an arbitrary "21" in the dates.
+            val ai10 = findBatchAi10(payload)
+            if (ai10 < 0) return null
+            val batchStart = ai10 + 2
+            val ai21 = payload.indexOf("21", startIndex = batchStart + 8)
+            if (ai21 < 0 || ai21 - batchStart !in 8..16) return null
+            ai21 + 2
+        }
+
+        // Only the established P-format V120 serial has a validated sensitivity
+        // token. XPT is a different AI (21) identifier form, not a P serial with
+        // a shifted prefix, so never manufacture calibration data from it.
+        if (payload.length - valueStart < 16) return null
+        return payload.substring(valueStart, valueStart + 16)
+            .takeIf { serial ->
+                serial.startsWith('P') && serial.all(Char::isLetterOrDigit)
+            }
     }
 
     private fun cleanQrPayload(source: String?): String =

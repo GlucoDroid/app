@@ -96,6 +96,70 @@ class SibionicsDeviceBindingTest {
     }
 
     @Test
+    fun v120XptAi21KeepsItsIdentityAndUsesVariantFallbackSensitivity() {
+        val qr = "\u001D0106972831641476112512181727061710LT46251212C" +
+            "\u001D21XPT1EEX2NRU16U"
+        val identity = SibionicsRegistry.buildIdentity(
+            rawInput = qr,
+            bleName = "P225043JMV",
+            variant = SibionicsConstants.Variant.SIBIONICS2,
+        )
+
+        assertEquals("1EEX2NRU16U", identity.displayName)
+        assertEquals("SIBI:1EEX2NRU16U", identity.sensorId)
+        assertEquals("1EEX2NRU", identity.shortCode)
+        assertEquals(null, SibionicsSensitivity.tryDecode(identity.shortCode))
+        assertEquals(
+            1.44f,
+            SibionicsSensitivity.sensitivityFor(
+                identity.shortCode,
+                SibionicsConstants.Variant.SIBIONICS2,
+            ),
+            0.0001f,
+        )
+        assertTrue(identity.qrDerived)
+    }
+
+    @Test
+    fun nearbyV120LotRetainsItsOwnQrSensitivity() {
+        val qr = "\u001D0106972831641476112512131727061210LT46251210C" +
+            "\u001D21P225121023GGFR60"
+        val identity = SibionicsRegistry.buildIdentity(
+            rawInput = qr,
+            bleName = "P2251210ABC",
+            variant = SibionicsConstants.Variant.SIBIONICS2,
+        )
+
+        assertEquals("121023GGFR6", identity.displayName)
+        assertEquals("121023GG", identity.shortCode)
+        val sensitivity = SibionicsSensitivity.tryDecode(identity.shortCode)
+        assertEquals(1.39f, sensitivity!!, 0.0001f)
+        assertEquals(
+            1.39f,
+            SibionicsSensitivity.sensitivityFor(
+                identity.shortCode,
+                SibionicsConstants.Variant.SIBIONICS2,
+            ),
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun structuredV120SerialDoesNotChangeChineseIdentityWindow() {
+        val qr = "\u001D0106972831640165112312091724120810LT41231108C" +
+            "\u001D21231108GEPD802JPP76"
+        val identity = SibionicsRegistry.buildIdentity(
+            rawInput = qr,
+            bleName = "LT2309GEPD",
+            variant = SibionicsConstants.Variant.CHINESE,
+        )
+
+        assertEquals("GEPD802JPP7", identity.displayName)
+        assertEquals("GEPD802J", identity.shortCode)
+        assertTrue(identity.qrDerived)
+    }
+
+    @Test
     fun bleOnlyIdentityRetainsTheFullAdvertisedName() {
         val identity = SibionicsRegistry.buildIdentity(
             rawInput = "HEMATONIX42",

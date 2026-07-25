@@ -801,7 +801,8 @@ fun InteractiveGlucoseChart(
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.125f)
     // Target band inherits the active in-range band colour (was a hardcoded
     // Material green). Keep the 0.12f container-level opacity.
-    val targetBandColor = Color(GlucoseRangeColors.inRange(isDark)).copy(alpha = 0.12f)
+    // Keep custom in-range hues legible as a line without letting them flood the chart surface.
+    val targetBandColor = Color(GlucoseRangeColors.inRange(isDark)).copy(alpha = 0.06f)
 //    val targetBandColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
     val hoverLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     val minMaxLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)

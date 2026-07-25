@@ -40,4 +40,5 @@ class SibionicsSetupPolicyTest {
         assertEquals("000003JMVP225043", nativeLongName)
         assertEquals("3JMVP225043", nativeLongName.takeLast(11))
     }
+
 }

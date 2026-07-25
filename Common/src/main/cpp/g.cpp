@@ -29,6 +29,7 @@
 #include <cinttypes>
 #include <future>
 #include <jni.h>
+#include <map>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1583,12 +1584,26 @@ fromjava(addRawGlucoseStream)(JNIEnv *env, jclass cl, jlong timestamp,
 extern double calibrateNow(const SensorGlucoseData *sens,
                            const ScanData &value);
 
-// HistorySync currently consumes native history from polls[]. For NFC-only Libre
-// flows (no BLE stream yet), values can exist only in scans[]. If polls are empty,
-// expose scans as a fallback so Room/dashboard stay populated.
-static void appendScanFallbackHistory(const SensorGlucoseData *hist,
-                                      jlong starttime,
-                                      std::vector<jlong> &result) {
+using HistorySamples = std::map<jlong, std::pair<jlong, jlong>>;
+
+// Compose reads Room, while Libre NFC history is stored in historydata rather
+// than polls. Export that 15-minute history so an NFC scan can populate the
+// dashboard instead of only reaching native followers/LibreView.
+static void appendStoredHistory(const SensorGlucoseData *hist, jlong starttime,
+                                HistorySamples &samples) {
+  const int start = std::max(0, hist->getstarthistory());
+  const int end = std::min(hist->getAllendhistory(), hist->maxpos());
+  for (int pos = start; pos < end; ++pos) {
+    const Glucose *item = hist->getglucose(pos);
+    if (!item->valid() || item->gettime() <= starttime)
+      continue;
+
+    samples[item->gettime()] = {(jlong)item->getsputnik(), 0};
+  }
+}
+
+static void appendScanHistory(const SensorGlucoseData *hist, jlong starttime,
+                              HistorySamples &samples) {
   const auto scans = hist->getScandata();
   for (const auto &item : scans) {
     if (!item.valid() || item.t <= starttime)
@@ -1597,9 +1612,9 @@ static void appendScanFallbackHistory(const SensorGlucoseData *hist,
     const double cali = calibrateNow(hist, item);
     const jlong valAuto = !isnan(cali) ? (jlong)(cali * 10) : (jlong)item.g * 10;
 
-    result.push_back((jlong)item.t);
-    result.push_back(valAuto);
-    result.push_back(0); // scans have no dedicated raw lane like rawpolls.dat
+    // Scans have no dedicated raw lane like rawpolls.dat. Assignment is
+    // intentional: a scan is a newer source than the periodic history point.
+    samples[item.t] = {valAuto, 0};
   }
 }
 
@@ -1610,7 +1625,7 @@ static bool rawOnlyPollValid(const ScanData &item, uint16_t rawVal,
 }
 
 static void appendPollHistory(const SensorGlucoseData *hist, jlong starttime,
-                              std::vector<jlong> &result) {
+                              HistorySamples &samples) {
   auto polls = hist->getPolldata();
   static const double convfactordL = 18.0182;
 
@@ -1630,10 +1645,28 @@ static void appendPollHistory(const SensorGlucoseData *hist, jlong starttime,
 
     const jlong valRaw = rawVal > 0 ? (jlong)(rawVal * convfactordL) : 0;
 
-    result.push_back((jlong)item.t);
-    result.push_back(valAuto);
-    result.push_back(valRaw);
+    // BLE polls are the highest-resolution source and win exact timestamp
+    // collisions with NFC history or scans.
+    samples[item.t] = {valAuto, valRaw};
   }
+}
+
+static jlongArray historySamplesToJava(JNIEnv *env,
+                                       const HistorySamples &samples) {
+  if (samples.empty())
+    return nullptr;
+
+  std::vector<jlong> result;
+  result.reserve(samples.size() * 3);
+  for (const auto &[time, values] : samples) {
+    result.push_back(time);
+    result.push_back(values.first);
+    result.push_back(values.second);
+  }
+
+  jlongArray jresult = env->NewLongArray(result.size());
+  env->SetLongArrayRegion(jresult, 0, result.size(), result.data());
+  return jresult;
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL
@@ -1648,21 +1681,11 @@ fromjava(getGlucoseHistory)(JNIEnv *env, jclass cl, jlong starttime) {
   if (!hist)
     return nullptr;
 
-  std::vector<jlong> result;
-  result.reserve(900);
-
-  appendPollHistory(hist, starttime, result);
-
-  if (result.empty()) {
-    appendScanFallbackHistory(hist, starttime, result);
-  }
-
-  if (result.empty())
-    return nullptr;
-
-  jlongArray jresult = env->NewLongArray(result.size());
-  env->SetLongArrayRegion(jresult, 0, result.size(), result.data());
-  return jresult;
+  HistorySamples samples;
+  appendStoredHistory(hist, starttime, samples);
+  appendScanHistory(hist, starttime, samples);
+  appendPollHistory(hist, starttime, samples);
+  return historySamplesToJava(env, samples);
 }
 
 /**
@@ -1692,21 +1715,11 @@ extern "C" JNIEXPORT jlongArray JNICALL fromjava(getGlucoseHistoryForSensor)(
   if (!hist)
     return nullptr;
 
-  std::vector<jlong> result;
-  result.reserve(900);
-
-  appendPollHistory(hist, starttime, result);
-
-  if (result.empty()) {
-    appendScanFallbackHistory(hist, starttime, result);
-  }
-
-  if (result.empty())
-    return nullptr;
-
-  jlongArray jresult = env->NewLongArray(result.size());
-  env->SetLongArrayRegion(jresult, 0, result.size(), result.data());
-  return jresult;
+  HistorySamples samples;
+  appendStoredHistory(hist, starttime, samples);
+  appendScanHistory(hist, starttime, samples);
+  appendPollHistory(hist, starttime, samples);
+  return historySamplesToJava(env, samples);
 }
 
 jlong glucoseback(uint32_t nu, uint32_t glval, float drate,

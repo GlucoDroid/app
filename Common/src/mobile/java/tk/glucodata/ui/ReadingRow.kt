@@ -68,6 +68,8 @@ fun ReadingRow(
     index: Int = 0,
     totalCount: Int = 1,
     history: List<GlucosePoint> = emptyList(), // Advanced Trend: Need history
+    // The row's historical "Δ" (see readingDeltaTexts); null hides the slot entirely.
+    deltaText: String? = null,
     peerReadings: List<GlucosePoint> = emptyList(),
     peerSeries: Map<String, PeerSensorSeries> = emptyMap(),
     // True whenever the dashboard is in multi-sensor mode, even if THIS row has
@@ -301,6 +303,15 @@ fun ReadingRow(
                     modifier = modifier,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (!deltaText.isNullOrEmpty()) {
+                        Text(
+                            text = deltaText,
+                            style = timeStyle.copy(fontFeatureSettings = "tnum"),
+                            color = tertiaryColor
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+
                     if (tk.glucodata.data.calibration.CalibrationManager.hasCalibrationAt(point.timestamp, isRawModeRR)) {
                         Icon(
                             imageVector = Icons.Filled.WaterDrop,
