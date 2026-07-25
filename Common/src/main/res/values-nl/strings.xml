@@ -2225,14 +2225,11 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_finding_on_target_desc">%1$d%% in bereik bij VC %2$d%%. Verder valt niets op.</string>
     <string name="stats_card_overview">Tijd in bereik</string>
     <string name="stats_card_metrics">Maatstaven</string>
-    <string name="stats_card_coverage">CGM-dekking</string>
+    <string name="stats_card_coverage">Dekking</string>
     <string name="stats_card_coverage_description">Aandeel van de periode waarin de sensor werkelijk meldde. Alle percentages op dit scherm beschrijven alleen die tijd.</string>
     <string name="stats_metric_none">Geen</string>
     <string name="stats_metric_readings">%1$d metingen</string>
     <string name="stats_metrics_all_hidden">Alle maatstaven zijn verborgen. Zet ze terug via Indelen.</string>
-    <string name="stats_period_day">dag</string>
-    <string name="stats_period_days">%1$d dagen</string>
-    <string name="stats_period_generic">periode</string>
     <string name="stats_hourly_exposure">24-uursverdeling</string>
     <string name="stats_arrange_title">Indelen</string>
     <string name="stats_arrange_hint">Sleep om te ordenen, tik op het oog om te verbergen.</string>

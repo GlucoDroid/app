@@ -2198,14 +2198,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_finding_on_target_desc">目标范围内 %1$d%%，CV %2$d%%。没有其他值得注意的地方。</string>
     <string name="stats_card_overview">目标范围内时间</string>
     <string name="stats_card_metrics">指标</string>
-    <string name="stats_card_coverage">CGM 覆盖</string>
+    <string name="stats_card_coverage">覆盖</string>
     <string name="stats_card_coverage_description">传感器实际上报的时间占比。本屏所有百分比都只描述这段时间。</string>
     <string name="stats_metric_none">无</string>
     <string name="stats_metric_readings">%1$d 个读数</string>
     <string name="stats_metrics_all_hidden">所有指标均已隐藏。可在“排列”中重新添加。</string>
-    <string name="stats_period_day">天</string>
-    <string name="stats_period_days">%1$d 天</string>
-    <string name="stats_period_generic">时间段</string>
     <string name="stats_hourly_exposure">24 小时分布</string>
     <string name="stats_arrange_title">排列</string>
     <string name="stats_arrange_hint">拖动可调整顺序，点按眼睛可隐藏。</string>

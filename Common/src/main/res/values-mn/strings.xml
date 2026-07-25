@@ -2297,14 +2297,11 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_finding_on_target_desc">Мужид %1$d%%, CV %2$d%%. Өөр анхаарал татах зүйл алга.</string>
     <string name="stats_card_overview">Мужид байсан хугацаа</string>
     <string name="stats_card_metrics">Үзүүлэлт</string>
-    <string name="stats_card_coverage">CGM хамрах хүрээ</string>
+    <string name="stats_card_coverage">Хамрах хүрээ</string>
     <string name="stats_card_coverage_description">Мэдрэгч бодитоор мэдээлсэн хугацааны эзлэх хувь. Энэ дэлгэцийн бүх хувь зөвхөн тэр хугацааг илэрхийлнэ.</string>
     <string name="stats_metric_none">Байхгүй</string>
     <string name="stats_metric_readings">%1$d заалт</string>
     <string name="stats_metrics_all_hidden">Бүх үзүүлэлт нуугдсан байна. Зохион байгуулах хэсгээс буцааж нэмнэ үү.</string>
-    <string name="stats_period_day">өдөртэй</string>
-    <string name="stats_period_days">%1$d өдөртэй</string>
-    <string name="stats_period_generic">хугацаатай</string>
     <string name="stats_hourly_exposure">24 цагийн хуваарилалт</string>
     <string name="stats_arrange_title">Зохион байгуулах</string>
     <string name="stats_arrange_hint">Дараалал өөрчлөхийн тулд чирнэ, нуухын тулд нүд дээр товшино.</string>

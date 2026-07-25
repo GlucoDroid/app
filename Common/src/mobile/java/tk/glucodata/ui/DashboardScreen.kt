@@ -1638,10 +1638,10 @@ fun DashboardScreen(
                     if (showPinnedStats) {
                         tk.glucodata.ui.stats.PinnedStatsStrip(
                             history = glucoseHistory,
-                            targetLowMgDl = targetLow,
-                            targetHighMgDl = targetHigh,
-                            veryLowMgDl = veryLowThreshold,
-                            veryHighMgDl = veryHighThreshold,
+                            targetLow = targetLow,
+                            targetHigh = targetHigh,
+                            veryLow = veryLowThreshold,
+                            veryHigh = veryHighThreshold,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)
                         )

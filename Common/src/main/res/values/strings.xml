@@ -1814,14 +1814,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <!-- Statistics: layout, periods, arrange mode -->
     <string name="stats_card_overview">Time in range</string>
     <string name="stats_card_metrics">Metrics</string>
-    <string name="stats_card_coverage">CGM coverage</string>
+    <string name="stats_card_coverage">Coverage</string>
     <string name="stats_card_coverage_description">Share of the period the sensor actually reported. Every percentage on this screen describes only that time.</string>
     <string name="stats_metric_none">None</string>
     <string name="stats_metric_readings">%1$d readings</string>
     <string name="stats_metrics_all_hidden">Every metric is hidden. Add some back from Arrange.</string>
-    <string name="stats_period_day">day</string>
-    <string name="stats_period_days">%1$d days</string>
-    <string name="stats_period_generic">period</string>
     <string name="stats_hourly_exposure">24-hour exposure</string>
     <string name="stats_arrange_title">Arrange</string>
     <string name="stats_arrange_hint">Drag to reorder, tap the eye to hide.</string>

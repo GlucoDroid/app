@@ -2217,14 +2217,11 @@
     <string name="stats_finding_on_target_desc">%1$d%% w zakresie przy CV %2$d%%. Nic więcej się nie wyróżnia.</string>
     <string name="stats_card_overview">Czas w zakresie</string>
     <string name="stats_card_metrics">Wskaźniki</string>
-    <string name="stats_card_coverage">Pokrycie CGM</string>
+    <string name="stats_card_coverage">Pokrycie</string>
     <string name="stats_card_coverage_description">Część okresu, w której czujnik faktycznie raportował. Wszystkie wartości procentowe na tym ekranie opisują wyłącznie ten czas.</string>
     <string name="stats_metric_none">Brak</string>
     <string name="stats_metric_readings">%1$d odczytów</string>
     <string name="stats_metrics_all_hidden">Wszystkie wskaźniki są ukryte. Przywróć je w Rozmieść.</string>
-    <string name="stats_period_day">dnia</string>
-    <string name="stats_period_days">%1$d dni</string>
-    <string name="stats_period_generic">okresu</string>
     <string name="stats_hourly_exposure">Rozkład dobowy</string>
     <string name="stats_arrange_title">Rozmieść</string>
     <string name="stats_arrange_hint">Przeciągnij, aby zmienić kolejność, dotknij oka, aby ukryć.</string>

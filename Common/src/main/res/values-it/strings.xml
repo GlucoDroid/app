@@ -2172,14 +2172,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_finding_on_target_desc">%1$d%% nel range con CV %2$d%%. Nulla di rilevante oltre a questo.</string>
     <string name="stats_card_overview">Tempo nel range</string>
     <string name="stats_card_metrics">Metriche</string>
-    <string name="stats_card_coverage">Copertura CGM</string>
+    <string name="stats_card_coverage">Copertura</string>
     <string name="stats_card_coverage_description">Quota del periodo effettivamente coperta dal sensore. Tutte le percentuali di questa schermata descrivono solo quel tempo.</string>
     <string name="stats_metric_none">Nessuno</string>
     <string name="stats_metric_readings">%1$d letture</string>
     <string name="stats_metrics_all_hidden">Tutte le metriche sono nascoste. Riattivale da Organizza.</string>
-    <string name="stats_period_day">giorno</string>
-    <string name="stats_period_days">%1$d giorni</string>
-    <string name="stats_period_generic">periodo</string>
     <string name="stats_hourly_exposure">Distribuzione sulle 24 ore</string>
     <string name="stats_arrange_title">Organizza</string>
     <string name="stats_arrange_hint">Trascina per riordinare, tocca l\'occhio per nascondere.</string>

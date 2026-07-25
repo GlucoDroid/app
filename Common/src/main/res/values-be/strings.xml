@@ -2249,14 +2249,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_finding_on_target_desc">%1$d%% у дыяпазоне пры CV %2$d%%. Больш нічога не вылучаецца.</string>
     <string name="stats_card_overview">Час у дыяпазоне</string>
     <string name="stats_card_metrics">Паказчыкі</string>
-    <string name="stats_card_coverage">Пакрыццё CGM</string>
+    <string name="stats_card_coverage">Пакрыццё</string>
     <string name="stats_card_coverage_description">Доля перыяду, за якую сэнсар сапраўды перадаваў даныя. Усе працэнты на гэтым экране апісваюць толькі гэты час.</string>
     <string name="stats_metric_none">Няма</string>
     <string name="stats_metric_readings">%1$d вымярэнняў</string>
     <string name="stats_metrics_all_hidden">Усе паказчыкі схаваныя. Вярніце іх у раздзеле «Размяшчэнне».</string>
-    <string name="stats_period_day">дня</string>
-    <string name="stats_period_days">%1$d дзён</string>
-    <string name="stats_period_generic">перыяду</string>
     <string name="stats_hourly_exposure">Размеркаванне за суткі</string>
     <string name="stats_arrange_title">Размяшчэнне</string>
     <string name="stats_arrange_hint">Перацягніце, каб змяніць парадак, націсніце на вока, каб схаваць.</string>

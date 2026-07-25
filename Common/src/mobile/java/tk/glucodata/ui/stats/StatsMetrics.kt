@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,8 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
@@ -612,9 +612,17 @@ internal fun MetricsGrid(
 }
 
 /**
- * Two tiles share a row and match heights — except while one of them is open, when the
- * neighbour keeps its own height and the row simply ends short. Stretching it would
- * make an unrelated tile look like it had expanded too.
+ * Two tiles share a row.
+ *
+ * They come out the same height without any layout trickery: both are given the same
+ * structure — same status row decision, and a reserved meta line when either of them
+ * has one — so a plain Row is enough. Two earlier attempts at stretching them are why
+ * this is now deliberately boring: `height(IntrinsicSize.Min)` throws because the tile
+ * contains a `BoxWithConstraints`, and measuring the children twice to find the tallest
+ * throws because a Measurable may only be measured once.
+ *
+ * When one tile is open the other keeps its own height and the row ends short, which is
+ * the intended behaviour — stretching it would make an unrelated tile look expanded.
  */
 @Composable
 private fun MetricRow(
@@ -625,86 +633,56 @@ private fun MetricRow(
     modifier: Modifier = Modifier,
     spacing: Dp = 12.dp
 ) {
-    val anyExpanded = left.metric in expanded || (right != null && right.metric in expanded)
+    val reserveStatus = left.status.isNotBlank() || right?.status?.isNotBlank() == true
+    val reserveMeta = left.meta.isNotBlank() || right?.meta?.isNotBlank() == true
+
+    fun reserved(spec: MetricSpec) = spec.copy(
+        status = if (reserveStatus && spec.status.isBlank()) " " else spec.status,
+        meta = if (reserveMeta && spec.meta.isBlank()) " " else spec.meta
+    )
+
+    val leftSpec = reserved(left)
+    val rightSpec = right?.let(::reserved)
+
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val tileContentWidth = if (right == null) {
+        val tileContentWidth = if (rightSpec == null) {
             maxWidth - 28.dp
         } else {
             ((maxWidth - spacing) / 2f) - 28.dp
         }
-        val useOwnStatusRow = rememberScoreTileNeedsOwnRow(tileContentWidth, left.value, left.status) ||
-            (right != null && rememberScoreTileNeedsOwnRow(tileContentWidth, right.value, right.status))
-        EqualHeightRow(
-            spacing = spacing,
-            equalise = !anyExpanded,
-            modifier = Modifier.fillMaxWidth()
+        val useOwnStatusRow =
+            rememberScoreTileNeedsOwnRow(tileContentWidth, leftSpec.value, leftSpec.status) ||
+                (rightSpec != null &&
+                    rememberScoreTileNeedsOwnRow(tileContentWidth, rightSpec.value, rightSpec.status))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(spacing)
         ) {
             ScoreTile(
-                title = left.title,
-                value = left.value,
-                status = left.status,
-                meta = left.meta,
-                tone = left.tone,
-                expanded = left.metric in expanded,
-                onToggleExpanded = { onToggleExpanded(left.metric) },
-                infoText = left.infoText,
-                forceStatusOwnRow = useOwnStatusRow
+                title = leftSpec.title,
+                value = leftSpec.value,
+                status = leftSpec.status,
+                meta = leftSpec.meta,
+                tone = leftSpec.tone,
+                expanded = leftSpec.metric in expanded,
+                onToggleExpanded = { onToggleExpanded(leftSpec.metric) },
+                infoText = leftSpec.infoText,
+                forceStatusOwnRow = useOwnStatusRow,
+                modifier = Modifier.weight(1f)
             )
-            if (right != null) {
+            if (rightSpec != null) {
                 ScoreTile(
-                    title = right.title,
-                    value = right.value,
-                    status = right.status,
-                    meta = right.meta,
-                    tone = right.tone,
-                    expanded = right.metric in expanded,
-                    onToggleExpanded = { onToggleExpanded(right.metric) },
-                    infoText = right.infoText,
-                    forceStatusOwnRow = useOwnStatusRow
+                    title = rightSpec.title,
+                    value = rightSpec.value,
+                    status = rightSpec.status,
+                    meta = rightSpec.meta,
+                    tone = rightSpec.tone,
+                    expanded = rightSpec.metric in expanded,
+                    onToggleExpanded = { onToggleExpanded(rightSpec.metric) },
+                    infoText = rightSpec.infoText,
+                    forceStatusOwnRow = useOwnStatusRow,
+                    modifier = Modifier.weight(1f)
                 )
-            }
-        }
-    }
-}
-
-/**
- * Equal-width columns, optionally stretched to the tallest.
- *
- * A plain Row with `height(IntrinsicSize.Min)` cannot do this here: the tiles contain a
- * `BoxWithConstraints`, and asking a SubcomposeLayout for its intrinsic height throws.
- * Measuring twice — once to learn the tallest, once with that as the minimum — gets the
- * same result with ordinary measurement.
- */
-@Composable
-private fun EqualHeightRow(
-    spacing: Dp,
-    equalise: Boolean,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    Layout(content = content, modifier = modifier) { measurables, constraints ->
-        if (measurables.isEmpty()) return@Layout layout(0, 0) {}
-        val spacingPx = spacing.roundToPx()
-        val totalSpacing = spacingPx * (measurables.size - 1)
-        val available = if (constraints.hasBoundedWidth) constraints.maxWidth else constraints.minWidth
-        val childWidth = ((available - totalSpacing) / measurables.size).coerceAtLeast(0)
-        val loose = Constraints(
-            minWidth = childWidth,
-            maxWidth = childWidth,
-            minHeight = 0,
-            maxHeight = constraints.maxHeight
-        )
-        var placeables = measurables.map { it.measure(loose) }
-        val rowHeight = placeables.maxOf { it.height }
-        if (equalise) {
-            placeables = measurables.map { it.measure(loose.copy(minHeight = rowHeight)) }
-        }
-        val rowWidth = childWidth * measurables.size + totalSpacing
-        layout(rowWidth, rowHeight) {
-            var x = 0
-            placeables.forEach { placeable ->
-                placeable.placeRelative(x, 0)
-                x += placeable.width + spacingPx
             }
         }
     }
@@ -771,10 +749,10 @@ fun hasPinnedStats(): Boolean {
 @Composable
 fun PinnedStatsStrip(
     history: List<GlucosePoint>,
-    targetLowMgDl: Float,
-    targetHighMgDl: Float,
-    veryLowMgDl: Float,
-    veryHighMgDl: Float,
+    targetLow: Float,
+    targetHigh: Float,
+    veryLow: Float,
+    veryHigh: Float,
     isMmol: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -785,20 +763,22 @@ fun PinnedStatsStrip(
     if (pinned.isEmpty() || history.isEmpty()) return
 
     var window by rememberSaveable { mutableStateOf(PinnedWindow.H24) }
-    val targets = remember(targetLowMgDl, targetHighMgDl, veryLowMgDl, veryHighMgDl) {
+    // Both the history and the thresholds arrive in the user's display unit — the
+    // native target getters return display values, which is why StatsViewModel runs
+    // them through toMgDl too. Every analytic below is defined in mg/dL, so convert
+    // both or neither; converting only the readings reported 92% time in range as 3%.
+    val scale = if (isMmol) tk.glucodata.ui.util.GlucoseFormatter.MGDL_PER_MMOL else 1f
+    val targets = remember(targetLow, targetHigh, veryLow, veryHigh, scale) {
         StatsTargets(
-            lowMgDl = targetLowMgDl,
-            highMgDl = targetHighMgDl,
-            veryLowMgDl = veryLowMgDl,
-            veryHighMgDl = veryHighMgDl
+            lowMgDl = targetLow * scale,
+            highMgDl = targetHigh * scale,
+            veryLowMgDl = veryLow * scale,
+            veryHighMgDl = veryHigh * scale
         )
     }
-    val summary = remember(history, targets, window, isMmol) {
+    val summary = remember(history, targets, window, scale) {
         val end = history.last().timestamp
         val start = end - window.hours.toLong() * 60L * 60L * 1000L
-        // The dashboard keeps history in display units; every analytic here is defined
-        // in mg/dL, so convert back before measuring anything.
-        val scale = if (isMmol) tk.glucodata.ui.util.GlucoseFormatter.MGDL_PER_MMOL else 1f
         val values = history.asSequence()
             .filter { it.timestamp >= start }
             .map { point -> point.copy(value = point.value * scale) }
@@ -812,73 +792,30 @@ fun PinnedStatsStrip(
     if (summary.readingCount == 0) return
     val unit = if (isMmol) GlucoseUnit.MMOL else GlucoseUnit.MGDL
 
-    // The period control is narrow and the metrics share what is left, all stretched to
-    // the tallest chip. It does not need to be a quarter of the row to be tappable.
-    PinnedStripRow(spacing = 8.dp, modifier = modifier.fillMaxWidth()) {
+    // The period control takes its natural width and the metrics share the rest.
+    // Unlike the metric tiles, everything in this row is plain text in a Row/Column, so
+    // an ordinary intrinsic-height row is safe here.
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         PinnedWindowPill(
             label = stringResource(window.labelResId),
             onClick = {
                 val entries = PinnedWindow.entries
                 window = entries[(entries.indexOf(window) + 1) % entries.size]
-            }
+            },
+            modifier = Modifier.fillMaxHeight()
         )
         pinned.forEach { metric ->
-            PinnedMetricChip(spec = metricSpec(metric, summary, targets, unit))
-        }
-    }
-}
-
-/**
- * Leading control at its natural width, the rest sharing the remainder equally, every
- * child stretched to the tallest. Same reason as [EqualHeightRow] for not using
- * intrinsics.
- */
-@Composable
-private fun PinnedStripRow(
-    spacing: Dp,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    Layout(content = content, modifier = modifier) { measurables, constraints ->
-        if (measurables.isEmpty()) return@Layout layout(0, 0) {}
-        val spacingPx = spacing.roundToPx()
-        val totalSpacing = spacingPx * (measurables.size - 1)
-        val available = if (constraints.hasBoundedWidth) constraints.maxWidth else constraints.minWidth
-        val leading = measurables.first().measure(
-            Constraints(minWidth = 0, maxWidth = available, minHeight = 0, maxHeight = constraints.maxHeight)
-        )
-        val rest = measurables.drop(1)
-        val restWidth = if (rest.isEmpty()) {
-            0
-        } else {
-            ((available - totalSpacing - leading.width) / rest.size).coerceAtLeast(0)
-        }
-        val restConstraints = Constraints(
-            minWidth = restWidth,
-            maxWidth = restWidth,
-            minHeight = 0,
-            maxHeight = constraints.maxHeight
-        )
-        val restPlaceables = rest.map { it.measure(restConstraints) }
-        val rowHeight = maxOf(leading.height, restPlaceables.maxOfOrNull { it.height } ?: 0)
-        val leadingStretched = measurables.first().measure(
-            Constraints(
-                minWidth = leading.width,
-                maxWidth = leading.width,
-                minHeight = rowHeight,
-                maxHeight = constraints.maxHeight.coerceAtLeast(rowHeight)
+            PinnedMetricChip(
+                spec = metricSpec(metric, summary, targets, unit),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
             )
-        )
-        val stretched = rest.map { it.measure(restConstraints.copy(minHeight = rowHeight)) }
-        val rowWidth = leadingStretched.width + restWidth * rest.size + totalSpacing
-        layout(rowWidth, rowHeight) {
-            var x = 0
-            leadingStretched.placeRelative(x, 0)
-            x += leadingStretched.width + spacingPx
-            stretched.forEach { placeable ->
-                placeable.placeRelative(x, 0)
-                x += placeable.width + spacingPx
-            }
         }
     }
 }

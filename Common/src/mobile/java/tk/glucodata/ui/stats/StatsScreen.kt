@@ -409,7 +409,7 @@ fun StatsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .then(if (isDragging) Modifier else Modifier.animateItem())
+                            .then(if (isDragging) Modifier else Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null))
                             .zIndex(if (isDragging) 1f else 0f)
                             .graphicsLayer {
                                 translationY = if (isDragging) cardDrag.offset else 0f
@@ -1317,7 +1317,6 @@ private fun GlycemicOverviewCard(
                         OverviewRing(
                             tir = summary.tir,
                             comparison = summary.comparison,
-                            periodLabel = previousPeriodLabel(selectedRange),
                             selectedBand = selectedBand,
                             onBandSelected = onBandSelected,
                             modifier = Modifier.size(ringSize)
@@ -1333,7 +1332,6 @@ private fun GlycemicOverviewCard(
                         OverviewRing(
                             tir = summary.tir,
                             comparison = summary.comparison,
-                            periodLabel = previousPeriodLabel(selectedRange),
                             selectedBand = selectedBand,
                             onBandSelected = onBandSelected,
                             modifier = Modifier.size(ringSize)
@@ -1349,22 +1347,10 @@ private fun GlycemicOverviewCard(
     }
 }
 
-/**
- * Names the comparison period in the user's terms. "Window" is our word, not theirs —
- * the chip has to say what it is actually comparing against.
- */
-@Composable
-private fun previousPeriodLabel(selectedRange: StatsTimeRange?): String = when (selectedRange) {
-    StatsTimeRange.DAY_1 -> stringResource(R.string.stats_period_day)
-    null, StatsTimeRange.DAY_ALL -> stringResource(R.string.stats_period_generic)
-    else -> stringResource(R.string.stats_period_days, selectedRange.days)
-}
-
 @Composable
 private fun OverviewRing(
     tir: TimeInRangeBreakdown,
     comparison: StatsComparison?,
-    periodLabel: String,
     selectedBand: TirBand?,
     onBandSelected: (TirBand?) -> Unit,
     modifier: Modifier = Modifier
@@ -1500,7 +1486,7 @@ private fun OverviewRing(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = "${abs(delta.inRangeDelta).roundToInt()} · $periodLabel",
+                        text = abs(delta.inRangeDelta).roundToInt().toString(),
                         style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                         color = if (rising) TirInRangeColor else TirHighColor,
                         maxLines = 1

@@ -2210,14 +2210,11 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="stats_finding_on_target_desc">CV %%%2$d ile aralıkta %%%1$d. Başka dikkat çeken bir şey yok.</string>
     <string name="stats_card_overview">Aralıktaki süre</string>
     <string name="stats_card_metrics">Ölçütler</string>
-    <string name="stats_card_coverage">CGM kapsamı</string>
+    <string name="stats_card_coverage">Kapsam</string>
     <string name="stats_card_coverage_description">Sensörün gerçekten veri verdiği sürenin payı. Bu ekrandaki tüm yüzdeler yalnızca o süreyi anlatır.</string>
     <string name="stats_metric_none">Yok</string>
     <string name="stats_metric_readings">%1$d ölçüm</string>
     <string name="stats_metrics_all_hidden">Tüm ölçütler gizli. Düzenle bölümünden geri ekleyin.</string>
-    <string name="stats_period_day">güne</string>
-    <string name="stats_period_days">%1$d güne</string>
-    <string name="stats_period_generic">döneme</string>
     <string name="stats_hourly_exposure">24 saatlik dağılım</string>
     <string name="stats_arrange_title">Düzenle</string>
     <string name="stats_arrange_hint">Sıralamak için sürükleyin, gizlemek için göze dokunun.</string>

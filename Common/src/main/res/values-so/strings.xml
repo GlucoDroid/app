@@ -2390,14 +2390,11 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="stats_finding_on_target_desc">%1$d%% heerka ku jira, CV %2$d%%. Wax kale oo la iska dhex arko ma jiro.</string>
     <string name="stats_card_overview">Wakhtiga heerka ku jira</string>
     <string name="stats_card_metrics">Cabbiro</string>
-    <string name="stats_card_coverage">Daboolka CGM</string>
+    <string name="stats_card_coverage">Daboolid</string>
     <string name="stats_card_coverage_description">Qaybta muddada oo dareemuhu dhab ahaan soo sheegay. Dhammaan boqolleyda shaashaddan waxay qeexayaan oo keliya wakhtigaas.</string>
     <string name="stats_metric_none">Midna</string>
     <string name="stats_metric_readings">%1$d akhris</string>
     <string name="stats_metrics_all_hidden">Dhammaan cabbirada waa qarsoon yihiin. Kaga soo celi Habaynta.</string>
-    <string name="stats_period_day">maalintii</string>
-    <string name="stats_period_days">%1$d maalmood</string>
-    <string name="stats_period_generic">muddada</string>
     <string name="stats_hourly_exposure">Qaybinta 24-saacadood</string>
     <string name="stats_arrange_title">Habee</string>
     <string name="stats_arrange_hint">Jiid si aad u kala hor mariso, taabo isha si aad u qariso.</string>
