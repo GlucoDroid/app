@@ -88,6 +88,7 @@ class SibionicsBleManager(
         private const val LOCAL_REBUILD_FORMAT_VERSION = 6
         private const val POST_RESET_DISCARD_TIMEOUT_MS = 15_000L
         private const val RESET_COMFORT_RECHECK_MS = 15L * 60L * 1000L
+        private const val NATIVE_STREAM_CAPACITY_MINUTES = 46 * 24 * 60
 
         private fun sampleJournalFile(context: Context, sensorId: String): File {
             val digest = MessageDigest.getInstance("SHA-256")
@@ -1064,10 +1065,21 @@ class SibionicsBleManager(
         }
         val wasRehydrating = algorithmRehydrating
         if (wasRehydrating && !acceptRehydrationIndex(index)) return null
+        val shouldRebaseNativeWindow =
+            SibionicsSessionPolicy.shouldRebaseNativeWindow(startTimeMs > 0L, index)
         if (startTimeMs <= 0L && index >= 0) {
             startTimeMs = eventMs - index * SibionicsConstants.READING_INTERVAL_MS
             Applic.app?.let { SibionicsRegistry.saveStartTimeMs(it, SerialNumber, startTimeMs) }
             scheduleResetMaintenanceCheck()
+            if (shouldRebaseNativeWindow) {
+                SerialNumber?.let { nativeName ->
+                    runCatching {
+                        Natives.rebaseDirectStreamWindow(nativeName, startTimeMs / 1000L)
+                    }.onFailure {
+                        Log.stack(SibionicsConstants.TAG, "rebase native stream after sensor restart", it)
+                    }
+                }
+            }
         }
         val displayMmol = synchronized(algorithmLock) {
             if (index <= 1) algorithm.reset()
@@ -1508,6 +1520,10 @@ class SibionicsBleManager(
                 else -> 1L
             }.coerceAtLeast(1L)
             Natives.ensureSensorShell(name, startSec)
+            if (!Natives.hasSensorStreamCapacity(name, NATIVE_STREAM_CAPACITY_MINUTES)) {
+                Log.e(SibionicsConstants.TAG, "native stream capacity unavailable for $name")
+                return@runCatching false
+            }
             var stored = false
             for (reading in validReadings) {
                 if (Thread.currentThread().isInterrupted) return@runCatching false

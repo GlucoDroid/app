@@ -915,7 +915,9 @@ object SibionicsManagedSensorIdentityAdapter : tk.glucodata.drivers.ManagedSenso
     override fun isExternallyManagedBleSensor(sensorId: String?): Boolean =
         SibionicsRegistry.findRecord(Applic.app, sensorId) != null
 
-    override fun usesNativeDirectStreamShell(sensorId: String?): Boolean = false
+    override fun usesNativeDirectStreamShell(sensorId: String?): Boolean =
+        resolveCanonicalSensorId(sensorId)
+            ?.let { SibionicsRegistry.findRecord(Applic.app, it) } != null
 
     override fun hasNativeSensorBacking(sensorId: String?): Boolean? {
         SibionicsRegistry.findRecord(Applic.app, sensorId) ?: return null

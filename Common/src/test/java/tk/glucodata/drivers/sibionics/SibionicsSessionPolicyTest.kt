@@ -31,6 +31,28 @@ class SibionicsSessionPolicyTest {
     }
 
     @Test
+    fun newResetCycleRebasesNativeWindowOnlyAtItsBeginning() {
+        assertTrue(
+            SibionicsSessionPolicy.shouldRebaseNativeWindow(
+                hadStartTime = false,
+                index = 1,
+            ),
+        )
+        assertFalse(
+            SibionicsSessionPolicy.shouldRebaseNativeWindow(
+                hadStartTime = true,
+                index = 1,
+            ),
+        )
+        assertTrue(
+            SibionicsSessionPolicy.shouldRebaseNativeWindow(
+                hadStartTime = false,
+                index = 42,
+            ),
+        )
+    }
+
+    @Test
     fun liveStreamDoesNotRemainLabelledAsPartialHistory() {
         assertFalse(
             SibionicsSessionPolicy.shouldShowHistoryProgress(

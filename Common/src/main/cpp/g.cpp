@@ -1400,7 +1400,7 @@ static bool addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
       // Use savepollallIDs to update the stream data (index = lifeCount).
       // Preserve existing raw/temperature channels when overwriting auto value
       // so calibrated stream rewrites don't zero out raw data.
-      if (lifeCount >= 0 && lifeCount < hist->maxstreampos()) {
+      if (hist->validPollIndex(lifeCount)) {
         int preservedRaw = 0;
         uint16_t preservedTemp = 0;
         if (hist->hasStreamID(lifeCount)) {
@@ -1505,6 +1505,21 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(
   return reinterpret_cast<jlong>(hist);
 }
 
+extern "C" JNIEXPORT jboolean JNICALL fromjava(hasSensorStreamCapacity)(
+    JNIEnv *env, jclass cl, jstring sensorId, jint minimumRecords) {
+  if (!sensors || !sensorId || minimumRecords <= 0)
+    return JNI_FALSE;
+  const char *str = env->GetStringUTFChars(sensorId, nullptr);
+  if (!str)
+    return JNI_FALSE;
+  SensorGlucoseData *hist = ensureDirectStreamShellForId(str, 0);
+  const bool ready =
+      hist && !hist->error() &&
+      hist->pollStorageCapacity() >= static_cast<size_t>(minimumRecords);
+  env->ReleaseStringUTFChars(sensorId, str);
+  return ready ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT void JNICALL fromjava(rebaseDirectStreamWindow)(
     JNIEnv *env, jclass cl, jstring sensorId, jlong startTimeSec) {
   if (!sensors || !sensorId || startTimeSec <= 0)
@@ -1558,10 +1573,8 @@ fromjava(addRawGlucoseStream)(JNIEnv *env, jclass cl, jlong timestamp,
         lifeCount = (timestamp - start) / 60;
       }
 
-      if (lifeCount >= 0 && lifeCount < hist->maxstreampos() &&
-          hist->hasStreamID(lifeCount)) {
-        auto polls = hist->getPolldata();
-        int preservedAuto = polls[lifeCount].g;
+      if (hist->validPollIndex(lifeCount) && hist->hasStreamID(lifeCount)) {
+        int preservedAuto = hist->getPollsData()[lifeCount].g;
         uint16_t preservedTemp = hist->getTempForPoll(lifeCount);
         int rawVal = 0;
         if (rawGlucose > 0) {

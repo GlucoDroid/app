@@ -96,6 +96,31 @@ constexpr const int maxSIhours =
 #else
     572;
 #endif
+
+namespace pollstorage {
+template <typename HasTimestamp>
+constexpr size_t recoverCount(uint32_t storedCount, size_t capacity,
+                              HasTimestamp hasTimestamp) {
+  size_t recovered = std::min<size_t>(storedCount, capacity);
+  while (recovered > 0 && !hasTimestamp(recovered - 1))
+    --recovered;
+  return recovered;
+}
+
+constexpr uint16_t recoverStart(uint16_t storedStart, size_t recoveredCount) {
+  return recoveredCount == 0
+             ? 0
+             : static_cast<uint16_t>(
+                   std::min<size_t>(storedStart, recoveredCount - 1));
+}
+
+// Issue #137 persisted 34,816 while the old Sibionics map held 34,320
+// records. A larger replacement map must stop at the last durable record.
+static_assert(recoverCount(34816, maxminutes,
+                           [](size_t index) { return index < 34320; }) == 34320);
+static_assert(recoverStart(40000, 34320) == 34319);
+} // namespace pollstorage
+
 /*constexpr const int maxSIhours=
 #ifndef NOLOG
 maxdaysSI*24
@@ -672,6 +697,30 @@ public:
     if (days < 15 && !isDexcom())
       days = 15;
     return days * 24 * streamperhour();
+  }
+  int32_t pollStorageSize() const {
+    const auto *info = getinfo();
+    const std::string_view path(sensordir.data(), sensordir.size());
+    const size_t leafOffset = path.find_last_of('/') == std::string_view::npos
+                                  ? 0
+                                  : path.find_last_of('/') + 1;
+    const bool managedSibionics =
+        path.substr(leafOffset).starts_with("SIBI:");
+    // Legacy Sibionics reset cycles keep appending to the same poll store.
+    // Managed Sibionics shells also need to reach their day-22 reset without
+    // changing the native shell's lifecycle metadata.
+    if ((info && info->sibionics) || managedSibionics)
+      return maxminutes;
+    return maxstreampos();
+  }
+  size_t pollStorageCapacity() const {
+    if (!polls.data() || !rawpolls.data() || !temppolls.data())
+      return 0;
+    return std::min({polls.size(), rawpolls.size(), temppolls.size()});
+  }
+  bool validPollIndex(int64_t index) const {
+    return index >= 0 &&
+           static_cast<uint64_t>(index) < pollStorageCapacity();
   }
   int streamingIsEnabled() const {
     auto *info = getinfo();
@@ -1550,9 +1599,9 @@ private:
         historydata(sensordir, "data.dat",
                     getinfo() ? historybytes(perhour()) : (haserror = true, 0)),
         scansize(maxscansize()), scans(sensordir, "current.dat", scansize),
-        polls(sensordir, "polls.dat", maxstreampos()),
-        rawpolls(sensordir, "rawpolls.dat", maxstreampos()),
-        temppolls(sensordir, "temppolls.dat", maxstreampos()),
+        polls(sensordir, "polls.dat", pollStorageSize()),
+        rawpolls(sensordir, "rawpolls.dat", pollStorageSize()),
+        temppolls(sensordir, "temppolls.dat", pollStorageSize()),
         trends(sensordir, trendsdat, scansize), specstart(spec),
         polluit(baseuit, "polls.dat"), rawpolluit(baseuit, "rawpolls.dat"),
         temppolluit(baseuit, "temppolls.dat"), infopath(baseuit, infopdat),
@@ -1573,6 +1622,7 @@ private:
              baseuit.data());
       return;
     }
+    repairPollMetadata();
     if (isSibionics2())
       getinfo()->days = 45;
     if (const ScanData *last = lastpoll()) {
@@ -1694,10 +1744,46 @@ public:
   // bool haserror=false;
   bool error() const {
     if (!haserror && meminfo.data() && historydata.data() && polls.data() &&
+        rawpolls.data() && temppolls.data() &&
         (!canscan() || (scans.data() && trends.data())))
       return false;
     return true;
   }
+
+private:
+  void repairPollMetadata() {
+    auto *info = getinfo();
+    const size_t capacity = pollStorageCapacity();
+    if (!info || !polls.data() || capacity == 0)
+      return;
+
+    const uint32_t storedCount = info->pollcount;
+    // Extending an old undersized file creates a zero-filled tail. Entries
+    // beyond the former mapping were never durably written, even when the
+    // corrupted count says otherwise, so retain only the last timed record.
+    const size_t recoveredCount = pollstorage::recoverCount(
+        storedCount, capacity,
+        [this](size_t index) { return polls[index].t != 0; });
+
+    const uint16_t storedStart = info->pollstart;
+    const uint16_t recoveredStart =
+        pollstorage::recoverStart(storedStart, recoveredCount);
+    if (storedCount != recoveredCount || storedStart != recoveredStart) {
+      LOGGER("repairPollMetadata count=%u->%zu start=%u->%u capacity=%zu\n",
+             storedCount, recoveredCount, storedStart, recoveredStart,
+             capacity);
+      info->pollcount = static_cast<uint32_t>(recoveredCount);
+      info->pollstart = recoveredStart;
+      for (auto &up : info->update) {
+        up.streamstart =
+            std::min<uint32_t>(up.streamstart, info->pollcount);
+        up.rawstreamstart =
+            std::min<uint32_t>(up.rawstreamstart, info->pollcount);
+      }
+    }
+  }
+
+public:
 
   void prunestream();
   void prunescans();
@@ -1723,7 +1809,9 @@ uint32_t getlastpolltime() const {
     const ScanData *start = polls.data();
     if (!start)
       return 0;
-    for (int i = pollcount() - 1; i >= getinfo()->pollstart; --i) {
+    const int first =
+        std::min<int>(getinfo()->pollstart, std::max(pollcount() - 1, 0));
+    for (int i = pollcount() - 1; i >= first; --i) {
       if (start[i].valid(i))
         return start[i].t;
     }
@@ -1731,13 +1819,22 @@ uint32_t getlastpolltime() const {
   }
   uint32_t firstpolltime() const {
     const ScanData *start = polls.data();
-    for (int i = getinfo()->pollstart; i < pollcount(); i++)
+    if (!start)
+      return UINT32_MAX;
+    const int first = std::min<int>(getinfo()->pollstart, pollcount());
+    for (int i = first; i < pollcount(); i++)
       if (start[i].valid(i))
         return start[i].t;
     return UINT32_MAX;
   }
   int scancount() const { return getinfo()->scancount; }
-  int pollcount() const { return getinfo()->pollcount; }
+  int pollcount() const {
+    const auto *info = getinfo();
+    if (!info)
+      return 0;
+    return static_cast<int>(
+        std::min<size_t>(info->pollcount, pollStorageCapacity()));
+  }
   std::array<uint16_t, 16> &gettrendsbuf(int index) { return trends[index]; }
   const std::array<uint16_t, 16> &gettrendsbuf(int index) const {
     return trends[index];
@@ -1750,15 +1847,15 @@ uint32_t getlastpolltime() const {
   void saveglucose(const nfcdata *nfc, time_t tim, int id, int glu, int trend,
                    float change) {
     savetrend(nfc, gettrendsbuf(scancount()));
-    saveglucosedata(scans, getinfo()->scancount, tim, id, glu, trend, change,
-                    0);
-    setlastscantime(tim);
+    if (saveglucosedata(scans, getinfo()->scancount, tim, id, glu, trend,
+                        change, 0))
+      setlastscantime(tim);
   }
 
   bool savepoll(time_t tim, int id, int glu, int trend, float change,
                 int raw = 0) {
-    if (getinfo()->pollcount) {
-      int count = getinfo()->pollcount - 1;
+    if (pollcount()) {
+      int count = pollcount() - 1;
       int previd = polls[count].id;
       if (previd >= id) {
         LOGGER("GLU: duplicate id: previd=%d id=%d\n", previd, id);
@@ -1779,21 +1876,19 @@ uint32_t getlastpolltime() const {
             weight * getinfo()->pollinterval + (1.0 - weight) * af;
       }
     }
-    saveglucosedata(polls, getinfo()->pollcount, tim, id, glu, trend, change,
-                    raw);
-    return true;
+    return saveglucosedata(polls, getinfo()->pollcount, tim, id, glu, trend,
+                           change, raw);
   }
 
   bool savestreamonly(time_t tim, int id, int glu, int trend, float change,
                       int raw = 0, uint16_t temp = 0) {
-    if (getinfo()->pollcount) {
-      const int prev = getinfo()->pollcount - 1;
+    if (pollcount()) {
+      const int prev = pollcount() - 1;
       if (polls[prev].id >= id)
         return false;
     }
-    saveglucosedata(polls, getinfo()->pollcount, tim, id, glu, trend, change,
-                    raw, temp);
-    return true;
+    return saveglucosedata(polls, getinfo()->pollcount, tim, id, glu, trend,
+                           change, raw, temp);
   }
 
   void savestream(time_t tim, int id, int glu, int trend, float change,
@@ -1810,32 +1905,51 @@ uint32_t getlastpolltime() const {
 
   bool saveStreamAgain(time_t tim, int id, int glu, int trend, float change,
                        int raw = 0, uint16_t temp = 0) {
+    auto *info = getinfo();
+    const size_t capacity = pollStorageCapacity();
+    if (!info || capacity == 0)
+      return true;
     int index = id - 5;
     if (index < 0) {
       return true;
     }
+    if (static_cast<size_t>(index) >= capacity) {
+      LOGGER("saveStreamAgain id=%d index=%d exceeds capacity=%zu\n", id,
+             index, capacity);
+      return true;
+    }
     while (index > 0 && polls[index].id > id)
       --index;
-    auto *info = getinfo();
-    if (!info)
-      return true;
-    while (index < info->pollcount && polls[index].id < id) {
+    const size_t count = std::min<size_t>(info->pollcount, capacity);
+    while (static_cast<size_t>(index) < count && polls[index].id < id) {
       ++index;
+    }
+    if (static_cast<size_t>(index) >= capacity) {
+      LOGGER("saveStreamAgain id=%d resolved index=%d exceeds capacity=%zu\n",
+             id, index, capacity);
+      return true;
     }
     polls[index] = {static_cast<uint32_t>(tim), id, (int32_t)glu, trend,
                     change};
     rawpolls[index] = {(uint16_t)raw};
     temppolls[index] = temp;
-    const int count = index + 1;
-    if (count < info->pollcount) {
+    const int newCount = index + 1;
+    if (newCount < info->pollcount) {
       return true;
     }
-    info->pollcount = count;
+    info->pollcount = newCount;
     return false;
   }
-  void saveglucosedata(Mmap<ScanData> &streamscans, uint32_t &count, time_t tim,
+  bool saveglucosedata(Mmap<ScanData> &streamscans, uint32_t &count, time_t tim,
                        int id, int glu, int trend, float change, int raw = 0,
                        uint16_t temp = 0) {
+    const size_t capacity =
+        &streamscans == &polls ? pollStorageCapacity() : streamscans.size();
+    if (count >= capacity) {
+      LOGGER("saveglucosedata count=%u exceeds capacity=%zu id=%d\n", count,
+             capacity, id);
+      return false;
+    }
     streamscans[count] = {static_cast<uint32_t>(tim), id, (int32_t)glu, trend,
                           change};
     if (&streamscans == &polls) {
@@ -1843,14 +1957,22 @@ uint32_t getlastpolltime() const {
       temppolls[count] = temp;
     }
     count++;
+    return true;
   }
   bool hasStreamID(const int id) const {
+    if (!validPollIndex(id))
+      return false;
     return polls[id].id == id && polls[id].g;
   }
   template <int secs>
   int savepollallIDsonly(time_t tim, const int id, int glu, int trend,
                          float change, int raw = 0, uint16_t temp = 0) {
-    int count = getinfo()->pollcount;
+    const size_t capacity = pollStorageCapacity();
+    if (id < 0 || static_cast<size_t>(id) >= capacity) {
+      LOGGER("savepollallIDsonly id=%d exceeds capacity=%zu\n", id, capacity);
+      return -1;
+    }
+    int count = pollcount();
     if (count < id) {
       LOGGER("savepollallIDsonly count=%d<id=%d\n", count, id);
       const uint32_t startiter = tim - (id - count) * secs;
@@ -1886,7 +2008,10 @@ uint32_t getlastpolltime() const {
   template <int secs>
   int savepollallIDsonlyQuiet(time_t tim, const int id, int glu, int trend,
                               float change, int raw = 0, uint16_t temp = 0) {
-    int count = getinfo()->pollcount;
+    const size_t capacity = pollStorageCapacity();
+    if (id < 0 || static_cast<size_t>(id) >= capacity)
+      return -1;
+    int count = pollcount();
     if (count < id) {
       const uint32_t startiter = tim - (id - count) * secs;
       if constexpr (secs == 60) {
@@ -1918,6 +2043,8 @@ uint32_t getlastpolltime() const {
                       float change, int raw = 0, uint16_t temp = 0) {
     int count =
         savepollallIDsonly<secs>(tim, id, glu, trend, change, raw, temp);
+    if (count < 0)
+      return false;
     if (id == count)
       getinfo()->pollcount = id + 1;
     else {
@@ -1931,6 +2058,8 @@ uint32_t getlastpolltime() const {
                            float change, int raw = 0, uint16_t temp = 0) {
     int count =
         savepollallIDsonlyQuiet<secs>(tim, id, glu, trend, change, raw, temp);
+    if (count < 0)
+      return false;
     if (id == count)
       getinfo()->pollcount = id + 1;
     else {
@@ -1942,7 +2071,7 @@ uint32_t getlastpolltime() const {
 
   void consecutivelifecount() {
     const int pos = getinfo()->lastLifeCountReceived;
-    const int count = getinfo()->pollcount;
+    const int count = pollcount();
     for (int i = pos + 1; i < count; i++) {
       if (!polls[i].g && !isnan(polls[i].ch)) {
         getinfo()->lastLifeCountReceived = i - 1;
@@ -2002,8 +2131,9 @@ uint32_t getlastpolltime() const {
   const ScanData *beginscans() const { return scans.data(); }
   const ScanData *beginpolls() const { return polls.data(); }
   std::span<const ScanData> getPolldata() const {
-    const int start = getinfo()->pollstart;
-    return std::span<const ScanData>(polls.data() + start, pollcount() - start);
+    const int count = pollcount();
+    const int start = std::min<int>(getinfo()->pollstart, count);
+    return std::span<const ScanData>(polls.data() + start, count - start);
   }
 
   const ScanData *lastscan() const {
@@ -2017,7 +2147,7 @@ uint32_t getlastpolltime() const {
   }
   const ScanData *lastpoll() const {
     const auto polc = pollcount();
-    if (polc > 0)
+    if (polls.data() && polc > 0)
       return polls.data() + polc - 1;
     return nullptr;
   }
@@ -2045,7 +2175,7 @@ uint32_t getlastpolltime() const {
     exportscans(file, getinfo()->scancount, scans.data());
   }
   void exportpolls(const char *file) const {
-    exportscans(file, getinfo()->pollcount, polls.data());
+    exportscans(file, pollcount(), polls.data());
   }
   int nextlock() { return getinfo()->lockcount++; }
   void setlock(uint32_t lock) { getinfo()->lockcount = lock; }
@@ -2601,7 +2731,8 @@ public:
     constexpr const int len = offsetof(Info, streamingIsEnabled) +
                               sizeof(Info::streamingIsEnabled) - off;
     memcpy(&pollinfo, meminfo.data() + off, len);
-    const int streamend = pollinfo.pollcount; // TODO test earlier?
+    const int streamend =
+        std::min<int>(pollinfo.pollcount, pollStorageCapacity());
     if (streamstart < streamend) {
       const struct ScanData *startstreambuf = polls.data();
       const uint16_t cmd = streamupdatecmd(sensindex);
