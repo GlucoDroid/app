@@ -573,7 +573,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
                             },
                             icon = Icons.Default.Medication,
                             iconTint = MaterialTheme.colorScheme.tertiary,
-                            enabled = isActive && sendTreatments,
+                            enabled = sendTreatments,
                             position = CardPosition.MIDDLE
                         )
                         SettingsSwitchItem(
