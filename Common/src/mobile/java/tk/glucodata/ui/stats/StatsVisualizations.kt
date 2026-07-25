@@ -124,7 +124,7 @@ internal fun TirStackedBar(
 internal fun TirVerticalBar(
     tir: TimeInRangeBreakdown,
     modifier: Modifier = Modifier,
-    width: Dp = 6.dp
+    width: Dp = 4.dp
 ) {
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
     val segments = listOf(
