@@ -690,8 +690,8 @@ fun StatsScreen(
  */
 private fun cardHasContent(card: StatsCard, uiState: StatsUiState): Boolean = when (card) {
     StatsCard.TEMPERATURE -> uiState.temperaturePoints.isNotEmpty()
-    StatsCard.EPISODES ->
-        uiState.summary.lowEpisodes.count > 0 || uiState.summary.highEpisodes.count > 0
+    // Episodes stays even at zero: "none in this window" is the answer someone opened
+    // the card to get, and a section that comes and goes is worse than a quiet one.
     StatsCard.DAY_BY_DAY -> uiState.summary.days.size >= MIN_CALENDAR_DAYS
     StatsCard.INSIGHTS -> uiState.summary.insights.isNotEmpty()
     StatsCard.METRICS -> true
@@ -721,6 +721,7 @@ private fun StatsCardContent(
         StatsCard.METRICS -> MetricsSection(
             metrics = layout.visibleMetrics,
             wideMetrics = layout.wideMetrics,
+            fullOrder = layout.metricOrder,
             summary = uiState.summary,
             targets = uiState.targets,
             unit = uiState.unit
@@ -768,6 +769,7 @@ private fun StatsCardContent(
 private fun MetricsSection(
     metrics: List<StatsMetric>,
     wideMetrics: Set<StatsMetric>,
+    fullOrder: List<StatsMetric>,
     summary: StatsSummary,
     targets: StatsTargets,
     unit: GlucoseUnit
@@ -777,13 +779,25 @@ private fun MetricsSection(
         return
     }
     var showAll by rememberSaveable { mutableStateOf(false) }
-    // Three rows is what fits before the screen turns into a spreadsheet; everything
-    // else stays one tap away rather than being switched off.
+    var expanded by remember { mutableStateOf(emptySet<StatsMetric>()) }
+    // One drag state for both grids so a tile can be dragged across the fold, and one
+    // expansion set so the two halves agree about which tiles are open.
+    val dragState = rememberMetricDragState(
+        order = fullOrder,
+        onReordered = StatsLayoutStore::setMetricOrder
+    )
     val rows = remember(metrics, wideMetrics) { packMetricRows(metrics, wideMetrics) }
-    val headRows = rows.take(StatsMetric.DEFAULT_VISIBLE_ROWS)
-    val tailRows = rows.drop(StatsMetric.DEFAULT_VISIBLE_ROWS)
-    val headMetrics = headRows.flatMap { listOfNotNull(it.first, it.second) }
-    val tailMetrics = tailRows.flatMap { listOfNotNull(it.first, it.second) }
+    val headMetrics = rows.take(StatsMetric.DEFAULT_VISIBLE_ROWS)
+        .flatMap { listOfNotNull(it.first, it.second) }
+    val tailMetrics = rows.drop(StatsMetric.DEFAULT_VISIBLE_ROWS)
+        .flatMap { listOfNotNull(it.first, it.second) }
+
+    val toggleExpanded: (StatsMetric) -> Unit = { metric ->
+        // A long press that turned into a drag must not also open the tile.
+        if (dragState.dragging == null) {
+            expanded = if (metric in expanded) expanded - metric else expanded + metric
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -796,7 +810,10 @@ private fun MetricsSection(
             wideMetrics = wideMetrics,
             summary = summary,
             targets = targets,
-            unit = unit
+            unit = unit,
+            expanded = expanded,
+            onToggleExpanded = toggleExpanded,
+            dragState = dragState
         )
 
         if (tailMetrics.isNotEmpty()) {
@@ -810,7 +827,10 @@ private fun MetricsSection(
                     wideMetrics = wideMetrics,
                     summary = summary,
                     targets = targets,
-                    unit = unit
+                    unit = unit,
+                    expanded = expanded,
+                    onToggleExpanded = toggleExpanded,
+                    dragState = dragState
                 )
             }
 

@@ -41,7 +41,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
+import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -53,7 +58,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import tk.glucodata.R
-import tk.glucodata.ui.GlucosePoint
 import java.util.Locale
 
 /**
@@ -81,11 +85,15 @@ internal fun ScoreTile(
     onToggleExpanded: () -> Unit,
     modifier: Modifier = Modifier,
     infoText: String? = null,
-    forceStatusOwnRow: Boolean? = null
+    forceStatusOwnRow: Boolean? = null,
+    // Keep the line even when this tile has nothing for it, so a tile that does have
+    // one does not end up taller than its neighbour.
+    reserveStatus: Boolean = false,
+    reserveMeta: Boolean = false
 ) {
     val expandable = !infoText.isNullOrBlank()
-    val hasStatus = status.isNotBlank()
-    val hasMeta = meta.isNotBlank()
+    val hasStatus = status.isNotBlank() || reserveStatus
+    val hasMeta = meta.isNotBlank() || reserveMeta
     val tileShape = RoundedCornerShape(topStart = 20.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 20.dp)
     val tileColor = tone.copy(alpha = 0.09f)
         .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
@@ -588,10 +596,11 @@ internal fun MetricsGrid(
     summary: StatsSummary,
     targets: StatsTargets,
     unit: GlucoseUnit,
-    modifier: Modifier = Modifier,
-    rowModifier: (StatsMetric) -> Modifier = { Modifier }
+    expanded: Set<StatsMetric>,
+    onToggleExpanded: (StatsMetric) -> Unit,
+    dragState: MetricDragState?,
+    modifier: Modifier = Modifier
 ) {
-    var expanded by remember { mutableStateOf(emptySet<StatsMetric>()) }
     val rows = remember(metrics, wideMetrics) { packMetricRows(metrics, wideMetrics) }
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -602,10 +611,8 @@ internal fun MetricsGrid(
                 left = metricSpec(left, summary, targets, unit),
                 right = right?.let { metricSpec(it, summary, targets, unit) },
                 expanded = expanded,
-                onToggleExpanded = { metric ->
-                    expanded = if (metric in expanded) expanded - metric else expanded + metric
-                },
-                modifier = rowModifier(left)
+                onToggleExpanded = onToggleExpanded,
+                dragState = dragState
             )
         }
     }
@@ -630,19 +637,16 @@ private fun MetricRow(
     right: MetricSpec?,
     expanded: Set<StatsMetric>,
     onToggleExpanded: (StatsMetric) -> Unit,
+    dragState: MetricDragState?,
     modifier: Modifier = Modifier,
     spacing: Dp = 12.dp
 ) {
+    // A blank placeholder string does not work here: " ".isBlank() is true, so the
+    // tile still dropped the line. The reservation has to be an explicit flag.
     val reserveStatus = left.status.isNotBlank() || right?.status?.isNotBlank() == true
     val reserveMeta = left.meta.isNotBlank() || right?.meta?.isNotBlank() == true
-
-    fun reserved(spec: MetricSpec) = spec.copy(
-        status = if (reserveStatus && spec.status.isBlank()) " " else spec.status,
-        meta = if (reserveMeta && spec.meta.isBlank()) " " else spec.meta
-    )
-
-    val leftSpec = reserved(left)
-    val rightSpec = right?.let(::reserved)
+    val leftSpec = left
+    val rightSpec = right
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val tileContentWidth = if (rightSpec == null) {
@@ -668,7 +672,11 @@ private fun MetricRow(
                 onToggleExpanded = { onToggleExpanded(leftSpec.metric) },
                 infoText = leftSpec.infoText,
                 forceStatusOwnRow = useOwnStatusRow,
-                modifier = Modifier.weight(1f)
+                reserveStatus = reserveStatus,
+                reserveMeta = reserveMeta,
+                modifier = Modifier
+                    .weight(1f)
+                    .metricDrag(leftSpec.metric, dragState)
             )
             if (rightSpec != null) {
                 ScoreTile(
@@ -681,11 +689,42 @@ private fun MetricRow(
                     onToggleExpanded = { onToggleExpanded(rightSpec.metric) },
                     infoText = rightSpec.infoText,
                     forceStatusOwnRow = useOwnStatusRow,
-                    modifier = Modifier.weight(1f)
+                    reserveStatus = reserveStatus,
+                    reserveMeta = reserveMeta,
+                    modifier = Modifier
+                        .weight(1f)
+                        .metricDrag(rightSpec.metric, dragState)
                 )
             }
         }
     }
+}
+
+/**
+ * Lift-and-drop for one tile. Nothing is applied when no drag state is supplied, so the
+ * dashboard chips and any other reuse stay inert.
+ */
+@Composable
+private fun Modifier.metricDrag(metric: StatsMetric, dragState: MetricDragState?): Modifier {
+    if (dragState == null) return this
+    val view = LocalView.current
+    val isDragging = dragState.dragging == metric
+    val lift by animateFloatAsState(if (isDragging) 1f else 0f, label = "metricLift")
+    return this
+        .zIndex(if (isDragging) 1f else 0f)
+        .graphicsLayer {
+            translationX = if (isDragging) dragState.offset.x else 0f
+            translationY = if (isDragging) dragState.offset.y else 0f
+            scaleX = 1f + 0.03f * lift
+            scaleY = 1f + 0.03f * lift
+            shadowElevation = 10.dp.toPx() * lift
+        }
+        .draggableMetric(
+            metric = metric,
+            state = dragState,
+            onLift = { view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) },
+            onTick = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
+        )
 }
 
 /** Compact form used by the dashboard strip, where vertical space is precious. */
@@ -721,13 +760,12 @@ internal fun PinnedMetricChip(
 }
 
 /** Windows the dashboard strip can summarise, cycled by tapping the leading pill. */
-private enum class PinnedWindow(val labelResId: Int, val hours: Int) {
-    H6(R.string.stats_window_6h, 6),
-    H12(R.string.stats_window_12h, 12),
-    H24(R.string.stats_window_24h, 24),
-    D3(R.string.stats_window_3d, 24 * 3),
-    D7(R.string.stats_window_7d, 24 * 7)
-}
+private val PinnedWindows = listOf(
+    StatsTimeRange.DAY_1,
+    StatsTimeRange.DAY_7,
+    StatsTimeRange.DAY_14,
+    StatsTimeRange.DAY_30
+)
 
 /** True when the user has pinned anything, so the dashboard can skip the row entirely. */
 @Composable
@@ -741,60 +779,24 @@ fun hasPinnedStats(): Boolean {
 /**
  * Metrics pinned from Statistics → Arrange, over a window the user can change in place.
  *
- * The period lives in the first slot as a tappable pill rather than on a caption line
- * above the row: a lone label was both an extra line of height and one more thing to
- * read. Values are computed from the history the Dashboard already holds, so this costs
- * one linear pass and no second subscription.
+ * Reads its numbers from [StatsViewModel] — the same source, projection and calibration
+ * handling as the Statistics screen. Computing them from the Dashboard's own history
+ * instead was cheaper but produced a different series: that history carries no
+ * calibration projection, so the strip reported 54% time in range against the
+ * Statistics screen's 92% for the same window. Sharing the source is the only way the
+ * two can be guaranteed to agree.
  */
 @Composable
-fun PinnedStatsStrip(
-    history: List<GlucosePoint>,
-    targetLow: Float,
-    targetHigh: Float,
-    veryLow: Float,
-    veryHigh: Float,
-    isMmol: Boolean,
-    modifier: Modifier = Modifier
-) {
+fun PinnedStatsStrip(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
     val layout by StatsLayoutStore.state.collectAsState()
     val pinned = layout.dashboardMetrics
-    if (pinned.isEmpty() || history.isEmpty()) return
+    val statsViewModel: StatsViewModel = viewModel()
+    val uiState by statsViewModel.uiState.collectAsState()
+    if (pinned.isEmpty() || uiState.summary.readingCount == 0) return
 
-    var window by rememberSaveable { mutableStateOf(PinnedWindow.H24) }
-    // Both the history and the thresholds arrive in the user's display unit — the
-    // native target getters return display values, which is why StatsViewModel runs
-    // them through toMgDl too. Every analytic below is defined in mg/dL, so convert
-    // both or neither; converting only the readings reported 92% time in range as 3%.
-    val scale = if (isMmol) tk.glucodata.ui.util.GlucoseFormatter.MGDL_PER_MMOL else 1f
-    val targets = remember(targetLow, targetHigh, veryLow, veryHigh, scale) {
-        StatsTargets(
-            lowMgDl = targetLow * scale,
-            highMgDl = targetHigh * scale,
-            veryLowMgDl = veryLow * scale,
-            veryHighMgDl = veryHigh * scale
-        )
-    }
-    val summary = remember(history, targets, window, scale) {
-        val end = history.last().timestamp
-        val start = end - window.hours.toLong() * 60L * 60L * 1000L
-        val values = history.asSequence()
-            .filter { it.timestamp >= start }
-            .map { point -> point.copy(value = point.value * scale) }
-            .toList()
-        StatsAnalytics.dashboardSummary(
-            history = values,
-            targets = targets,
-            range = StatsDateRange(startMillis = start, endMillis = end)
-        )
-    }
-    if (summary.readingCount == 0) return
-    val unit = if (isMmol) GlucoseUnit.MMOL else GlucoseUnit.MGDL
-
-    // The period control takes its natural width and the metrics share the rest.
-    // Unlike the metric tiles, everything in this row is plain text in a Row/Column, so
-    // an ordinary intrinsic-height row is safe here.
+    val selected = uiState.selectedRange ?: StatsTimeRange.DAY_1
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -802,16 +804,16 @@ fun PinnedStatsStrip(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         PinnedWindowPill(
-            label = stringResource(window.labelResId),
+            label = stringResource(selected.labelResId),
             onClick = {
-                val entries = PinnedWindow.entries
-                window = entries[(entries.indexOf(window) + 1) % entries.size]
+                val index = PinnedWindows.indexOf(selected).takeIf { it >= 0 } ?: 0
+                statsViewModel.setTimeRange(PinnedWindows[(index + 1) % PinnedWindows.size])
             },
             modifier = Modifier.fillMaxHeight()
         )
         pinned.forEach { metric ->
             PinnedMetricChip(
-                spec = metricSpec(metric, summary, targets, unit),
+                spec = metricSpec(metric, uiState.summary, uiState.targets, uiState.unit),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()

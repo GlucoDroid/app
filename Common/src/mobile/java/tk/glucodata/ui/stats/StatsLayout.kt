@@ -33,8 +33,8 @@ enum class StatsCard(@param:StringRes val titleResId: Int) {
         val DEFAULT_ORDER = listOf(
             OVERVIEW,
             METRICS,
-            EPISODES,
             PATTERNS,
+            EPISODES,
             DAY_BY_DAY,
             RISK_INDEX,
             TEMPERATURE,
@@ -48,6 +48,7 @@ enum class StatsCard(@param:StringRes val titleResId: Int) {
  * them can be pinned to the dashboard; order, visibility and width are the user's.
  */
 enum class StatsMetric(@param:StringRes val titleResId: Int) {
+    TIME_IN_RANGE(R.string.tir),
     AVERAGE(R.string.average_glucose),
     GMI(R.string.a1c_gmi_label),
     CV(R.string.cv),
@@ -55,17 +56,18 @@ enum class StatsMetric(@param:StringRes val titleResId: Int) {
     MEDIAN(R.string.median),
     IQR(R.string.report_iqr_short),
     STD_DEV(R.string.std_dev_short),
-    TIME_IN_RANGE(R.string.tir),
     LOW_EPISODES(R.string.episodes_lows),
     HIGH_EPISODES(R.string.episodes_highs),
-    COVERAGE(R.string.stats_card_coverage),
-    GRI(R.string.gri_short),
     LBGI(R.string.lbgi),
     HBGI(R.string.hbgi),
+    COVERAGE(R.string.stats_card_coverage),
+    GRI(R.string.gri_short),
     GVI(R.string.gvi),
     PSG(R.string.psg);
 
     companion object {
+        // Ordered so the pairs that belong together land on the same row: spread with
+        // spread, both episode counts, both risk indices, both app-specific scores.
         val DEFAULT_ORDER = entries.toList()
 
         /** Rows shown before the rest fold away behind the disclosure. */
@@ -98,6 +100,14 @@ object StatsLayoutStore {
     private const val KEY_METRIC_ORDER = "stats_layout_metric_order"
     private const val KEY_METRIC_HIDDEN = "stats_layout_metric_hidden"
     private const val KEY_METRIC_WIDE = "stats_layout_metric_wide"
+    private const val KEY_VERSION = "stats_layout_version"
+
+    /**
+     * Bumped whenever the default order changes meaningfully. A layout saved against an
+     * older default is discarded rather than merged: merging left people with the old
+     * pairing plus new metrics tacked on the end, which is worse than a clean default.
+     */
+    private const val LAYOUT_VERSION = 2
     private const val KEY_DASHBOARD = "stats_layout_dashboard_metrics"
 
     /**
@@ -181,11 +191,13 @@ object StatsLayoutStore {
             ?.putString(KEY_METRIC_HIDDEN, next.hiddenMetrics.joinToString(",") { it.name })
             ?.putString(KEY_METRIC_WIDE, next.wideMetrics.joinToString(",") { it.name })
             ?.putString(KEY_DASHBOARD, next.dashboardMetrics.joinToString(",") { it.name })
+            ?.putInt(KEY_VERSION, LAYOUT_VERSION)
             ?.apply()
     }
 
     private fun read(store: SharedPreferences): StatsLayoutState {
         val defaults = StatsLayoutState()
+        if (store.getInt(KEY_VERSION, 0) != LAYOUT_VERSION) return defaults
         return StatsLayoutState(
             cardOrder = readOrder(store, KEY_CARD_ORDER, StatsCard.DEFAULT_ORDER) { StatsCard.valueOf(it) },
             hiddenCards = readSet(store, KEY_CARD_HIDDEN, defaults.hiddenCards) { StatsCard.valueOf(it) },

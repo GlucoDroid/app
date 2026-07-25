@@ -42,7 +42,7 @@ class StatsLayoutTests {
     fun everyMetricIsOnByDefault() {
         val visible = StatsLayoutState().visibleMetrics
         assertEquals(StatsMetric.entries.size, visible.size)
-        assertEquals(StatsMetric.AVERAGE, visible.first())
+        assertEquals(StatsMetric.TIME_IN_RANGE, visible.first())
     }
 
     @Test
@@ -51,7 +51,23 @@ class StatsLayoutTests {
         val head = rows.take(StatsMetric.DEFAULT_VISIBLE_ROWS)
             .flatMap { listOfNotNull(it.first, it.second) }
         assertEquals(6, head.size)
-        assertEquals(StatsMetric.AVERAGE, head.first())
+        assertEquals(StatsMetric.TIME_IN_RANGE, head.first())
+    }
+
+    @Test
+    fun relatedMetricsSitOnTheSameRowByDefault() {
+        // LBGI/HBGI, the two episode counts and the two spread measures each read as a
+        // pair; splitting a pair across rows is what made the grid look arbitrary.
+        val rows = packMetricRows(StatsLayoutState().visibleMetrics, emptySet())
+        assertTrue(rows.contains(StatsMetric.LBGI to StatsMetric.HBGI))
+        assertTrue(rows.contains(StatsMetric.LOW_EPISODES to StatsMetric.HIGH_EPISODES))
+        assertTrue(rows.contains(StatsMetric.IQR to StatsMetric.STD_DEV))
+    }
+
+    @Test
+    fun patternsComeBeforeEpisodes() {
+        val order = StatsCard.DEFAULT_ORDER
+        assertTrue(order.indexOf(StatsCard.PATTERNS) < order.indexOf(StatsCard.EPISODES))
     }
 
     @Test

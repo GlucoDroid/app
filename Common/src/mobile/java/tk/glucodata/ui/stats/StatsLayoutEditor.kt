@@ -5,7 +5,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +44,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
@@ -225,34 +232,34 @@ private fun <T> ReorderableRows(
                 targetValue = shift,
                 label = "reorderShift"
             )
-            val handle = Modifier.pointerInput(items, index) {
-                detectDragGestures(
-                    onDragStart = {
-                        dragFrom = index
-                        dragOffset = 0f
-                        lastCrossed = index
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                    },
-                    onDragEnd = {
-                        val start = dragFrom
-                        val target = dragTo
-                        dragFrom = null
-                        dragOffset = 0f
-                        lastCrossed = null
-                        if (start != null && target != null && start != target) {
-                            onReordered(items.moved(start, target))
-                        }
-                    },
-                    onDragCancel = {
-                        dragFrom = null
-                        dragOffset = 0f
-                        lastCrossed = null
+            // `draggable` rather than `detectDragGestures`: it claims the vertical
+            // drag before the surrounding scroll can take it, so the handle actually
+            // drags instead of scrolling the page.
+            val dragState = rememberDraggableState { delta -> dragOffset += delta }
+            val handle = Modifier.draggable(
+                orientation = Orientation.Vertical,
+                state = dragState,
+                onDragStarted = {
+                    dragFrom = index
+                    dragOffset = 0f
+                    lastCrossed = index
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                },
+                onDragStopped = {
+                    // Recomputed here from live state. Reading the `dragTo` computed
+                    // during composition captured the value from when this lambda was
+                    // created — always null — so nothing was ever reordered.
+                    val start = dragFrom
+                    if (start != null) {
+                        val target = (start + (dragOffset / pitchPx).roundToInt())
+                            .coerceIn(0, items.lastIndex)
+                        if (target != start) onReordered(items.moved(start, target))
                     }
-                ) { change, amount ->
-                    change.consume()
-                    dragOffset += amount.y
+                    dragFrom = null
+                    dragOffset = 0f
+                    lastCrossed = null
                 }
-            }
+            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -478,3 +485,97 @@ internal fun Modifier.draggableStatsCard(
         if (state.onDrag(amount.y)) onTick()
     }
 }
+
+/**
+ * Inline drag reordering for the individual metric tiles.
+ *
+ * Two-dimensional, unlike the card list, and split across two grids (the three visible
+ * rows and the disclosed remainder). Tiles therefore report their bounds in *root*
+ * coordinates, so hit-testing works across both grids and across the fold.
+ */
+internal class MetricDragState(
+    private val orderOf: () -> List<StatsMetric>,
+    private val onReordered: (List<StatsMetric>) -> Unit
+) {
+    var dragging by mutableStateOf<StatsMetric?>(null)
+        private set
+    var offset by mutableStateOf(Offset.Zero)
+        private set
+
+    private val bounds = mutableMapOf<StatsMetric, Rect>()
+
+    fun reportBounds(metric: StatsMetric, rect: Rect) {
+        bounds[metric] = rect
+    }
+
+    fun forget(metric: StatsMetric) {
+        bounds.remove(metric)
+    }
+
+    fun start(metric: StatsMetric) {
+        dragging = metric
+        offset = Offset.Zero
+    }
+
+    fun stop() {
+        dragging = null
+        offset = Offset.Zero
+    }
+
+    /** Returns true when the tile crossed into another tile's slot. */
+    fun onDrag(delta: Offset): Boolean {
+        val metric = dragging ?: return false
+        offset += delta
+        val held = bounds[metric] ?: return false
+        val centre = held.center + offset
+        val target = bounds.entries.firstOrNull { (other, rect) ->
+            other != metric && rect.contains(centre)
+        }?.key ?: return false
+
+        val order = orderOf()
+        val from = order.indexOf(metric)
+        val to = order.indexOf(target)
+        if (from < 0 || to < 0 || from == to) return false
+        onReordered(order.moved(from, to))
+        // The tile has taken the target's slot; keep it under the finger.
+        offset += held.center - (bounds[target]?.center ?: held.center)
+        return true
+    }
+}
+
+@Composable
+internal fun rememberMetricDragState(
+    order: List<StatsMetric>,
+    onReordered: (List<StatsMetric>) -> Unit
+): MetricDragState {
+    val latestOrder = rememberUpdatedState(order)
+    return remember {
+        MetricDragState(orderOf = { latestOrder.value }, onReordered = onReordered)
+    }
+}
+
+internal fun Modifier.draggableMetric(
+    metric: StatsMetric,
+    state: MetricDragState,
+    onLift: () -> Unit,
+    onTick: () -> Unit
+): Modifier = this
+    .onGloballyPositioned { coordinates ->
+        state.reportBounds(
+            metric,
+            Rect(coordinates.positionInRoot(), coordinates.size.toSize())
+        )
+    }
+    .pointerInput(metric, state) {
+        detectDragGesturesAfterLongPress(
+            onDragStart = {
+                state.start(metric)
+                onLift()
+            },
+            onDragEnd = { state.stop() },
+            onDragCancel = { state.stop() }
+        ) { change, amount ->
+            change.consume()
+            if (state.onDrag(amount)) onTick()
+        }
+    }

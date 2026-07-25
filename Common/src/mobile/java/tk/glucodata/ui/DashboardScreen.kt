@@ -1637,13 +1637,7 @@ fun DashboardScreen(
                     // and below it, which is most of the gap this used to open up.
                     if (showPinnedStats) {
                         tk.glucodata.ui.stats.PinnedStatsStrip(
-                            history = glucoseHistory,
-                            targetLow = targetLow,
-                            targetHigh = targetHigh,
-                            veryLow = veryLowThreshold,
-                            veryHigh = veryHighThreshold,
-                            isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
                         )
                     }
                     Box(

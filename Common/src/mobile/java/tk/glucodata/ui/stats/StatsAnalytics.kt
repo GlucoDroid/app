@@ -383,66 +383,6 @@ object StatsAnalytics {
             }
     }
 
-    /**
-     * The subset of [StatsSummary] the pinnable metrics need, for the dashboard strip.
-     *
-     * The dashboard already holds recent history in memory, so pinned metrics cost one
-     * linear pass rather than a second subscription — and deliberately skip AGP, daily,
-     * weekday and findings, none of which any pinnable metric reads.
-     */
-    fun dashboardSummary(
-        history: List<GlucosePoint>,
-        targets: StatsTargets,
-        range: StatsDateRange?
-    ): StatsSummary {
-        if (history.isEmpty()) return StatsSummary()
-        val values = history.map { it.value }
-        val sorted = values.sorted()
-        val average = values.average().toFloat()
-        val variance = values.fold(0.0) { acc, value ->
-            val diff = value - average
-            acc + diff * diff
-        } / values.size
-        val stdDev = sqrt(variance).toFloat()
-        val coverage = sensorCoverage(history, range)
-        val episodes = detectEpisodes(history, targets)
-        val windowDays = coverage.windowDays.coerceAtLeast(1f)
-        val variability = toVariabilitySeries(history)
-        val variabilityValues = variability.map { it.value }
-        val variabilityAverage = if (variabilityValues.isEmpty()) average else variabilityValues.average().toFloat()
-        val variabilityStdDev = if (variabilityValues.isEmpty()) {
-            stdDev
-        } else {
-            sqrt(
-                variabilityValues.fold(0.0) { acc, value ->
-                    val diff = value - variabilityAverage
-                    acc + diff * diff
-                } / variabilityValues.size
-            ).toFloat()
-        }
-        val variabilityCv = if (variabilityAverage > 0f) variabilityStdDev / variabilityAverage * 100f else 0f
-        return StatsSummary(
-            readingCount = values.size,
-            avgMgDl = average,
-            medianMgDl = sorted[sorted.size / 2],
-            stdDevMgDl = stdDev,
-            cvPercent = if (average > 0f) stdDev / average * 100f else 0f,
-            gmiPercent = (3.31f + (0.02392f * average)).coerceAtLeast(0f),
-            gvi = calculateGvi(variability, variabilityAverage, variabilityStdDev),
-            psg = calculatePsg(variability, average, variabilityCv, targets),
-            tir = timeInRange(values, targets),
-            tightRangePercent = tightRangePercent(values, targets),
-            gri = glycemiaRiskIndex(values, targets),
-            risk = riskIndices(values),
-            coverage = coverage,
-            lowEpisodes = summarizeEpisodes(episodes, EpisodeKind.LOW, windowDays),
-            highEpisodes = summarizeEpisodes(episodes, EpisodeKind.HIGH, windowDays),
-            p25MgDl = percentile(sorted, 0.25f),
-            p75MgDl = percentile(sorted, 0.75f)
-        )
-    }
-
-
     // ------------------------------------------------- variability and scores
     //
     // Moved here from StatsViewModel unchanged, so the dashboard strip can compute the
