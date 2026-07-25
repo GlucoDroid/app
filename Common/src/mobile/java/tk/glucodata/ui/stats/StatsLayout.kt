@@ -34,8 +34,8 @@ enum class StatsCard(@param:StringRes val titleResId: Int) {
             OVERVIEW,
             METRICS,
             PATTERNS,
-            EPISODES,
             DAY_BY_DAY,
+            EPISODES,
             RISK_INDEX,
             TEMPERATURE,
             INSIGHTS
@@ -107,7 +107,7 @@ object StatsLayoutStore {
      * older default is discarded rather than merged: merging left people with the old
      * pairing plus new metrics tacked on the end, which is worse than a clean default.
      */
-    private const val LAYOUT_VERSION = 2
+    private const val LAYOUT_VERSION = 3
     private const val KEY_DASHBOARD = "stats_layout_dashboard_metrics"
 
     /**
@@ -197,7 +197,15 @@ object StatsLayoutStore {
 
     private fun read(store: SharedPreferences): StatsLayoutState {
         val defaults = StatsLayoutState()
-        if (store.getInt(KEY_VERSION, 0) != LAYOUT_VERSION) return defaults
+        if (store.getInt(KEY_VERSION, 0) != LAYOUT_VERSION) {
+            // Ordering resets, but what the user pinned to the dashboard is unrelated to
+            // the default order and survives — losing it on every version bump was its
+            // own small annoyance.
+            return defaults.copy(
+                dashboardMetrics = readOrder(store, KEY_DASHBOARD, emptyList()) { StatsMetric.valueOf(it) }
+                    .take(MAX_DASHBOARD_METRICS)
+            )
+        }
         return StatsLayoutState(
             cardOrder = readOrder(store, KEY_CARD_ORDER, StatsCard.DEFAULT_ORDER) { StatsCard.valueOf(it) },
             hiddenCards = readSet(store, KEY_CARD_HIDDEN, defaults.hiddenCards) { StatsCard.valueOf(it) },

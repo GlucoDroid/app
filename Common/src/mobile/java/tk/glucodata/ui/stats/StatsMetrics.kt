@@ -48,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalDensity
+import androidx.annotation.StringRes
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -759,13 +760,40 @@ internal fun PinnedMetricChip(
     }
 }
 
-/** Windows the dashboard strip can summarise, cycled by tapping the leading pill. */
-private val PinnedWindows = listOf(
-    StatsTimeRange.DAY_1,
-    StatsTimeRange.DAY_7,
-    StatsTimeRange.DAY_14,
-    StatsTimeRange.DAY_30
-)
+/**
+ * Windows the dashboard strip can summarise, cycled by tapping the leading pill.
+ *
+ * Today and 3 days have no [StatsTimeRange] of their own, so they go through the
+ * custom-range path instead; the rest map straight onto a quick range.
+ */
+private enum class PinnedWindow(@get:StringRes val labelResId: Int) {
+    TODAY(R.string.stats_window_today),
+    H24(R.string.stats_window_24h),
+    D3(R.string.stats_window_3d),
+    D7(R.string.range_7d),
+    D30(R.string.range_30d),
+    D90(R.string.range_90d);
+
+    val quickRange: StatsTimeRange?
+        get() = when (this) {
+            TODAY, D3 -> null
+            H24 -> StatsTimeRange.DAY_1
+            D7 -> StatsTimeRange.DAY_7
+            D30 -> StatsTimeRange.DAY_30
+            D90 -> StatsTimeRange.DAY_90
+        }
+
+    /** Start/end for the windows a quick range cannot express. */
+    fun customRange(): Pair<Long, Long>? {
+        val zone = java.time.ZoneId.systemDefault()
+        val now = System.currentTimeMillis()
+        return when (this) {
+            TODAY -> java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli() to now
+            D3 -> (now - 3L * 24L * 60L * 60L * 1000L) to now
+            else -> null
+        }
+    }
+}
 
 /** True when the user has pinned anything, so the dashboard can skip the row entirely. */
 @Composable
@@ -796,7 +824,7 @@ fun PinnedStatsStrip(modifier: Modifier = Modifier) {
     val uiState by statsViewModel.uiState.collectAsState()
     if (pinned.isEmpty() || uiState.summary.readingCount == 0) return
 
-    val selected = uiState.selectedRange ?: StatsTimeRange.DAY_1
+    var window by rememberSaveable { mutableStateOf(PinnedWindow.H24) }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -804,10 +832,19 @@ fun PinnedStatsStrip(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         PinnedWindowPill(
-            label = stringResource(selected.labelResId),
+            label = stringResource(window.labelResId),
             onClick = {
-                val index = PinnedWindows.indexOf(selected).takeIf { it >= 0 } ?: 0
-                statsViewModel.setTimeRange(PinnedWindows[(index + 1) % PinnedWindows.size])
+                val entries = PinnedWindow.entries
+                val next = entries[(entries.indexOf(window) + 1) % entries.size]
+                window = next
+                val quick = next.quickRange
+                if (quick != null) {
+                    statsViewModel.setTimeRange(quick)
+                } else {
+                    next.customRange()?.let { (start, end) ->
+                        statsViewModel.setCustomRange(start, end)
+                    }
+                }
             },
             modifier = Modifier.fillMaxHeight()
         )

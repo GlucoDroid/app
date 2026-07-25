@@ -2242,10 +2242,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="stats_span_days">%1$d Tage</string>
     <string name="gri_short">GRI</string>
     <string name="stats_window_label">Zeitraum</string>
-    <string name="stats_window_6h">6 Std.</string>
-    <string name="stats_window_12h">12 Std.</string>
-    <string name="stats_window_24h">24 Std.</string>
-    <string name="stats_window_7d">7 T.</string>
     <string name="stats_arrange_width">Halbe oder volle Breite</string>
-    <string name="stats_window_3d">3 T.</string>
+    <string name="stats_window_3d">3D</string>
+    <string name="stats_window_today">Heute</string>
+    <string name="stats_window_24h">24H</string>
 </resources>

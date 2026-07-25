@@ -1627,19 +1627,24 @@ fun DashboardScreen(
                             }
                         }
                     }
-                }
+
+                    // Shares the chart's item on purpose: the range chips are the last
+                    // thing inside it, so a separate item would put a full
+                    // `dashboardItemSpacing` between the chips and this strip.
+                    if (showPinnedStats) {
+                        tk.glucodata.ui.stats.PinnedStatsStrip(
+                            modifier = Modifier.padding(
+                                start = contentHorizontalPadding,
+                                end = contentHorizontalPadding,
+                                top = 2.dp
+                            )
+                        )
+                    }
+}
 
 
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                    // The pinned strip rides in the readings item rather than one of its
-                    // own: a separate item would add another `dashboardItemSpacing` above
-                    // and below it, which is most of the gap this used to open up.
-                    if (showPinnedStats) {
-                        tk.glucodata.ui.stats.PinnedStatsStrip(
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
-                        )
-                    }
                     Box(
                         modifier = Modifier
                             .padding(start = 16.dp, top = readingsTopSpacing, end = 16.dp)

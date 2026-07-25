@@ -2209,10 +2209,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_span_days">%1$d jours</string>
     <string name="gri_short">GRI</string>
     <string name="stats_window_label">Période</string>
-    <string name="stats_window_6h">6 h</string>
-    <string name="stats_window_12h">12 h</string>
-    <string name="stats_window_24h">24 h</string>
-    <string name="stats_window_7d">7 j</string>
     <string name="stats_arrange_width">Demi ou pleine largeur</string>
-    <string name="stats_window_3d">3 j</string>
+    <string name="stats_window_3d">3D</string>
+    <string name="stats_window_today">Auj.</string>
+    <string name="stats_window_24h">24H</string>
 </resources>

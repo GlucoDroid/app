@@ -2270,10 +2270,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_span_days">%1$d дзён</string>
     <string name="gri_short">GRI</string>
     <string name="stats_window_label">Перыяд</string>
-    <string name="stats_window_6h">6 гадз</string>
-    <string name="stats_window_12h">12 гадз</string>
-    <string name="stats_window_24h">24 гадз</string>
-    <string name="stats_window_7d">7 дз</string>
     <string name="stats_arrange_width">Палова або ўся шырыня</string>
-    <string name="stats_window_3d">3 дз</string>
+    <string name="stats_window_3d">3D</string>
+    <string name="stats_window_today">Сёння</string>
+    <string name="stats_window_24h">24H</string>
 </resources>

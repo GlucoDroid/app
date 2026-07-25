@@ -637,6 +637,15 @@ internal fun DayDetailSheet(
     val dayEpisodes = remember(day.date, episodes) {
         episodes.filter { Instant.ofEpochMilli(it.startMillis).atZone(zone).toLocalDate() == day.date }
     }
+    val hourly = remember(day.date, dayPoints, targets) {
+        StatsAnalytics.hourlyStats(
+            history = dayPoints.map { (timestamp, value) ->
+                GlucosePoint(value = value, time = "", timestamp = timestamp)
+            },
+            targets = targets
+        )
+    }
+    var selectedHour by remember(day.date) { mutableStateOf(-1) }
     val titleFormatter = remember { DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()) }
 
     ModalBottomSheet(
@@ -726,6 +735,45 @@ internal fun DayDetailSheet(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            if (hourly.any { it.sampleCount > 0 }) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Text(
+                            text = stringResource(R.string.stats_hourly_exposure),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        // The curve says where the day went; the ribbon says how each
+                        // hour was actually split between the bands.
+                        hourly.getOrNull(selectedHour)?.takeIf { it.sampleCount > 0 }?.let { hour ->
+                            Text(
+                                text = String.format(
+                                    Locale.getDefault(),
+                                    "%02d:00 · %s · %.0f%% %s",
+                                    hour.hour,
+                                    formatMgDl(hour.averageMgDl, unit),
+                                    hour.tir.inRangePercent,
+                                    stringResource(R.string.tir)
+                                ),
+                                style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    HourlyExposureRibbon(
+                        hourlyStats = hourly,
+                        selectedHour = selectedHour,
+                        onSelectedHourChange = { selectedHour = it },
+                        contentDescription = stringResource(R.string.stats_hourly_exposure),
+                        height = 56.dp
+                    )
+                }
+            }
 
             if (dayEpisodes.isNotEmpty()) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))

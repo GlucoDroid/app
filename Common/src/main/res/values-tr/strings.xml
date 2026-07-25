@@ -2231,10 +2231,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="stats_span_days">%1$d gün</string>
     <string name="gri_short">GRI</string>
     <string name="stats_window_label">Dönem</string>
-    <string name="stats_window_6h">6 sa</string>
-    <string name="stats_window_12h">12 sa</string>
-    <string name="stats_window_24h">24 sa</string>
-    <string name="stats_window_7d">7 g</string>
     <string name="stats_arrange_width">Yarım veya tam genişlik</string>
-    <string name="stats_window_3d">3 g</string>
+    <string name="stats_window_3d">3D</string>
+    <string name="stats_window_today">Bugün</string>
+    <string name="stats_window_24h">24H</string>
 </resources>
