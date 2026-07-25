@@ -1,7 +1,15 @@
 package tk.glucodata
 
 object DisplayTrendSource {
-    const val TREND_WINDOW_MS = 20L * 60L * 1000L
+    /**
+     * How much history the trend consumers keep on hand. This is a supply ceiling, not
+     * the estimator's window: TrendEngine picks its own window from the sensor's cadence
+     * and narrows this list further. It only has to be at least the estimator's longest
+     * possible window (TrendEngine.MAX_WINDOW_MIN, 25 min) so a slow sensor is never
+     * quietly served less history than it asked for. The two live in different source
+     * sets, so they cannot share the constant — keep them in step by hand.
+     */
+    const val TREND_WINDOW_MS = 25L * 60L * 1000L
 
     @JvmStatic
     fun augmentHistory(

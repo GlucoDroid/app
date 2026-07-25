@@ -158,11 +158,13 @@ import tk.glucodata.data.prediction.PredictiveSimulationSettings
 import tk.glucodata.data.prediction.buildGlucosePrediction
 import tk.glucodata.ui.journal.JournalDoseProfile
 import tk.glucodata.ui.journal.JournalEntrySheet
+import tk.glucodata.ui.journal.JournalExpandableFab
 import tk.glucodata.ui.journal.JournalFloatingActionMenu
 import tk.glucodata.ui.journal.JournalInlineChip
 import tk.glucodata.ui.journal.JournalSettingsScreen
 import tk.glucodata.data.journal.JournalIobCalculator
 import tk.glucodata.ui.journal.buildJournalChartMarkers
+import tk.glucodata.ui.journal.journalQuickAddTimestamp
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 import tk.glucodata.ui.theme.displayLargeExpressive
 import androidx.appcompat.app.AppCompatDelegate
@@ -310,6 +312,8 @@ fun DashboardScreen(
     val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val journalEiobDisplayEnabled by viewModel.journalEiobDisplayEnabled.collectAsState()
+    val journalQuickAddAlwaysNow by viewModel.journalQuickAddAlwaysNow.collectAsState()
+    val journalDashboardQuickAdd by viewModel.journalDashboardQuickAddButton.collectAsState()
     val glucoseRangeColorsDisplayEnabled by viewModel.glucoseValueRangeColorsEnabled.collectAsState()
     val glucoseArrowForecastEnabled by viewModel.glucoseArrowForecastColorsEnabled.collectAsState()
     val appChartRangeColorsEnabled by viewModel.glucoseAppChartRangeColorsEnabled.collectAsState()
@@ -360,6 +364,7 @@ fun DashboardScreen(
     var lastJournalType by rememberSaveable { mutableStateOf(JournalEntryType.INSULIN) }
     var journalNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var dashboardChartViewport by remember { mutableStateOf<ChartViewportSnapshot?>(null) }
+    var dashboardFabExpanded by rememberSaveable { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
     val journalPresetsById = remember(journalInsulinPresets) { journalInsulinPresets.associateBy { it.id } }
@@ -1077,6 +1082,12 @@ fun DashboardScreen(
             val recentReadings = remember(consumerHistory) {
                 buildDisplayReadings(consumerHistory, limit = 10)
             }
+            // Rows drawn vs points the row arrows regress over — see buildTrendHistory.
+            // recentReadings stays an exact prefix of this, which is what keeps
+            // ReadingRow's `history.drop(index)` aligned to the displayed rows.
+            val recentReadingsTrendHistory = remember(consumerHistory) {
+                buildTrendHistory(consumerHistory)
+            }
             val recentReadingPeers = remember(recentReadings, multiSensorDisplay) {
                 recentReadings.map { reading -> multiSensorDisplay.peersAt(reading.timestamp) }
             }
@@ -1244,7 +1255,7 @@ fun DashboardScreen(
                                 viewMode = viewMode,
                                 index = index,
                                 totalCount = recentReadings.size,
-                                history = recentReadings,
+                                history = recentReadingsTrendHistory,
                                 peerReadings = recentReadingPeers.getOrNull(index).orEmpty(),
                                 peerSeries = peerSeriesById,
                                 multiSensorActive = multiSensorActive,
@@ -1616,7 +1627,7 @@ fun DashboardScreen(
                                 viewMode = viewMode,
                                 index = index,
                                 totalCount = recentReadings.size,
-                                history = recentReadings,
+                                history = recentReadingsTrendHistory,
                                 peerReadings = recentReadingPeers.getOrNull(index).orEmpty(),
                                 peerSeries = peerSeriesById,
                                 multiSensorActive = multiSensorActive,
@@ -1724,6 +1735,44 @@ fun DashboardScreen(
                     }
                 }
             }
+            }
+
+            if (journalEnabled && journalDashboardQuickAdd) {
+                JournalExpandableFab(
+                    expanded = dashboardFabExpanded,
+                    onExpandedChange = {
+                        dashboardFabExpanded = it
+                        if (it) clearJournalAction()
+                    },
+                    onTypeSelected = { type ->
+                        dashboardFabExpanded = false
+                        clearJournalAction()
+                        lastJournalType = type
+                        val selection = dashboardChartViewport?.selectedPoint
+                        val suggestedGlucoseMgDl = selection?.value
+                            ?.takeIf { type == JournalEntryType.FINGERSTICK && !journalQuickAddAlwaysNow }
+                            ?.let {
+                                if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
+                                    tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(it)
+                                } else {
+                                    it
+                                }
+                            }
+                        journalEditorRequest = JournalEditorRequest(
+                            type = type,
+                            timestamp = journalQuickAddTimestamp(
+                                selection?.timestamp,
+                                System.currentTimeMillis(),
+                                journalQuickAddAlwaysNow
+                            ),
+                            suggestedGlucoseMgDl = suggestedGlucoseMgDl,
+                            suggestedChartAnchorGlucoseMgDl = suggestedGlucoseMgDl
+                        )
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 20.dp, bottom = 20.dp)
+                )
             }
         }
     }

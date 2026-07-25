@@ -71,6 +71,7 @@ import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.ui.journal.buildJournalChartMarkers
+import tk.glucodata.ui.journal.journalQuickAddTimestamp
 import tk.glucodata.ui.journal.journalTypeColor
 import tk.glucodata.ui.journal.journalTypeSelectedContainerColor
 import tk.glucodata.ui.util.ConnectedButtonGroup
@@ -377,7 +378,8 @@ fun HistoryBrowseScreen(
     onDeleteReading: ((GlucosePoint) -> Unit)? = null,
     onJournalEntryClick: ((JournalEntry) -> Unit)? = null,
     onAddJournalEntry: ((Long, JournalEntryType?, Float?) -> Unit)? = null,
-    showTransferActions: Boolean = true
+    showTransferActions: Boolean = true,
+    quickAddAlwaysNow: Boolean = false
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -519,11 +521,14 @@ fun HistoryBrowseScreen(
                             IconButton(
                                 onClick = {
                                     onAddJournalEntry(
-                                        viewportSnapshot?.selectedPoint?.timestamp
-                                            ?: viewportEnd
-                                            ?: System.currentTimeMillis(),
+                                        journalQuickAddTimestamp(
+                                            viewportSnapshot?.selectedPoint?.timestamp,
+                                            System.currentTimeMillis(),
+                                            quickAddAlwaysNow
+                                        ),
                                         selectedJournalTypes.singleOrNull(),
                                         viewportSnapshot?.selectedPoint?.value
+                                            ?.takeIf { !quickAddAlwaysNow }
                                     )
                                 }
                             ) {

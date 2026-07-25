@@ -104,6 +104,7 @@ fun NotificationSettingsScreen(
     var fontType by rememberSaveable { mutableIntStateOf(prefs.getInt("notification_font_family", 0)) }
     var fontWeight by rememberSaveable { mutableIntStateOf(prefs.getInt("notification_font_weight", 400)) }
     var showArrow by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_show_arrow", true)) }
+    var largeArrow by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_large_trend_arrow", false)) }
     var arrowSize by rememberSaveable { mutableFloatStateOf(prefs.getFloat("notification_arrow_size", 1.0f)) }
     var collapsedChart by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_chart_collapsed", false)) }
     var showTargetRange by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_chart_target_range", true)) }
@@ -120,6 +121,7 @@ fun NotificationSettingsScreen(
             .putInt("notification_font_family", fontType)
             .putInt("notification_font_weight", fontWeight)
             .putBoolean("notification_show_arrow", showArrow)
+            .putBoolean("notification_large_trend_arrow", largeArrow)
             .putFloat("notification_arrow_size", arrowSize)
             .putBoolean("notification_chart_collapsed", collapsedChart)
             .putBoolean("notification_chart_target_range", showTargetRange)
@@ -216,6 +218,14 @@ fun NotificationSettingsScreen(
                 onCheckedChange = { showArrow = it; save() },
                 icon = null,
                 position = CardPosition.TOP
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.notification_large_arrow_title),
+                subtitle = stringResource(R.string.notification_large_arrow_desc),
+                checked = largeArrow,
+                onCheckedChange = { largeArrow = it; save() },
+                icon = null,
+                position = CardPosition.MIDDLE
             )
             SettingsSwitchItem(
                 title = stringResource(R.string.show_chart_expanded),

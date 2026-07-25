@@ -21,11 +21,7 @@ package tk.glucodata;
  * vertical at +/-2 (the CGM arrow convention), rendered flat below the Flat
  * trend state threshold. Under 0.5 mg/dL per minute the sign of the rate is
  * noise — two honest estimators regularly disagree on it for the same data —
- * so a slow drift must not tilt the arrow in either direction. Between 0.5
- * and 1 the tilt ramps linearly from 0 to 45 degrees instead of jumping to
- * 22.5 at the dead-zone edge, so a rate creeping past 0.5 eases the arrow
- * out of flat rather than snapping it; from 1 upward the plain 45-per-unit
- * line applies unchanged.
+ * so a slow drift must not tilt the arrow in either direction.
  */
 public final class TrendArrowAngle {
     public static final float DEGREES_PER_UNIT = 45f;
@@ -42,15 +38,17 @@ public final class TrendArrowAngle {
     public static float rotationDegrees(float rateMgdlPerMin) {
         if (!Float.isFinite(rateMgdlPerMin))
             return 0f;
+
         float magnitude = Math.abs(rateMgdlPerMin);
         if (magnitude <= FLAT_BELOW_RATE)
             return 0f;
+
         if (magnitude < 1f) {
-            // Ramp 0..45 degrees over the 0.5..1 band: 45 at 1 keeps the
-            // CGM anchor, 0 at 0.5 meets the dead zone without a jump.
-            float ramp = 2f * DEGREES_PER_UNIT * (magnitude - FLAT_BELOW_RATE);
-            return rateMgdlPerMin > 0f ? -ramp : ramp;
+            float rotation =
+                    2f * DEGREES_PER_UNIT * (magnitude - FLAT_BELOW_RATE);
+            return rateMgdlPerMin > 0f ? -rotation : rotation;
         }
+
         float rotation = -rateMgdlPerMin * DEGREES_PER_UNIT;
         if (rotation < -90f)
             return -90f;

@@ -111,9 +111,16 @@ fun FloatingGlucoseOverlay(
     val viewMode = viewData.first
     val unitInt = viewData.second
     
-    val trendResult = remember(history) {
+    // Same estimator, window and raw/smoothed choice as every other arrow; the
+    // overlay used to omit useRaw, so in raw view modes it regressed over the
+    // smoothed series and tilted differently from the hero it floats next to.
+    val trendResult = remember(history, viewMode, unitInt) {
         if (history.isNotEmpty()) {
-            TrendEngine.calculateTrend(history, isMmol = (unitInt == 1))
+            TrendEngine.calculateTrend(
+                history,
+                useRaw = (viewMode == 1 || viewMode == 3),
+                isMmol = (unitInt == 1)
+            )
         } else {
             TrendEngine.TrendResult(TrendEngine.TrendState.Unknown, 0f, 0f, 0f, 0f)
         }

@@ -22,4 +22,21 @@ class JournalQuickAddTimestampTests {
             journalQuickAddTimestamp(selectedPointTimestamp = selected, nowMillis = now)
         )
     }
+
+    @Test
+    fun quickAddAlwaysNowIgnoresSelection() {
+        val selected = now - 45L * 60L * 1000L
+        assertEquals(
+            now,
+            journalQuickAddTimestamp(selectedPointTimestamp = selected, nowMillis = now, alwaysNow = true)
+        )
+    }
+
+    @Test
+    fun quickAddAlwaysNowWithoutSelectionSeedsWallClockNow() {
+        assertEquals(
+            now,
+            journalQuickAddTimestamp(selectedPointTimestamp = null, nowMillis = now, alwaysNow = true)
+        )
+    }
 }

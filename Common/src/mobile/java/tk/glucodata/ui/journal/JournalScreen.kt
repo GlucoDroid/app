@@ -108,7 +108,8 @@ fun JournalScreen(
     useStatusBarsPadding: Boolean = true,
     bottomContentPadding: Dp = 104.dp,
     showEiob: Boolean = true,
-    chartRangeColors: Boolean = false
+    chartRangeColors: Boolean = false,
+    quickAddAlwaysNow: Boolean = false
 ) {
     val view = LocalView.current
     val sortedHistory = remember(glucoseHistory) { glucoseHistory.sortedBy { it.timestamp } }
@@ -373,9 +374,9 @@ fun JournalScreen(
             },
             onTypeSelected = { type ->
                 onAddJournalEntry(
-                    journalQuickAddTimestamp(selectedPointTimestamp, System.currentTimeMillis()),
+                    journalQuickAddTimestamp(selectedPointTimestamp, System.currentTimeMillis(), quickAddAlwaysNow),
                     type,
-                    selectedDisplayGlucose.takeIf { type == JournalEntryType.FINGERSTICK },
+                    selectedDisplayGlucose.takeIf { type == JournalEntryType.FINGERSTICK && !quickAddAlwaysNow },
                     null
                 )
             },
@@ -392,9 +393,18 @@ fun JournalScreen(
  * entry can lag minutes behind wall clock (e.g. right after resume, before the data
  * flows re-emit) and must never seed the entry. Backdating stays an explicit act:
  * selecting a chart point or using the timeline/long-press menus.
+ *
+ * [alwaysNow] is the opt-in journal setting: the "+" button seeds wall-clock now
+ * even while a chart point is selected — a selection can silently outlive a resume
+ * or tab switch, and users who only ever log in the moment never want it as a seed.
+ * Backdating then goes through the editor's time field or the chart/timeline menus.
  */
-internal fun journalQuickAddTimestamp(selectedPointTimestamp: Long?, nowMillis: Long): Long =
-    selectedPointTimestamp ?: nowMillis
+internal fun journalQuickAddTimestamp(
+    selectedPointTimestamp: Long?,
+    nowMillis: Long,
+    alwaysNow: Boolean = false
+): Long =
+    if (alwaysNow) nowMillis else selectedPointTimestamp ?: nowMillis
 
 @Composable
 private fun JournalHeader(
