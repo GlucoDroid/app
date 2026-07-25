@@ -2250,4 +2250,13 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Vandaag</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Ochtendstijging</string>
+    <string name="stats_metric_dawn_description">Het dawn-fenomeen, gemeten: de gebruikelijke klim van het nachtelijke dieptepunt naar de ochtendpiek erna. Weergegeven als mediaan over de dagen, zodat één slechte nacht niet bepalend is.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Gemiddelde amplitude van glykemische uitschieters — de gemiddelde grootte van een schommeling groter dan één standaardafwijking. Twee periodes kunnen gemiddelde en VC delen en toch heel anders schommelen.</string>
+    <string name="stats_metric_modd">Dag op dag</string>
+    <string name="stats_metric_modd_description">Gemiddelde van dagelijkse verschillen: hoe ver hetzelfde klokuur van de ene dag op de andere verschilt. Een lage waarde betekent dat je dagen zich herhalen, en dat maakt een routine bij te sturen.</string>
+    <string name="stats_metric_streak">Beste reeks</string>
+    <string name="stats_metric_streak_description">Langste reeks opeenvolgende dagen met 70%% of meer in bereik.</string>
+    <string name="stats_metric_streak_meta">dagen op 70%%+</string>
 </resources>

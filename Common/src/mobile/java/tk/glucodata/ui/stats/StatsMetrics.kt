@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -542,6 +543,66 @@ internal fun metricSpec(
             infoText = stringResource(R.string.gvi_description)
         )
 
+        StatsMetric.DAWN_RISE -> spec(
+            value = if (summary.dawnRiseMgDl > 0f) {
+                "+${formatMgDl(summary.dawnRiseMgDl, unit)}"
+            } else {
+                "—"
+            },
+            status = when {
+                summary.dawnRiseMgDl <= 0f -> noneWord
+                summary.dawnRiseMgDl < 30f -> steadyWord
+                summary.dawnRiseMgDl < 55f -> middlingWord
+                else -> swingyWord
+            },
+            meta = "00:00-09:00",
+            tone = when {
+                summary.dawnRiseMgDl < 30f -> TirInRangeColor
+                summary.dawnRiseMgDl < 55f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.stats_metric_dawn_description)
+        )
+
+        StatsMetric.MAGE -> spec(
+            value = formatMgDl(summary.mageMgDl, unit),
+            status = when {
+                summary.mageMgDl < 45f -> steadyWord
+                summary.mageMgDl < 90f -> middlingWord
+                else -> swingyWord
+            },
+            tone = when {
+                summary.mageMgDl < 45f -> TirInRangeColor
+                summary.mageMgDl < 90f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.stats_metric_mage_description)
+        )
+
+        StatsMetric.MODD -> spec(
+            value = formatMgDl(summary.moddMgDl, unit),
+            status = when {
+                summary.moddMgDl <= 0f -> noneWord
+                summary.moddMgDl < 36f -> steadyWord
+                summary.moddMgDl < 60f -> middlingWord
+                else -> swingyWord
+            },
+            tone = when {
+                summary.moddMgDl < 36f -> TirInRangeColor
+                summary.moddMgDl < 60f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.stats_metric_modd_description)
+        )
+
+        StatsMetric.STREAK -> spec(
+            value = summary.bestStreakDays.toString(),
+            status = if (summary.bestStreakDays == 0) noneWord else steadyWord,
+            meta = stringResource(R.string.stats_metric_streak_meta),
+            tone = if (summary.bestStreakDays >= 3) TirInRangeColor else TirHighColor,
+            infoText = stringResource(R.string.stats_metric_streak_description)
+        )
+
         StatsMetric.PSG -> spec(
             value = formatMgDl(summary.psg.baselineMgDl, unit),
             status = stringResource(summary.psg.labelResId),
@@ -728,11 +789,18 @@ private fun Modifier.metricDrag(metric: StatsMetric, dragState: MetricDragState?
         )
 }
 
-/** Compact form used by the dashboard strip, where vertical space is precious. */
+/**
+ * Compact form used by the dashboard strip, where vertical space is precious.
+ *
+ * Time in range gets the band split drawn underneath it: the number alone says 92%
+ * without saying whether the missing 8% was spent high or low, and at a glance that is
+ * the part worth knowing.
+ */
 @Composable
 internal fun PinnedMetricChip(
     spec: MetricSpec,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tir: TimeInRangeBreakdown? = null
 ) {
     Column(
         modifier = modifier
@@ -757,6 +825,10 @@ internal fun PinnedMetricChip(
             color = spec.tone,
             maxLines = 1
         )
+        if (tir != null) {
+            Spacer(modifier = Modifier.height(3.dp))
+            TirStackedBar(tir = tir, height = 5.dp, cornerRadius = 2.5.dp)
+        }
     }
 }
 
@@ -851,6 +923,7 @@ fun PinnedStatsStrip(modifier: Modifier = Modifier) {
         pinned.forEach { metric ->
             PinnedMetricChip(
                 spec = metricSpec(metric, uiState.summary, uiState.targets, uiState.unit),
+                tir = uiState.summary.tir.takeIf { metric == StatsMetric.TIME_IN_RANGE },
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()

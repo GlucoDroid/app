@@ -2250,4 +2250,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Сегодня</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Утренний подъём</string>
+    <string name="stats_metric_dawn_description">Феномен «утренней зари» в цифрах: типичный подъём от ночного минимума к следующему за ним утреннему пику. Показан как медиана по дням, чтобы одна плохая ночь его не определяла.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Средняя амплитуда гликемических колебаний — средний размер размаха, превышающего одно стандартное отклонение. Два периода могут совпадать по среднему и CV и колебаться совершенно по-разному.</string>
+    <string name="stats_metric_modd">День ко дню</string>
+    <string name="stats_metric_modd_description">Среднее суточных различий: насколько одно и то же время суток отличается изо дня в день. Низкое значение означает, что дни повторяются, — именно это позволяет настраивать режим.</string>
+    <string name="stats_metric_streak">Лучшая серия</string>
+    <string name="stats_metric_streak_description">Самая длинная череда подряд идущих дней с 70%% и более в диапазоне.</string>
+    <string name="stats_metric_streak_meta">дней по 70%%+</string>
 </resources>

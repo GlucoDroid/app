@@ -2242,4 +2242,13 @@
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Dziś</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Wzrost o świcie</string>
+    <string name="stats_metric_dawn_description">Zjawisko brzasku, zmierzone: typowy wzrost od nocnego minimum do porannego szczytu. Podawane jako mediana z dni, więc jedna zła noc go nie przesądza.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Średnia amplituda wahań glikemii — przeciętna wielkość wahnięcia większego niż jedno odchylenie standardowe. Dwa okresy mogą mieć tę samą średnią i CV, a wahać się zupełnie inaczej.</string>
+    <string name="stats_metric_modd">Dzień do dnia</string>
+    <string name="stats_metric_modd_description">Średnia różnic dobowych: jak bardzo ta sama godzina różni się z dnia na dzień. Niska wartość oznacza, że doby się powtarzają, a to właśnie pozwala regulować rutynę.</string>
+    <string name="stats_metric_streak">Najlepsza seria</string>
+    <string name="stats_metric_streak_description">Najdłuższa seria kolejnych dni z 70%% lub więcej w zakresie.</string>
+    <string name="stats_metric_streak_meta">dni po 70%%+</string>
 </resources>

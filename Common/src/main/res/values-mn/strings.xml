@@ -2322,4 +2322,13 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Өнөөдөр</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Үүрийн өсөлт</string>
+    <string name="stats_metric_dawn_description">Үүрийн үзэгдлийг хэмжсэн нь: шөнийн хамгийн доод цэгээс дараагийн өглөөний оргил хүртэлх ердийн өсөлт. Өдрүүдийн медианаар өгөгдөх тул нэг муу шөнө үүнийг тодорхойлохгүй.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Гликемийн хэлбэлзлийн дундаж далайц — нэг стандарт хазайлтаас их хэлбэлзлийн дундаж хэмжээ. Хоёр хугацаа дундаж болон CV нь ижил байсан ч огт өөрөөр хэлбэлзэж болно.</string>
+    <string name="stats_metric_modd">Өдрөөс өдөрт</string>
+    <string name="stats_metric_modd_description">Өдрийн зөрүүний дундаж: нэг өдрөөс нөгөөд ижил цаг хэр зөрж байгаа. Бага утга нь өдрүүд давтагдаж байгааг илтгэх ба энэ нь дэглэмийг тохируулах боломж олгодог.</string>
+    <string name="stats_metric_streak">Хамгийн урт цуваа</string>
+    <string name="stats_metric_streak_description">Мужид 70%% ба түүнээс дээш байсан дараалсан өдрүүдийн хамгийн урт цуваа.</string>
+    <string name="stats_metric_streak_meta">өдөр 70%%+</string>
 </resources>

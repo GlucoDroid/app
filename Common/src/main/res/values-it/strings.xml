@@ -2197,4 +2197,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Oggi</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Risalita dell\'alba</string>
+    <string name="stats_metric_dawn_description">Il fenomeno dell\'alba, misurato: la salita tipica dal minimo notturno al picco mattutino che segue. Riportato come mediana sui giorni, così una notte storta non lo definisce.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Ampiezza media delle escursioni glicemiche — la dimensione media di un\'oscillazione superiore a una deviazione standard. Due periodi possono avere media e CV uguali e oscillare in modo del tutto diverso.</string>
+    <string name="stats_metric_modd">Giorno per giorno</string>
+    <string name="stats_metric_modd_description">Media delle differenze giornaliere: quanto la stessa ora cambia da un giorno all\'altro. Un valore basso significa che le giornate si ripetono, ed è questo a rendere una routine regolabile.</string>
+    <string name="stats_metric_streak">Serie migliore</string>
+    <string name="stats_metric_streak_description">Sequenza più lunga di giorni consecutivi al 70%% o più nel range.</string>
+    <string name="stats_metric_streak_meta">giorni al 70%%+</string>
 </resources>

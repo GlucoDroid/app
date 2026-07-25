@@ -1817,6 +1817,15 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_card_coverage">Coverage</string>
     <string name="stats_card_coverage_description">Share of the period the sensor actually reported. Every percentage on this screen describes only that time.</string>
     <string name="stats_metric_none">None</string>
+    <string name="stats_metric_dawn">Dawn rise</string>
+    <string name="stats_metric_dawn_description">The dawn phenomenon, measured: the typical climb from the overnight low to the morning peak that follows it. Reported as the median across days, so one bad night does not define it.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Mean amplitude of glycemic excursions — the average size of a swing bigger than one standard deviation. Two windows can share an average and a CV and still swing completely differently.</string>
+    <string name="stats_metric_modd">Day to day</string>
+    <string name="stats_metric_modd_description">Mean of daily differences: how far the same clock time differs from one day to the next. A low value means your days repeat, which is what makes a routine adjustable.</string>
+    <string name="stats_metric_streak">Best streak</string>
+    <string name="stats_metric_streak_description">Longest run of consecutive days at 70%% or more in range.</string>
+    <string name="stats_metric_streak_meta">days at 70%%+</string>
     <string name="stats_metric_readings">%1$d readings</string>
     <string name="stats_metrics_all_hidden">Every metric is hidden. Add some back from Arrange.</string>
     <string name="stats_hourly_exposure">24-hour exposure</string>

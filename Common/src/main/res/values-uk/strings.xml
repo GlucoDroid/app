@@ -2279,4 +2279,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Сьогодні</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Ранкове підвищення</string>
+    <string name="stats_metric_dawn_description">Феномен світанку в цифрах: типове зростання від нічного мінімуму до ранкового піку після нього. Подано як медіану за днями, щоб одна погана ніч його не визначала.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Середня амплітуда глікемічних коливань — середній розмір розмаху, більшого за одне стандартне відхилення. Два періоди можуть збігатися за середнім і CV та коливатися зовсім по-різному.</string>
+    <string name="stats_metric_modd">День до дня</string>
+    <string name="stats_metric_modd_description">Середнє добових різниць: наскільки той самий час доби відрізняється день у день. Низьке значення означає, що дні повторюються, — саме це дозволяє налаштовувати режим.</string>
+    <string name="stats_metric_streak">Найкраща серія</string>
+    <string name="stats_metric_streak_description">Найдовша низка поспіль днів із 70%% і більше в діапазоні.</string>
+    <string name="stats_metric_streak_meta">днів по 70%%+</string>
 </resources>

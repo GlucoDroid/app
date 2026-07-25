@@ -2235,4 +2235,13 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Bugün</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Şafak yükselişi</string>
+    <string name="stats_metric_dawn_description">Şafak olayı, ölçülmüş hâli: gece en düşük değerden ardından gelen sabah zirvesine tipik tırmanış. Günlerin medyanı olarak verilir, böylece tek kötü gece belirleyici olmaz.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Glisemik dalgalanmaların ortalama genliği — bir standart sapmadan büyük salınımların ortalama büyüklüğü. İki dönem aynı ortalamayı ve CV\'yi paylaşıp yine de bambaşka salınabilir.</string>
+    <string name="stats_metric_modd">Günden güne</string>
+    <string name="stats_metric_modd_description">Günlük farkların ortalaması: aynı saatin bir günden diğerine ne kadar değiştiği. Düşük değer günlerinizin tekrarlandığı anlamına gelir; bir rutini ayarlanabilir kılan da budur.</string>
+    <string name="stats_metric_streak">En iyi seri</string>
+    <string name="stats_metric_streak_description">Aralıkta %%70 ve üzerinde geçen ardışık günlerin en uzun dizisi.</string>
+    <string name="stats_metric_streak_meta">gün %%70+</string>
 </resources>

@@ -459,4 +459,88 @@ class StatsAnalyticsTests {
         days = days,
         comparison = comparison
     )
+
+    // ------------------------------------------------- less common measures
+
+    @Test
+    fun maeIgnoresARigidlyFlatSeries() {
+        val points = series(LocalDateTime.of(2026, 3, 2, 8, 0), 5, List(40) { 110f })
+        assertEquals(0f, StatsAnalytics.mage(points), 0.01f)
+    }
+
+    @Test
+    fun mageMeasuresTheSizeOfTheSwings() {
+        // Four clean 60 mg/dL swings, well past one standard deviation.
+        val values = (0 until 40).map { index -> if ((index / 5) % 2 == 0) 90f else 150f }
+        val points = series(LocalDateTime.of(2026, 3, 2, 8, 0), 5, values)
+        assertTrue(StatsAnalytics.mage(points) > 40f)
+    }
+
+    @Test
+    fun moddIsZeroWhenEveryDayRepeatsItself() {
+        val start = LocalDateTime.of(2026, 3, 2, 0, 0)
+        val oneDay = (0 until 288).map { 100f + (it % 24) }
+        val points = series(start, 5, oneDay + oneDay)
+        assertEquals(0f, StatsAnalytics.modd(points), 0.01f)
+    }
+
+    @Test
+    fun moddGrowsWhenTheSecondDayDiffers() {
+        val start = LocalDateTime.of(2026, 3, 2, 0, 0)
+        val dayOne = List(288) { 100f }
+        val dayTwo = List(288) { 130f }
+        val points = series(start, 5, dayOne + dayTwo)
+        assertEquals(30f, StatsAnalytics.modd(points), 0.5f)
+    }
+
+    @Test
+    fun dawnRiseMeasuresTheClimbFromTheOvernightLow() {
+        val start = LocalDateTime.of(2026, 3, 2, 0, 0)
+        // Flat at 90 until 04:00, then climbing to 150 by 08:00.
+        val values = (0 until 108).map { index ->
+            val hour = index / 12
+            if (hour < 4) 90f else 90f + (index - 48) * 1.25f
+        }
+        val points = series(start, 5, values)
+        assertTrue(StatsAnalytics.dawnRise(points) > 40f)
+    }
+
+    @Test
+    fun dawnRiseIsZeroWithoutAnOvernightWindow() {
+        val points = series(LocalDateTime.of(2026, 3, 2, 12, 0), 5, List(60) { 120f })
+        assertEquals(0f, StatsAnalytics.dawnRise(points), 0.01f)
+    }
+
+    @Test
+    fun theStreakCountsOnlyConsecutiveOnTargetDays() {
+        val start = LocalDate.of(2026, 3, 2)
+        fun day(offset: Long, inRange: Float) = DayBreakdown(
+            date = start.plusDays(offset),
+            averageMgDl = 120f,
+            minMgDl = 80f,
+            maxMgDl = 180f,
+            tir = TimeInRangeBreakdown(inRangePercent = inRange),
+            readingCount = 288,
+            coveragePercent = 100f
+        )
+        val days = listOf(
+            day(0, 80f), day(1, 75f), day(2, 40f), day(3, 90f), day(4, 90f), day(5, 90f)
+        )
+        assertEquals(3, StatsAnalytics.bestInRangeStreak(days))
+    }
+
+    @Test
+    fun aGapInTheDatesBreaksTheStreak() {
+        val start = LocalDate.of(2026, 3, 2)
+        fun day(offset: Long) = DayBreakdown(
+            date = start.plusDays(offset),
+            averageMgDl = 120f,
+            minMgDl = 80f,
+            maxMgDl = 180f,
+            tir = TimeInRangeBreakdown(inRangePercent = 90f),
+            readingCount = 288,
+            coveragePercent = 100f
+        )
+        assertEquals(2, StatsAnalytics.bestInRangeStreak(listOf(day(0), day(1), day(5), day(9))))
+    }
 }

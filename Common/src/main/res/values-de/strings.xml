@@ -2246,4 +2246,13 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Heute</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Morgendämmerungsanstieg</string>
+    <string name="stats_metric_dawn_description">Das Dawn-Phänomen, gemessen: der typische Anstieg vom nächtlichen Tief zum darauffolgenden Morgenhoch. Angegeben als Median über die Tage, damit eine schlechte Nacht ihn nicht bestimmt.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Mittlere Amplitude glykämischer Schwankungen — die durchschnittliche Größe eines Ausschlags über einer Standardabweichung. Zwei Zeiträume können Mittelwert und VK teilen und trotzdem völlig unterschiedlich schwanken.</string>
+    <string name="stats_metric_modd">Tag zu Tag</string>
+    <string name="stats_metric_modd_description">Mittelwert der Tagesunterschiede: wie weit dieselbe Uhrzeit von einem Tag zum nächsten abweicht. Ein niedriger Wert heißt, Ihre Tage wiederholen sich — erst das macht eine Routine anpassbar.</string>
+    <string name="stats_metric_streak">Beste Serie</string>
+    <string name="stats_metric_streak_description">Längste Folge aufeinanderfolgender Tage mit 70%% oder mehr im Zielbereich.</string>
+    <string name="stats_metric_streak_meta">Tage mit 70%%+</string>
 </resources>

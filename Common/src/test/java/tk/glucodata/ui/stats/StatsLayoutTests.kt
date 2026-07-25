@@ -39,10 +39,28 @@ class StatsLayoutTests {
     }
 
     @Test
-    fun everyMetricIsOnByDefault() {
+    fun theDefaultGridFillsWholeRowsWithNothingLeftOver() {
         val visible = StatsLayoutState().visibleMetrics
-        assertEquals(StatsMetric.entries.size, visible.size)
-        assertEquals(StatsMetric.TIME_IN_RANGE, visible.first())
+        assertEquals(10, visible.size)
+        assertEquals(StatsMetric.AVERAGE, visible.first())
+        val rows = packMetricRows(visible, emptySet())
+        assertEquals(5, rows.size)
+        assertTrue(rows.all { it.second != null })
+    }
+
+    @Test
+    fun metricsWithAHomeElsewhereAreOffByDefault() {
+        val hidden = StatsLayoutState().hiddenMetrics
+        // Each of these is already shown by another part of the screen.
+        assertTrue(StatsMetric.TIME_IN_RANGE in hidden)
+        assertTrue(StatsMetric.LOW_EPISODES in hidden)
+        assertTrue(StatsMetric.COVERAGE in hidden)
+        assertTrue(StatsMetric.GRI in hidden)
+    }
+
+    @Test
+    fun nothingIsPinnedToTheDashboardOutOfTheBox() {
+        assertTrue(StatsLayoutState().dashboardMetrics.isEmpty())
     }
 
     @Test
@@ -51,17 +69,17 @@ class StatsLayoutTests {
         val head = rows.take(StatsMetric.DEFAULT_VISIBLE_ROWS)
             .flatMap { listOfNotNull(it.first, it.second) }
         assertEquals(6, head.size)
-        assertEquals(StatsMetric.TIME_IN_RANGE, head.first())
+        assertEquals(StatsMetric.AVERAGE, head.first())
     }
 
     @Test
     fun relatedMetricsSitOnTheSameRowByDefault() {
-        // LBGI/HBGI, the two episode counts and the two spread measures each read as a
-        // pair; splitting a pair across rows is what made the grid look arbitrary.
+        // Splitting a pair across rows is what made the grid look arbitrary.
         val rows = packMetricRows(StatsLayoutState().visibleMetrics, emptySet())
-        assertTrue(rows.contains(StatsMetric.LBGI to StatsMetric.HBGI))
-        assertTrue(rows.contains(StatsMetric.LOW_EPISODES to StatsMetric.HIGH_EPISODES))
-        assertTrue(rows.contains(StatsMetric.IQR to StatsMetric.STD_DEV))
+        assertTrue(rows.contains(StatsMetric.AVERAGE to StatsMetric.GMI))
+        assertTrue(rows.contains(StatsMetric.MEDIAN to StatsMetric.IQR))
+        assertTrue(rows.contains(StatsMetric.STD_DEV to StatsMetric.CV))
+        assertTrue(rows.contains(StatsMetric.GVI to StatsMetric.PSG))
     }
 
     @Test

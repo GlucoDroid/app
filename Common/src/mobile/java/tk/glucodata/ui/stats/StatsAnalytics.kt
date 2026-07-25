@@ -572,6 +572,123 @@ object StatsAnalytics {
      * keeps the list short enough that people actually read it.
      */
 
+
+    // -------------------------------------------------- less common measures
+
+    /**
+     * Mean Amplitude of Glycemic Excursions: the average size of a swing larger than
+     * one standard deviation.
+     *
+     * Two windows can share an average and a CV and still swing completely differently
+     * — one drifting, one spiking — and MAGE is the number that separates them.
+     * Turning points are taken from the noise-stabilised series so sensor jitter does
+     * not register as an excursion.
+     */
+    fun mage(history: List<GlucosePoint>): Float {
+        val series = toVariabilitySeries(history)
+        if (series.size < 5) return 0f
+        val values = series.map { it.value }
+        val mean = values.average().toFloat()
+        val sd = sqrt(
+            values.fold(0.0) { acc, value ->
+                val diff = value - mean
+                acc + diff * diff
+            } / values.size
+        ).toFloat()
+        if (sd <= 0f) return 0f
+
+        val extrema = ArrayList<Float>()
+        extrema.add(values.first())
+        for (index in 1 until values.lastIndex) {
+            val previous = values[index - 1]
+            val current = values[index]
+            val next = values[index + 1]
+            val isPeak = current > previous && current >= next
+            val isNadir = current < previous && current <= next
+            if (isPeak || isNadir) extrema.add(current)
+        }
+        extrema.add(values.last())
+
+        val amplitudes = ArrayList<Float>()
+        for (index in 1 until extrema.size) {
+            val amplitude = abs(extrema[index] - extrema[index - 1])
+            if (amplitude > sd) amplitudes.add(amplitude)
+        }
+        return if (amplitudes.isEmpty()) 0f else amplitudes.average().toFloat()
+    }
+
+    /**
+     * Mean Of Daily Differences: how far the same clock time differs from one day to the
+     * next. A low value means the days repeat, which is what makes a routine adjustable
+     * — an average and a CV say nothing about reproducibility.
+     */
+    fun modd(history: List<GlucosePoint>): Float {
+        if (history.size < 2) return 0f
+        val dayMillis = 24L * 60L * 60L * 1000L
+        val tolerance = (estimateCadenceMillis(history) / 2).coerceAtLeast(30_000L)
+        var sum = 0.0
+        var counted = 0
+        var candidateIndex = 0
+        history.forEach { point ->
+            val target = point.timestamp - dayMillis
+            while (candidateIndex < history.lastIndex &&
+                history[candidateIndex + 1].timestamp <= target
+            ) {
+                candidateIndex++
+            }
+            val candidate = history[candidateIndex]
+            if (abs(candidate.timestamp - target) <= tolerance) {
+                sum += abs(point.value - candidate.value)
+                counted++
+            }
+        }
+        return if (counted == 0) 0f else (sum / counted).toFloat()
+    }
+
+    /**
+     * The dawn phenomenon, measured: the typical climb from the overnight low to the
+     * morning peak that follows it. Reported as the median across days, so one bad
+     * night does not define it.
+     */
+    fun dawnRise(history: List<GlucosePoint>): Float {
+        if (history.isEmpty()) return 0f
+        val zone = ZoneId.systemDefault()
+        fun hourOf(point: GlucosePoint) = Instant.ofEpochMilli(point.timestamp).atZone(zone).hour
+        val rises = ArrayList<Float>()
+        history.groupBy { Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() }
+            .forEach { (_, points) ->
+                val nadir = points.filter { hourOf(it) in 0..5 }.minByOrNull { it.value }
+                    ?: return@forEach
+                val peak = points
+                    .filter { hourOf(it) in 4..9 && it.timestamp > nadir.timestamp }
+                    .maxByOrNull { it.value }
+                    ?: return@forEach
+                val rise = peak.value - nadir.value
+                if (rise > 0f) rises.add(rise)
+            }
+        if (rises.isEmpty()) return 0f
+        val sorted = rises.sorted()
+        return sorted[sorted.size / 2]
+    }
+
+    /** Longest run of consecutive calendar days at or above the target share in range. */
+    fun bestInRangeStreak(days: List<DayBreakdown>, thresholdPercent: Float = 70f): Int {
+        var best = 0
+        var current = 0
+        var previousDate: LocalDate? = null
+        days.forEach { day ->
+            val consecutive = previousDate?.plusDays(1) == day.date
+            current = if (day.tir.inRangePercent >= thresholdPercent) {
+                if (consecutive) current + 1 else 1
+            } else {
+                0
+            }
+            if (current > best) best = current
+            previousDate = day.date
+        }
+        return best
+    }
+
     // ------------------------------------------------------------ comparison
 
     /** The scalars worth carrying across two periods. Cheap to compute, cheap to diff. */

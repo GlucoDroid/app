@@ -2213,4 +2213,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Auj.</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Montée de l\'aube</string>
+    <string name="stats_metric_dawn_description">Le phénomène de l\'aube, mesuré : la montée typique du creux nocturne au pic matinal qui suit. Donné en médiane sur les jours, pour qu\'une mauvaise nuit ne le définisse pas.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Amplitude moyenne des excursions glycémiques — la taille moyenne d\'une oscillation dépassant un écart-type. Deux périodes peuvent partager moyenne et CV tout en oscillant très différemment.</string>
+    <string name="stats_metric_modd">D\'un jour à l\'autre</string>
+    <string name="stats_metric_modd_description">Moyenne des différences quotidiennes : l\'écart d\'une même heure d\'un jour au suivant. Une valeur basse signifie que vos journées se répètent, ce qui rend une routine ajustable.</string>
+    <string name="stats_metric_streak">Meilleure série</string>
+    <string name="stats_metric_streak_description">Plus longue suite de jours consécutifs à 70%% ou plus dans la cible.</string>
+    <string name="stats_metric_streak_meta">jours à 70%%+</string>
 </resources>

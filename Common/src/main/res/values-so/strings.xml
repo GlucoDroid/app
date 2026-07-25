@@ -2415,4 +2415,13 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Maanta</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Kor u kaca waaberiga</string>
+    <string name="stats_metric_dawn_description">Ifafaalaha waaberiga, oo la cabbiray: kacsanaanta caadiga ah ee laga bilaabo heerka ugu hooseeya habeenkii ilaa dhamaadka subaxnimo ee xiga. Waxaa lagu bixiyaa dhexdhexaadka maalmaha, si habeen xun oo keliya aanu u go\'aamin.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Celceliska ballaadhka leexashada sokorta — cabbirka celceliska ah ee leexasho ka weyn hal weecasho caadi ah. Laba muddo way wadaagi karaan celcelis iyo CV isku mid ah, hase yeeshee si aad u kala duwan u leexdaan.</string>
+    <string name="stats_metric_modd">Maalin ka maalin</string>
+    <string name="stats_metric_modd_description">Celceliska kala duwanaanshaha maalinlaha ah: intee saacaddaa isku ah uga duwan tahay maalin ilaa midda xigta. Qiime hooseeya wuxuu ka dhigan yahay in maalmahaagu isku celceliyaan, taasna waa waxa nidaamka la hagaajin karo ka dhigaya.</string>
+    <string name="stats_metric_streak">Xariiqda ugu fiican</string>
+    <string name="stats_metric_streak_description">Xariiqda ugu dheer ee maalmo isku xiga oo heerka ku jira 70%% ama ka badan.</string>
+    <string name="stats_metric_streak_meta">maalmood 70%%+</string>
 </resources>

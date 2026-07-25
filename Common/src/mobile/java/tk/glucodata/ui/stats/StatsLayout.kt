@@ -48,27 +48,50 @@ enum class StatsCard(@param:StringRes val titleResId: Int) {
  * them can be pinned to the dashboard; order, visibility and width are the user's.
  */
 enum class StatsMetric(@param:StringRes val titleResId: Int) {
-    TIME_IN_RANGE(R.string.tir),
     AVERAGE(R.string.average_glucose),
     GMI(R.string.a1c_gmi_label),
-    CV(R.string.cv),
-    TIGHT_RANGE(R.string.stats_tight_range),
     MEDIAN(R.string.median),
     IQR(R.string.report_iqr_short),
     STD_DEV(R.string.std_dev_short),
+    CV(R.string.cv),
+    GVI(R.string.gvi),
+    PSG(R.string.psg),
+    TIGHT_RANGE(R.string.stats_tight_range),
+    DAWN_RISE(R.string.stats_metric_dawn),
+    MAGE(R.string.stats_metric_mage),
+    MODD(R.string.stats_metric_modd),
+    STREAK(R.string.stats_metric_streak),
+    TIME_IN_RANGE(R.string.tir),
     LOW_EPISODES(R.string.episodes_lows),
     HIGH_EPISODES(R.string.episodes_highs),
     LBGI(R.string.lbgi),
     HBGI(R.string.hbgi),
     COVERAGE(R.string.stats_card_coverage),
-    GRI(R.string.gri_short),
-    GVI(R.string.gvi),
-    PSG(R.string.psg);
+    GRI(R.string.gri_short);
 
     companion object {
-        // Ordered so the pairs that belong together land on the same row: spread with
-        // spread, both episode counts, both risk indices, both app-specific scores.
+        // Ordered in pairs that belong on the same row, and so that the ten shown by
+        // default fill five rows exactly with nothing left over.
         val DEFAULT_ORDER = entries.toList()
+
+        /**
+         * Off by default because each of these already has a home elsewhere on the
+         * screen: time in range is the ring, the episode counts are the Episodes card,
+         * coverage is on the window line, and GRI/LBGI/HBGI are the risk card. They are
+         * one tap away in Arrange for anyone who wants them in the grid as well.
+         */
+        val HIDDEN_BY_DEFAULT = setOf(
+            TIME_IN_RANGE,
+            LOW_EPISODES,
+            HIGH_EPISODES,
+            LBGI,
+            HBGI,
+            COVERAGE,
+            GRI,
+            MAGE,
+            MODD,
+            STREAK
+        )
 
         /** Rows shown before the rest fold away behind the disclosure. */
         const val DEFAULT_VISIBLE_ROWS = 3
@@ -79,7 +102,7 @@ data class StatsLayoutState(
     val cardOrder: List<StatsCard> = StatsCard.DEFAULT_ORDER,
     val hiddenCards: Set<StatsCard> = emptySet(),
     val metricOrder: List<StatsMetric> = StatsMetric.DEFAULT_ORDER,
-    val hiddenMetrics: Set<StatsMetric> = emptySet(),
+    val hiddenMetrics: Set<StatsMetric> = StatsMetric.HIDDEN_BY_DEFAULT,
     val wideMetrics: Set<StatsMetric> = emptySet(),
     val dashboardMetrics: List<StatsMetric> = emptyList()
 ) {
@@ -107,7 +130,7 @@ object StatsLayoutStore {
      * older default is discarded rather than merged: merging left people with the old
      * pairing plus new metrics tacked on the end, which is worse than a clean default.
      */
-    private const val LAYOUT_VERSION = 3
+    private const val LAYOUT_VERSION = 4
     private const val KEY_DASHBOARD = "stats_layout_dashboard_metrics"
 
     /**

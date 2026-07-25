@@ -2208,4 +2208,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">Hoje</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Subida da madrugada</string>
+    <string name="stats_metric_dawn_description">O fenómeno da madrugada, medido: a subida típica do mínimo noturno até ao pico da manhã seguinte. Apresentado como mediana ao longo dos dias, para que uma noite má não o defina.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Amplitude média das excursões glicémicas — o tamanho médio de uma oscilação acima de um desvio-padrão. Dois períodos podem ter a mesma média e o mesmo CV e oscilar de forma muito diferente.</string>
+    <string name="stats_metric_modd">Dia a dia</string>
+    <string name="stats_metric_modd_description">Média das diferenças diárias: o quanto a mesma hora difere de um dia para o outro. Um valor baixo significa que os seus dias se repetem, e é isso que torna uma rotina ajustável.</string>
+    <string name="stats_metric_streak">Melhor sequência</string>
+    <string name="stats_metric_streak_description">Sequência mais longa de dias consecutivos com 70%% ou mais no intervalo.</string>
+    <string name="stats_metric_streak_meta">dias com 70%%+</string>
 </resources>

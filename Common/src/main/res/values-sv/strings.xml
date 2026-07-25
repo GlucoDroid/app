@@ -2207,4 +2207,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_window_3d">3D</string>
     <string name="stats_window_today">I dag</string>
     <string name="stats_window_24h">24H</string>
+    <string name="stats_metric_dawn">Gryningshöjning</string>
+    <string name="stats_metric_dawn_description">Gryningsfenomenet, uppmätt: den typiska klättringen från nattens lägsta till morgontoppen som följer. Anges som median över dagarna, så att en dålig natt inte avgör den.</string>
+    <string name="stats_metric_mage">MAGE</string>
+    <string name="stats_metric_mage_description">Medelamplitud för glykemiska utslag — den genomsnittliga storleken på en svängning större än en standardavvikelse. Två perioder kan dela medelvärde och CV och ändå svänga helt olika.</string>
+    <string name="stats_metric_modd">Dag till dag</string>
+    <string name="stats_metric_modd_description">Medelvärde av dagliga skillnader: hur mycket samma klockslag skiljer sig från en dag till nästa. Ett lågt värde betyder att dina dygn upprepar sig, vilket är det som gör en rutin justerbar.</string>
+    <string name="stats_metric_streak">Bästa svit</string>
+    <string name="stats_metric_streak_description">Längsta följd av dagar i rad med 70%% eller mer i målområdet.</string>
+    <string name="stats_metric_streak_meta">dagar på 70%%+</string>
 </resources>
