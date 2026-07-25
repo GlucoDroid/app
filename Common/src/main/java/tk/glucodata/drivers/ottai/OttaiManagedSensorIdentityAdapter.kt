@@ -64,6 +64,7 @@ object OttaiManagedSensorIdentityAdapter : ManagedSensorIdentityAdapter {
 
     override fun persistedSensorIds(context: Context): List<String> =
         OttaiRegistry.persistedRecords(context)
+            .filter { OttaiRegistry.isManagedConnectionAuthorized(context, it.sensorId) }
             .map { OttaiRegistry.resolveCanonicalSensorId(context, it.sensorId) ?: it.sensorId }
             .distinct()
 

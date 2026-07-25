@@ -31,6 +31,7 @@ object JournalTreatmentUploader {
     private const val LOOKBACK_MILLIS = 30L * 24 * 60 * 60 * 1000  // mirrors C++ nighttimeback (30 days)
     private const val PREFS_NAME = "tk.glucodata_preferences"
     private const val PREF_RECEIVE_TREATMENTS = "nightscout_receive_treatments"
+    private const val PREF_SEND_LONG_INSULIN = "nightscout_send_long_insulin"
     private const val TREATMENT_FETCH_COUNT = 240
     private const val ERROR_INVALID_URL = -2
 
@@ -72,9 +73,25 @@ object JournalTreatmentUploader {
             .apply()
     }
 
+    @JvmStatic
+    @Keep
+    fun getSendLongInsulin(): Boolean =
+        Applic.app.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            .getBoolean(PREF_SEND_LONG_INSULIN, true)
+
+    @JvmStatic
+    @Keep
+    fun setSendLongInsulin(enabled: Boolean) {
+        Applic.app.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(PREF_SEND_LONG_INSULIN, enabled)
+            .apply()
+    }
+
     private suspend fun uploadInternal(useV3: Boolean): Boolean {
         val sendEnabled = Natives.getpostTreatments()
         val receiveEnabled = getReceiveTreatments()
+        val sendLongInsulin = getSendLongInsulin()
         if (!sendEnabled && !receiveEnabled) return true
         val baseUrl = Natives.getnightuploadurl()?.takeIf { it.isNotBlank() } ?: return true
         val secretHashed = if (useV3) null else hashedSecret(Natives.getnightuploadsecret())
@@ -105,6 +122,11 @@ object JournalTreatmentUploader {
                 if (!isSendableType(entry.entryType)) continue
                 if (isExternalMirrorSource(entry.source)) continue
 
+                val preset = entry.insulinPresetId?.let { id ->
+                    presetCache.getOrPut(id) { dao.getInsulinPresetById(id) }
+                }
+                if (!shouldUploadTreatment(entry.entryType, preset, sendLongInsulin)) continue
+
                 val localIdentifier = ID_PREFIX + entry.id.toString(16)
                 val remoteId = if (useV3) {
                     entry.nsRemoteId ?: localIdentifier
@@ -116,9 +138,6 @@ object JournalTreatmentUploader {
                     NightPost.deleteUrl(treatmentDeleteUrl(baseUrl, entry.nsRemoteId, useV3), secretHashed)
                 }
 
-                val preset = entry.insulinPresetId?.let { id ->
-                    presetCache.getOrPut(id) { dao.getInsulinPresetById(id) }
-                }
                 val food = entry.foodId?.let { id ->
                     foodCache.getOrPut(id) { dao.getFoodById(id) }
                 }
@@ -166,6 +185,20 @@ object JournalTreatmentUploader {
             type == JournalEntryType.FINGERSTICK ||
             type == JournalEntryType.ACTIVITY ||
             type == JournalEntryType.NOTE
+    }
+
+    internal fun shouldUploadTreatment(
+        entryType: String,
+        preset: JournalInsulinPresetEntity?,
+        sendLongInsulin: Boolean
+    ): Boolean {
+        if (sendLongInsulin || JournalEntryType.fromStorage(entryType) != JournalEntryType.INSULIN) {
+            return true
+        }
+        // Basal presets deliberately do not count toward IOB. Unknown/deleted
+        // presets remain sendable so this preference never silently drops an
+        // insulin entry whose classification cannot be recovered.
+        return preset?.countsTowardIob != false
     }
 
     private fun isExternalMirrorSource(source: String): Boolean {

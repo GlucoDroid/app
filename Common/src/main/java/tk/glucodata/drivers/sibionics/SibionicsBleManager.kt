@@ -193,7 +193,7 @@ class SibionicsBleManager(
             SibionicsRegistry.loadProtocolMode(context, SerialNumber),
         )
         shortCode = SibionicsRegistry.loadShortCode(context, SerialNumber)
-        sensitivity = SibionicsSensitivity.sensitivityFor(shortCode)
+        sensitivity = SibionicsSensitivity.sensitivityFor(shortCode, variant)
         val persistedAutoResetDays = SibionicsRegistry.loadAutoResetDays(context, SerialNumber)
         autoResetDays = SibionicsResetPolicy.normalizedDays(
             variant = variant,

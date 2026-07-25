@@ -783,6 +783,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/mirror") { MirrorSettingsScreen(navController) }
                     composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                     composable("settings/api-source") { ApiSourceSettingsScreen(navController) }
+                    composable("settings/glucose-meters") { GlucoseMeterSettingsScreen(navController) }
                     composable("settings/watch") { WatchSettingsScreen(navController) }
                     // Keep legacy route for backward compatibility.
                     composable("settings/weartransport") { WatchSettingsScreen(navController) }
@@ -791,6 +792,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/webserver") { WebServerSettingsScreen(navController) }
                     composable("settings/notification-display") {
                         NotificationSettingsScreen(navController, dashboardViewModel)
+                    }
+                    composable("settings/display-colors") {
+                        DisplayAndColorSettingsScreen(navController, dashboardViewModel)
                     }
                     composable("settings/data-smoothing") {
                         DataSmoothingSettingsScreen(navController, dashboardViewModel)
@@ -927,6 +931,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/mirror") { MirrorSettingsScreen(navController) }
                 composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                 composable("settings/api-source") { ApiSourceSettingsScreen(navController) }
+                composable("settings/glucose-meters") { GlucoseMeterSettingsScreen(navController) }
                 composable("settings/watch") { WatchSettingsScreen(navController) }
                 // Keep legacy route for backward compatibility.
                 composable("settings/weartransport") { WatchSettingsScreen(navController) }
@@ -935,6 +940,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/webserver") { WebServerSettingsScreen(navController) }
                 composable("settings/notification-display") {
                     NotificationSettingsScreen(navController, dashboardViewModel)
+                }
+                composable("settings/display-colors") {
+                    DisplayAndColorSettingsScreen(navController, dashboardViewModel)
                 }
                 composable("settings/data-smoothing") {
                     DataSmoothingSettingsScreen(navController, dashboardViewModel)

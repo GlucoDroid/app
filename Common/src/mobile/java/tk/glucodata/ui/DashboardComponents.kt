@@ -315,27 +315,14 @@ fun DashboardCombinedHeader(
         }
     }
     // "Δ" readout: the measured change over the last ~5 minutes — a raw
-    // number to sanity-check the estimated arrow against. Walks back to the
-    // first point old enough for the window instead of taking blind indices.
+    // number to sanity-check the estimated arrow against. Same computation as
+    // the per-row deltas in the readings list, anchored at the newest point.
     val heroDeltaText = if (showDelta) {
         remember(history, isMmol, deltaIntervalMinutes) {
-            val newest = history.lastOrNull()
-            val previous = newest?.let { n ->
-                history.asReversed().firstOrNull { p ->
-                    p.value > 0.1f && n.timestamp - p.timestamp >= tk.glucodata.GlucoseDelta.minGapMillis(deltaIntervalMinutes)
-                }
-            }
-            if (newest != null && previous != null) {
-                val delta = tk.glucodata.GlucoseDelta.delta(
-                    newest.timestamp, newest.value,
-                    previous.timestamp, previous.value,
-                    deltaIntervalMinutes
-                )
-                tk.glucodata.GlucoseDelta.format(delta, isMmol)
-                    .takeIf { it.isNotEmpty() }
+            history.lastOrNull()?.let { newest ->
+                readingDeltaTexts(listOf(newest.timestamp), history, isMmol, deltaIntervalMinutes)
+                    .first()
                     ?.let { "Δ $it" }
-            } else {
-                null
             }
         }
     } else {

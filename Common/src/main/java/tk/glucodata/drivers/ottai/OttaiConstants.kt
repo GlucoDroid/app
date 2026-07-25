@@ -179,28 +179,34 @@ object OttaiConstants {
     const val DEFAULT_RATED_LIFETIME_DAYS = 15
 
     /**
-     * The official app writes cloud activeExpireTime to maxActive. Field evidence from
-     * C09B9E4B2B48 proves that the firmware enforces that value: 1209600000 ms stopped
-     * the sensor at exactly 14 days. We deliberately raise maxActive to the managed
-     * lifetime below, while retaining the cloud value for the rated/official end shown
-     * in UI. retainTime remains cloud-driven; writing an absolute epoch to destruction
-     * made the sensor terminate the link.
+     * The official app writes cloud activeExpireTime to maxActive. retainTime remains
+     * cloud-driven; writing an absolute epoch to destruction made the sensor terminate
+     * the link.
      */
     const val DEFAULT_RETAIN_TIME_MS = 172_800_000L
     const val DEFAULT_ACTIVE_EXPIRE_MS = DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
 
-    /**
-     * Managed lifetime target. This value must be written to maxActive during activation;
-     * changing app-side metadata alone does not extend the sensor.
-     */
+    /** Longest managed lifetime requested during explicit activation. */
     const val EXTENDED_LIFETIME_DAYS = 30
     const val EXTENDED_LIFETIME_MS = EXTENDED_LIFETIME_DAYS * 24L * 3600L * 1000L
 
     @JvmStatic
-    fun activationMaxActiveMs(cloudActiveExpireMs: Long): Long {
-        val rated = cloudActiveExpireMs.takeIf { it > 0L } ?: DEFAULT_ACTIVE_EXPIRE_MS
-        return maxOf(rated, EXTENDED_LIFETIME_MS)
+    fun activationMaxActiveCandidatesMs(cloudActiveExpireMs: Long): List<Long> {
+        val cloudMs = cloudActiveExpireMs.takeIf { it > 0L } ?: DEFAULT_ACTIVE_EXPIRE_MS
+        val candidates = mutableListOf<Long>()
+        if (cloudMs > EXTENDED_LIFETIME_MS) candidates += cloudMs
+        (EXTENDED_LIFETIME_DAYS downTo 15).forEach { days ->
+            candidates += days * 24L * 3600L * 1000L
+        }
+        candidates += cloudMs
+        return candidates.distinct()
     }
+
+    @JvmStatic
+    fun expectedLifetimeMs(cloudActiveExpireMs: Long, acceptedMaxActiveMs: Long): Long =
+        acceptedMaxActiveMs.takeIf { it > 0L }
+            ?: cloudActiveExpireMs.takeIf { it > 0L }
+            ?: DEFAULT_ACTIVE_EXPIRE_MS
 
     @JvmStatic
     fun shouldAttemptEndedSensorRecovery(commandStatus: Int, activeTimeMs: Long, nowMs: Long): Boolean =
@@ -211,6 +217,10 @@ object OttaiConstants {
 
     /** Sensor command state is authoritative; cloud/provisional timestamps are not. */
     fun commandNeedsActivation(commandStatus: Int): Boolean = commandStatus in 0..2
+
+    /** Starting the irreversible lifetime additionally requires an explicit user action. */
+    fun shouldStartActivation(commandStatus: Int, explicitlyRequested: Boolean): Boolean =
+        explicitlyRequested && commandNeedsActivation(commandStatus)
 
     /** Past the extended end, only declare the sensor expired once samples stop this long. */
     const val EXPIRED_STALE_GRACE_MS = 6L * 3600L * 1000L
@@ -238,6 +248,7 @@ object OttaiConstants {
     // the first post-restart sample bypass the continuity gate.
     const val PREF_CONTINUITY_BASELINE_PREFIX = "ottai_continuity_baseline_"
     const val PREF_ACTIVE_EXPIRE_PREFIX = "ottai_active_expire_"  // activeExpireTime ms (maxActive duration)
+    const val PREF_ACCEPTED_MAX_ACTIVE_PREFIX = "ottai_accepted_max_active_"
     const val PREF_PREHEAT_PERIOD_PREFIX = "ottai_preheat_period_"
     const val PREF_RETAIN_TIME_PREFIX = "ottai_retain_time_"      // retainTime ms (destruction value)
     const val PREF_DEVICE_VERSION_PREFIX = "ottai_device_version_"

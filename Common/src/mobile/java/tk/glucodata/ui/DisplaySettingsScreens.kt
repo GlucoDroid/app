@@ -8,6 +8,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -93,11 +98,6 @@ fun NotificationSettingsScreen(
         context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
     }
     val notificationChartEnabled by viewModel.notificationChartEnabled.collectAsState()
-    val rangeColorsEnabled by viewModel.glucoseValueRangeColorsEnabled.collectAsState()
-    val arrowForecastEnabled by viewModel.glucoseArrowForecastColorsEnabled.collectAsState()
-    val chartRangeColorsEnabled by viewModel.glucoseChartRangeColorsEnabled.collectAsState()
-    val appChartRangeColorsEnabled by viewModel.glucoseAppChartRangeColorsEnabled.collectAsState()
-    val dashboardDeltaEnabled by viewModel.dashboardShowDelta.collectAsState()
     val deltaIntervalMinutes by viewModel.deltaIntervalMinutes.collectAsState()
 
     var fontSize by rememberSaveable { mutableFloatStateOf(prefs.getFloat("notification_font_size", 1.0f)) }
@@ -216,7 +216,6 @@ fun NotificationSettingsScreen(
                 title = stringResource(R.string.show_trend_arrow),
                 checked = showArrow,
                 onCheckedChange = { showArrow = it; save() },
-                icon = null,
                 position = CardPosition.TOP
             )
             SettingsSwitchItem(
@@ -224,146 +223,14 @@ fun NotificationSettingsScreen(
                 subtitle = stringResource(R.string.notification_large_arrow_desc),
                 checked = largeArrow,
                 onCheckedChange = { largeArrow = it; save() },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.show_chart_expanded),
-                subtitle = stringResource(R.string.show_chart_expanded_desc),
-                checked = notificationChartEnabled,
-                onCheckedChange = { viewModel.toggleNotificationChart(it) },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.show_chart_collapsed),
-                subtitle = stringResource(R.string.show_chart_collapsed_desc),
-                checked = collapsedChart,
-                onCheckedChange = { collapsedChart = it; save() },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.show_target_range),
-                subtitle = stringResource(R.string.show_target_range_desc),
-                checked = showTargetRange,
-                onCheckedChange = { showTargetRange = it; save() },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.glucose_range_colors_title),
-                subtitle = stringResource(R.string.glucose_range_colors_desc),
-                checked = rangeColorsEnabled,
-                onCheckedChange = { viewModel.setGlucoseValueRangeColorsEnabled(it) },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.glucose_arrow_forecast_title),
-                subtitle = stringResource(R.string.glucose_arrow_forecast_desc),
-                checked = arrowForecastEnabled,
-                onCheckedChange = { viewModel.setGlucoseArrowForecastColorsEnabled(it) },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.glucose_chart_range_colors_title),
-                subtitle = stringResource(R.string.glucose_chart_range_colors_desc),
-                checked = chartRangeColorsEnabled,
-                onCheckedChange = { viewModel.setGlucoseChartRangeColorsEnabled(it) },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.glucose_app_chart_range_colors_title),
-                subtitle = stringResource(R.string.glucose_app_chart_range_colors_desc),
-                checked = appChartRangeColorsEnabled,
-                onCheckedChange = { viewModel.setGlucoseAppChartRangeColorsEnabled(it) },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            GlucosePaletteCard(position = CardPosition.MIDDLE)
-            SettingsSwitchItem(
-                title = stringResource(R.string.dashboard_show_delta_title),
-                subtitle = stringResource(R.string.dashboard_show_delta_desc),
-                checked = dashboardDeltaEnabled,
-                onCheckedChange = { viewModel.setDashboardShowDelta(it) },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.notification_show_delta_title),
-                subtitle = stringResource(R.string.notification_show_delta_desc),
-                checked = showDelta,
-                onCheckedChange = { showDelta = it; save() },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            Column(
-                modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding, vertical = 8.dp)
-            ) {
-                Text(
-                    stringResource(R.string.delta_interval_title),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    stringResource(R.string.delta_interval_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = deltaIntervalMinutes == 1,
-                        onClick = { viewModel.setDeltaIntervalMinutes(1) },
-                        label = { Text(stringResource(R.string.delta_interval_1min)) }
-                    )
-                    FilterChip(
-                        selected = deltaIntervalMinutes == 5,
-                        onClick = { viewModel.setDeltaIntervalMinutes(5) },
-                        label = { Text(stringResource(R.string.delta_interval_5min)) }
-                    )
-                }
-            }
-            SettingsSwitchItem(
-                title = stringResource(R.string.notification_show_iob_title),
-                subtitle = stringResource(R.string.notification_show_iob_desc),
-                checked = showIob,
-                onCheckedChange = { showIob = it; save() },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.notification_show_cob_title),
-                subtitle = stringResource(R.string.notification_show_cob_desc),
-                checked = showCob,
-                onCheckedChange = { showCob = it; save() },
-                icon = null,
-                position = CardPosition.MIDDLE
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.notification_iob_cob_risk_title),
-                subtitle = stringResource(R.string.notification_iob_cob_risk_desc),
-                checked = iobCobRiskColored,
-                onCheckedChange = { iobCobRiskColored = it; save() },
-                icon = null,
-                position = CardPosition.MIDDLE,
-                enabled = showIob || showCob
-            )
-            SettingsSwitchItem(
-                title = stringResource(R.string.notification_iob_risk_without_cob_title),
-                subtitle = stringResource(R.string.notification_iob_risk_without_cob_desc),
-                checked = iobRiskWithoutCob,
-                onCheckedChange = { iobRiskWithoutCob = it; save() },
-                icon = null,
-                position = CardPosition.BOTTOM,
-                enabled = (showIob || showCob) && iobCobRiskColored
+                position = CardPosition.BOTTOM
             )
         }
-
-        if (showArrow) {
-            Spacer(Modifier.height(4.dp))
+        AnimatedVisibility(
+            visible = showArrow,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
             LegacySliderControl(
                 label = stringResource(R.string.arrow_size_percent, (arrowSize * 100).toInt()),
                 value = arrowSize,
@@ -371,6 +238,187 @@ fun NotificationSettingsScreen(
                 range = 0.5f..1.5f
             )
         }
+
+        val showAnyChart = notificationChartEnabled || collapsedChart
+        SectionLabel(
+            stringResource(R.string.notification_charts_section),
+            topPadding = 16.dp,
+            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
+        ) {
+            SettingsSwitchItem(
+                title = stringResource(R.string.show_chart_expanded),
+                subtitle = stringResource(R.string.show_chart_expanded_desc),
+                checked = notificationChartEnabled,
+                onCheckedChange = { viewModel.toggleNotificationChart(it) },
+                position = CardPosition.TOP
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.show_chart_collapsed),
+                subtitle = stringResource(R.string.show_chart_collapsed_desc),
+                checked = collapsedChart,
+                onCheckedChange = { collapsedChart = it; save() },
+                position = if (showAnyChart) CardPosition.MIDDLE else CardPosition.BOTTOM
+            )
+            AnimatedVisibility(
+                visible = showAnyChart,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                SettingsSwitchItem(
+                    title = stringResource(R.string.show_target_range),
+                    subtitle = stringResource(R.string.show_target_range_desc),
+                    checked = showTargetRange,
+                    onCheckedChange = { showTargetRange = it; save() },
+                    position = CardPosition.BOTTOM
+                )
+            }
+        }
+
+        val showRiskOptions = showIob || showCob
+        SectionLabel(
+            stringResource(R.string.notification_status_line_section),
+            topPadding = 16.dp,
+            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
+        ) {
+            SettingsSwitchItem(
+                title = stringResource(R.string.notification_show_delta_title),
+                subtitle = stringResource(R.string.notification_show_delta_minutes_desc, deltaIntervalMinutes),
+                checked = showDelta,
+                onCheckedChange = { showDelta = it; save() },
+                position = CardPosition.TOP
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.notification_show_iob_title),
+                subtitle = stringResource(R.string.notification_show_iob_desc),
+                checked = showIob,
+                onCheckedChange = { showIob = it; save() },
+                position = CardPosition.MIDDLE
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.notification_show_cob_title),
+                subtitle = stringResource(R.string.notification_show_cob_desc),
+                checked = showCob,
+                onCheckedChange = { showCob = it; save() },
+                position = if (showRiskOptions) CardPosition.MIDDLE else CardPosition.BOTTOM
+            )
+            AnimatedVisibility(
+                visible = showRiskOptions,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                SettingsSwitchItem(
+                    title = stringResource(R.string.notification_iob_cob_risk_title),
+                    subtitle = stringResource(R.string.notification_iob_cob_risk_desc),
+                    checked = iobCobRiskColored,
+                    onCheckedChange = { iobCobRiskColored = it; save() },
+                    position = if (iobCobRiskColored) CardPosition.MIDDLE else CardPosition.BOTTOM
+                )
+            }
+            AnimatedVisibility(
+                visible = showRiskOptions && iobCobRiskColored,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                SettingsSwitchItem(
+                    title = stringResource(R.string.notification_iob_risk_without_cob_title),
+                    subtitle = stringResource(R.string.notification_iob_risk_without_cob_desc),
+                    checked = iobRiskWithoutCob,
+                    onCheckedChange = { iobRiskWithoutCob = it; save() },
+                    position = CardPosition.BOTTOM
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DisplayAndColorSettingsScreen(
+    navController: NavController,
+    viewModel: DashboardViewModel
+) {
+    val rangeColorsEnabled by viewModel.glucoseValueRangeColorsEnabled.collectAsState()
+    val arrowForecastEnabled by viewModel.glucoseArrowForecastColorsEnabled.collectAsState()
+    val chartRangeColorsEnabled by viewModel.glucoseChartRangeColorsEnabled.collectAsState()
+    val appChartRangeColorsEnabled by viewModel.glucoseAppChartRangeColorsEnabled.collectAsState()
+    val dashboardDeltaEnabled by viewModel.dashboardShowDelta.collectAsState()
+    val dashboardRowsDeltaEnabled by viewModel.dashboardRowsShowDelta.collectAsState()
+
+    LegacySettingsScaffold(
+        navController = navController,
+        title = stringResource(R.string.display_colors_title)
+    ) {
+        GlucoseRangeDisplaySettings(viewModel)
+
+        SectionLabel(
+            stringResource(R.string.glucose_palette_edit_title),
+            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
+        ) {
+            SettingsSwitchItem(
+                title = stringResource(R.string.glucose_range_colors_title),
+                subtitle = stringResource(R.string.glucose_range_colors_desc),
+                checked = rangeColorsEnabled,
+                onCheckedChange = { viewModel.setGlucoseValueRangeColorsEnabled(it) },
+                position = CardPosition.TOP
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.glucose_arrow_forecast_title),
+                subtitle = stringResource(R.string.glucose_arrow_forecast_desc),
+                checked = arrowForecastEnabled,
+                onCheckedChange = { viewModel.setGlucoseArrowForecastColorsEnabled(it) },
+                position = CardPosition.MIDDLE
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.glucose_chart_range_colors_title),
+                subtitle = stringResource(R.string.glucose_chart_range_colors_desc),
+                checked = chartRangeColorsEnabled,
+                onCheckedChange = { viewModel.setGlucoseChartRangeColorsEnabled(it) },
+                position = CardPosition.MIDDLE
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.glucose_app_chart_range_colors_title),
+                subtitle = stringResource(R.string.glucose_app_chart_range_colors_desc),
+                checked = appChartRangeColorsEnabled,
+                onCheckedChange = { viewModel.setGlucoseAppChartRangeColorsEnabled(it) },
+                position = CardPosition.BOTTOM
+            )
+        }
+
+        SectionLabel(
+            stringResource(R.string.display_readouts_section),
+            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
+        ) {
+            SettingsSwitchItem(
+                title = stringResource(R.string.dashboard_show_delta_title),
+                subtitle = stringResource(R.string.dashboard_show_delta_desc),
+                checked = dashboardDeltaEnabled,
+                onCheckedChange = { viewModel.setDashboardShowDelta(it) },
+                position = CardPosition.TOP
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.dashboard_rows_show_delta_title),
+                subtitle = stringResource(R.string.dashboard_rows_show_delta_desc),
+                checked = dashboardRowsDeltaEnabled,
+                onCheckedChange = { viewModel.setDashboardRowsShowDelta(it) },
+                position = CardPosition.BOTTOM
+            )
+        }
+
     }
 }
 

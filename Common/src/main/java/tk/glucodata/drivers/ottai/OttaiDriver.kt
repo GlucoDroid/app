@@ -72,7 +72,7 @@ interface OttaiDriver : ManagedBluetoothSensorDriver, ManagedSensorMaintenanceDr
         } else ""
         return ManagedSensorUiSnapshot(
             serial = sensorSerial,
-            displayName = runCatching { callback.mygetDeviceName() }.getOrDefault(sensorSerial),
+            displayName = OttaiConstants.canonicalSensorId(sensorSerial).ifBlank { sensorSerial },
             deviceAddress = callback.mActiveDeviceAddress ?: "Unknown",
             uiFamily = ManagedSensorUiFamily.OTTAI,
             connectionStatus = passiveStatus,

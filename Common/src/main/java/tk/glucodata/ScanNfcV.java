@@ -368,9 +368,13 @@ public class ScanNfcV {
                             value = uit & 0xFFFF;
                             Log.format("glucose=%.1f\n", (float) value / mgdLmult);
                             ret = uit >> 16;
+                            String scannedSensorIdent = Natives.getserial(uid, info);
+                            if (shouldSyncDecodedHistory(ret, value)) {
+                                HistorySyncAccess.mergeFullSyncForSensor(scannedSensorIdent);
+                            }
                             if (newdevice != null && Arrays.equals(newdevice, uid) && Applic.app.canusebluetooth()) {
                                 if (value != 0 || (ret & 0xFF) == 5 || (ret & 0xFF) == 7) {
-                                    if (SensorBluetooth.resetDevice(Natives.getserial(uid, info)))
+                                    if (SensorBluetooth.resetDevice(scannedSensorIdent))
                                         askpermission = true;
                                     newdevice = null;
                                 }
@@ -518,6 +522,10 @@ public class ScanNfcV {
             if (askpermission)
                 main.finepermission();
         });
+    }
+
+    static boolean shouldSyncDecodedHistory(int resultCode, int glucoseValue) {
+        return glucoseValue > 0 || (resultCode & 0x7F) <= 9;
     }
 
     static private void newsensor(Activity act, String text, String name) {

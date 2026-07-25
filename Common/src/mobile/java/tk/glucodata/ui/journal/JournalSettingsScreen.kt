@@ -110,11 +110,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import kotlin.math.atan2
-import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
-import kotlin.math.sin
 import tk.glucodata.R
 import tk.glucodata.data.journal.JournalBuiltInCurveProfile
 import tk.glucodata.data.journal.JournalCurvePoint
@@ -128,7 +125,9 @@ import tk.glucodata.data.journal.normalizeJournalCurvePoints
 import tk.glucodata.data.journal.serializeJournalCurve
 import tk.glucodata.ui.alerts.AddCustomAlertButton
 import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.ColorSwatchButton
 import tk.glucodata.ui.components.CompactSheetDragHandle
+import tk.glucodata.ui.components.ExpressiveHueWheelPicker
 import tk.glucodata.ui.components.MasterSwitchCard
 import tk.glucodata.ui.components.SectionLabel
 import tk.glucodata.ui.components.SettingsItem
@@ -217,17 +216,46 @@ fun JournalSettingsScreen(
                 )
             }
 
-            item(key = "journal_nav_tab") {
-                SettingsSwitchItem(
-                    title = stringResource(R.string.journal_show_tab_title),
-                    subtitle = stringResource(R.string.journal_show_tab_desc),
-                    checked = journalNavigationTabEnabled,
-                    onCheckedChange = { viewModel.setJournalNavigationTabEnabled(it) },
-                    icon = Icons.Default.EditNote,
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    position = CardPosition.SINGLE,
-                    enabled = journalEnabled
-                )
+            item(key = "journal_access_group") {
+                val showCurrentTimeOption = journalEnabled && journalDashboardQuickAddButton
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.journal_show_tab_title),
+                        subtitle = stringResource(R.string.journal_show_tab_desc),
+                        checked = journalNavigationTabEnabled,
+                        onCheckedChange = { viewModel.setJournalNavigationTabEnabled(it) },
+                        icon = Icons.Default.EditNote,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        position = CardPosition.TOP,
+                        enabled = journalEnabled
+                    )
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.journal_dashboard_quickadd_title),
+                        subtitle = stringResource(R.string.journal_dashboard_quickadd_desc),
+                        checked = journalDashboardQuickAddButton,
+                        onCheckedChange = { viewModel.setJournalDashboardQuickAddButton(it) },
+                        icon = Icons.Default.Add,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        position = if (showCurrentTimeOption) CardPosition.MIDDLE else CardPosition.BOTTOM,
+                        enabled = journalEnabled
+                    )
+                    AnimatedVisibility(
+                        visible = showCurrentTimeOption,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        SettingsSwitchItem(
+                            title = stringResource(R.string.journal_quickadd_always_now_title),
+                            subtitle = stringResource(R.string.journal_quickadd_always_now_desc),
+                            checked = journalQuickAddAlwaysNow,
+                            onCheckedChange = { viewModel.setJournalQuickAddAlwaysNow(it) },
+                            icon = Icons.Default.History,
+                            iconTint = MaterialTheme.colorScheme.secondary,
+                            position = CardPosition.BOTTOM,
+                            enabled = journalEnabled
+                        )
+                    }
+                }
             }
             item(key = "open_journal") {
                 JournalActionRow(
@@ -236,30 +264,6 @@ fun JournalSettingsScreen(
                             if (journalNavigationTabEnabled) "journal" else "settings/journal/history"
                         )
                     }
-                )
-            }
-            item(key = "journal_quickadd_always_now") {
-                SettingsSwitchItem(
-                    title = stringResource(R.string.journal_quickadd_always_now_title),
-                    subtitle = stringResource(R.string.journal_quickadd_always_now_desc),
-                    checked = journalQuickAddAlwaysNow,
-                    onCheckedChange = { viewModel.setJournalQuickAddAlwaysNow(it) },
-                    icon = Icons.Default.History,
-                    iconTint = MaterialTheme.colorScheme.secondary,
-                    position = CardPosition.SINGLE,
-                    enabled = journalEnabled
-                )
-            }
-            item(key = "journal_dashboard_quickadd") {
-                SettingsSwitchItem(
-                    title = stringResource(R.string.journal_dashboard_quickadd_title),
-                    subtitle = stringResource(R.string.journal_dashboard_quickadd_desc),
-                    checked = journalDashboardQuickAddButton,
-                    onCheckedChange = { viewModel.setJournalDashboardQuickAddButton(it) },
-                    icon = Icons.Default.Add,
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    position = CardPosition.SINGLE,
-                    enabled = journalEnabled
                 )
             }
             item(key = "journal_intelligence") {
@@ -1375,19 +1379,10 @@ private fun JournalFoodSheet(
                             .weight(1f)
                             .widthIn(min = 0.dp)
                     )
-                    FilledTonalIconButton(
+                    ColorSwatchButton(
+                        color = Color(draft.accentColor),
                         onClick = { showColorDialog = true },
-                        modifier = Modifier.size(56.dp),
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                        )
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(22.dp),
-                            shape = CircleShape,
-                            color = Color(draft.accentColor)
-                        ) {}
-                    }
+                    )
                 }
             }
 
@@ -2399,7 +2394,7 @@ private fun PresetColorDialog(
                     shape = CircleShape,
                     color = Color(composedColor)
                 ) {}
-                HueWheelPicker(
+                ExpressiveHueWheelPicker(
                     hue = colorState.hue,
                     onHueChange = { hue -> colorState = colorState.copy(hue = hue) }
                 )
@@ -2511,78 +2506,6 @@ private fun ColorControlRow(
         Box(modifier = Modifier.weight(1f)) {
             content()
         }
-    }
-}
-
-@Composable
-private fun HueWheelPicker(
-    hue: Float,
-    onHueChange: (Float) -> Unit
-) {
-    val sweepColors = remember {
-        listOf(
-            Color(0xFFFF1744),
-            Color(0xFFFF9100),
-            Color(0xFFFFEA00),
-            Color(0xFF00E676),
-            Color(0xFF00B0FF),
-            Color(0xFF651FFF),
-            Color(0xFFFF1744)
-        )
-    }
-    val handleHaloColor = MaterialTheme.colorScheme.surface
-
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(176.dp)
-            .pointerInput(Unit) {
-                fun updateHue(offset: Offset) {
-                    val centerX = size.width / 2f
-                    val centerY = size.height / 2f
-                    val angle = Math.toDegrees(
-                        atan2((offset.y - centerY).toDouble(), (offset.x - centerX).toDouble())
-                    ).toFloat()
-                    onHueChange(((angle + 450f) % 360f))
-                }
-
-                detectTapGestures(onTap = ::updateHue)
-            }
-            .pointerInput(Unit) {
-                detectDragGestures { change, _ ->
-                    change.consume()
-                    val centerX = size.width / 2f
-                    val centerY = size.height / 2f
-                    val angle = Math.toDegrees(
-                        atan2((change.position.y - centerY).toDouble(), (change.position.x - centerX).toDouble())
-                    ).toFloat()
-                    onHueChange(((angle + 450f) % 360f))
-                }
-            }
-    ) {
-        val ringWidth = 22.dp.toPx()
-        val radius = (size.minDimension / 2f) - ringWidth
-        drawCircle(
-            brush = Brush.sweepGradient(sweepColors),
-            radius = radius,
-            style = Stroke(width = ringWidth, cap = StrokeCap.Round)
-        )
-
-        val angleRadians = Math.toRadians((hue - 90f).toDouble())
-        val handleCenter = Offset(
-            x = center.x + (cos(angleRadians) * radius).toFloat(),
-            y = center.y + (sin(angleRadians) * radius).toFloat()
-        )
-        drawCircle(
-            color = handleHaloColor,
-            radius = 12.dp.toPx(),
-            center = handleCenter
-        )
-        drawCircle(
-            color = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f))),
-            radius = 8.dp.toPx(),
-            center = handleCenter
-        )
     }
 }
 

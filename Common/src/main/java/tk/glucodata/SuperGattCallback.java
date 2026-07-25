@@ -594,7 +594,11 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                         talker.selspeak(Applic.app.getString(R.string.tts_missed_readings));
                     }
                 } else {
-                    talker.selspeak(sglucose.value);
+                    // Speak the calibrated display value (same source as the display,
+                    // notifications, and alarm speech) rather than the raw native value.
+                    final CurrentDisplaySource.Snapshot speakcurrent =
+                            CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
+                    talker.selspeak(speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
                 }
             }
         }

@@ -1,13 +1,11 @@
-// JugglucoNG — Ottai (Chinese-market CGM) driver
-// OttaiNfc.kt — DEBUG ISO15693 (NfcV) memory dumper.
+// JugglucoNG — Ottai CGM driver
+// OttaiNfc.kt — read-only NFC wake detection and diagnostics.
 //
-// Ottai is a Sinocare OEM whose CGM is an ISO15693 (NFC Type V) tag. A virgin
-// sensor stays BLE-dormant until an NFC "activation/wake" write; we don't yet
-// know that vendor command. This dumper uses ONLY the standard, read-only
-// ISO15693 commands — Get System Info (0x2B) and Read Single Block (0x20) — so it
-// can never change sensor state. It dumps UID + system info + full block memory
-// to logcat (tag "OttaiNfc") so we can read the sensor's true state/layout and
-// work out the activation write.
+// Ottai generations expose different NFC technologies. Some Chinese sensors
+// expose only raw NFC-A: presenting the RF field wakes them, but Android offers
+// no standard memory interface to read. Never send an undocumented transceive
+// command here; detecting the supported tag technology is sufficient to tell
+// the setup flow that the wake tap happened.
 //
 // Enabled only while the setup wizard's "NFC dump" mode is on; otherwise taps
 // fall straight through to the normal (Libre) NFC handler in MainActivity.
@@ -17,39 +15,121 @@ package tk.glucodata.drivers.ottai
 import android.nfc.Tag
 import android.nfc.tech.MifareUltralight
 import android.nfc.tech.NfcV
+import android.os.SystemClock
+import tk.glucodata.Applic
 import tk.glucodata.Log
 
 object OttaiNfc {
     private const val TAG = "OttaiNfc"
+    // Some Android NFC stacks dispatch the same physical tap to the generic
+    // foreground handler several seconds after the reader-mode callback.
+    private const val CONSUMED_TAG_WINDOW_MS = 30_000L
+    private const val NFC_A_TECH = "android.nfc.tech.NfcA"
+    private const val NFC_V_TECH = "android.nfc.tech.NfcV"
+    private const val MIFARE_ULTRALIGHT_TECH = "android.nfc.tech.MifareUltralight"
+
+    internal enum class WakeInterface {
+        NFC_V,
+        MIFARE_ULTRALIGHT,
+        NFC_A_FIELD_ONLY,
+        UNSUPPORTED,
+    }
+
+    data class Result(
+        val details: String,
+        val wakeDetected: Boolean,
+    )
 
     /** When true, MainActivity.startnfc routes the tag here instead of to Libre. */
     @Volatile var dumpMode: Boolean = false
 
     /** Last dump text + an optional UI callback (set by the wizard). */
     @Volatile var lastDump: String? = null
-    @Volatile var onResult: ((String) -> Unit)? = null
+    @Volatile var onResult: ((Result) -> Unit)? = null
+    @Volatile private var consumedTagId: String? = null
+    @Volatile private var consumeTagUntilMs: Long = 0L
+    @Volatile private var wakeHapticPending: Boolean = false
+    @Volatile private var activationSensorId: String? = null
 
-    /** Returns true if the tap was consumed (dump mode active). */
+    fun armForSetup() {
+        dumpMode = true
+    }
+
+    fun armForActivationRetry(sensorId: String) {
+        activationSensorId = OttaiConstants.canonicalSensorId(sensorId)
+        dumpMode = true
+    }
+
+    fun disarmActivationRetry(sensorId: String) {
+        val canonical = OttaiConstants.canonicalSensorId(sensorId)
+        if (activationSensorId.equals(canonical, ignoreCase = true)) {
+            activationSensorId = null
+            dumpMode = false
+        }
+    }
+
+    @JvmStatic
+    fun consumeWakeHaptic(): Boolean {
+        if (!wakeHapticPending) return false
+        wakeHapticPending = false
+        return true
+    }
+
+    /** Returns true if the tag belongs to the active/recent Ottai wake flow. */
     @JvmStatic
     fun onTag(tag: Tag): Boolean {
-        if (!dumpMode) return false
-        val dump = runCatching { dump(tag) }.getOrElse { "NFC dump error: $it" }
-        lastDump = dump
-        Log.i(TAG, "\n$dump")
-        runCatching { onResult?.invoke(dump) }
+        val tagId = hex(tag.id)
+        if (!dumpMode) {
+            return tagId == consumedTagId && SystemClock.elapsedRealtime() <= consumeTagUntilMs
+        }
+        val wakeInterface = classifyTechs(tag.techList)
+        val details = runCatching { dump(tag, wakeInterface) }
+            .getOrElse { "NFC inspection error: $it" }
+        val result = Result(details, wakeInterface != WakeInterface.UNSUPPORTED)
+        if (result.wakeDetected) {
+            consumedTagId = tagId
+            consumeTagUntilMs = SystemClock.elapsedRealtime() + CONSUMED_TAG_WINDOW_MS
+            wakeHapticPending = true
+            dumpMode = false
+            activationSensorId?.let { sensorId ->
+                activationSensorId = null
+                Applic.app?.let { OttaiNfcWakeReminder.cancel(it, sensorId) }
+            }
+        }
+        lastDump = details
+        Log.i(TAG, "\n$details")
+        runCatching { onResult?.invoke(result) }
         return true
+    }
+
+    internal fun classifyTechs(techs: Array<String>): WakeInterface = when {
+        techs.contains(NFC_V_TECH) -> WakeInterface.NFC_V
+        techs.contains(MIFARE_ULTRALIGHT_TECH) -> WakeInterface.MIFARE_ULTRALIGHT
+        techs.contains(NFC_A_TECH) -> WakeInterface.NFC_A_FIELD_ONLY
+        else -> WakeInterface.UNSUPPORTED
     }
 
     private fun hex(b: ByteArray?): String =
         b?.joinToString("") { "%02x".format(it.toInt() and 0xff) } ?: "null"
 
-    /** ISO15693 read-only dump. Tries non-addressed mode, falls back to addressed. */
-    private fun dump(tag: Tag): String {
+    private fun dump(tag: Tag, wakeInterface: WakeInterface): String {
         val sb = StringBuilder()
         val uid = tag.id
         sb.append("UID=").append(hex(uid))
             .append("  techs=").append(tag.techList.joinToString(",")).append('\n')
-        val nfcv = NfcV.get(tag) ?: return dumpMifareUltralight(sb, tag)
+        return when (wakeInterface) {
+            WakeInterface.NFC_V -> dumpNfcV(sb, tag, uid)
+            WakeInterface.MIFARE_ULTRALIGHT -> dumpMifareUltralight(sb, tag)
+            WakeInterface.NFC_A_FIELD_ONLY -> sb.append(
+                "NFC-A wake field detected; no standard readable memory interface exposed",
+            ).toString()
+            WakeInterface.UNSUPPORTED -> sb.append("unsupported NFC technology").toString()
+        }
+    }
+
+    /** ISO15693 read-only dump. Tries non-addressed mode, falls back to addressed. */
+    private fun dumpNfcV(sb: StringBuilder, tag: Tag, uid: ByteArray): String {
+        val nfcv = NfcV.get(tag) ?: return sb.append("NfcV interface unavailable").toString()
         nfcv.connect()
         try {
             sb.append("maxTransceive=").append(nfcv.maxTransceiveLength)
@@ -86,9 +166,10 @@ object OttaiNfc {
         return sb.toString()
     }
 
-    /** Ottai V1.5 (M8) sensors are Mifare Ultralight (ISO14443-A). Dump all pages. */
+    /** Some Ottai M8 sensors expose Mifare Ultralight. Dump all readable pages. */
     private fun dumpMifareUltralight(sb: StringBuilder, tag: Tag): String {
-        val mu = MifareUltralight.get(tag) ?: return sb.append("not NfcV nor MifareUltralight").toString()
+        val mu = MifareUltralight.get(tag)
+            ?: return sb.append("MifareUltralight interface unavailable").toString()
         mu.connect()
         try {
             val maxPages = when (mu.type) {

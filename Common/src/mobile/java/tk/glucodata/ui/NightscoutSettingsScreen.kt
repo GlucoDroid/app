@@ -142,6 +142,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
     var url by rememberSaveable { mutableStateOf(Natives.getnightuploadurl() ?: "") }
     var secret by rememberSaveable { mutableStateOf(Natives.getnightuploadsecret() ?: "") }
     var sendTreatments by rememberSaveable { mutableStateOf(Natives.getpostTreatments()) }
+    var sendLongInsulin by rememberSaveable { mutableStateOf(JournalTreatmentUploader.getSendLongInsulin()) }
     var receiveTreatments by rememberSaveable { mutableStateOf(JournalTreatmentUploader.getReceiveTreatments()) }
     var isV3 by rememberSaveable { mutableStateOf(Natives.getnightscoutV3()) }
     var showSecret by rememberSaveable { mutableStateOf(false) }
@@ -166,6 +167,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
     fun persistSettings() {
         Natives.setNightUploader(url.trim(), secret.trim(), mode == NightscoutMode.UPLOAD, isV3)
         Natives.setpostTreatments(sendTreatments)
+        JournalTreatmentUploader.setSendLongInsulin(sendLongInsulin)
         JournalTreatmentUploader.setReceiveTreatments(receiveTreatments)
         NightscoutFollowerRegistry.saveConfig(context, mode == NightscoutMode.FOLLOW, url, secret)
     }
@@ -558,6 +560,20 @@ fun NightscoutSettingsScreen(navController: NavController) {
                             icon = Icons.Default.Link,
                             iconTint = MaterialTheme.colorScheme.secondary,
                             enabled = mode != NightscoutMode.OFF,
+                            position = CardPosition.MIDDLE
+                        )
+                        SettingsSwitchItem(
+                            title = stringResource(R.string.nightscout_send_long_insulin),
+                            subtitle = stringResource(R.string.nightscout_send_long_insulin_desc),
+                            checked = sendLongInsulin,
+                            onCheckedChange = {
+                                sendLongInsulin = it
+                                JournalTreatmentUploader.setSendLongInsulin(it)
+                                if (it) Natives.wakeuploader()
+                            },
+                            icon = Icons.Default.Medication,
+                            iconTint = MaterialTheme.colorScheme.tertiary,
+                            enabled = sendTreatments,
                             position = CardPosition.MIDDLE
                         )
                         SettingsSwitchItem(

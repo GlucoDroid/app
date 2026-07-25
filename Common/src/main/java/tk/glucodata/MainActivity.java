@@ -935,8 +935,15 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
     synchronized void startnfc(Tag tag) {
         // Ottai debug ISO15693 dump (read-only): consumes the tap only when the
         // setup wizard's NFC-dump mode is active; otherwise falls through to Libre.
-        if (tk.glucodata.drivers.ottai.OttaiNfc.onTag(tag))
+        if (tk.glucodata.drivers.ottai.OttaiNfc.onTag(tag)) {
+            if (tk.glucodata.drivers.ottai.OttaiNfc.consumeWakeHaptic()) {
+                final int feedback = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                        ? android.view.HapticFeedbackConstants.CONFIRM
+                        : android.view.HapticFeedbackConstants.KEYBOARD_TAP;
+                runOnUiThread(() -> getWindow().getDecorView().performHapticFeedback(feedback));
+            }
             return;
+        }
         long nu = System.currentTimeMillis();
         if (nu < nexttime)
             return;
