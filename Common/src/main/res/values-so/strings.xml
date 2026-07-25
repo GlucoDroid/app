@@ -2395,7 +2395,6 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="stats_metric_none">Midna</string>
     <string name="stats_metric_readings">%1$d akhris</string>
     <string name="stats_metrics_all_hidden">Dhammaan cabbirada waa qarsoon yihiin. Kaga soo celi Habaynta.</string>
-    <string name="stats_vs_previous">%1$s dhibcood marka loo eego %2$s hore (waxay ahayd %3$d%%)</string>
     <string name="stats_period_day">maalintii</string>
     <string name="stats_period_days">%1$d maalmood</string>
     <string name="stats_period_generic">muddada</string>
@@ -2412,6 +2411,12 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="stats_custom_range_title">Muddo aad dooratay</string>
     <string name="stats_custom_range_hint">Taabo maalin, ama mid labaad si aad u hesho xadhig.</string>
     <string name="stats_apply_range">Codso</string>
-    <string name="stats_pinned_last_24h">24-kii saacadood ee u dambeeyay</string>
     <string name="stats_span_days">%1$d maalmood</string>
+    <string name="gri_short">GRI</string>
+    <string name="stats_window_label">Muddo</string>
+    <string name="stats_window_6h">6 saac</string>
+    <string name="stats_window_12h">12 saac</string>
+    <string name="stats_window_24h">24 saac</string>
+    <string name="stats_window_7d">7 mln</string>
+    <string name="stats_arrange_width">Bar ama ballaadh buuxa</string>
 </resources>

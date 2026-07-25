@@ -39,17 +39,37 @@ class StatsLayoutTests {
     }
 
     @Test
-    fun theDefaultMetricSetIsTheFourPeopleReadFirst() {
+    fun everyMetricIsOnByDefault() {
         val visible = StatsLayoutState().visibleMetrics
-        assertEquals(
-            listOf(
-                StatsMetric.AVERAGE,
-                StatsMetric.GMI,
-                StatsMetric.CV,
-                StatsMetric.TIGHT_RANGE
-            ),
-            visible
+        assertEquals(StatsMetric.entries.size, visible.size)
+        assertEquals(StatsMetric.AVERAGE, visible.first())
+    }
+
+    @Test
+    fun onlyTheFirstThreeRowsShowBeforeTheDisclosure() {
+        val rows = packMetricRows(StatsLayoutState().visibleMetrics, emptySet())
+        val head = rows.take(StatsMetric.DEFAULT_VISIBLE_ROWS)
+            .flatMap { listOfNotNull(it.first, it.second) }
+        assertEquals(6, head.size)
+        assertEquals(StatsMetric.AVERAGE, head.first())
+    }
+
+    @Test
+    fun aTrailingMetricWidensInsteadOfLeavingAHole() {
+        val rows = packMetricRows(listOf(StatsMetric.AVERAGE, StatsMetric.GMI, StatsMetric.CV), emptySet())
+        assertEquals(2, rows.size)
+        assertEquals(StatsMetric.CV to null, rows.last())
+    }
+
+    @Test
+    fun aWideMetricTakesItsOwnRowAndTheRestRepack() {
+        val rows = packMetricRows(
+            listOf(StatsMetric.AVERAGE, StatsMetric.GMI, StatsMetric.CV, StatsMetric.MEDIAN),
+            setOf(StatsMetric.GMI)
         )
+        assertEquals(StatsMetric.AVERAGE to null, rows[0])
+        assertEquals(StatsMetric.GMI to null, rows[1])
+        assertEquals(StatsMetric.CV to StatsMetric.MEDIAN, rows[2])
     }
 
     @Test
@@ -61,12 +81,7 @@ class StatsLayoutTests {
     }
 
     @Test
-    fun onlyPinnableMetricsCanReachTheDashboard() {
-        // Anything whose value needs a paragraph of explanation stays off the dashboard.
-        assertTrue(StatsMetric.TIME_IN_RANGE.pinnable)
-        assertTrue(StatsMetric.AVERAGE.pinnable)
-        assertTrue(!StatsMetric.GVI.pinnable)
-        assertTrue(!StatsMetric.PSG.pinnable)
-        assertTrue(!StatsMetric.LBGI.pinnable)
+    fun theDashboardStripHoldsThreeMetricsBesideThePeriodControl() {
+        assertEquals(3, StatsLayoutStore.MAX_DASHBOARD_METRICS)
     }
 }

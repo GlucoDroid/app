@@ -3,8 +3,11 @@ package tk.glucodata.ui.stats
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +23,8 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.WidthFull
+import androidx.compose.material.icons.filled.WidthNormal
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,10 +32,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +60,7 @@ import tk.glucodata.R
 import kotlin.math.roundToInt
 
 private val EditorRowHeight = 56.dp
+private val EditorRowSpacing = 4.dp
 
 /**
  * Arrange mode.
@@ -129,7 +137,11 @@ internal fun StatsLayoutEditor(
                 dragging = dragging,
                 handle = handle,
                 pinned = metric in layout.dashboardMetrics,
-                pinnable = metric.pinnable,
+                pinnable = true,
+                wide = metric in layout.wideMetrics,
+                onToggleWide = {
+                    StatsLayoutStore.setMetricWide(metric, metric !in layout.wideMetrics)
+                },
                 onTogglePinned = {
                     val accepted = StatsLayoutStore.setPinnedToDashboard(
                         metric,
@@ -165,9 +177,13 @@ private fun EditorSectionLabel(text: String) {
 }
 
 /**
- * Uniform-height drag reordering. Because every row is exactly [EditorRowHeight], the
- * drop target is just the accumulated offset divided by that height — no layout
- * inspection, no guessing at partially visible items.
+ * Uniform-height drag reordering.
+ *
+ * The list order is left alone for the whole gesture: the held row is translated by the
+ * drag, and the rows it passes slide one slot the other way. The first version mutated
+ * the list mid-drag while also translating the held row, so the row was displaced twice
+ * and landed on top of its neighbour, and committing to the store reset the state the
+ * gesture was still using — which is why it stuck.
  */
 @Composable
 private fun <T> ReorderableRows(
@@ -177,43 +193,64 @@ private fun <T> ReorderableRows(
 ) {
     val density = LocalDensity.current
     val view = LocalView.current
-    val rowHeightPx = with(density) { EditorRowHeight.toPx() }
-    var working by remember(items) { mutableStateOf(items) }
-    var dragIndex by remember(items) { mutableStateOf<Int?>(null) }
+    val pitchPx = with(density) { (EditorRowHeight + EditorRowSpacing).toPx() }
+    var dragFrom by remember(items) { mutableStateOf<Int?>(null) }
     var dragOffset by remember(items) { mutableFloatStateOf(0f) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        working.forEachIndexed { index, item ->
-            val dragging = index == dragIndex
-            val handle = Modifier.pointerInput(working, index) {
+    val from = dragFrom
+    val dragTo = if (from == null) {
+        null
+    } else {
+        (from + (dragOffset / pitchPx).roundToInt()).coerceIn(0, items.lastIndex)
+    }
+    // Nudge the row the drag last crossed, so the gap tracks the finger.
+    var lastCrossed by remember(items) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(dragTo) {
+        if (dragTo != null && dragTo != lastCrossed) {
+            lastCrossed = dragTo
+            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(EditorRowSpacing)) {
+        items.forEachIndexed { index, item ->
+            val dragging = index == from
+            val shift = when {
+                from == null || dragTo == null || dragging -> 0f
+                from < dragTo && index in (from + 1)..dragTo -> -pitchPx
+                from > dragTo && index in dragTo until from -> pitchPx
+                else -> 0f
+            }
+            val animatedShift by animateFloatAsState(
+                targetValue = shift,
+                label = "reorderShift"
+            )
+            val handle = Modifier.pointerInput(items, index) {
                 detectDragGestures(
                     onDragStart = {
-                        dragIndex = index
+                        dragFrom = index
                         dragOffset = 0f
+                        lastCrossed = index
                         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                     },
                     onDragEnd = {
-                        dragIndex = null
+                        val start = dragFrom
+                        val target = dragTo
+                        dragFrom = null
                         dragOffset = 0f
-                        onReordered(working)
+                        lastCrossed = null
+                        if (start != null && target != null && start != target) {
+                            onReordered(items.moved(start, target))
+                        }
                     },
                     onDragCancel = {
-                        dragIndex = null
+                        dragFrom = null
                         dragOffset = 0f
-                        working = items
+                        lastCrossed = null
                     }
                 ) { change, amount ->
                     change.consume()
                     dragOffset += amount.y
-                    val from = dragIndex ?: return@detectDragGestures
-                    val steps = (dragOffset / (rowHeightPx + 4f)).roundToInt()
-                    if (steps == 0) return@detectDragGestures
-                    val to = (from + steps).coerceIn(0, working.lastIndex)
-                    if (to == from) return@detectDragGestures
-                    working = working.moved(from, to)
-                    dragOffset -= (to - from) * (rowHeightPx + 4f)
-                    dragIndex = to
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 }
             }
             Box(
@@ -222,7 +259,7 @@ private fun <T> ReorderableRows(
                     .height(EditorRowHeight)
                     .zIndex(if (dragging) 1f else 0f)
                     .graphicsLayer {
-                        translationY = if (dragging) dragOffset else 0f
+                        translationY = if (dragging) dragOffset else animatedShift
                     }
             ) {
                 row(item, dragging, handle)
@@ -240,7 +277,9 @@ private fun EditorRow(
     onToggleHidden: () -> Unit,
     pinned: Boolean = false,
     pinnable: Boolean = false,
-    onTogglePinned: () -> Unit = {}
+    onTogglePinned: () -> Unit = {},
+    wide: Boolean? = null,
+    onToggleWide: () -> Unit = {}
 ) {
     val container by animateColorAsState(
         targetValue = if (dragging) {
@@ -284,6 +323,20 @@ private fun EditorRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        if (wide != null) {
+            IconButton(onClick = onToggleWide) {
+                Icon(
+                    imageVector = if (wide) Icons.Default.WidthFull else Icons.Default.WidthNormal,
+                    contentDescription = stringResource(R.string.stats_arrange_width),
+                    tint = if (wide) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    },
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
         if (pinnable) {
             IconButton(onClick = onTogglePinned) {
                 Icon(
@@ -338,33 +391,90 @@ internal fun StatsEditLayoutButton(
 }
 
 /**
- * Long press that enters arrange mode without stealing anything from the card.
+ * Inline card dragging.
  *
- * `detectTapGestures` consumes the down event, which would have killed every tap and
- * scrub inside the cards — the TIR rows, the AGP chart, the calendar squares. This
- * watches the Initial pass instead, consumes nothing, and gives up the moment a child
- * consumes the gesture or the finger travels past touch slop.
+ * Long press a card and it lifts where it stands; the cards it passes slide out of the
+ * way and the new order is committed as you cross each one, so releasing just drops it.
+ * `detectDragGesturesAfterLongPress` gives up the gesture the moment a child consumes
+ * it or the finger moves before the press completes, so chart scrubbing, TIR rows and
+ * calendar squares all keep working underneath.
  */
-internal fun Modifier.longPressToArrange(onArrange: () -> Unit): Modifier = pointerInput(Unit) {
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-        var stillHeld = true
-        val fired = try {
-            withTimeout(viewConfiguration.longPressTimeoutMillis) {
-                while (stillHeld) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    val change = event.changes.firstOrNull { it.id == down.id }
-                    if (change == null || !change.pressed || change.isConsumed ||
-                        (change.position - down.position).getDistance() > viewConfiguration.touchSlop
-                    ) {
-                        stillHeld = false
-                    }
-                }
-            }
-            false
-        } catch (_: PointerEventTimeoutCancellationException) {
-            stillHeld
-        }
-        if (fired) onArrange()
+internal class StatsCardDragState(
+    private val listState: LazyListState,
+    private val orderOf: () -> List<StatsCard>,
+    private val onReordered: (List<StatsCard>) -> Unit
+) {
+    var dragging by mutableStateOf<StatsCard?>(null)
+        private set
+    var offset by mutableFloatStateOf(0f)
+        private set
+
+    fun start(card: StatsCard) {
+        dragging = card
+        offset = 0f
+    }
+
+    fun stop() {
+        dragging = null
+        offset = 0f
+    }
+
+    /** Returns true when the drag crossed into a new slot, so the caller can tick. */
+    fun onDrag(deltaY: Float): Boolean {
+        val card = dragging ?: return false
+        offset += deltaY
+        val info = listState.layoutInfo
+        val held = info.visibleItemsInfo.firstOrNull { it.key == card.name } ?: return false
+        val middle = held.offset + offset + held.size / 2f
+        val target = info.visibleItemsInfo.firstOrNull { item ->
+            item.key != card.name &&
+                (item.key as? String)?.let { key -> StatsCard.entries.any { it.name == key } } == true &&
+                middle.toInt() in item.offset..(item.offset + item.size)
+        } ?: return false
+        val targetCard = StatsCard.entries.firstOrNull { it.name == target.key } ?: return false
+
+        val order = orderOf()
+        val from = order.indexOf(card)
+        val to = order.indexOf(targetCard)
+        if (from < 0 || to < 0 || from == to) return false
+        onReordered(order.moved(from, to))
+        // Keep the held card under the finger now that its slot has changed.
+        offset += (held.offset - target.offset).toFloat()
+        return true
+    }
+}
+
+@Composable
+internal fun rememberStatsCardDragState(
+    listState: LazyListState,
+    order: List<StatsCard>,
+    onReordered: (List<StatsCard>) -> Unit
+): StatsCardDragState {
+    val latestOrder = rememberUpdatedState(order)
+    return remember(listState) {
+        StatsCardDragState(
+            listState = listState,
+            orderOf = { latestOrder.value },
+            onReordered = onReordered
+        )
+    }
+}
+
+internal fun Modifier.draggableStatsCard(
+    card: StatsCard,
+    state: StatsCardDragState,
+    onLift: () -> Unit,
+    onTick: () -> Unit
+): Modifier = pointerInput(card, state) {
+    detectDragGesturesAfterLongPress(
+        onDragStart = {
+            state.start(card)
+            onLift()
+        },
+        onDragEnd = { state.stop() },
+        onDragCancel = { state.stop() }
+    ) { change, amount ->
+        change.consume()
+        if (state.onDrag(amount.y)) onTick()
     }
 }

@@ -44,32 +44,32 @@ enum class StatsCard(@param:StringRes val titleResId: Int) {
 }
 
 /**
- * Individual numbers inside the metrics card. Order and visibility are the user's,
- * and a few can be pinned to the dashboard.
+ * Individual numbers inside the metrics card. All of them are on by default and any of
+ * them can be pinned to the dashboard; order, visibility and width are the user's.
  */
-enum class StatsMetric(
-    @param:StringRes val titleResId: Int,
-    val visibleByDefault: Boolean,
-    val pinnable: Boolean
-) {
-    TIME_IN_RANGE(R.string.tir, false, true),
-    AVERAGE(R.string.average_glucose, true, true),
-    GMI(R.string.a1c_gmi_label, true, true),
-    CV(R.string.cv, true, true),
-    TIGHT_RANGE(R.string.stats_tight_range, true, true),
-    MEDIAN(R.string.median, false, true),
-    IQR(R.string.report_iqr_short, false, false),
-    STD_DEV(R.string.std_dev_short, false, false),
-    LOW_EPISODES(R.string.episodes_lows, false, true),
-    HIGH_EPISODES(R.string.episodes_highs, false, true),
-    COVERAGE(R.string.stats_card_coverage, false, true),
-    LBGI(R.string.lbgi, false, false),
-    HBGI(R.string.hbgi, false, false),
-    GVI(R.string.gvi, false, false),
-    PSG(R.string.psg, false, false);
+enum class StatsMetric(@param:StringRes val titleResId: Int) {
+    AVERAGE(R.string.average_glucose),
+    GMI(R.string.a1c_gmi_label),
+    CV(R.string.cv),
+    TIGHT_RANGE(R.string.stats_tight_range),
+    MEDIAN(R.string.median),
+    IQR(R.string.report_iqr_short),
+    STD_DEV(R.string.std_dev_short),
+    TIME_IN_RANGE(R.string.tir),
+    LOW_EPISODES(R.string.episodes_lows),
+    HIGH_EPISODES(R.string.episodes_highs),
+    COVERAGE(R.string.stats_card_coverage),
+    GRI(R.string.gri_short),
+    LBGI(R.string.lbgi),
+    HBGI(R.string.hbgi),
+    GVI(R.string.gvi),
+    PSG(R.string.psg);
 
     companion object {
         val DEFAULT_ORDER = entries.toList()
+
+        /** Rows shown before the rest fold away behind the disclosure. */
+        const val DEFAULT_VISIBLE_ROWS = 3
     }
 }
 
@@ -77,7 +77,8 @@ data class StatsLayoutState(
     val cardOrder: List<StatsCard> = StatsCard.DEFAULT_ORDER,
     val hiddenCards: Set<StatsCard> = emptySet(),
     val metricOrder: List<StatsMetric> = StatsMetric.DEFAULT_ORDER,
-    val hiddenMetrics: Set<StatsMetric> = StatsMetric.entries.filterNot { it.visibleByDefault }.toSet(),
+    val hiddenMetrics: Set<StatsMetric> = emptySet(),
+    val wideMetrics: Set<StatsMetric> = emptySet(),
     val dashboardMetrics: List<StatsMetric> = emptyList()
 ) {
     val visibleCards: List<StatsCard> get() = cardOrder.filterNot { it in hiddenCards }
@@ -96,10 +97,15 @@ object StatsLayoutStore {
     private const val KEY_CARD_HIDDEN = "stats_layout_card_hidden"
     private const val KEY_METRIC_ORDER = "stats_layout_metric_order"
     private const val KEY_METRIC_HIDDEN = "stats_layout_metric_hidden"
+    private const val KEY_METRIC_WIDE = "stats_layout_metric_wide"
     private const val KEY_DASHBOARD = "stats_layout_dashboard_metrics"
 
-    /** Cap on pinned dashboard metrics — the dashboard is not a second stats screen. */
-    const val MAX_DASHBOARD_METRICS = 4
+    /**
+     * Cap on pinned dashboard metrics. The strip is one row and the period control
+     * takes the fourth slot, so three is what actually fits without shrinking the
+     * numbers past reading size.
+     */
+    const val MAX_DASHBOARD_METRICS = 3
 
     private val _state = MutableStateFlow(StatsLayoutState())
     val state: StateFlow<StatsLayoutState> = _state.asStateFlow()
@@ -136,9 +142,15 @@ object StatsLayoutStore {
         )
     }
 
+    /** Wide metrics take a whole row; the packer fills around them. */
+    fun setMetricWide(metric: StatsMetric, wide: Boolean) = update { current ->
+        current.copy(
+            wideMetrics = if (wide) current.wideMetrics + metric else current.wideMetrics - metric
+        )
+    }
+
     /** Returns false when the pin was rejected because the dashboard is already full. */
     fun setPinnedToDashboard(metric: StatsMetric, pinned: Boolean): Boolean {
-        if (!metric.pinnable) return false
         val current = _state.value
         if (pinned && current.dashboardMetrics.size >= MAX_DASHBOARD_METRICS &&
             metric !in current.dashboardMetrics
@@ -167,6 +179,7 @@ object StatsLayoutStore {
             ?.putString(KEY_CARD_HIDDEN, next.hiddenCards.joinToString(",") { it.name })
             ?.putString(KEY_METRIC_ORDER, next.metricOrder.joinToString(",") { it.name })
             ?.putString(KEY_METRIC_HIDDEN, next.hiddenMetrics.joinToString(",") { it.name })
+            ?.putString(KEY_METRIC_WIDE, next.wideMetrics.joinToString(",") { it.name })
             ?.putString(KEY_DASHBOARD, next.dashboardMetrics.joinToString(",") { it.name })
             ?.apply()
     }
@@ -178,8 +191,8 @@ object StatsLayoutStore {
             hiddenCards = readSet(store, KEY_CARD_HIDDEN, defaults.hiddenCards) { StatsCard.valueOf(it) },
             metricOrder = readOrder(store, KEY_METRIC_ORDER, StatsMetric.DEFAULT_ORDER) { StatsMetric.valueOf(it) },
             hiddenMetrics = readSet(store, KEY_METRIC_HIDDEN, defaults.hiddenMetrics) { StatsMetric.valueOf(it) },
+            wideMetrics = readSet(store, KEY_METRIC_WIDE, defaults.wideMetrics) { StatsMetric.valueOf(it) },
             dashboardMetrics = readOrder(store, KEY_DASHBOARD, emptyList()) { StatsMetric.valueOf(it) }
-                .filter { it.pinnable }
                 .take(MAX_DASHBOARD_METRICS)
         )
     }

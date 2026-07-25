@@ -2193,7 +2193,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_none">Aucun</string>
     <string name="stats_metric_readings">%1$d mesures</string>
     <string name="stats_metrics_all_hidden">Toutes les mesures sont masquées. Rétablissez-les depuis Organiser.</string>
-    <string name="stats_vs_previous">%1$s pts vs %2$s précédent (%3$d%% avant)</string>
     <string name="stats_period_day">jour</string>
     <string name="stats_period_days">%1$d jours</string>
     <string name="stats_period_generic">période</string>
@@ -2210,6 +2209,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_custom_range_title">Période personnalisée</string>
     <string name="stats_custom_range_hint">Touchez un jour, ou un second pour une plage.</string>
     <string name="stats_apply_range">Appliquer</string>
-    <string name="stats_pinned_last_24h">Dernières 24 heures</string>
     <string name="stats_span_days">%1$d jours</string>
+    <string name="gri_short">GRI</string>
+    <string name="stats_window_label">Période</string>
+    <string name="stats_window_6h">6 h</string>
+    <string name="stats_window_12h">12 h</string>
+    <string name="stats_window_24h">24 h</string>
+    <string name="stats_window_7d">7 j</string>
+    <string name="stats_arrange_width">Demi ou pleine largeur</string>
 </resources>

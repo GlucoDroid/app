@@ -2222,7 +2222,6 @@
     <string name="stats_metric_none">Brak</string>
     <string name="stats_metric_readings">%1$d odczytów</string>
     <string name="stats_metrics_all_hidden">Wszystkie wskaźniki są ukryte. Przywróć je w Rozmieść.</string>
-    <string name="stats_vs_previous">%1$s pkt wobec poprzedniego %2$s (było %3$d%%)</string>
     <string name="stats_period_day">dnia</string>
     <string name="stats_period_days">%1$d dni</string>
     <string name="stats_period_generic">okresu</string>
@@ -2239,6 +2238,12 @@
     <string name="stats_custom_range_title">Własny okres</string>
     <string name="stats_custom_range_hint">Dotknij dnia, a drugiego, aby wybrać zakres.</string>
     <string name="stats_apply_range">Zastosuj</string>
-    <string name="stats_pinned_last_24h">Ostatnie 24 godziny</string>
     <string name="stats_span_days">%1$d dni</string>
+    <string name="gri_short">GRI</string>
+    <string name="stats_window_label">Okres</string>
+    <string name="stats_window_6h">6 godz.</string>
+    <string name="stats_window_12h">12 godz.</string>
+    <string name="stats_window_24h">24 godz.</string>
+    <string name="stats_window_7d">7 dni</string>
+    <string name="stats_arrange_width">Pół lub pełna szerokość</string>
 </resources>

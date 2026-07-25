@@ -1748,6 +1748,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="insight_unstable_days_desc">%1$d days in this window had less than 50%% time in range.</string>
     <!-- Statistics: risk index -->
     <string name="gri_title">Glycemia Risk Index</string>
+    <string name="gri_short">GRI</string>
     <string name="gri_description">One score for the whole period, built from your own target bands. Lows weigh about three times as much as highs, so it follows the risk you feel rather than the average.</string>
     <string name="gri_zone_a">Zone A · lowest risk</string>
     <string name="gri_zone_b">Zone B</string>
@@ -1818,7 +1819,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_none">None</string>
     <string name="stats_metric_readings">%1$d readings</string>
     <string name="stats_metrics_all_hidden">Every metric is hidden. Add some back from Arrange.</string>
-    <string name="stats_vs_previous">%1$s pts vs previous %2$s (was %3$d%%)</string>
     <string name="stats_period_day">day</string>
     <string name="stats_period_days">%1$d days</string>
     <string name="stats_period_generic">period</string>
@@ -1831,11 +1831,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_arrange_reset">Reset to defaults</string>
     <string name="stats_arrange_drag">Reorder</string>
     <string name="stats_arrange_pin">Pin to Dashboard</string>
+    <string name="stats_arrange_width">Half or full width</string>
     <string name="stats_arrange_visibility">Show or hide</string>
     <string name="stats_custom_range_title">Custom range</string>
     <string name="stats_custom_range_hint">Tap a day, or a second day for a span.</string>
     <string name="stats_apply_range">Apply</string>
-    <string name="stats_pinned_last_24h">Last 24 hours</string>
+    <string name="stats_window_label">Window</string>
+    <string name="stats_window_6h">6 h</string>
+    <string name="stats_window_12h">12 h</string>
+    <string name="stats_window_24h">24 h</string>
+    <string name="stats_window_7d">7 d</string>
     <!-- Statistics: findings -->
     <string name="stats_finding_coverage">Sensor gaps</string>
     <string name="stats_finding_coverage_desc">CGM active %1$d%% of this period. The numbers describe only the time with readings.</string>

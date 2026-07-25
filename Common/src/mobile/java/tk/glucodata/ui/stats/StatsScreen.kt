@@ -62,11 +62,14 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -110,6 +113,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -227,6 +231,13 @@ fun StatsScreen(
     LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
     val layout by StatsLayoutStore.state.collectAsState()
     var editingLayout by rememberSaveable { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val visibleCards = layout.visibleCards.filter { card -> cardHasContent(card, uiState) }
+    val cardDrag = rememberStatsCardDragState(
+        listState = listState,
+        order = layout.cardOrder,
+        onReordered = StatsLayoutStore::setCardOrder
+    )
     var selectedTirBand by remember(uiState.summary.tir) { mutableStateOf<TirBand?>(null) }
     // Keyed on the window, not on the data: a new reading must not slam the day sheet shut.
     var selectedDayDate by remember(uiState.activeRange) { mutableStateOf<java.time.LocalDate?>(null) }
@@ -310,10 +321,11 @@ fun StatsScreen(
         val showLoadingPlaceholder = uiState.isLoading && uiState.summary.readingCount == 0
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp)
         ) {
-            item {
+            item(key = "header") {
                 HeaderBlock(onShareClick = {
                     reportDaysInput = uiState.selectedRange?.days
                         ?.takeIf { it > 0 }
@@ -326,7 +338,7 @@ fun StatsScreen(
                 })
             }
 
-            item {
+            item(key = "range") {
                 Spacer(modifier = Modifier.height(4.dp))
                 StatsRangeSelectorControl(
                     selectedRange = uiState.selectedRange,
@@ -384,24 +396,37 @@ fun StatsScreen(
                     }
                 }
 
-                // Sections render in the user's own order; a long press on any of them
-                // drops the whole screen into arrange mode.
+                // Sections render in the user's own order. Long press lifts a card and
+                // drags it inline; the Arrange button opens the list editor instead.
                 items(
-                    items = layout.visibleCards.filter { card ->
-                        cardHasContent(card, uiState)
-                    },
+                    items = visibleCards,
                     key = { card -> card.name }
                 ) { card ->
+                    val isDragging = cardDrag.dragging == card
+                    val lift by animateFloatAsState(
+                        targetValue = if (isDragging) 1f else 0f,
+                        label = "cardLift"
+                    )
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .animateItem()
-                            .longPressToArrange {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                editingLayout = true
+                            .then(if (isDragging) Modifier else Modifier.animateItem())
+                            .zIndex(if (isDragging) 1f else 0f)
+                            .graphicsLayer {
+                                translationY = if (isDragging) cardDrag.offset else 0f
+                                scaleX = 1f + 0.02f * lift
+                                scaleY = 1f + 0.02f * lift
+                                shadowElevation = 12.dp.toPx() * lift
+                                alpha = 1f - 0.06f * lift
                             }
+                            .draggableStatsCard(
+                                card = card,
+                                state = cardDrag,
+                                onLift = { view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) },
+                                onTick = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
+                            )
                     ) {
-                        Spacer(modifier = Modifier.height(if (card == layout.visibleCards.first()) 16.dp else 20.dp))
+                        Spacer(modifier = Modifier.height(if (card == visibleCards.first()) 16.dp else 20.dp))
                         StatsCardContent(
                             card = card,
                             uiState = uiState,
@@ -696,6 +721,7 @@ private fun StatsCardContent(
 
         StatsCard.METRICS -> MetricsSection(
             metrics = layout.visibleMetrics,
+            wideMetrics = layout.wideMetrics,
             summary = uiState.summary,
             targets = uiState.targets,
             unit = uiState.unit
@@ -742,6 +768,7 @@ private fun StatsCardContent(
 @Composable
 private fun MetricsSection(
     metrics: List<StatsMetric>,
+    wideMetrics: Set<StatsMetric>,
     summary: StatsSummary,
     targets: StatsTargets,
     unit: GlucoseUnit
@@ -750,12 +777,71 @@ private fun MetricsSection(
         SectionEmptyLine(text = stringResource(R.string.stats_metrics_all_hidden))
         return
     }
-    MetricsGrid(
-        metrics = metrics,
-        summary = summary,
-        targets = targets,
-        unit = unit
-    )
+    var showAll by rememberSaveable { mutableStateOf(false) }
+    // Three rows is what fits before the screen turns into a spreadsheet; everything
+    // else stays one tap away rather than being switched off.
+    val rows = remember(metrics, wideMetrics) { packMetricRows(metrics, wideMetrics) }
+    val headRows = rows.take(StatsMetric.DEFAULT_VISIBLE_ROWS)
+    val tailRows = rows.drop(StatsMetric.DEFAULT_VISIBLE_ROWS)
+    val headMetrics = headRows.flatMap { listOfNotNull(it.first, it.second) }
+    val tailMetrics = tailRows.flatMap { listOfNotNull(it.first, it.second) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        MetricsGrid(
+            metrics = headMetrics,
+            wideMetrics = wideMetrics,
+            summary = summary,
+            targets = targets,
+            unit = unit
+        )
+
+        if (tailMetrics.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = showAll,
+                enter = fadeIn(tween(180)) + expandVertically(tween(240)),
+                exit = fadeOut(tween(140)) + shrinkVertically(tween(200))
+            ) {
+                MetricsGrid(
+                    metrics = tailMetrics,
+                    wideMetrics = wideMetrics,
+                    summary = summary,
+                    targets = targets,
+                    unit = unit
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { showAll = !showAll }
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (showAll) {
+                        stringResource(R.string.stats_fewer_metrics)
+                    } else {
+                        stringResource(R.string.stats_more_metrics)
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Icon(
+                    imageVector = if (showAll) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -1231,6 +1317,8 @@ private fun GlycemicOverviewCard(
                     ) {
                         OverviewRing(
                             tir = summary.tir,
+                            comparison = summary.comparison,
+                            periodLabel = previousPeriodLabel(selectedRange),
                             selectedBand = selectedBand,
                             onBandSelected = onBandSelected,
                             modifier = Modifier.size(ringSize)
@@ -1245,6 +1333,8 @@ private fun GlycemicOverviewCard(
                     ) {
                         OverviewRing(
                             tir = summary.tir,
+                            comparison = summary.comparison,
+                            periodLabel = previousPeriodLabel(selectedRange),
                             selectedBand = selectedBand,
                             onBandSelected = onBandSelected,
                             modifier = Modifier.size(ringSize)
@@ -1256,22 +1346,6 @@ private fun GlycemicOverviewCard(
                 }
             }
 
-            summary.comparison?.let { delta ->
-                if (abs(delta.inRangeDelta) >= 1f) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = stringResource(
-                            R.string.stats_vs_previous,
-                            formatSignedNumber(delta.inRangeDelta),
-                            previousPeriodLabel(selectedRange),
-                            delta.previous.inRangePercent.roundToInt()
-                        ),
-                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
-                        color = if (delta.inRangeDelta >= 0f) TirInRangeColor else TirHighColor,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-            }
         }
     }
 }
@@ -1290,6 +1364,8 @@ private fun previousPeriodLabel(selectedRange: StatsTimeRange?): String = when (
 @Composable
 private fun OverviewRing(
     tir: TimeInRangeBreakdown,
+    comparison: StatsComparison?,
+    periodLabel: String,
     selectedBand: TirBand?,
     onBandSelected: (TirBand?) -> Unit,
     modifier: Modifier = Modifier
@@ -1410,6 +1486,28 @@ private fun OverviewRing(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // The change against the previous period belongs on the number it describes,
+            // not on a line of its own below the card.
+            comparison?.takeIf { abs(it.inRangeDelta) >= 1f }?.let { delta ->
+                val rising = delta.inRangeDelta >= 0f
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    Icon(
+                        imageVector = if (rising) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        tint = if (rising) TirInRangeColor else TirHighColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "${abs(delta.inRangeDelta).roundToInt()} · $periodLabel",
+                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                        color = if (rising) TirInRangeColor else TirHighColor,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }

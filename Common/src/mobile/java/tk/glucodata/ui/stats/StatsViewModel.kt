@@ -1204,8 +1204,8 @@ class StatsViewModel : ViewModel() {
         } else {
             sortedValues[count / 2]
         }
-        val p25 = percentile(sortedValues, 0.25f)
-        val p75 = percentile(sortedValues, 0.75f)
+        val p25 = StatsAnalytics.percentile(sortedValues, 0.25f)
+        val p75 = StatsAnalytics.percentile(sortedValues, 0.75f)
 
         val min = sortedValues.first()
         val max = sortedValues.last()
@@ -1219,7 +1219,7 @@ class StatsViewModel : ViewModel() {
         val gmi = (3.31f + (0.02392f * avg)).coerceAtLeast(0f)
 
         // Use a sensor-neutral, noise-robust series for variability scores.
-        val variabilityHistory = toVariabilitySeries(history)
+        val variabilityHistory = StatsAnalytics.toVariabilitySeries(history)
         val variabilityValues = variabilityHistory.map { it.value }
         val variabilityAvg = if (variabilityValues.isNotEmpty()) {
             variabilityValues.average().toFloat()
@@ -1264,19 +1264,19 @@ class StatsViewModel : ViewModel() {
 
         val agp = calculateAgpByHour(history)
         val daily = calculateDailyStats(history, targetLow, targetHigh)
-        val gvi = calculateGvi(
+        val gvi = StatsAnalytics.calculateGvi(
             history = variabilityHistory,
             averageMgDl = variabilityAvg,
             stdDevMgDl = variabilityStdDev
         )
-        val psg = calculatePsg(
+        val psg = StatsAnalytics.calculatePsg(
             history = variabilityHistory,
             averageMgDl = avg,
             cvPercent = variabilityCv,
             targets = targets
         )
 
-        val chronological = sortedByTimestampIfNeeded(history)
+        val chronological = StatsAnalytics.sortedByTimestampIfNeeded(history)
         val coverage = StatsAnalytics.sensorCoverage(chronological, activeRange)
         val episodes = StatsAnalytics.detectEpisodes(chronological, targets)
         val windowDays = coverage.windowDays.coerceAtLeast(1f)
@@ -1357,11 +1357,11 @@ class StatsViewModel : ViewModel() {
                 val sorted = values.sorted()
                 AgpHourBin(
                     hour = hour,
-                    p10MgDl = percentile(sorted, 0.10f),
-                    p25MgDl = percentile(sorted, 0.25f),
-                    medianMgDl = percentile(sorted, 0.50f),
-                    p75MgDl = percentile(sorted, 0.75f),
-                    p90MgDl = percentile(sorted, 0.90f),
+                    p10MgDl = StatsAnalytics.percentile(sorted, 0.10f),
+                    p25MgDl = StatsAnalytics.percentile(sorted, 0.25f),
+                    medianMgDl = StatsAnalytics.percentile(sorted, 0.50f),
+                    p75MgDl = StatsAnalytics.percentile(sorted, 0.75f),
+                    p90MgDl = StatsAnalytics.percentile(sorted, 0.90f),
                     sampleCount = sorted.size
                 )
             }
@@ -1391,184 +1391,6 @@ class StatsViewModel : ViewModel() {
             }
     }
 
-    private fun calculateGvi(
-        history: List<GlucosePoint>,
-        averageMgDl: Float,
-        stdDevMgDl: Float
-    ): GviScore {
-        if (history.size < 2) return GviScore()
-
-        val sorted = sortedByTimestampIfNeeded(history)
-        var totalDelta = 0f
-        var rateOfChangeAccum = 0f
-        var rateOfChangeSamples = 0
-
-        for (index in 1..sorted.lastIndex) {
-            val previous = sorted[index - 1]
-            val current = sorted[index]
-            val delta = abs(current.value - previous.value)
-            val elapsedMinutes = (current.timestamp - previous.timestamp).toFloat() / 60_000f
-            totalDelta += delta
-            if (elapsedMinutes > 0f && elapsedMinutes < 30f) {
-                rateOfChangeAccum += delta / elapsedMinutes
-                rateOfChangeSamples++
-            }
-        }
-
-        val meanDelta = totalDelta / sorted.lastIndex.coerceAtLeast(1)
-        val cvFactor = if (averageMgDl > 0f) (stdDevMgDl / averageMgDl).coerceAtLeast(0f) else 0f
-        val rateOfChange = if (rateOfChangeSamples > 0) {
-            rateOfChangeAccum / rateOfChangeSamples
-        } else {
-            0f
-        }
-
-        // Normalize components so GVI doesn't collapse stability to 0% in common profiles.
-        val normalizedDelta = if (averageMgDl > 0f) {
-            (meanDelta / averageMgDl).coerceIn(0f, 1.2f)
-        } else {
-            0f
-        }
-        val normalizedRoc = (rateOfChange / 3.5f).coerceIn(0f, 1f)
-
-        val gviValue = (
-            1f +
-                (cvFactor * 1.1f) +
-                (normalizedDelta * 0.9f) +
-                (normalizedRoc * 0.6f)
-            ).coerceIn(0.8f, 3f)
-        val stability = (((2.4f - gviValue) / 1.6f) * 100f).coerceIn(0f, 100f)
-
-        val labelResId = when {
-            gviValue < 1.25f -> R.string.gvi_excellent
-            gviValue < 1.55f -> R.string.gvi_good
-            gviValue < 1.90f -> R.string.gvi_moderate
-            else -> R.string.gvi_poor
-        }
-
-        return GviScore(
-            value = gviValue,
-            labelResId = labelResId,
-            stability = stability,
-            rateOfChange = rateOfChange
-        )
-    }
-
-    private fun calculatePsg(
-        history: List<GlucosePoint>,
-        averageMgDl: Float,
-        cvPercent: Float,
-        targets: StatsTargets
-    ): PsgScore {
-        if (history.isEmpty()) return PsgScore()
-
-        val sorted = sortedByTimestampIfNeeded(history)
-        val halfSize = sorted.size / 2
-        val firstHalfAvg = if (halfSize > 0) {
-            sorted.take(halfSize).map { it.value }.average().toFloat()
-        } else {
-            averageMgDl
-        }
-        val secondHalfAvg = if (halfSize < sorted.size) {
-            sorted.drop(halfSize).map { it.value }.average().toFloat()
-        } else {
-            averageMgDl
-        }
-
-        val trend = if (secondHalfAvg > 0f) {
-            ((firstHalfAvg - secondHalfAvg) / secondHalfAvg).coerceIn(-1f, 1f)
-        } else {
-            0f
-        }
-        val confidence = ((sorted.size.coerceIn(0, MAX_PSG_CONFIDENCE_SAMPLES).toFloat() /
-            MAX_PSG_CONFIDENCE_SAMPLES.toFloat()) * (100f - cvPercent).coerceIn(0f, 100f))
-            .coerceIn(0f, 100f)
-
-        val labelResId = when {
-            averageMgDl < targets.lowMgDl -> R.string.psg_low
-            averageMgDl > targets.highMgDl -> R.string.psg_elevated
-            cvPercent > 36f -> R.string.psg_unstable
-            else -> R.string.psg_stable
-        }
-
-        return PsgScore(
-            baselineMgDl = averageMgDl,
-            labelResId = labelResId,
-            trend = trend,
-            confidence = confidence
-        )
-    }
-
-    private fun toVariabilitySeries(history: List<GlucosePoint>): List<GlucosePoint> {
-        if (history.size <= 8) return sortedByTimestampIfNeeded(history)
-
-        val sorted = sortedByTimestampIfNeeded(history)
-        val bucketed = sorted
-            .groupBy { it.timestamp / VARIABILITY_BUCKET_MS }
-            .toSortedMap()
-            .map { (_, points) ->
-                val centerPoint = points[points.size / 2]
-                val median = percentile(points.map { it.value }.sorted(), 0.5f)
-                centerPoint.copy(value = median, rawValue = median)
-            }
-
-        if (bucketed.size <= 2) return bucketed
-
-        val stabilized = bucketed.toMutableList()
-
-        // Remove single-point spikes that are likely sensor noise.
-        for (index in 1 until stabilized.lastIndex) {
-            val previous = stabilized[index - 1].value
-            val current = stabilized[index].value
-            val next = stabilized[index + 1].value
-
-            val neighborhoodMid = (previous + next) / 2f
-            val spikeDistance = abs(current - neighborhoodMid)
-            val neighborDistance = abs(previous - next)
-
-            if (
-                spikeDistance >= NOISE_SPIKE_THRESHOLD_MGDL &&
-                neighborDistance <= NOISE_NEIGHBOR_DISTANCE_MGDL
-            ) {
-                stabilized[index] = stabilized[index].copy(
-                    value = neighborhoodMid,
-                    rawValue = neighborhoodMid
-                )
-            }
-        }
-
-        // Cap physiologically implausible jump rates to reduce aged-sensor jitter impact.
-        for (index in 1 until stabilized.size) {
-            val previous = stabilized[index - 1]
-            val current = stabilized[index]
-            val elapsedMinutes = ((current.timestamp - previous.timestamp).toFloat() / 60_000f)
-                .coerceAtLeast(1f)
-            val maxDelta = MAX_PHYS_ROC_MGDL_PER_MIN * elapsedMinutes
-            val delta = current.value - previous.value
-
-            if (abs(delta) > maxDelta) {
-                val clippedValue = previous.value + (delta.sign * maxDelta)
-                stabilized[index] = current.copy(value = clippedValue, rawValue = clippedValue)
-            }
-        }
-
-        return stabilized
-    }
-
-    private fun sortedByTimestampIfNeeded(history: List<GlucosePoint>): List<GlucosePoint> {
-        for (index in 1 until history.size) {
-            if (history[index].timestamp < history[index - 1].timestamp) {
-                return history.sortedBy { it.timestamp }
-            }
-        }
-        return history
-    }
-
-    /**
-     * Turns detected findings into display copy. The analytics layer decided what is
-     * true; this only picks the wording, formats the numbers in the user's unit, and
-     * keeps the list short enough that people actually read it.
-     */
     private fun buildInsights(findings: List<StatsFinding>, unit: GlucoseUnit): List<StatsInsight> {
         val context = Applic.app
         val isMmol = unit == GlucoseUnit.MMOL
@@ -1713,18 +1535,6 @@ class StatsViewModel : ViewModel() {
         }.distinctBy { it.title }.take(MAX_INSIGHTS)
     }
 
-    private fun percentile(sorted: List<Float>, percentile: Float): Float {
-        if (sorted.isEmpty()) return 0f
-        if (sorted.size == 1) return sorted.first()
-
-        val clamped = percentile.coerceIn(0f, 1f)
-        val position = clamped * (sorted.size - 1)
-        val lowerIndex = position.toInt()
-        val upperIndex = (lowerIndex + 1).coerceAtMost(sorted.lastIndex)
-        val weight = position - lowerIndex
-
-        return sorted[lowerIndex] + (sorted[upperIndex] - sorted[lowerIndex]) * weight
-    }
 
     private data class UiInput(
         val range: StatsTimeRange?,
@@ -1757,11 +1567,6 @@ class StatsViewModel : ViewModel() {
         private const val DAY_MS = 24L * 60L * 60L * 1000L
         private const val MAX_INSIGHTS = 5
         private const val TEMPERATURE_REFRESH_INTERVAL_MS = 15L * 60L * 1000L
-        private const val MAX_PSG_CONFIDENCE_SAMPLES = 288
-        private const val VARIABILITY_BUCKET_MS = 5L * 60L * 1000L
-        private const val NOISE_SPIKE_THRESHOLD_MGDL = 18f
-        private const val NOISE_NEIGHBOR_DISTANCE_MGDL = 9f
-        private const val MAX_PHYS_ROC_MGDL_PER_MIN = 3.5f
         private const val MIN_STATS_GLUCOSE_MGDL = 30f
         private const val MAX_STATS_GLUCOSE_MGDL = 500f
         private const val MAX_REPORT_DAYS = 365

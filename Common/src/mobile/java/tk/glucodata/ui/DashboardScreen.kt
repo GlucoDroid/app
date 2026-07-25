@@ -304,6 +304,9 @@ fun DashboardScreen(
     val targetHigh by viewModel.targetHigh.collectAsState()
     val veryLowThreshold by viewModel.veryLowThreshold.collectAsState()
     val veryHighThreshold by viewModel.veryHighThreshold.collectAsState()
+    // Read outside the lazy list: an item that renders nothing still costs the list's
+    // inter-item spacing, so the row has to be omitted rather than emitted empty.
+    val showPinnedStats = tk.glucodata.ui.stats.hasPinnedStats()
     val chartSmoothingMinutes by viewModel.chartSmoothingMinutes.collectAsState()
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
@@ -1627,18 +1630,21 @@ fun DashboardScreen(
                 }
 
 
-                // Metrics the user pinned from Statistics → Arrange. Draws nothing until
-                // something is pinned.
-                item {
-                    tk.glucodata.ui.stats.PinnedStatsStrip(
-                        history = glucoseHistory,
-                        targetLowMgDl = targetLow,
-                        targetHighMgDl = targetHigh,
-                        veryLowMgDl = veryLowThreshold,
-                        veryHighMgDl = veryHighThreshold,
-                        isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)
-                    )
+                // Metrics the user pinned from Statistics → Arrange. The item is only
+                // emitted when something is pinned — an empty item still costs the
+                // list's inter-item spacing, which is the gap this used to leave.
+                if (showPinnedStats) {
+                    item {
+                        tk.glucodata.ui.stats.PinnedStatsStrip(
+                            history = glucoseHistory,
+                            targetLowMgDl = targetLow,
+                            targetHighMgDl = targetHigh,
+                            veryLowMgDl = veryLowThreshold,
+                            veryHighMgDl = veryHighThreshold,
+                            isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
                 }
 
                 item {

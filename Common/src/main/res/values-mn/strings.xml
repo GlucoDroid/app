@@ -2302,7 +2302,6 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_metric_none">Байхгүй</string>
     <string name="stats_metric_readings">%1$d заалт</string>
     <string name="stats_metrics_all_hidden">Бүх үзүүлэлт нуугдсан байна. Зохион байгуулах хэсгээс буцааж нэмнэ үү.</string>
-    <string name="stats_vs_previous">Өмнөх %2$s харьцуулахад %1$s оноо (өмнө нь %3$d%%)</string>
     <string name="stats_period_day">өдөртэй</string>
     <string name="stats_period_days">%1$d өдөртэй</string>
     <string name="stats_period_generic">хугацаатай</string>
@@ -2319,6 +2318,12 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_custom_range_title">Өөрийн хугацаа</string>
     <string name="stats_custom_range_hint">Нэг өдөр товшино, хугацааны хязгаар сонгохын тулд хоёр дахийг товшино.</string>
     <string name="stats_apply_range">Хэрэглэх</string>
-    <string name="stats_pinned_last_24h">Сүүлийн 24 цаг</string>
     <string name="stats_span_days">%1$d өдөр</string>
+    <string name="gri_short">GRI</string>
+    <string name="stats_window_label">Хугацаа</string>
+    <string name="stats_window_6h">6 ц</string>
+    <string name="stats_window_12h">12 ц</string>
+    <string name="stats_window_24h">24 ц</string>
+    <string name="stats_window_7d">7 хоног</string>
+    <string name="stats_arrange_width">Хагас эсвэл бүтэн өргөн</string>
 </resources>

@@ -2230,7 +2230,6 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_metric_none">Geen</string>
     <string name="stats_metric_readings">%1$d metingen</string>
     <string name="stats_metrics_all_hidden">Alle maatstaven zijn verborgen. Zet ze terug via Indelen.</string>
-    <string name="stats_vs_previous">%1$s ptn t.o.v. vorige %2$s (was %3$d%%)</string>
     <string name="stats_period_day">dag</string>
     <string name="stats_period_days">%1$d dagen</string>
     <string name="stats_period_generic">periode</string>
@@ -2247,6 +2246,12 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_custom_range_title">Eigen periode</string>
     <string name="stats_custom_range_hint">Tik op een dag, of op een tweede voor een reeks.</string>
     <string name="stats_apply_range">Toepassen</string>
-    <string name="stats_pinned_last_24h">Laatste 24 uur</string>
     <string name="stats_span_days">%1$d dagen</string>
+    <string name="gri_short">GRI</string>
+    <string name="stats_window_label">Periode</string>
+    <string name="stats_window_6h">6 u</string>
+    <string name="stats_window_12h">12 u</string>
+    <string name="stats_window_24h">24 u</string>
+    <string name="stats_window_7d">7 d</string>
+    <string name="stats_arrange_width">Halve of volle breedte</string>
 </resources>
