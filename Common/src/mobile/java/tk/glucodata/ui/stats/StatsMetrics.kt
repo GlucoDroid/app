@@ -792,9 +792,10 @@ private fun Modifier.metricDrag(metric: StatsMetric, dragState: MetricDragState?
 /**
  * Compact form used by the dashboard strip, where vertical space is precious.
  *
- * Time in range gets the band split drawn underneath it: the number alone says 92%
- * without saying whether the missing 8% was spent high or low, and at a glance that is
- * the part worth knowing.
+ * Time in range gets its band split in the space beside the number — the number alone
+ * says 92% without saying whether the missing 8% went high or low. Beside rather than
+ * underneath: underneath made the chip taller, and since the row matches heights, every
+ * other chip grew a band of dead space to match it.
  */
 @Composable
 internal fun PinnedMetricChip(
@@ -802,32 +803,37 @@ internal fun PinnedMetricChip(
     modifier: Modifier = Modifier,
     tir: TimeInRangeBreakdown? = null
 ) {
-    Column(
+    Row(
         modifier = modifier
             .clip(statsCardShape(16.dp, 10.dp))
             .background(spec.tone.copy(alpha = 0.11f).compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh))
             .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(1.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = spec.title,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = spec.value,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontFeatureSettings = "tnum",
-                fontWeight = FontWeight.SemiBold
-            ),
-            color = spec.tone,
-            maxLines = 1
-        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                text = spec.title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = spec.value,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFeatureSettings = "tnum",
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = spec.tone,
+                maxLines = 1
+            )
+        }
         if (tir != null) {
-            Spacer(modifier = Modifier.height(3.dp))
-            TirStackedBar(tir = tir, height = 5.dp, cornerRadius = 2.5.dp)
+            TirVerticalBar(tir = tir, modifier = Modifier.fillMaxHeight())
         }
     }
 }

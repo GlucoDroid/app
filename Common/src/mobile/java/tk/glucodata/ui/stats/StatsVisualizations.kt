@@ -114,6 +114,50 @@ internal fun TirStackedBar(
 }
 
 /**
+ * The five bands stacked vertically, worst-high at the top down to worst-low at the
+ * bottom — the orientation glucose reads in everywhere else in the app.
+ *
+ * Meant for the empty space beside a number rather than underneath it: it costs width
+ * that was going spare and no height at all.
+ */
+@Composable
+internal fun TirVerticalBar(
+    tir: TimeInRangeBreakdown,
+    modifier: Modifier = Modifier,
+    width: Dp = 6.dp
+) {
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val segments = listOf(
+        tir.veryHighPercent to TirVeryHighColor,
+        tir.highPercent to TirHighColor,
+        tir.inRangePercent to TirInRangeColor,
+        tir.lowPercent to TirLowColor,
+        tir.veryLowPercent to TirVeryLowColor
+    )
+    Canvas(
+        modifier = modifier
+            .width(width)
+            .clip(RoundedCornerShape(width / 2))
+            .background(trackColor)
+    ) {
+        val total = segments.sumOf { it.first.toDouble() }.toFloat()
+        if (total <= 0f) return@Canvas
+        var y = 0f
+        segments.forEachIndexed { index, (percent, color) ->
+            val height = if (index == segments.lastIndex) {
+                size.height - y
+            } else {
+                size.height * (percent / total)
+            }
+            if (height > 0.4f) {
+                drawRect(color = color, topLeft = Offset(0f, y), size = Size(size.width, height))
+            }
+            y += height
+        }
+    }
+}
+
+/**
  * The GRI zone strip: five equal blocks A–E with a marker where this window landed.
  * Shows the score in context instead of asking anyone to remember what 34 means.
  */
