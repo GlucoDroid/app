@@ -75,6 +75,7 @@ class SibionicsBleManager(
     companion object {
         private const val RECONNECT_DELAY_MS = 8_000L
         private const val CONNECT_CALLBACK_TIMEOUT_MS = 20_000L
+        private const val ADVERTISEMENT_RECOVERY_TIMEOUT_MS = 25_000L
         private const val SETUP_STAGE_TIMEOUT_MS = 15_000L
         private const val CHINESE_PROBE_TIMEOUT_MS = 5_000L
         private const val CHINESE_DATA_TIMEOUT_MS = 30_000L
@@ -101,6 +102,11 @@ class SibionicsBleManager(
     @Volatile private var phase = Phase.IDLE
     private val handlerThread = HandlerThread("Sibionics-$serial").also { it.start() }
     private val handler = Handler(handlerThread.looper)
+    private val advertisementRecovery = SibionicsAdvertisementRecovery(
+        context = Applic.getContext(),
+        handler = handler,
+        onFinished = ::finishAdvertisementRecovery,
+    )
     private val notificationDispatcher = SibionicsNotificationDispatcher(
         post = { task ->
             handler.post(task)
@@ -176,7 +182,9 @@ class SibionicsBleManager(
             Log.w(SibionicsConstants.TAG, "connectGatt callback timeout serial=$SerialNumber")
             prepareForReconnect()
             setStatus(connectingStatus())
-            scheduleReconnect("connectGatt callback timeout", delayMs = 500L)
+            if (!beginAdvertisementRecovery("connectGatt callback timeout")) {
+                scheduleReconnect("connectGatt callback timeout")
+            }
         }
     }
     private val setupStageTimeoutRunnable = Runnable {
@@ -315,6 +323,10 @@ class SibionicsBleManager(
     override fun connectDevice(delayMillis: Long): Boolean {
         if (stop) return false
         uiPaused = false
+        if (advertisementRecovery.isActive) {
+            Log.d(SibionicsConstants.TAG, "connect coalesced during advertisement recovery serial=$SerialNumber")
+            return true
+        }
         // Coalesce only a connection which owns a real GATT. During first setup the
         // scanner calls us before it has found a BluetoothDevice; that attempt must
         // not suppress the real connection after the scan result is bound.
@@ -346,6 +358,7 @@ class SibionicsBleManager(
         notificationDispatcher.invalidateSession()
         uiPaused = true
         stop = true
+        advertisementRecovery.stop()
         handler.removeCallbacksAndMessages(null)
         runCatching { mBluetoothGatt?.disconnect() }
         runCatching { mBluetoothGatt?.close() }
@@ -359,11 +372,13 @@ class SibionicsBleManager(
     override fun softReconnect() {
         uiPaused = false
         stop = false
+        advertisementRecovery.stop()
         phase = Phase.IDLE
         connectDevice(0)
     }
 
     override fun onBluetoothAdapterUnavailable() {
+        advertisementRecovery.stop()
         handler.removeCallbacks(reconnectRunnable)
         prepareForReconnect()
         constatstatusstr = Applic.getContext().getString(tk.glucodata.R.string.status_bluetooth_off)
@@ -403,6 +418,7 @@ class SibionicsBleManager(
 
     override fun close() {
         notificationDispatcher.invalidateSession()
+        advertisementRecovery.stop()
         handler.removeCallbacksAndMessages(null)
         rebuildGeneration++
         rebuildExecutor.shutdownNow()
@@ -513,6 +529,7 @@ class SibionicsBleManager(
         }
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
+                advertisementRecovery.stop()
                 handler.removeCallbacks(connectCallbackTimeoutRunnable)
                 mBluetoothGatt = gatt
                 mActiveBluetoothDevice = gatt.device
@@ -530,6 +547,7 @@ class SibionicsBleManager(
             }
 
             BluetoothProfile.STATE_DISCONNECTED -> {
+                val failedDuringConnect = phase == Phase.CONNECTING
                 handler.removeCallbacks(connectCallbackTimeoutRunnable)
                 handler.removeCallbacks(setupStageTimeoutRunnable)
                 Log.i(SibionicsConstants.TAG, "disconnected status=$status serial=$SerialNumber")
@@ -549,7 +567,13 @@ class SibionicsBleManager(
                 handler.removeCallbacks(chineseProbeTimeoutRunnable)
                 handler.removeCallbacks(chineseDataTimeoutRunnable)
                 if (!stop && !uiPaused) {
-                    scheduleReconnect("disconnect status=$status")
+                    if (!beginAdvertisementRecovery(
+                            reason = "connect failed status=$status",
+                            failedDuringConnect = failedDuringConnect,
+                        )
+                    ) {
+                        scheduleReconnect("disconnect status=$status")
+                    }
                 }
                 UiRefreshBus.requestStatusRefresh()
             }
@@ -2031,6 +2055,49 @@ class SibionicsBleManager(
         }.getOrNull() ?: return false
         mActiveBluetoothDevice = runCatching { adapter.getRemoteDevice(address) }.getOrNull()
         return mActiveBluetoothDevice != null
+    }
+
+    private fun beginAdvertisementRecovery(
+        reason: String,
+        failedDuringConnect: Boolean = true,
+    ): Boolean {
+        val address = knownBleAddress()
+        if (!SibionicsSessionPolicy.shouldUseAdvertisementRecovery(
+                failedDuringConnect = failedDuringConnect,
+                isStopped = stop,
+                isPaused = uiPaused,
+                hasKnownAddress = address != null,
+                recoveryAlreadyActive = advertisementRecovery.isActive,
+            )
+        ) {
+            return advertisementRecovery.isActive
+        }
+        handler.removeCallbacks(reconnectRunnable)
+        phase = Phase.IDLE
+        setStatus(connectingStatus())
+        Log.i(SibionicsConstants.TAG, "scan for saved sensor after $reason serial=$SerialNumber")
+        return advertisementRecovery.start(
+            address = address!!,
+            timeoutMs = ADVERTISEMENT_RECOVERY_TIMEOUT_MS,
+        )
+    }
+
+    private fun finishAdvertisementRecovery(advertisement: SibionicsAdvertisement?) {
+        if (stop || uiPaused) return
+        if (advertisement == null) {
+            Log.w(SibionicsConstants.TAG, "saved sensor advertisement not seen serial=$SerialNumber")
+            phase = Phase.IDLE
+            scheduleReconnect("advertisement recovery timeout")
+            return
+        }
+        pendingMatchedBleName = SibionicsConstants.normalizeBleName(advertisement.name)
+        setDevice(advertisement.device)
+        phase = Phase.IDLE
+        Log.i(
+            SibionicsConstants.TAG,
+            "saved sensor advertisement recovered name=${pendingMatchedBleName.ifBlank { "unknown" }} serial=$SerialNumber",
+        )
+        connectDevice(0)
     }
 
     private fun scheduleReconnect(reason: String, delayMs: Long = RECONNECT_DELAY_MS) {

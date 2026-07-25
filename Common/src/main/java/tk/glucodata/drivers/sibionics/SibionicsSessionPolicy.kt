@@ -28,4 +28,17 @@ internal object SibionicsSessionPolicy {
         callbackTimeoutMs: Long,
     ): Long =
         requestedDelayMs.coerceAtLeast(0L) + callbackTimeoutMs.coerceAtLeast(0L)
+
+    fun shouldUseAdvertisementRecovery(
+        failedDuringConnect: Boolean,
+        isStopped: Boolean,
+        isPaused: Boolean,
+        hasKnownAddress: Boolean,
+        recoveryAlreadyActive: Boolean,
+    ): Boolean =
+        failedDuringConnect &&
+            !isStopped &&
+            !isPaused &&
+            hasKnownAddress &&
+            !recoveryAlreadyActive
 }
