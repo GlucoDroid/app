@@ -22,18 +22,26 @@ import kotlin.math.sqrt
 object StatsAnalytics {
 
     /**
-     * GRI and LBGI/HBGI are defined on fixed clinical thresholds, not on the user's
-     * personal target band. Keeping them fixed is what makes the numbers comparable
-     * to a clinic report; the personal targets still drive TIR and everything else.
+     * LBGI/HBGI are defined on a fixed symmetric transform and stay that way — they
+     * are not band-based, so personal targets do not enter into them.
      */
     const val CLINICAL_VERY_LOW_MGDL = 54f
     const val CLINICAL_LOW_MGDL = 70f
     const val CLINICAL_HIGH_MGDL = 180f
     const val CLINICAL_VERY_HIGH_MGDL = 250f
 
-    /** Time in tight range (2023 consensus): 70–140 mg/dL. */
-    const val TIGHT_LOW_MGDL = 70f
-    const val TIGHT_HIGH_MGDL = 140f
+    /**
+     * Tight range is one step inside the user's own target: the lower bound is theirs,
+     * the upper bound is the midpoint between their target bounds, floored at the
+     * published 140 mg/dL when their target is wide. A fixed 70–140 band contradicted
+     * the TIR rows directly above it for anyone whose target is not 70–180.
+     */
+    fun tightRangeBounds(targets: StatsTargets): Pair<Float, Float> {
+        val low = targets.lowMgDl
+        val high = targets.highMgDl.coerceAtLeast(low + 10f)
+        val upper = minOf(140f, low + (high - low) * 0.5f).coerceAtLeast(low + 10f)
+        return low to upper
+    }
 
     /** An excursion has to last this long to count as an episode. */
     const val MIN_EPISODE_MINUTES = 15L
@@ -97,29 +105,31 @@ object StatsAnalytics {
     // ------------------------------------------------------------------- GRI
 
     /**
-     * Glycemia Risk Index (Klonoff et al., 2022): one 0–100 number that weights lows
-     * roughly three times as heavily as highs, so it moves the way clinicians think.
+     * Glycemia Risk Index — Klonoff et al. (2022) weighting, applied to the user's own
+     * five bands rather than the paper's fixed 54/70/180/250.
+     *
+     * The published thresholds are the right choice for a clinic report where every
+     * patient must be comparable. In the app they are the wrong choice: someone whose
+     * target starts at 3.6 mmol/L saw 79% time in range and "Zone E, highest risk" on
+     * the same screen, because their in-range readings between 3.6 and 3.9 counted as
+     * lows for the index. The weights (lows about three times heavier than highs) carry
+     * the meaning; the bands should be the ones the rest of the screen is drawn from.
      */
-    fun glycemiaRiskIndex(values: List<Float>): GlycemiaRiskIndex {
+    fun glycemiaRiskIndex(values: List<Float>, targets: StatsTargets): GlycemiaRiskIndex {
         if (values.isEmpty()) return GlycemiaRiskIndex()
-        val total = values.size.toFloat()
-        val veryLow = values.count { it < CLINICAL_VERY_LOW_MGDL } / total * 100f
-        val low = values.count { it >= CLINICAL_VERY_LOW_MGDL && it < CLINICAL_LOW_MGDL } / total * 100f
-        val veryHigh = values.count { it > CLINICAL_VERY_HIGH_MGDL } / total * 100f
-        val high = values.count { it > CLINICAL_HIGH_MGDL && it <= CLINICAL_VERY_HIGH_MGDL } / total * 100f
-
-        val hypo = (3.0f * veryLow) + (2.4f * low)
-        val hyper = (1.6f * veryHigh) + (0.8f * high)
+        val tir = timeInRange(values, targets)
+        val hypo = (3.0f * tir.veryLowPercent) + (2.4f * tir.lowPercent)
+        val hyper = (1.6f * tir.veryHighPercent) + (0.8f * tir.highPercent)
         val gri = (hypo + hyper).coerceIn(0f, 100f)
         return GlycemiaRiskIndex(
             value = gri,
             zone = GriZone.of(gri),
             hypoComponent = hypo,
             hyperComponent = hyper,
-            veryLowPercent = veryLow,
-            lowPercent = low,
-            highPercent = high,
-            veryHighPercent = veryHigh
+            veryLowPercent = tir.veryLowPercent,
+            lowPercent = tir.lowPercent,
+            highPercent = tir.highPercent,
+            veryHighPercent = tir.veryHighPercent
         )
     }
 
@@ -147,11 +157,39 @@ object StatsAnalytics {
         )
     }
 
-    /** Share of readings inside the 70–140 mg/dL tight band. */
-    fun tightRangePercent(values: List<Float>): Float {
+    /** Share of readings inside the tight band derived from the user's target. */
+    fun tightRangePercent(values: List<Float>, targets: StatsTargets): Float {
         if (values.isEmpty()) return 0f
-        val inside = values.count { it in TIGHT_LOW_MGDL..TIGHT_HIGH_MGDL }
+        val (low, high) = tightRangeBounds(targets)
+        val inside = values.count { it in low..high }
         return inside.toFloat() / values.size.toFloat() * 100f
+    }
+
+    /**
+     * Five-band split for each hour of the clock, pooled across every day in the
+     * window. Feeds the 24-hour exposure ribbon, which answers "when does the day go
+     * wrong" faster than reading percentile curves off an AGP.
+     */
+    fun hourlyStats(history: List<GlucosePoint>, targets: StatsTargets): List<HourlyGlucoseStats> {
+        val zone = ZoneId.systemDefault()
+        val valuesByHour = Array(24) { ArrayList<Float>() }
+        history.forEach { point ->
+            valuesByHour[Instant.ofEpochMilli(point.timestamp).atZone(zone).hour].add(point.value)
+        }
+        return (0..23).map { hour ->
+            val values = valuesByHour[hour]
+            if (values.isEmpty()) {
+                HourlyGlucoseStats(hour = hour)
+            } else {
+                val split = timeInRange(values, targets)
+                HourlyGlucoseStats(
+                    hour = hour,
+                    tir = split,
+                    averageMgDl = values.average().toFloat(),
+                    sampleCount = values.size
+                )
+            }
+        }
     }
 
     // -------------------------------------------------------------- episodes
@@ -342,6 +380,45 @@ object StatsAnalytics {
             }
     }
 
+    /**
+     * The subset of [StatsSummary] the pinnable metrics need, for the dashboard strip.
+     *
+     * The dashboard already holds recent history in memory, so pinned metrics cost one
+     * linear pass rather than a second subscription — and deliberately skip AGP, daily,
+     * weekday and findings, none of which any pinnable metric reads.
+     */
+    fun dashboardSummary(
+        history: List<GlucosePoint>,
+        targets: StatsTargets,
+        range: StatsDateRange?
+    ): StatsSummary {
+        if (history.isEmpty()) return StatsSummary()
+        val values = history.map { it.value }
+        val sorted = values.sorted()
+        val average = values.average().toFloat()
+        val variance = values.fold(0.0) { acc, value ->
+            val diff = value - average
+            acc + diff * diff
+        } / values.size
+        val stdDev = sqrt(variance).toFloat()
+        val coverage = sensorCoverage(history, range)
+        val episodes = detectEpisodes(history, targets)
+        val windowDays = coverage.windowDays.coerceAtLeast(1f)
+        return StatsSummary(
+            readingCount = values.size,
+            avgMgDl = average,
+            medianMgDl = sorted[sorted.size / 2],
+            stdDevMgDl = stdDev,
+            cvPercent = if (average > 0f) stdDev / average * 100f else 0f,
+            gmiPercent = (3.31f + (0.02392f * average)).coerceAtLeast(0f),
+            tir = timeInRange(values, targets),
+            tightRangePercent = tightRangePercent(values, targets),
+            coverage = coverage,
+            lowEpisodes = summarizeEpisodes(episodes, EpisodeKind.LOW, windowDays),
+            highEpisodes = summarizeEpisodes(episodes, EpisodeKind.HIGH, windowDays)
+        )
+    }
+
     // ------------------------------------------------------------ comparison
 
     /** The scalars worth carrying across two periods. Cheap to compute, cheap to diff. */
@@ -358,7 +435,7 @@ object StatsAnalytics {
             averageMgDl = average,
             inRangePercent = timeInRange(values, targets).inRangePercent,
             cvPercent = if (average > 0f) stdDev / average * 100f else 0f,
-            griValue = glycemiaRiskIndex(values).value
+            griValue = glycemiaRiskIndex(values, targets).value
         )
     }
 

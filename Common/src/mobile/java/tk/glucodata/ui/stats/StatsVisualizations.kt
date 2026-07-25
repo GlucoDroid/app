@@ -1,6 +1,8 @@
 package tk.glucodata.ui.stats
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +35,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +48,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import tk.glucodata.GlucoseRangeColors
 import java.time.LocalDate
+import java.util.Locale
 
 // The five band colours follow the active glucose palette (including per-band
 // overrides). Read on access so switching palettes shows up on re-entry, and light
@@ -171,7 +177,6 @@ internal fun ComponentSplitBar(
     modifier: Modifier = Modifier,
     height: Dp = 10.dp
 ) {
-    val total = lowShare + highShare
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
     Canvas(
         modifier = modifier
@@ -180,19 +185,144 @@ internal fun ComponentSplitBar(
             .clip(RoundedCornerShape(height / 2))
             .background(trackColor)
     ) {
-        // Nothing to split — an empty track is the honest picture of zero risk.
-        if (total <= 0f) return@Canvas
-        val lowWidth = size.width * (lowShare / total)
+        // Drawn against the full 0–100 scale, not normalised against each other:
+        // normalising made an index of 4 look identical to an index of 90 whenever one
+        // side was zero, so a good window rendered as a solid bar of alarm.
+        val lowWidth = size.width * (lowShare.coerceIn(0f, 100f) / 100f)
+        val highWidth = size.width * (highShare.coerceIn(0f, 100f) / 100f)
         if (lowWidth > 0.5f) {
             drawRect(color = TirVeryLowColor, size = Size(lowWidth, size.height))
         }
-        val highWidth = size.width - lowWidth
         if (highWidth > 0.5f) {
             drawRect(
                 color = TirVeryHighColor,
                 topLeft = Offset(lowWidth, 0f),
-                size = Size(highWidth, size.height)
+                size = Size(highWidth.coerceAtMost((size.width - lowWidth).coerceAtLeast(0f)), size.height)
             )
+        }
+    }
+}
+
+/**
+ * Twenty-four stacked columns, one per hour of the clock, each showing that hour's
+ * five-band split pooled over the window.
+ *
+ * Reading percentiles off an AGP takes practice; this answers "when does the day go
+ * wrong" at a glance, and scrubbing across it reads out the hour underneath. Adapted
+ * from the parallel stats redesign on `feature/stats-redesign-sol`.
+ */
+@Composable
+internal fun HourlyExposureRibbon(
+    hourlyStats: List<HourlyGlucoseStats>,
+    selectedHour: Int,
+    onSelectedHourChange: (Int) -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    height: Dp = 68.dp
+) {
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val selectorColor = MaterialTheme.colorScheme.onSurface
+    val byHour = remember(hourlyStats) {
+        Array(24) { hour -> hourlyStats.firstOrNull { it.hour == hour } ?: HourlyGlucoseStats(hour) }
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height)
+                .clip(RoundedCornerShape(18.dp))
+                .background(trackColor)
+                .semantics { this.contentDescription = contentDescription }
+                .pointerInput(hourlyStats) {
+                    detectTapGestures { offset ->
+                        onSelectedHourChange(((offset.x / size.width) * 24f).toInt().coerceIn(0, 23))
+                    }
+                }
+                .pointerInput(hourlyStats) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset ->
+                            onSelectedHourChange(((offset.x / size.width) * 24f).toInt().coerceIn(0, 23))
+                        },
+                        onHorizontalDrag = { change, _ ->
+                            onSelectedHourChange(
+                                ((change.position.x / size.width) * 24f).toInt().coerceIn(0, 23)
+                            )
+                            change.consume()
+                        }
+                    )
+                }
+        ) {
+            val cellWidth = size.width / 24f
+            val gap = 1.dp.toPx()
+            // Worst-high on top down to worst-low at the bottom, the way glucose reads
+            // on every other chart in the app.
+            val bands = listOf(
+                TirVeryHighColor,
+                TirHighColor,
+                TirInRangeColor,
+                TirLowColor,
+                TirVeryLowColor
+            )
+            byHour.forEachIndexed { hour, stats ->
+                if (stats.sampleCount == 0) return@forEachIndexed
+                val left = hour * cellWidth
+                val width = (cellWidth - gap).coerceAtLeast(1f)
+                val percentages = listOf(
+                    stats.tir.veryHighPercent,
+                    stats.tir.highPercent,
+                    stats.tir.inRangePercent,
+                    stats.tir.lowPercent,
+                    stats.tir.veryLowPercent
+                )
+                var top = 0f
+                percentages.forEachIndexed { index, percent ->
+                    val segment = if (index == percentages.lastIndex) {
+                        size.height - top
+                    } else {
+                        size.height * (percent.coerceIn(0f, 100f) / 100f)
+                    }
+                    if (segment > 0f) {
+                        drawRect(
+                            color = bands[index],
+                            topLeft = Offset(left, top),
+                            size = Size(width, segment)
+                        )
+                    }
+                    top += segment
+                }
+            }
+
+            val safeHour = selectedHour.coerceIn(0, 23)
+            drawRoundRect(
+                color = selectorColor,
+                topLeft = Offset(safeHour * cellWidth + 1.dp.toPx(), 1.dp.toPx()),
+                size = Size(
+                    width = (cellWidth - gap - 2.dp.toPx()).coerceAtLeast(1f),
+                    height = (size.height - 2.dp.toPx()).coerceAtLeast(1f)
+                ),
+                cornerRadius = CornerRadius(7.dp.toPx()),
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
+
+        Row(modifier = Modifier.fillMaxWidth()) {
+            listOf(0, 6, 12, 18, 23).forEachIndexed { index, hour ->
+                Text(
+                    text = String.format(Locale.getDefault(), "%02d", hour),
+                    modifier = Modifier.weight(if (index == 0 || index == 4) 0.5f else 1f),
+                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = when (index) {
+                        0 -> TextAlign.Start
+                        4 -> TextAlign.End
+                        else -> TextAlign.Center
+                    }
+                )
+            }
         }
     }
 }

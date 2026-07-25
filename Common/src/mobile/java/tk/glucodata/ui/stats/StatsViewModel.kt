@@ -1283,6 +1283,7 @@ class StatsViewModel : ViewModel() {
         val lowEpisodes = StatsAnalytics.summarizeEpisodes(episodes, EpisodeKind.LOW, windowDays)
         val highEpisodes = StatsAnalytics.summarizeEpisodes(episodes, EpisodeKind.HIGH, windowDays)
         val dayParts = StatsAnalytics.dayPartStats(chronological, targets)
+        val hourly = StatsAnalytics.hourlyStats(chronological, targets)
         val weekdays = StatsAnalytics.weekdayStats(chronological, targets)
         val days = StatsAnalytics.dayBreakdowns(chronological, targets)
         val comparison = previousScalars?.let { previous ->
@@ -1321,8 +1322,8 @@ class StatsViewModel : ViewModel() {
             firstTimestamp = history.first().timestamp,
             lastTimestamp = history.last().timestamp,
             tir = tir,
-            tightRangePercent = StatsAnalytics.tightRangePercent(values),
-            gri = StatsAnalytics.glycemiaRiskIndex(values),
+            tightRangePercent = StatsAnalytics.tightRangePercent(values, targets),
+            gri = StatsAnalytics.glycemiaRiskIndex(values, targets),
             risk = StatsAnalytics.riskIndices(values),
             coverage = coverage,
             episodes = episodes,
@@ -1333,6 +1334,7 @@ class StatsViewModel : ViewModel() {
             days = days,
             comparison = comparison,
             agpByHour = agp,
+            hourlyStats = hourly,
             dailyStats = daily,
             insights = insights
         )

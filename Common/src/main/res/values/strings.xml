@@ -1748,7 +1748,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="insight_unstable_days_desc">%1$d days in this window had less than 50%% time in range.</string>
     <!-- Statistics: risk index -->
     <string name="gri_title">Glycemia Risk Index</string>
-    <string name="gri_description">One score for the whole window. Lows weigh about three times as much as highs, so it tracks the risk you feel rather than the average. Built on fixed clinical cut-offs, not your personal targets.</string>
+    <string name="gri_description">One score for the whole period, built from your own target bands. Lows weigh about three times as much as highs, so it follows the risk you feel rather than the average.</string>
     <string name="gri_zone_a">Zone A · lowest risk</string>
     <string name="gri_zone_b">Zone B</string>
     <string name="gri_zone_c">Zone C</string>
@@ -1756,7 +1756,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="gri_zone_e">Zone E · highest risk</string>
     <string name="gri_from_lows">Lows %1$s</string>
     <string name="gri_from_highs">Highs %1$s</string>
-    <string name="gri_vs_previous">%1$s vs the previous window</string>
+    <string name="gri_vs_previous">%1$s vs the period before</string>
     <string name="lbgi">LBGI</string>
     <string name="hbgi">HBGI</string>
     <string name="lbgi_description">Low Blood Glucose Index. Weighs every reading by how far below range it fell, so depth counts for more than a plain count of lows.</string>
@@ -1769,8 +1769,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_coverage_active">CGM active %1$d%%</string>
     <string name="stats_tight_range_chip">Tight %1$d%%</string>
     <string name="stats_tight_range">Tight range</string>
-    <string name="stats_tight_range_description">Time between 70 and 140 mg/dL — a stricter band than the standard target, used to track how close the day stays to non-diabetic levels.</string>
-    <string name="stats_vs_previous_period">%1$s pts in range vs the previous window (was %2$d%%)</string>
+    <string name="stats_tight_range_description">Time inside %1$s — one step tighter than your target band, for tracking how close the day stays to non-diabetic levels.</string>
     <string name="stats_more_metrics">More metrics</string>
     <string name="stats_fewer_metrics">Fewer metrics</string>
     <!-- Statistics: episodes -->
@@ -1811,9 +1810,35 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_day_lowest">Lowest</string>
     <string name="stats_day_highest">Highest</string>
     <string name="stats_day_coverage">CGM active %1$d%% · %2$d readings</string>
+    <!-- Statistics: layout, periods, arrange mode -->
+    <string name="stats_card_overview">Time in range</string>
+    <string name="stats_card_metrics">Metrics</string>
+    <string name="stats_card_coverage">CGM coverage</string>
+    <string name="stats_card_coverage_description">Share of the period the sensor actually reported. Every percentage on this screen describes only that time.</string>
+    <string name="stats_metric_none">None</string>
+    <string name="stats_metric_readings">%1$d readings</string>
+    <string name="stats_metrics_all_hidden">Every metric is hidden. Add some back from Arrange.</string>
+    <string name="stats_vs_previous">%1$s pts vs previous %2$s (was %3$d%%)</string>
+    <string name="stats_period_day">day</string>
+    <string name="stats_period_days">%1$d days</string>
+    <string name="stats_period_generic">period</string>
+    <string name="stats_hourly_exposure">24-hour exposure</string>
+    <string name="stats_arrange_title">Arrange</string>
+    <string name="stats_arrange_hint">Drag to reorder, tap the eye to hide.</string>
+    <string name="stats_arrange_action">Arrange screen</string>
+    <string name="stats_arrange_sections">Sections</string>
+    <string name="stats_arrange_metrics">Metrics · %1$d of %2$d pinned to Dashboard</string>
+    <string name="stats_arrange_reset">Reset to defaults</string>
+    <string name="stats_arrange_drag">Reorder</string>
+    <string name="stats_arrange_pin">Pin to Dashboard</string>
+    <string name="stats_arrange_visibility">Show or hide</string>
+    <string name="stats_custom_range_title">Custom range</string>
+    <string name="stats_custom_range_hint">Tap a day, or a second day for a span.</string>
+    <string name="stats_apply_range">Apply</string>
+    <string name="stats_pinned_last_24h">Last 24 hours</string>
     <!-- Statistics: findings -->
     <string name="stats_finding_coverage">Sensor gaps</string>
-    <string name="stats_finding_coverage_desc">CGM active %1$d%% of this window. The numbers describe only the time with readings.</string>
+    <string name="stats_finding_coverage_desc">CGM active %1$d%% of this period. The numbers describe only the time with readings.</string>
     <string name="stats_finding_lows_cluster">Lows cluster %1$s–%2$s</string>
     <string name="stats_finding_lows_cluster_desc">%1$d of %2$d low episodes begin in that block.</string>
     <string name="stats_finding_severe_lows">Severe lows</string>
@@ -1822,11 +1847,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_finding_long_highs_desc">Longest high ran %1$s. High episodes: %2$d.</string>
     <string name="stats_finding_daypart_high">%1$s run highest</string>
     <string name="stats_finding_daypart_low">%1$s run lowest</string>
-    <string name="stats_finding_daypart_desc">Averaging %1$s there, %2$s off the window average.</string>
+    <string name="stats_finding_daypart_desc">Averaging %1$s there, %2$s off the overall average.</string>
     <string name="stats_finding_trend_up">Trending up</string>
-    <string name="stats_finding_trend_up_desc">Time in range is %1$d points above the previous window (%2$d%%).</string>
+    <string name="stats_finding_trend_up_desc">Time in range is %1$d points above the period before (%2$d%%).</string>
     <string name="stats_finding_trend_down">Trending down</string>
-    <string name="stats_finding_trend_down_desc">Time in range is %1$d points below the previous window (%2$d%%).</string>
+    <string name="stats_finding_trend_down_desc">Time in range is %1$d points below the period before (%2$d%%).</string>
     <string name="stats_finding_steady">Steady stretch</string>
     <string name="stats_finding_steady_desc">All %1$d days held 70%% or more in range.</string>
     <string name="stats_finding_rough_days">Uneven days</string>
@@ -2404,4 +2429,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_reset_postpone">Postpone 2 hours</string>
     <string name="sibionics_reset_reminder_channel">Sibionics reset reminders</string>
     <string name="sibionics_reset_reminder_channel_desc">Reminders and actions for resetting Sibionics 2 before it expires</string>
+    <string name="stats_span_days">%1$d days</string>
 </resources>

@@ -54,6 +54,13 @@ data class AgpHourBin(
     val sampleCount: Int = 0
 )
 
+data class HourlyGlucoseStats(
+    val hour: Int,
+    val tir: TimeInRangeBreakdown = TimeInRangeBreakdown(),
+    val averageMgDl: Float = 0f,
+    val sampleCount: Int = 0
+)
+
 data class DailyStats(
     val date: LocalDate,
     val averageMgDl: Float,
@@ -289,6 +296,7 @@ data class StatsSummary(
     val days: List<DayBreakdown> = emptyList(),
     val comparison: StatsComparison? = null,
     val agpByHour: List<AgpHourBin> = emptyList(),
+    val hourlyStats: List<HourlyGlucoseStats> = emptyList(),
     val dailyStats: List<DailyStats> = emptyList(),
     val insights: List<StatsInsight> = emptyList()
 )

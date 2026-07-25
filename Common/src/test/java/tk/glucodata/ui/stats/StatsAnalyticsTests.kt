@@ -48,7 +48,7 @@ class StatsAnalyticsTests {
             repeat(10) { add(200f) }  // 181..250
             repeat(10) { add(300f) }  // > 250
         }
-        val gri = StatsAnalytics.glycemiaRiskIndex(values)
+        val gri = StatsAnalytics.glycemiaRiskIndex(values, targets)
 
         // 3.0*10 + 2.4*10 for the lows, 1.6*10 + 0.8*10 for the highs.
         assertEquals(54f, gri.hypoComponent, 0.01f)
@@ -59,14 +59,14 @@ class StatsAnalyticsTests {
 
     @Test
     fun griIsZeroWhenEverythingSitsInRange() {
-        val gri = StatsAnalytics.glycemiaRiskIndex(List(50) { 110f })
+        val gri = StatsAnalytics.glycemiaRiskIndex(List(50) { 110f }, targets)
         assertEquals(0f, gri.value, 0.0001f)
         assertEquals(GriZone.A, gri.zone)
     }
 
     @Test
     fun griNeverExceedsOneHundred() {
-        val gri = StatsAnalytics.glycemiaRiskIndex(List(50) { 40f })
+        val gri = StatsAnalytics.glycemiaRiskIndex(List(50) { 40f }, targets)
         assertEquals(100f, gri.value, 0.0001f)
         assertEquals(GriZone.E, gri.zone)
     }
@@ -112,9 +112,35 @@ class StatsAnalyticsTests {
     // ------------------------------------------------------------ tight range
 
     @Test
-    fun tightRangeCountsOnlySeventyToOneForty() {
-        val values = listOf(69f, 70f, 100f, 140f, 141f, 200f)
-        assertEquals(50f, StatsAnalytics.tightRangePercent(values), 0.01f)
+    fun tightRangeIsDerivedFromTheUsersOwnTarget() {
+        // Default target 70-180 gives a tight band of 70-125.
+        val (low, high) = StatsAnalytics.tightRangeBounds(targets)
+        assertEquals(70f, low, 0.01f)
+        assertEquals(125f, high, 0.01f)
+
+        val values = listOf(69f, 70f, 100f, 125f, 126f, 200f)
+        assertEquals(50f, StatsAnalytics.tightRangePercent(values, targets), 0.01f)
+    }
+
+    @Test
+    fun tightRangeNeverExceedsThePublishedUpperBound() {
+        // A very wide target must not push the tight band above 140 mg/dL.
+        val wide = StatsTargets(lowMgDl = 70f, highMgDl = 300f)
+        val (low, high) = StatsAnalytics.tightRangeBounds(wide)
+        assertEquals(70f, low, 0.01f)
+        assertEquals(140f, high, 0.01f)
+    }
+
+    @Test
+    fun griUsesTheUsersBandsNotTheFixedClinicalOnes() {
+        // Target 65-162 mg/dL, the mmol/L user whose 3.6-3.9 readings the fixed
+        // 70 mg/dL threshold counted as lows.
+        val personal = StatsTargets(lowMgDl = 65f, highMgDl = 162f, veryLowMgDl = 58f)
+        val values = List(80) { 120f } + List(20) { 68f }
+        val personalGri = StatsAnalytics.glycemiaRiskIndex(values, personal)
+        val defaultGri = StatsAnalytics.glycemiaRiskIndex(values, StatsTargets())
+        assertEquals(0f, personalGri.value, 0.01f)
+        assertTrue(defaultGri.value > 40f)
     }
 
     // ---------------------------------------------------------------- cadence

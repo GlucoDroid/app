@@ -1627,6 +1627,20 @@ fun DashboardScreen(
                 }
 
 
+                // Metrics the user pinned from Statistics → Arrange. Draws nothing until
+                // something is pinned.
+                item {
+                    tk.glucodata.ui.stats.PinnedStatsStrip(
+                        history = glucoseHistory,
+                        targetLowMgDl = targetLow,
+                        targetHighMgDl = targetHigh,
+                        veryLowMgDl = veryLowThreshold,
+                        veryHighMgDl = veryHighThreshold,
+                        isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)
+                    )
+                }
+
                 item {
                     Box(
                         modifier = Modifier

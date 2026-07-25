@@ -62,6 +62,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -181,15 +182,6 @@ private data class TirRowDescriptor(
     val color: Color
 )
 
-private data class ScoreTileSpec(
-    val title: String,
-    val value: String,
-    val status: String,
-    val meta: String,
-    val tone: Color,
-    val infoText: String? = null
-)
-
 @Composable
 fun StatsScreen(
     modifier: Modifier = Modifier,
@@ -231,6 +223,10 @@ fun StatsScreen(
     }
     var pendingReportStylePref by rememberSaveable { mutableStateOf(reportStylePref) }
     val selectedReportStyle = StatsReportExporter.PdfVisualStyle.fromPref(reportStylePref)
+    val view = LocalView.current
+    LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
+    val layout by StatsLayoutStore.state.collectAsState()
+    var editingLayout by rememberSaveable { mutableStateOf(false) }
     var selectedTirBand by remember(uiState.summary.tir) { mutableStateOf<TirBand?>(null) }
     // Keyed on the window, not on the data: a new reading must not slam the day sheet shut.
     var selectedDayDate by remember(uiState.activeRange) { mutableStateOf<java.time.LocalDate?>(null) }
@@ -338,6 +334,8 @@ fun StatsScreen(
                     isLoading = uiState.isLoading,
                     hasData = uiState.summary.readingCount > 0,
                     readingCount = uiState.summary.readingCount,
+                    coveragePercent = uiState.summary.coverage.percent
+                        .takeIf { uiState.summary.readingCount > 0 },
                     onRangeSelected = viewModel::setTimeRange,
                     onCustomRangeClick = { showDateRangePicker = true }
                 )
@@ -364,6 +362,14 @@ fun StatsScreen(
                         subtitle = stringResource(R.string.stats_no_readings_in_range)
                     )
                 }
+            } else if (editingLayout) {
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    StatsLayoutEditor(
+                        layout = layout,
+                        onDone = { editingLayout = false }
+                    )
+                }
             } else {
                 item {
                     AnimatedVisibility(
@@ -378,93 +384,39 @@ fun StatsScreen(
                     }
                 }
 
-                // How the window sits against target, and what the window is made of.
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    GlycemicOverviewCard(
-                        summary = uiState.summary,
-                        targets = uiState.targets,
-                        unit = uiState.unit,
-                        selectedBand = selectedTirBand,
-                        onBandSelected = { selectedTirBand = it }
-                    )
-                }
-
-                // One composite risk score, split into its low- and high-driven halves.
-                item {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    RiskIndexCard(
-                        gri = uiState.summary.gri,
-                        risk = uiState.summary.risk,
-                        comparison = uiState.summary.comparison
-                    )
-                }
-
-                // Core metrics first, the long tail behind a disclosure.
-                item {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    MetricsScoreSection(
-                        summary = uiState.summary,
-                        targets = uiState.targets,
-                        unit = uiState.unit
-                    )
-                }
-
-                // Excursions as events, not percentages.
-                if (uiState.summary.lowEpisodes.count > 0 || uiState.summary.highEpisodes.count > 0) {
-                    item {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        EpisodesCard(
-                            lows = uiState.summary.lowEpisodes,
-                            highs = uiState.summary.highEpisodes,
-                            episodes = uiState.summary.episodes,
-                            unit = uiState.unit
-                        )
-                    }
-                }
-
-                // Patterns: AGP, day-over-day, time of day, weekday.
-                item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    PatternsCard(
-                        agpByHour = uiState.summary.agpByHour,
-                        dailyStats = uiState.summary.dailyStats,
-                        dayParts = uiState.summary.dayParts,
-                        weekdays = uiState.summary.weekdays,
-                        targets = uiState.targets,
-                        unit = uiState.unit,
-                        activeRange = uiState.activeRange
-                    )
-                }
-
-                // Calendar grid — only worth drawing once there are a few days to compare.
-                if (uiState.summary.days.size >= MIN_CALENDAR_DAYS) {
-                    item {
-                        Spacer(modifier = Modifier.height(20.dp))
-                        DayByDayCard(
-                            days = uiState.summary.days,
-                            selectedDate = selectedDayDate,
+                // Sections render in the user's own order; a long press on any of them
+                // drops the whole screen into arrange mode.
+                items(
+                    items = layout.visibleCards.filter { card ->
+                        cardHasContent(card, uiState)
+                    },
+                    key = { card -> card.name }
+                ) { card ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateItem()
+                            .longPressToArrange {
+                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                editingLayout = true
+                            }
+                    ) {
+                        Spacer(modifier = Modifier.height(if (card == layout.visibleCards.first()) 16.dp else 20.dp))
+                        StatsCardContent(
+                            card = card,
+                            uiState = uiState,
+                            layout = layout,
+                            selectedTirBand = selectedTirBand,
+                            onBandSelected = { selectedTirBand = it },
+                            selectedDayDate = selectedDayDate,
                             onDaySelected = { selectedDayDate = it.date }
                         )
                     }
                 }
 
-                // Temperature — separate section
-                if (uiState.temperaturePoints.isNotEmpty()) {
-                    item {
-                        Spacer(modifier = Modifier.height(20.dp))
-                        TemperatureOverviewCard(
-                            temperaturePoints = uiState.temperaturePoints
-                        )
-                    }
-                }
-
-                // Insights — separate section
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
-                    InsightsCard(
-                        insights = uiState.summary.insights
-                    )
+                    StatsEditLayoutButton(onClick = { editingLayout = true })
                 }
             }
         }
@@ -674,60 +626,15 @@ fun StatsScreen(
         }
 
         if (showDateRangePicker) {
-            val availableRange = uiState.availableRange
-            val initialRange = clampStatsDateRangeToAvailable(uiState.activeRange, availableRange) ?: availableRange
-            val availableStartDateMillis = availableRange?.startMillis?.let(::toPickerUtcDateMillis)
-            val availableEndDateMillis = availableRange?.endMillis?.let(::toPickerUtcDateMillis)
-            val dateRangePickerState = rememberDateRangePickerState(
-                initialSelectedStartDateMillis = initialRange?.startMillis?.let(::toPickerUtcDateMillis),
-                initialSelectedEndDateMillis = initialRange?.endMillis?.let(::toPickerUtcDateMillis),
-                selectableDates = object : SelectableDates {
-                    override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                        val earliest = availableStartDateMillis ?: 0L
-                        val latest = availableEndDateMillis ?: toPickerUtcDateMillis(System.currentTimeMillis())
-                        return utcTimeMillis in earliest..latest
-                    }
+            StatsDateRangeSheet(
+                availableRange = uiState.availableRange,
+                activeRange = uiState.activeRange,
+                onDismiss = { showDateRangePicker = false },
+                onApply = { start, end ->
+                    viewModel.setCustomRange(start, end)
+                    showDateRangePicker = false
                 }
             )
-            val canSaveRange =
-                dateRangePickerState.selectedStartDateMillis != null &&
-                    dateRangePickerState.selectedEndDateMillis != null
-
-            DatePickerDialog(
-                onDismissRequest = { showDateRangePicker = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            val start = dateRangePickerState.selectedStartDateMillis
-                                ?.let { pickerUtcDateMillisToLocalStart(it) }
-                                ?: return@TextButton
-                            val end = dateRangePickerState.selectedEndDateMillis
-                                ?.let { pickerUtcDateMillisToLocalEnd(it) }
-                                ?: return@TextButton
-                            viewModel.setCustomRange(start, end)
-                            showDateRangePicker = false
-                        },
-                        enabled = canSaveRange
-                    ) {
-                        Text(text = stringResource(R.string.save))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDateRangePicker = false }) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                }
-            ) {
-                DateRangePicker(
-                    state = dateRangePickerState,
-                    modifier = Modifier.heightIn(max = 448.dp),
-                    title = {},
-                    headline = {
-                        StatsDateRangePickerHeadline(dateRangePickerState)
-                    },
-                    showModeToggle = true
-                )
-            }
         }
 
         AnimatedVisibility(
@@ -751,6 +658,104 @@ fun StatsScreen(
             )
         }
     }
+}
+
+/**
+ * Sections with nothing to show are skipped rather than rendered empty — a sensor
+ * without a thermistor should not leave a temperature placeholder in the list.
+ */
+private fun cardHasContent(card: StatsCard, uiState: StatsUiState): Boolean = when (card) {
+    StatsCard.TEMPERATURE -> uiState.temperaturePoints.isNotEmpty()
+    StatsCard.EPISODES ->
+        uiState.summary.lowEpisodes.count > 0 || uiState.summary.highEpisodes.count > 0
+    StatsCard.DAY_BY_DAY -> uiState.summary.days.size >= MIN_CALENDAR_DAYS
+    StatsCard.INSIGHTS -> uiState.summary.insights.isNotEmpty()
+    StatsCard.METRICS -> true
+    else -> true
+}
+
+@Composable
+private fun StatsCardContent(
+    card: StatsCard,
+    uiState: StatsUiState,
+    layout: StatsLayoutState,
+    selectedTirBand: TirBand?,
+    onBandSelected: (TirBand?) -> Unit,
+    selectedDayDate: java.time.LocalDate?,
+    onDaySelected: (DayBreakdown) -> Unit
+) {
+    when (card) {
+        StatsCard.OVERVIEW -> GlycemicOverviewCard(
+            summary = uiState.summary,
+            targets = uiState.targets,
+            unit = uiState.unit,
+            selectedRange = uiState.selectedRange,
+            selectedBand = selectedTirBand,
+            onBandSelected = onBandSelected
+        )
+
+        StatsCard.METRICS -> MetricsSection(
+            metrics = layout.visibleMetrics,
+            summary = uiState.summary,
+            targets = uiState.targets,
+            unit = uiState.unit
+        )
+
+        StatsCard.EPISODES -> EpisodesCard(
+            lows = uiState.summary.lowEpisodes,
+            highs = uiState.summary.highEpisodes,
+            episodes = uiState.summary.episodes,
+            unit = uiState.unit
+        )
+
+        StatsCard.PATTERNS -> PatternsCard(
+            agpByHour = uiState.summary.agpByHour,
+            hourlyStats = uiState.summary.hourlyStats,
+            dailyStats = uiState.summary.dailyStats,
+            dayParts = uiState.summary.dayParts,
+            weekdays = uiState.summary.weekdays,
+            targets = uiState.targets,
+            unit = uiState.unit,
+            activeRange = uiState.activeRange
+        )
+
+        StatsCard.DAY_BY_DAY -> DayByDayCard(
+            days = uiState.summary.days,
+            selectedDate = selectedDayDate,
+            onDaySelected = onDaySelected
+        )
+
+        StatsCard.RISK_INDEX -> RiskIndexCard(
+            gri = uiState.summary.gri,
+            risk = uiState.summary.risk,
+            comparison = uiState.summary.comparison
+        )
+
+        StatsCard.TEMPERATURE -> TemperatureOverviewCard(
+            temperaturePoints = uiState.temperaturePoints
+        )
+
+        StatsCard.INSIGHTS -> InsightsCard(insights = uiState.summary.insights)
+    }
+}
+
+@Composable
+private fun MetricsSection(
+    metrics: List<StatsMetric>,
+    summary: StatsSummary,
+    targets: StatsTargets,
+    unit: GlucoseUnit
+) {
+    if (metrics.isEmpty()) {
+        SectionEmptyLine(text = stringResource(R.string.stats_metrics_all_hidden))
+        return
+    }
+    MetricsGrid(
+        metrics = metrics,
+        summary = summary,
+        targets = targets,
+        unit = unit
+    )
 }
 
 @Composable
@@ -1121,6 +1126,7 @@ private fun GlycemicOverviewCard(
     summary: StatsSummary,
     targets: StatsTargets,
     unit: GlucoseUnit,
+    selectedRange: StatsTimeRange?,
     selectedBand: TirBand?,
     onBandSelected: (TirBand?) -> Unit
 ) {
@@ -1250,14 +1256,35 @@ private fun GlycemicOverviewCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-            WindowContextRow(
-                coverage = summary.coverage,
-                tightRangePercent = summary.tightRangePercent,
-                comparison = summary.comparison
-            )
+            summary.comparison?.let { delta ->
+                if (abs(delta.inRangeDelta) >= 1f) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = stringResource(
+                            R.string.stats_vs_previous,
+                            formatSignedNumber(delta.inRangeDelta),
+                            previousPeriodLabel(selectedRange),
+                            delta.previous.inRangePercent.roundToInt()
+                        ),
+                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                        color = if (delta.inRangeDelta >= 0f) TirInRangeColor else TirHighColor,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            }
         }
     }
+}
+
+/**
+ * Names the comparison period in the user's terms. "Window" is our word, not theirs —
+ * the chip has to say what it is actually comparing against.
+ */
+@Composable
+private fun previousPeriodLabel(selectedRange: StatsTimeRange?): String = when (selectedRange) {
+    StatsTimeRange.DAY_1 -> stringResource(R.string.stats_period_day)
+    null, StatsTimeRange.DAY_ALL -> stringResource(R.string.stats_period_generic)
+    else -> stringResource(R.string.stats_period_days, selectedRange.days)
 }
 
 @Composable
@@ -1469,699 +1496,9 @@ private fun TirCompactRow(
  * Used for Average and A1c in the GlycemicOverviewCard.
  */
 @Composable
-private fun KeyMetricTile(
-    label: String,
-    value: String,
-    tone: Color,
-    modifier: Modifier = Modifier,
-    suffix: String? = null,
-    infoText: String? = null
-) {
-    var expanded by remember(label, infoText) { mutableStateOf(false) }
-    val expandable = !infoText.isNullOrBlank()
-    val tileShape = RoundedCornerShape(topStart = 16.dp, topEnd = 10.dp, bottomStart = 10.dp, bottomEnd = 16.dp)
-    Box(
-        modifier = modifier
-            .animateContentSize()
-            .graphicsLayer {
-                shape = tileShape
-                clip = true
-            }
-            .background(
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                shape = tileShape
-            )
-            .then(
-                if (expandable) Modifier.clickable { expanded = !expanded } else Modifier
-            )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-        ) {
-            // Accent strip
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .fillMaxHeight()
-                    .background(
-                        tone.copy(alpha = 0.5f),
-                        RoundedCornerShape(topStart = 16.dp, bottomStart = 10.dp)
-                    )
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 10.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = tone
-                    )
-                    if (expandable) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = tone.copy(alpha = 0.72f),
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    Text(
-                        text = value,
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontFeatureSettings = "tnum",
-                            fontWeight = FontWeight.SemiBold
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1
-                    )
-                    if (suffix != null) {
-                        Text(
-                            text = suffix,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier
-                                .padding(bottom = 3.dp)
-                        )
-                    }
-                }
-                AnimatedVisibility(
-                    visible = expandable && expanded,
-                    enter = fadeIn(animationSpec = tween(180)) + expandVertically(animationSpec = tween(220)),
-                    exit = fadeOut(animationSpec = tween(140)) + shrinkVertically(animationSpec = tween(180))
-                ) {
-                    Text(
-                        text = infoText.orEmpty(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Compact secondary metric tile with left accent strip.
- * Used for Median, CV, Std dev — smaller than KeyMetricTile.
- */
-@Composable
-private fun SecondaryMetricTile(
-    label: String,
-    value: String,
-    tone: Color,
-    modifier: Modifier = Modifier,
-    infoText: String? = null
-) {
-    var expanded by remember(label, infoText) { mutableStateOf(false) }
-    val expandable = !infoText.isNullOrBlank()
-    val tileShape = RoundedCornerShape(topStart = 12.dp, topEnd = 8.dp, bottomStart = 8.dp, bottomEnd = 12.dp)
-    Box(
-        modifier = modifier
-            .animateContentSize()
-            .graphicsLayer {
-                shape = tileShape
-                clip = true
-            }
-            .background(
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                shape = tileShape
-            )
-            .then(
-                if (expandable) Modifier.clickable { expanded = !expanded } else Modifier
-            )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-        ) {
-            // Accent strip
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .fillMaxHeight()
-                    .background(
-                        tone.copy(alpha = 0.5f),
-                        RoundedCornerShape(topStart = 12.dp, bottomStart = 8.dp)
-                    )
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 8.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(1.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = tone
-                    )
-                    if (expandable) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = tone.copy(alpha = 0.72f),
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
-                }
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontFeatureSettings = "tnum",
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1
-                )
-                AnimatedVisibility(
-                    visible = expandable && expanded,
-                    enter = fadeIn(animationSpec = tween(170)) + expandVertically(animationSpec = tween(220)),
-                    exit = fadeOut(animationSpec = tween(130)) + shrinkVertically(animationSpec = tween(180))
-                ) {
-                    Text(
-                        text = infoText.orEmpty(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MetricsScoreSection(
-    summary: StatsSummary,
-    targets: StatsTargets,
-    unit: GlucoseUnit
-) {
-    val avgTone = when {
-        summary.avgMgDl < targets.lowMgDl || summary.avgMgDl > targets.highMgDl -> TirVeryHighColor
-        summary.avgMgDl <= targets.lowMgDl + 8f || summary.avgMgDl >= targets.highMgDl - 8f -> TirHighColor
-        else -> TirInRangeColor
-    }
-    val medianTone = when {
-        summary.medianMgDl < targets.lowMgDl || summary.medianMgDl > targets.highMgDl -> TirVeryHighColor
-        summary.medianMgDl <= targets.lowMgDl + 8f || summary.medianMgDl >= targets.highMgDl - 8f -> TirHighColor
-        else -> TirInRangeColor
-    }
-    val a1cTone = when {
-        summary.gmiPercent < 5.7f -> TirInRangeColor
-        summary.gmiPercent < 6.5f -> TirHighColor
-        else -> TirVeryHighColor
-    }
-    val cvTone = when {
-        summary.cvPercent < 32f -> TirInRangeColor
-        summary.cvPercent < 40f -> TirHighColor
-        else -> TirVeryHighColor
-    }
-    val iqrTone = cvTone
-    val stdTone = cvTone
-    val avgStatus = when {
-        summary.avgMgDl < targets.lowMgDl -> stringResource(R.string.low_range)
-        summary.avgMgDl > targets.highMgDl -> stringResource(R.string.high_range)
-        else -> stringResource(R.string.in_range)
-    }
-    val medianStatus = when {
-        summary.medianMgDl < targets.lowMgDl -> stringResource(R.string.low_range)
-        summary.medianMgDl > targets.highMgDl -> stringResource(R.string.high_range)
-        else -> stringResource(R.string.in_range)
-    }
-    val cvStatus = when {
-        summary.cvPercent < 32f -> stringResource(R.string.gvi_good)
-        summary.cvPercent < 40f -> stringResource(R.string.gvi_moderate)
-        else -> stringResource(R.string.gvi_poor)
-    }
-    val stdStatus = when {
-        summary.stdDevMgDl < 18f -> stringResource(R.string.gvi_good)
-        summary.stdDevMgDl < 27f -> stringResource(R.string.gvi_moderate)
-        else -> stringResource(R.string.gvi_poor)
-    }
-    val averageTile = ScoreTileSpec(
-        title = stringResource(R.string.average_glucose),
-        value = formatMgDl(summary.avgMgDl, unit),
-        status = avgStatus,
-        meta = "${stringResource(R.string.range)} ${formatMgDl(targets.lowMgDl, unit)}-${formatMgDl(targets.highMgDl, unit)}",
-        tone = avgTone
-    )
-    val gmiTile = ScoreTileSpec(
-        title = stringResource(R.string.a1c_gmi_label),
-        value = String.format(Locale.getDefault(), "%.1f%%", summary.gmiPercent),
-        status = if (summary.gmiPercent <= 7.0f) stringResource(R.string.gmi_target) else stringResource(R.string.high_range),
-        meta = "${stringResource(R.string.gmi_target)} ${stringResource(R.string.gmi_target_value)}",
-        tone = a1cTone
-    )
-    val medianTile = ScoreTileSpec(
-        title = stringResource(R.string.median),
-        value = formatMgDl(summary.medianMgDl, unit),
-        status = medianStatus,
-        meta = "${stringResource(R.string.typical)} · ${String.format(Locale.getDefault(), "%.0f%% %s", summary.tir.inRangePercent, stringResource(R.string.tir))}",
-        tone = medianTone
-    )
-    val iqrTile = ScoreTileSpec(
-        title = stringResource(R.string.report_iqr_short),
-        value = formatMgDl((summary.p75MgDl - summary.p25MgDl).coerceAtLeast(0f), unit),
-        status = stringResource(R.string.typical),
-        meta = "${formatMgDl(summary.p25MgDl, unit)}-${formatMgDl(summary.p75MgDl, unit)}",
-        tone = iqrTone,
-        infoText = stringResource(R.string.iqr_description)
-    )
-    val stdDevTile = ScoreTileSpec(
-        title = stringResource(R.string.std_dev_short),
-        value = formatMgDl(summary.stdDevMgDl, unit),
-        status = stdStatus,
-        meta = "",
-        tone = stdTone,
-        infoText = stringResource(R.string.std_dev_description)
-    )
-    val cvTile = ScoreTileSpec(
-        title = stringResource(R.string.cv),
-        value = String.format(Locale.getDefault(), "%.1f%%", summary.cvPercent),
-        status = cvStatus,
-        meta = "",
-        tone = cvTone,
-        infoText = stringResource(R.string.cv_description)
-    )
-    val gviTile = ScoreTileSpec(
-        title = stringResource(R.string.gvi),
-        value = String.format(Locale.getDefault(), "%.2f", summary.gvi.value),
-        status = stringResource(summary.gvi.labelResId),
-        meta = "${stringResource(R.string.stability)} ${String.format(Locale.getDefault(), "%.0f%%", summary.gvi.stability)} · ROC ${String.format(Locale.getDefault(), "%.2f", summary.gvi.rateOfChange)}",
-        tone = gviTone(summary.gvi.value),
-        infoText = stringResource(R.string.gvi_description)
-    )
-    val psgTile = ScoreTileSpec(
-        title = stringResource(R.string.psg),
-        value = formatMgDl(summary.psg.baselineMgDl, unit),
-        status = stringResource(summary.psg.labelResId),
-//        meta = "${stringResource(R.string.confidence)} ${String.format(Locale.getDefault(), "%.0f%%", summary.psg.confidence)} · ${stringResource(R.string.stats_trend)} ${if (summary.psg.trend >= 0f) "+" else ""}${String.format(Locale.getDefault(), "%.0f%%", summary.psg.trend * 100f)}",
-        meta = "${String.format(Locale.getDefault(), "%.0f%%", summary.psg.confidence)} · ${stringResource(R.string.stats_trend)} ${if (summary.psg.trend >= 0f) "+" else ""}${String.format(Locale.getDefault(), "%.0f%%", summary.psg.trend * 100f)}",
-        tone = psgTone(summary.psg.labelResId),
-        infoText = stringResource(R.string.psg_description)
-    )
-
-    val tightRangeTone = when {
-        summary.tightRangePercent >= 50f -> TirInRangeColor
-        summary.tightRangePercent >= 30f -> TirHighColor
-        else -> TirVeryHighColor
-    }
-    val tightRangeTile = ScoreTileSpec(
-        title = stringResource(R.string.stats_tight_range),
-        value = String.format(Locale.getDefault(), "%.0f%%", summary.tightRangePercent),
-        status = "",
-        meta = "${formatMgDl(StatsAnalytics.TIGHT_LOW_MGDL, unit)}-${formatMgDl(StatsAnalytics.TIGHT_HIGH_MGDL, unit)}",
-        tone = tightRangeTone,
-        infoText = stringResource(R.string.stats_tight_range_description)
-    )
-    val lbgiTile = ScoreTileSpec(
-        title = stringResource(R.string.lbgi),
-        value = String.format(Locale.getDefault(), "%.1f", summary.risk.lbgi),
-        status = "",
-        meta = "",
-        tone = TirVeryLowColor,
-        infoText = stringResource(R.string.lbgi_description)
-    )
-    val hbgiTile = ScoreTileSpec(
-        title = stringResource(R.string.hbgi),
-        value = String.format(Locale.getDefault(), "%.1f", summary.risk.hbgi),
-        status = "",
-        meta = "",
-        tone = TirVeryHighColor,
-        infoText = stringResource(R.string.hbgi_description)
-    )
-
-    var showAllMetrics by rememberSaveable { mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // The four everyone reads first; the rest is one tap away.
-        ScoreTileRow(left = averageTile, right = gmiTile)
-        ScoreTileRow(left = cvTile, right = tightRangeTile)
-
-        AnimatedVisibility(
-            visible = showAllMetrics,
-            enter = fadeIn(tween(180)) + expandVertically(tween(240)),
-            exit = fadeOut(tween(140)) + shrinkVertically(tween(200))
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ScoreTileRow(left = medianTile, right = iqrTile)
-                ScoreTileRow(left = stdDevTile, right = lbgiTile)
-                ScoreTileRow(left = hbgiTile, right = gviTile)
-                ScoreTileRow(left = psgTile, right = null)
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .clickable { showAllMetrics = !showAllMetrics }
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = if (showAllMetrics) {
-                    stringResource(R.string.stats_fewer_metrics)
-                } else {
-                    stringResource(R.string.stats_more_metrics)
-                },
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Icon(
-                imageVector = if (showAllMetrics) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun rememberScoreTileNeedsOwnRow(
-    contentWidth: Dp,
-    value: String,
-    status: String
-): Boolean {
-    if (status.isBlank()) return false
-    val density = LocalDensity.current
-    val textMeasurer = rememberTextMeasurer()
-    val statusStyle = MaterialTheme.typography.titleSmall.copy(lineHeight = 20.sp)
-    val valueStyle = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum")
-    return remember(contentWidth, value, status, density, textMeasurer, statusStyle, valueStyle) {
-        val widthPx = with(density) { maxOf(contentWidth, 0.dp).roundToPx() }
-        val titleGapPx = with(density) { 12.dp.roundToPx() }
-        val valueWidthPx = textMeasurer.measure(
-            text = AnnotatedString(value),
-            style = valueStyle,
-            maxLines = 1
-        ).size.width
-        val statusWidthPx = textMeasurer.measure(
-            text = AnnotatedString(status),
-            style = statusStyle,
-            maxLines = 1
-        ).size.width
-        statusWidthPx > (widthPx - valueWidthPx - titleGapPx).coerceAtLeast(0)
-    }
-}
-
-@Composable
-private fun ScoreTileRow(
-    left: ScoreTileSpec,
-    right: ScoreTileSpec?,
-    spacing: Dp = 12.dp
-) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val tileContentWidth = ((maxWidth - spacing) / 2f) - 28.dp
-        val useOwnStatusRow = rememberScoreTileNeedsOwnRow(tileContentWidth, left.value, left.status) ||
-            (right != null && rememberScoreTileNeedsOwnRow(tileContentWidth, right.value, right.status))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(spacing)
-        ) {
-            ScoreTile(
-                title = left.title,
-                value = left.value,
-                status = left.status,
-                meta = left.meta,
-                tone = left.tone,
-                infoText = left.infoText,
-                forceStatusOwnRow = useOwnStatusRow,
-                modifier = Modifier.weight(1f)
-            )
-            if (right != null) {
-                ScoreTile(
-                    title = right.title,
-                    value = right.value,
-                    status = right.status,
-                    meta = right.meta,
-                    tone = right.tone,
-                    infoText = right.infoText,
-                    forceStatusOwnRow = useOwnStatusRow,
-                    modifier = Modifier.weight(1f)
-                )
-            } else {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScoreTile(
-    title: String,
-    value: String,
-    status: String,
-    meta: String,
-    tone: Color,
-    modifier: Modifier = Modifier,
-    infoText: String? = null,
-    forceStatusOwnRow: Boolean? = null
-) {
-    var expanded by remember(title, infoText) { mutableStateOf(false) }
-    val expandable = !infoText.isNullOrBlank()
-    val hasStatus = status.isNotBlank()
-    val hasMeta = meta.isNotBlank()
-    val tileShape = RoundedCornerShape(topStart = 20.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 20.dp)
-    val tileColor = tone.copy(alpha = 0.09f)
-        .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
-    val titleStyle = MaterialTheme.typography.titleMedium.copy(lineHeight = 22.sp)
-    val statusStyle = MaterialTheme.typography.titleSmall.copy(lineHeight = 20.sp)
-    val valueStyle = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum")
-    Box(
-        modifier = modifier
-            .animateContentSize()
-            .graphicsLayer {
-                shape = tileShape
-                clip = true
-            }
-            .background(
-                color = tileColor,
-                shape = tileShape
-            )
-            .then(
-                if (expandable) Modifier.clickable { expanded = !expanded } else Modifier
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(if (hasMeta) 6.dp else 4.dp)
-        ) {
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val density = LocalDensity.current
-                val textMeasurer = rememberTextMeasurer()
-                val titleGapPx = with(density) { 12.dp.roundToPx() }
-                val sharedWidthPx = with(density) { maxWidth.roundToPx() }
-                val autoStatusNeedsOwnRow = remember(
-                    forceStatusOwnRow,
-                    value,
-                    status,
-                    textMeasurer,
-                    density,
-                    valueStyle,
-                    statusStyle,
-                    hasStatus,
-                    sharedWidthPx
-                ) {
-                    if (forceStatusOwnRow != null || !hasStatus) {
-                        false
-                    } else {
-                        val valueWidthPx = textMeasurer.measure(
-                            text = AnnotatedString(value),
-                            style = valueStyle,
-                            maxLines = 1
-                        ).size.width
-                        val statusWidthPx = textMeasurer.measure(
-                            text = AnnotatedString(status),
-                            style = statusStyle,
-                            maxLines = 1
-                        ).size.width
-                        statusWidthPx > (sharedWidthPx - valueWidthPx - titleGapPx).coerceAtLeast(0)
-                    }
-                }
-                val statusNeedsOwnRow = forceStatusOwnRow ?: autoStatusNeedsOwnRow
-
-                if (statusNeedsOwnRow) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = title,
-                                    style = titleStyle,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                if (expandable) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
-                            Text(
-                                text = value,
-                                style = valueStyle,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(start = 12.dp),
-                                maxLines = 1,
-                                softWrap = false,
-                                textAlign = TextAlign.End
-                            )
-                        }
-                        Text(
-                            text = status,
-                            style = statusStyle,
-                            color = tone,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(if (hasStatus) 4.dp else 0.dp)
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = title,
-                                    style = titleStyle,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                if (expandable) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
-                            if (hasStatus) {
-                                Text(
-                                    text = status,
-                                    style = statusStyle,
-                                    color = tone,
-                                    modifier = Modifier.padding(top = 2.dp),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                        Text(
-                            text = value,
-                            style = valueStyle,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 12.dp),
-                            maxLines = 1,
-                            softWrap = false,
-                            textAlign = TextAlign.End
-                        )
-                    }
-                }
-            }
-            if (hasMeta) {
-                Text(
-                    text = meta,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontFeatureSettings = "tnum",
-                        lineHeight = 18.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            AnimatedVisibility(
-                visible = expandable && expanded,
-                enter = fadeIn(animationSpec = tween(180)) + expandVertically(animationSpec = tween(220)),
-                exit = fadeOut(animationSpec = tween(140)) + shrinkVertically(animationSpec = tween(180))
-            ) {
-                Text(
-                    text = infoText.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-        }
-    }
-}
-
-// Scores follow the same palette as the bands, so "green" means the same thing
-// everywhere on the screen.
-private fun gviTone(gvi: Float): Color {
-    return when {
-        gvi < 1.55f -> TirInRangeColor
-        gvi < 1.90f -> TirHighColor
-        else -> TirVeryHighColor
-    }
-}
-
-private fun psgTone(labelResId: Int): Color {
-    return when (labelResId) {
-        R.string.psg_stable -> TirInRangeColor
-        R.string.psg_low -> TirLowColor
-        R.string.psg_elevated -> TirVeryHighColor
-        else -> TirHighColor
-    }
-}
-@Composable
 private fun PatternsCard(
     agpByHour: List<AgpHourBin>,
+    hourlyStats: List<HourlyGlucoseStats>,
     dailyStats: List<DailyStats>,
     dayParts: List<DayPartStats>,
     weekdays: List<WeekdayStats>,
@@ -2174,7 +1511,7 @@ private fun PatternsCard(
         buildList {
             if (availableBins > 0) add(PatternTab.AGP)
             if (dailyStats.size > 1) add(PatternTab.DAILY)
-            if (dayParts.any { it.readingCount > 0 }) add(PatternTab.TIME_OF_DAY)
+            if (hourlyStats.any { it.sampleCount > 0 }) add(PatternTab.TIME_OF_DAY)
             // Weekday only pays off once more than one week is in view.
             if (weekdays.count { it.readingCount > 0 } >= 3) add(PatternTab.WEEKDAY)
         }.ifEmpty { listOf(PatternTab.AGP) }
@@ -2198,7 +1535,7 @@ private fun PatternsCard(
     val selectedAgpBin = agpByHour.getOrNull(selectedAgpHour.coerceIn(0, 23))
     val selectedDaily = dailyStats.getOrNull(selectedDailyIndex.coerceIn(0, dailyStats.lastIndex.coerceAtLeast(0)))
     val dayFormatter = remember { DateTimeFormatter.ofPattern("MMM d") }
-    val bestPart = dayParts.filter { it.readingCount > 0 }.maxByOrNull { it.tir.inRangePercent }
+    val selectedHourly = hourlyStats.getOrNull(selectedAgpHour.coerceIn(0, 23))
     val bestWeekday = weekdays.filter { it.readingCount > 0 }.maxByOrNull { it.tir.inRangePercent }
     val headerPrimary = when (selectedTab) {
         PatternTab.AGP -> {
@@ -2218,9 +1555,19 @@ private fun PatternsCard(
             "${day.date.format(dayFormatter)} · ${formatMgDl(day.averageMgDl, unit)} ~"
         } ?: windowLabel
 
-        PatternTab.TIME_OF_DAY -> bestPart?.let { part ->
-            stringResource(R.string.stats_best_stretch, stringResource(part.part.labelResId))
-        } ?: windowLabel
+        PatternTab.TIME_OF_DAY -> selectedHourly?.takeIf { it.sampleCount > 0 }?.let { hourly ->
+            String.format(
+                Locale.getDefault(),
+                "%02d:00 · %s",
+                hourly.hour,
+                formatMgDl(hourly.averageMgDl, unit)
+            )
+        } ?: String.format(
+            Locale.getDefault(),
+            "%02d:00 · %s",
+            selectedAgpHour.coerceIn(0, 23),
+            stringResource(R.string.stats_agp_no_sample)
+        )
 
         PatternTab.WEEKDAY -> bestWeekday?.let { weekday ->
             stringResource(
@@ -2244,8 +1591,14 @@ private fun PatternsCard(
             String.format(Locale.getDefault(), "%.0f%% TIR", day.inRangePercent)
         } ?: contextLabel
 
-        PatternTab.TIME_OF_DAY -> bestPart?.let { part ->
-            String.format(Locale.getDefault(), "%.0f%% TIR", part.tir.inRangePercent)
+        PatternTab.TIME_OF_DAY -> selectedHourly?.takeIf { it.sampleCount > 0 }?.let { hourly ->
+            String.format(
+                Locale.getDefault(),
+                "%.0f%% TIR · %.0f%% %s",
+                hourly.tir.inRangePercent,
+                hourly.tir.belowRangePercent,
+                stringResource(R.string.low_range)
+            )
         } ?: contextLabel
 
         PatternTab.WEEKDAY -> bestWeekday?.let { weekday ->
@@ -2387,13 +1740,27 @@ private fun PatternsCard(
                     }
 
                     PatternTab.TIME_OF_DAY -> {
-                        DayPartPatterns(
-                            dayParts = dayParts,
-                            unit = unit,
+                        // The ribbon is the hour-by-hour read; the six-hour rows below
+                        // are the same day condensed to something you can say out loud.
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 8.dp)
-                        )
+                                .padding(top = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(18.dp)
+                        ) {
+                            HourlyExposureRibbon(
+                                hourlyStats = hourlyStats,
+                                selectedHour = selectedAgpHour,
+                                onSelectedHourChange = { selectedAgpHour = it },
+                                contentDescription = stringResource(R.string.stats_hourly_exposure),
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            DayPartPatterns(
+                                dayParts = dayParts,
+                                unit = unit,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
 
                     PatternTab.WEEKDAY -> {

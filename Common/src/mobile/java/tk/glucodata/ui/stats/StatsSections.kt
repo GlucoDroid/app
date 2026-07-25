@@ -77,56 +77,6 @@ internal fun statsCardShape(large: Dp, small: Dp) = RoundedCornerShape(
     bottomEnd = large
 )
 
-// --------------------------------------------------------- window context row
-
-/**
- * What the percentages above are actually made of: how much of the window the sensor
- * covered, how much of it sat in the tight band, and how the window moved against the
- * one before it. Without the coverage line a 92% TIR over four hours of data reads
- * like a 92% TIR over two weeks.
- */
-@Composable
-internal fun WindowContextRow(
-    coverage: SensorCoverage,
-    tightRangePercent: Float,
-    comparison: StatsComparison?,
-    modifier: Modifier = Modifier
-) {
-    val coverageTone = when {
-        coverage.percent >= 85f -> TirInRangeColor
-        coverage.percent >= 70f -> TirHighColor
-        else -> TirVeryHighColor
-    }
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatsChip(
-                text = stringResource(R.string.stats_coverage_active, coverage.percent.roundToInt()),
-                color = coverageTone
-            )
-            StatsChip(
-                text = stringResource(R.string.stats_tight_range_chip, tightRangePercent.roundToInt()),
-                color = TirInRangeColor
-            )
-        }
-        comparison?.let { delta ->
-            if (abs(delta.inRangeDelta) >= 1f) {
-                Text(
-                    text = stringResource(
-                        R.string.stats_vs_previous_period,
-                        formatSignedNumber(delta.inRangeDelta),
-                        delta.previous.inRangePercent.roundToInt()
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (delta.inRangeDelta >= 0f) TirInRangeColor else TirHighColor
-                )
-            }
-        }
-    }
-}
-
 // ------------------------------------------------------------ risk index card
 
 /**
