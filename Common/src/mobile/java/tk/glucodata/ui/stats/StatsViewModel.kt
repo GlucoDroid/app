@@ -35,6 +35,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlin.math.sqrt
 
@@ -235,7 +236,15 @@ class StatsViewModel : ViewModel() {
             targets = _targets.value,
             isLoading = _isLoading.value,
             hasSensor = _hasSensor.value,
-            summary = calculateSummary(filteredHistory, _targets.value),
+            summary = calculateSummary(
+                history = filteredHistory,
+                targets = _targets.value,
+                unit = _unit.value,
+                activeRange = StatsDateRange(
+                    startMillis = cutoff,
+                    endMillis = System.currentTimeMillis()
+                )
+            ),
             temperaturePoints = filteredTemperature,
             readings = filteredHistory
         )
@@ -451,12 +460,23 @@ class StatsViewModel : ViewModel() {
     private fun resolveSubscriptionStartTime(): Long {
         val customRange = _customRange.value
         return when {
-            customRange != null -> customRange.startMillis
+            customRange != null -> {
+                val spanDays = customRange.daySpan.toLong()
+                if (spanDays in 1..COMPARISON_MAX_RANGE_DAYS) {
+                    (customRange.startMillis - (spanDays * DAY_MS)).coerceAtLeast(0L)
+                } else {
+                    customRange.startMillis
+                }
+            }
             _selectedRange.value == StatsTimeRange.DAY_ALL -> 0L
             else -> {
                 val quickRangeDays = (_selectedRange.value ?: DEFAULT_STATS_RANGE).days.toLong()
                 val endMillis = _availableRange.value?.endMillis ?: System.currentTimeMillis()
-                (endMillis - (quickRangeDays * DAY_MS) + 1L).coerceAtLeast(0L)
+                // Load one extra period so the screen can say how this window compares to
+                // the one before it. Only for short windows — doubling a 90-day pull of
+                // 1-minute data costs far more than the comparison chip is worth.
+                val periods = if (quickRangeDays <= COMPARISON_MAX_RANGE_DAYS) 2L else 1L
+                (endMillis - (quickRangeDays * periods * DAY_MS) + 1L).coerceAtLeast(0L)
             }
         }
     }
@@ -524,7 +544,8 @@ class StatsViewModel : ViewModel() {
         history: List<GlucosePoint>,
         viewMode: Int,
         unit: GlucoseUnit,
-        historySignature: StatsHistorySignature = historySignature(history)
+        historySignature: StatsHistorySignature = historySignature(history),
+        useCache: Boolean = true
     ): List<GlucosePoint> {
         if (history.isEmpty()) return emptyList()
 
@@ -539,7 +560,7 @@ class StatsViewModel : ViewModel() {
             calibrationRevision = calibrationRevision,
             activeSerial = activeSerial
         )
-        if (statsDisplayHistoryCacheKey == cacheKey) {
+        if (useCache && statsDisplayHistoryCacheKey == cacheKey) {
             return statsDisplayHistoryCacheValue
         }
 
@@ -601,8 +622,10 @@ class StatsViewModel : ViewModel() {
                 point.copy(value = primaryValueMgDl, rawValue = primaryValueMgDl)
             }
         }
-        statsDisplayHistoryCacheKey = cacheKey
-        statsDisplayHistoryCacheValue = resolved
+        if (useCache) {
+            statsDisplayHistoryCacheKey = cacheKey
+            statsDisplayHistoryCacheValue = resolved
+        }
         return resolved
     }
 
@@ -703,11 +726,60 @@ class StatsViewModel : ViewModel() {
         }
         val projection = StatsRangeProjection(
             filteredHistory = filteredHistory,
-            summary = calculateSummary(filteredHistory, targets)
+            summary = calculateSummary(
+                history = filteredHistory,
+                targets = targets,
+                unit = unit,
+                activeRange = activeRange,
+                previousScalars = resolvePreviousPeriodScalars(
+                    history = history,
+                    viewMode = viewMode,
+                    unit = unit,
+                    targets = targets,
+                    activeRange = activeRange,
+                    currentReadingCount = filteredHistory.size
+                )
+            )
         )
         statsRangeProjectionCacheKey = cacheKey
         statsRangeProjectionCacheValue = projection
         return projection
+    }
+
+    /**
+     * Scalars for the equally long window immediately before the active one.
+     *
+     * Returns null unless that window is loaded and holds enough readings to compare
+     * honestly — a "+18 points" chip computed against two days of data is worse than
+     * no chip at all.
+     */
+    private fun resolvePreviousPeriodScalars(
+        history: List<GlucosePoint>,
+        viewMode: Int,
+        unit: GlucoseUnit,
+        targets: StatsTargets,
+        activeRange: StatsDateRange?,
+        currentReadingCount: Int
+    ): PeriodScalars? {
+        if (activeRange == null || currentReadingCount < MIN_COMPARISON_READINGS) return null
+        val spanMillis = activeRange.endMillis - activeRange.startMillis
+        if (spanMillis <= 0L || activeRange.daySpan > COMPARISON_MAX_RANGE_DAYS) return null
+
+        val previousRange = StatsDateRange(
+            startMillis = (activeRange.startMillis - spanMillis - 1L).coerceAtLeast(0L),
+            endMillis = activeRange.startMillis - 1L
+        )
+        val rawPrevious = filterHistoryForRange(history, previousRange)
+        if (rawPrevious.size < currentReadingCount * MIN_COMPARISON_COVERAGE) return null
+
+        val values = resolveStatsDisplayHistory(
+            history = rawPrevious,
+            viewMode = viewMode,
+            unit = unit,
+            useCache = false
+        ).mapNotNull { point -> point.value.takeIf { isStatsValueValid(it) } }
+        if (values.size < currentReadingCount * MIN_COMPARISON_COVERAGE) return null
+        return StatsAnalytics.periodScalars(values, targets)
     }
 
     private fun filterHistoryForRange(
@@ -1111,7 +1183,13 @@ class StatsViewModel : ViewModel() {
             valueMgDl in MIN_STATS_GLUCOSE_MGDL..MAX_STATS_GLUCOSE_MGDL
     }
 
-    private fun calculateSummary(history: List<GlucosePoint>, targets: StatsTargets): StatsSummary {
+    private fun calculateSummary(
+        history: List<GlucosePoint>,
+        targets: StatsTargets,
+        unit: GlucoseUnit,
+        activeRange: StatsDateRange?,
+        previousScalars: PeriodScalars? = null
+    ): StatsSummary {
         if (history.isEmpty()) {
             return StatsSummary()
         }
@@ -1197,7 +1275,35 @@ class StatsViewModel : ViewModel() {
             cvPercent = variabilityCv,
             targets = targets
         )
-        val insights = buildInsights(tir = tir, cv = cv, gmi = gmi, dailyStats = daily, agp = agp)
+
+        val chronological = sortedByTimestampIfNeeded(history)
+        val coverage = StatsAnalytics.sensorCoverage(chronological, activeRange)
+        val episodes = StatsAnalytics.detectEpisodes(chronological, targets)
+        val windowDays = coverage.windowDays.coerceAtLeast(1f)
+        val lowEpisodes = StatsAnalytics.summarizeEpisodes(episodes, EpisodeKind.LOW, windowDays)
+        val highEpisodes = StatsAnalytics.summarizeEpisodes(episodes, EpisodeKind.HIGH, windowDays)
+        val dayParts = StatsAnalytics.dayPartStats(chronological, targets)
+        val weekdays = StatsAnalytics.weekdayStats(chronological, targets)
+        val days = StatsAnalytics.dayBreakdowns(chronological, targets)
+        val comparison = previousScalars?.let { previous ->
+            StatsAnalytics.compare(StatsAnalytics.periodScalars(values, targets), previous)
+        }
+        val insights = buildInsights(
+            findings = StatsAnalytics.findings(
+                FindingInput(
+                    tir = tir,
+                    averageMgDl = avg,
+                    cvPercent = cv,
+                    coverage = coverage,
+                    lowEpisodes = lowEpisodes,
+                    highEpisodes = highEpisodes,
+                    dayParts = dayParts,
+                    days = days,
+                    comparison = comparison
+                )
+            ),
+            unit = unit
+        )
 
         return StatsSummary(
             readingCount = count,
@@ -1215,6 +1321,17 @@ class StatsViewModel : ViewModel() {
             firstTimestamp = history.first().timestamp,
             lastTimestamp = history.last().timestamp,
             tir = tir,
+            tightRangePercent = StatsAnalytics.tightRangePercent(values),
+            gri = StatsAnalytics.glycemiaRiskIndex(values),
+            risk = StatsAnalytics.riskIndices(values),
+            coverage = coverage,
+            episodes = episodes,
+            lowEpisodes = lowEpisodes,
+            highEpisodes = highEpisodes,
+            dayParts = dayParts,
+            weekdays = weekdays,
+            days = days,
+            comparison = comparison,
             agpByHour = agp,
             dailyStats = daily,
             insights = insights
@@ -1445,133 +1562,153 @@ class StatsViewModel : ViewModel() {
         return history
     }
 
-    private fun buildInsights(
-        tir: TimeInRangeBreakdown,
-        cv: Float,
-        gmi: Float,
-        dailyStats: List<DailyStats>,
-        agp: List<AgpHourBin>
-    ): List<StatsInsight> {
+    /**
+     * Turns detected findings into display copy. The analytics layer decided what is
+     * true; this only picks the wording, formats the numbers in the user's unit, and
+     * keeps the list short enough that people actually read it.
+     */
+    private fun buildInsights(findings: List<StatsFinding>, unit: GlucoseUnit): List<StatsInsight> {
         val context = Applic.app
-        val insights = mutableListOf<StatsInsight>()
+        val isMmol = unit == GlucoseUnit.MMOL
 
-        when {
-            tir.inRangePercent >= 70f -> insights += StatsInsight(
-                title = context.getString(R.string.insight_excellent_control),
-                message = context.getString(
-                    R.string.insight_excellent_control_desc,
-                    tir.inRangePercent.toInt()
-                ),
-                severity = InsightSeverity.POSITIVE
-            )
+        fun glucose(valueMgDl: Float): String =
+            GlucoseFormatter.formatFromMgDl(valueMgDl = valueMgDl, isMmol = isMmol)
 
-            tir.inRangePercent >= 55f -> insights += StatsInsight(
-                title = context.getString(R.string.insight_good_progress),
-                message = context.getString(
-                    R.string.insight_good_progress_desc,
-                    tir.inRangePercent.toInt()
-                ),
-                severity = InsightSeverity.ATTENTION
-            )
+        fun hour(value: Int): String =
+            String.format(Locale.getDefault(), "%02d:00", value.coerceIn(0, 24))
 
-            else -> insights += StatsInsight(
-                title = context.getString(R.string.insight_room_improvement),
-                message = context.getString(
-                    R.string.insight_room_improvement_desc,
-                    tir.inRangePercent.toInt()
-                ),
-                severity = InsightSeverity.CAUTION
-            )
+        fun duration(minutes: Int): String {
+            val hours = minutes / 60
+            val rest = minutes % 60
+            return when {
+                hours == 0 -> context.getString(R.string.stats_duration_minutes, rest)
+                rest == 0 -> context.getString(R.string.stats_duration_hours, hours)
+                else -> context.getString(R.string.stats_duration_hours_minutes, hours, rest)
+            }
         }
 
-        when {
-            cv <= 36f -> insights += StatsInsight(
-                title = context.getString(R.string.insight_stable_glucose),
-                message = context.getString(
-                    R.string.insight_stable_glucose_desc,
-                    cv.toInt()
-                ),
-                severity = InsightSeverity.POSITIVE
-            )
+        return findings.mapNotNull { finding ->
+            when (finding.kind) {
+                FindingKind.SPARSE_COVERAGE -> StatsInsight(
+                    title = context.getString(R.string.stats_finding_coverage),
+                    message = context.getString(
+                        R.string.stats_finding_coverage_desc,
+                        finding.primary.roundToInt()
+                    ),
+                    severity = finding.severity
+                )
 
-            cv <= 45f -> insights += StatsInsight(
-                title = context.getString(R.string.insight_variability_rising),
-                message = context.getString(
-                    R.string.insight_variability_rising_desc,
-                    String.format(Locale.getDefault(), "%.1f", cv)
-                ),
-                severity = InsightSeverity.ATTENTION
-            )
+                FindingKind.LOWS_CLUSTER -> StatsInsight(
+                    title = context.getString(
+                        R.string.stats_finding_lows_cluster,
+                        hour(finding.hour),
+                        hour(finding.hour + 4)
+                    ),
+                    message = context.getString(
+                        R.string.stats_finding_lows_cluster_desc,
+                        finding.primary.roundToInt(),
+                        finding.secondary.roundToInt()
+                    ),
+                    severity = finding.severity
+                )
 
-            else -> insights += StatsInsight(
-                title = context.getString(R.string.insight_high_variability),
-                message = context.getString(
-                    R.string.insight_high_variability_desc,
-                    cv.toInt()
-                ),
-                severity = InsightSeverity.CAUTION
-            )
-        }
+                FindingKind.SEVERE_LOWS -> StatsInsight(
+                    title = context.getString(R.string.stats_finding_severe_lows),
+                    message = context.getString(
+                        R.string.stats_finding_severe_lows_desc,
+                        finding.primary.roundToInt(),
+                        duration(finding.secondary.roundToInt())
+                    ),
+                    severity = finding.severity
+                )
 
-        if (tir.veryLowPercent >= 1f) {
-            insights += StatsInsight(
-                title = context.getString(R.string.insight_hypoglycemia_exposure),
-                message = context.getString(
-                    R.string.insight_hypoglycemia_exposure_desc,
-                    String.format(Locale.getDefault(), "%.1f", tir.veryLowPercent)
-                ),
-                severity = InsightSeverity.CAUTION
-            )
-        }
+                FindingKind.LONG_HIGHS -> StatsInsight(
+                    title = context.getString(R.string.stats_finding_long_highs),
+                    message = context.getString(
+                        R.string.stats_finding_long_highs_desc,
+                        duration((finding.primary * 60f).roundToInt()),
+                        finding.secondary.roundToInt()
+                    ),
+                    severity = finding.severity
+                )
 
-        if (tir.veryHighPercent >= 5f) {
-            insights += StatsInsight(
-                title = context.getString(R.string.insight_prolonged_hyperglycemia),
-                message = context.getString(
-                    R.string.insight_prolonged_hyperglycemia_desc,
-                    String.format(Locale.getDefault(), "%.1f", tir.veryHighPercent)
-                ),
-                severity = InsightSeverity.ATTENTION
-            )
-        }
+                FindingKind.DAYPART_HIGH, FindingKind.DAYPART_LOW -> {
+                    val part = finding.dayPart ?: return@mapNotNull null
+                    val titleRes = if (finding.kind == FindingKind.DAYPART_HIGH) {
+                        R.string.stats_finding_daypart_high
+                    } else {
+                        R.string.stats_finding_daypart_low
+                    }
+                    StatsInsight(
+                        title = context.getString(titleRes, context.getString(part.pluralLabelResId)),
+                        message = context.getString(
+                            R.string.stats_finding_daypart_desc,
+                            glucose(finding.primary),
+                            glucose(finding.secondary)
+                        ),
+                        severity = finding.severity
+                    )
+                }
 
-        val overnightMedian = agp
-            .filter { it.hour in 0..5 }
-            .mapNotNull { it.medianMgDl }
-            .average()
-            .toFloat()
-        val daytimeMedian = agp
-            .filter { it.hour in 10..18 }
-            .mapNotNull { it.medianMgDl }
-            .average()
-            .toFloat()
+                FindingKind.TREND_UP -> StatsInsight(
+                    title = context.getString(R.string.stats_finding_trend_up),
+                    message = context.getString(
+                        R.string.stats_finding_trend_up_desc,
+                        finding.primary.roundToInt(),
+                        finding.secondary.roundToInt()
+                    ),
+                    severity = finding.severity
+                )
 
-        if (overnightMedian > 0f && daytimeMedian > 0f && overnightMedian - daytimeMedian > 20f) {
-            insights += StatsInsight(
-                title = context.getString(R.string.insight_overnight_drift),
-                message = context.getString(R.string.insight_overnight_drift_desc),
-                severity = InsightSeverity.ATTENTION
-            )
-        }
+                FindingKind.TREND_DOWN -> StatsInsight(
+                    title = context.getString(R.string.stats_finding_trend_down),
+                    message = context.getString(
+                        R.string.stats_finding_trend_down_desc,
+                        finding.primary.roundToInt(),
+                        finding.secondary.roundToInt()
+                    ),
+                    severity = finding.severity
+                )
 
-        val unstableDays = dailyStats.count { it.inRangePercent < 50f }
-        if (unstableDays >= 3 && dailyStats.size >= 7) {
-            insights += StatsInsight(
-                title = context.getString(R.string.insight_unstable_days),
-                message = context.getString(R.string.insight_unstable_days_desc, unstableDays),
-                severity = InsightSeverity.CAUTION
-            )
-        }
+                FindingKind.STEADY_STREAK -> StatsInsight(
+                    title = context.getString(R.string.stats_finding_steady),
+                    message = context.getString(
+                        R.string.stats_finding_steady_desc,
+                        finding.primary.roundToInt()
+                    ),
+                    severity = finding.severity
+                )
 
-        if (gmi >= 7.5f && tir.inRangePercent < 60f) {
-            insights += StatsInsight(
-                title = context.getString(R.string.insight_a1c_estimate),
-                message = context.getString(R.string.insight_a1c_estimate_desc, gmi),
-                severity = InsightSeverity.ATTENTION
-            )
-        }
+                FindingKind.ROUGH_DAYS -> StatsInsight(
+                    title = context.getString(R.string.stats_finding_rough_days),
+                    message = context.getString(
+                        R.string.stats_finding_rough_days_desc,
+                        finding.primary.roundToInt(),
+                        finding.secondary.roundToInt()
+                    ),
+                    severity = finding.severity
+                )
 
-        return insights.distinctBy { it.title }.take(MAX_INSIGHTS)
+                FindingKind.VARIABILITY -> StatsInsight(
+                    title = context.getString(R.string.stats_finding_variability),
+                    message = context.getString(
+                        R.string.stats_finding_variability_desc,
+                        finding.primary.roundToInt()
+                    ),
+                    severity = finding.severity
+                )
+
+                FindingKind.ON_TARGET -> StatsInsight(
+                    title = context.getString(R.string.stats_finding_on_target),
+                    message = context.getString(
+                        R.string.stats_finding_on_target_desc,
+                        finding.primary.roundToInt(),
+                        finding.secondary.roundToInt()
+                    ),
+                    severity = finding.severity
+                )
+            }
+        }.distinctBy { it.title }.take(MAX_INSIGHTS)
     }
 
     private fun percentile(sorted: List<Float>, percentile: Float): Float {
@@ -1626,6 +1763,16 @@ class StatsViewModel : ViewModel() {
         private const val MIN_STATS_GLUCOSE_MGDL = 30f
         private const val MAX_STATS_GLUCOSE_MGDL = 500f
         private const val MAX_REPORT_DAYS = 365
+
+        /** Longest window we pull a second copy of, to compare against the period before. */
+        private const val COMPARISON_MAX_RANGE_DAYS = 30
+
+        /** Below this, a period-over-period delta is noise dressed up as a trend. */
+        private const val MIN_COMPARISON_READINGS = 24
+
+        /** The previous window needs this share of the current window's readings to count. */
+        private const val MIN_COMPARISON_COVERAGE = 0.6f
+
         private val DEFAULT_STATS_RANGE = StatsTimeRange.DAY_1
         @Volatile private var lastRenderedState: CachedRenderedState? = null
     }

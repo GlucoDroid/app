@@ -69,6 +69,8 @@ import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
@@ -154,20 +156,16 @@ import kotlin.math.atan2
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.ui.theme.labelLargeExpressive
 
-// Follow the active glucose palette (and any per-band overrides). Computed on
-// access so a palette switch shows up when the stats screen is (re)entered.
-// Light variant only, matching the historical theme-independent behaviour.
-private val TirVeryLowColor get() = Color(GlucoseRangeColors.veryLow(false))
-private val TirLowColor get() = Color(GlucoseRangeColors.low(false))
-private val TirInRangeColor get() = Color(GlucoseRangeColors.inRange(false))
-private val TirHighColor get() = Color(GlucoseRangeColors.high(false))
-private val TirVeryHighColor get() = Color(GlucoseRangeColors.veryHigh(false))
+// Band colours live in StatsVisualizations.kt so every stats surface reads the same
+// palette from one place.
 private const val PrefKeyReportPdfStyle = "stats_report_pdf_style"
 
-private enum class TirBand {
+/** Below this a calendar grid is just a row of squares — the daily view already covers it. */
+private const val MIN_CALENDAR_DAYS = 3
+
+internal enum class TirBand {
     VERY_LOW,
     LOW,
     IN_RANGE,
@@ -234,6 +232,9 @@ fun StatsScreen(
     var pendingReportStylePref by rememberSaveable { mutableStateOf(reportStylePref) }
     val selectedReportStyle = StatsReportExporter.PdfVisualStyle.fromPref(reportStylePref)
     var selectedTirBand by remember(uiState.summary.tir) { mutableStateOf<TirBand?>(null) }
+    // Keyed on the window, not on the data: a new reading must not slam the day sheet shut.
+    var selectedDayDate by remember(uiState.activeRange) { mutableStateOf<java.time.LocalDate?>(null) }
+    val selectedDay = uiState.summary.days.firstOrNull { it.date == selectedDayDate }
     var pendingPatientInfo by remember { mutableStateOf<StatsReportExporter.PatientInfo?>(null) }
     var exportedReportUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -377,7 +378,7 @@ fun StatsScreen(
                     }
                 }
 
-                // TIR overview
+                // How the window sits against target, and what the window is made of.
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     GlycemicOverviewCard(
@@ -389,7 +390,17 @@ fun StatsScreen(
                     )
                 }
 
-                // Unified metric hierarchy (Avg/Median/A1C/CV/Std Dev/GVI/PSG)
+                // One composite risk score, split into its low- and high-driven halves.
+                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    RiskIndexCard(
+                        gri = uiState.summary.gri,
+                        risk = uiState.summary.risk,
+                        comparison = uiState.summary.comparison
+                    )
+                }
+
+                // Core metrics first, the long tail behind a disclosure.
                 item {
                     Spacer(modifier = Modifier.height(12.dp))
                     MetricsScoreSection(
@@ -399,16 +410,43 @@ fun StatsScreen(
                     )
                 }
 
-                // Patterns (AGP / Daily Trend) — new major section
+                // Excursions as events, not percentages.
+                if (uiState.summary.lowEpisodes.count > 0 || uiState.summary.highEpisodes.count > 0) {
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        EpisodesCard(
+                            lows = uiState.summary.lowEpisodes,
+                            highs = uiState.summary.highEpisodes,
+                            episodes = uiState.summary.episodes,
+                            unit = uiState.unit
+                        )
+                    }
+                }
+
+                // Patterns: AGP, day-over-day, time of day, weekday.
                 item {
                     Spacer(modifier = Modifier.height(24.dp))
                     PatternsCard(
                         agpByHour = uiState.summary.agpByHour,
                         dailyStats = uiState.summary.dailyStats,
+                        dayParts = uiState.summary.dayParts,
+                        weekdays = uiState.summary.weekdays,
                         targets = uiState.targets,
                         unit = uiState.unit,
                         activeRange = uiState.activeRange
                     )
+                }
+
+                // Calendar grid — only worth drawing once there are a few days to compare.
+                if (uiState.summary.days.size >= MIN_CALENDAR_DAYS) {
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        DayByDayCard(
+                            days = uiState.summary.days,
+                            selectedDate = selectedDayDate,
+                            onDaySelected = { selectedDayDate = it.date }
+                        )
+                    }
                 }
 
                 // Temperature — separate section
@@ -429,6 +467,17 @@ fun StatsScreen(
                     )
                 }
             }
+        }
+
+        selectedDay?.let { day ->
+            DayDetailSheet(
+                day = day,
+                readings = uiState.readings,
+                episodes = uiState.summary.episodes,
+                targets = uiState.targets,
+                unit = uiState.unit,
+                onDismiss = { selectedDayDate = null }
+            )
         }
 
         if (showShareSheet) {
@@ -1200,6 +1249,13 @@ private fun GlycemicOverviewCard(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            WindowContextRow(
+                coverage = summary.coverage,
+                tightRangePercent = summary.tightRangePercent,
+                comparison = summary.comparison
+            )
         }
     }
 }
@@ -1724,14 +1780,86 @@ private fun MetricsScoreSection(
         infoText = stringResource(R.string.psg_description)
     )
 
+    val tightRangeTone = when {
+        summary.tightRangePercent >= 50f -> TirInRangeColor
+        summary.tightRangePercent >= 30f -> TirHighColor
+        else -> TirVeryHighColor
+    }
+    val tightRangeTile = ScoreTileSpec(
+        title = stringResource(R.string.stats_tight_range),
+        value = String.format(Locale.getDefault(), "%.0f%%", summary.tightRangePercent),
+        status = "",
+        meta = "${formatMgDl(StatsAnalytics.TIGHT_LOW_MGDL, unit)}-${formatMgDl(StatsAnalytics.TIGHT_HIGH_MGDL, unit)}",
+        tone = tightRangeTone,
+        infoText = stringResource(R.string.stats_tight_range_description)
+    )
+    val lbgiTile = ScoreTileSpec(
+        title = stringResource(R.string.lbgi),
+        value = String.format(Locale.getDefault(), "%.1f", summary.risk.lbgi),
+        status = "",
+        meta = "",
+        tone = TirVeryLowColor,
+        infoText = stringResource(R.string.lbgi_description)
+    )
+    val hbgiTile = ScoreTileSpec(
+        title = stringResource(R.string.hbgi),
+        value = String.format(Locale.getDefault(), "%.1f", summary.risk.hbgi),
+        status = "",
+        meta = "",
+        tone = TirVeryHighColor,
+        infoText = stringResource(R.string.hbgi_description)
+    )
+
+    var showAllMetrics by rememberSaveable { mutableStateOf(false) }
+
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // The four everyone reads first; the rest is one tap away.
         ScoreTileRow(left = averageTile, right = gmiTile)
-        ScoreTileRow(left = medianTile, right = iqrTile)
-        ScoreTileRow(left = stdDevTile, right = cvTile)
-        ScoreTileRow(left = gviTile, right = psgTile)
+        ScoreTileRow(left = cvTile, right = tightRangeTile)
+
+        AnimatedVisibility(
+            visible = showAllMetrics,
+            enter = fadeIn(tween(180)) + expandVertically(tween(240)),
+            exit = fadeOut(tween(140)) + shrinkVertically(tween(200))
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ScoreTileRow(left = medianTile, right = iqrTile)
+                ScoreTileRow(left = stdDevTile, right = lbgiTile)
+                ScoreTileRow(left = hbgiTile, right = gviTile)
+                ScoreTileRow(left = psgTile, right = null)
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .clickable { showAllMetrics = !showAllMetrics }
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (showAllMetrics) {
+                    stringResource(R.string.stats_fewer_metrics)
+                } else {
+                    stringResource(R.string.stats_more_metrics)
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Icon(
+                imageVector = if (showAllMetrics) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 
@@ -1766,13 +1894,13 @@ private fun rememberScoreTileNeedsOwnRow(
 @Composable
 private fun ScoreTileRow(
     left: ScoreTileSpec,
-    right: ScoreTileSpec,
+    right: ScoreTileSpec?,
     spacing: Dp = 12.dp
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val tileContentWidth = ((maxWidth - spacing) / 2f) - 28.dp
         val useOwnStatusRow = rememberScoreTileNeedsOwnRow(tileContentWidth, left.value, left.status) ||
-            rememberScoreTileNeedsOwnRow(tileContentWidth, right.value, right.status)
+            (right != null && rememberScoreTileNeedsOwnRow(tileContentWidth, right.value, right.status))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(spacing)
@@ -1787,16 +1915,20 @@ private fun ScoreTileRow(
                 forceStatusOwnRow = useOwnStatusRow,
                 modifier = Modifier.weight(1f)
             )
-            ScoreTile(
-                title = right.title,
-                value = right.value,
-                status = right.status,
-                meta = right.meta,
-                tone = right.tone,
-                infoText = right.infoText,
-                forceStatusOwnRow = useOwnStatusRow,
-                modifier = Modifier.weight(1f)
-            )
+            if (right != null) {
+                ScoreTile(
+                    title = right.title,
+                    value = right.value,
+                    status = right.status,
+                    meta = right.meta,
+                    tone = right.tone,
+                    infoText = right.infoText,
+                    forceStatusOwnRow = useOwnStatusRow,
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
         }
     }
 }
@@ -2009,36 +2141,42 @@ private fun ScoreTile(
     }
 }
 
+// Scores follow the same palette as the bands, so "green" means the same thing
+// everywhere on the screen.
 private fun gviTone(gvi: Float): Color {
     return when {
-        gvi < 1.25f -> Color(0xFF4CAF50)
-        gvi < 1.55f -> Color(0xFF8BC34A)
-        gvi < 1.90f -> Color(0xFFFF9800)
-        else -> Color(0xFFF44336)
+        gvi < 1.55f -> TirInRangeColor
+        gvi < 1.90f -> TirHighColor
+        else -> TirVeryHighColor
     }
 }
 
 private fun psgTone(labelResId: Int): Color {
     return when (labelResId) {
-        R.string.psg_stable -> Color(0xFF4CAF50)
-        R.string.psg_low -> Color(0xFFEF6C00)
-        R.string.psg_elevated -> Color(0xFFD84315)
-        else -> Color(0xFFFFC107)
+        R.string.psg_stable -> TirInRangeColor
+        R.string.psg_low -> TirLowColor
+        R.string.psg_elevated -> TirVeryHighColor
+        else -> TirHighColor
     }
 }
 @Composable
 private fun PatternsCard(
     agpByHour: List<AgpHourBin>,
     dailyStats: List<DailyStats>,
+    dayParts: List<DayPartStats>,
+    weekdays: List<WeekdayStats>,
     targets: StatsTargets,
     unit: GlucoseUnit,
     activeRange: StatsDateRange?
 ) {
     val availableBins = agpByHour.count { it.sampleCount > 0 }
-    val availableTabs = remember(agpByHour, dailyStats) {
+    val availableTabs = remember(agpByHour, dailyStats, dayParts, weekdays) {
         buildList {
             if (availableBins > 0) add(PatternTab.AGP)
-            if (dailyStats.isNotEmpty()) add(PatternTab.DAILY)
+            if (dailyStats.size > 1) add(PatternTab.DAILY)
+            if (dayParts.any { it.readingCount > 0 }) add(PatternTab.TIME_OF_DAY)
+            // Weekday only pays off once more than one week is in view.
+            if (weekdays.count { it.readingCount > 0 } >= 3) add(PatternTab.WEEKDAY)
         }.ifEmpty { listOf(PatternTab.AGP) }
     }
     var selectedTab by remember(availableTabs) { mutableStateOf(availableTabs.first()) }
@@ -2060,33 +2198,58 @@ private fun PatternsCard(
     val selectedAgpBin = agpByHour.getOrNull(selectedAgpHour.coerceIn(0, 23))
     val selectedDaily = dailyStats.getOrNull(selectedDailyIndex.coerceIn(0, dailyStats.lastIndex.coerceAtLeast(0)))
     val dayFormatter = remember { DateTimeFormatter.ofPattern("MMM d") }
-    val headerPrimary = if (selectedTab == PatternTab.AGP) {
-        val hour = selectedAgpHour.coerceIn(0, 23)
-        selectedAgpBin?.medianMgDl?.let { median ->
-            String.format(
-                Locale.getDefault(),
-                "%02d:00 · %s %s",
-                hour,
-                stringResource(R.string.median),
-                formatMgDl(median, unit)
-            )
-        } ?: String.format(Locale.getDefault(), "%02d:00 · %s", hour, stringResource(R.string.stats_agp_no_sample))
-    } else {
-        selectedDaily?.let { day ->
+    val bestPart = dayParts.filter { it.readingCount > 0 }.maxByOrNull { it.tir.inRangePercent }
+    val bestWeekday = weekdays.filter { it.readingCount > 0 }.maxByOrNull { it.tir.inRangePercent }
+    val headerPrimary = when (selectedTab) {
+        PatternTab.AGP -> {
+            val hour = selectedAgpHour.coerceIn(0, 23)
+            selectedAgpBin?.medianMgDl?.let { median ->
+                String.format(
+                    Locale.getDefault(),
+                    "%02d:00 · %s %s",
+                    hour,
+                    stringResource(R.string.median),
+                    formatMgDl(median, unit)
+                )
+            } ?: String.format(Locale.getDefault(), "%02d:00 · %s", hour, stringResource(R.string.stats_agp_no_sample))
+        }
+
+        PatternTab.DAILY -> selectedDaily?.let { day ->
             "${day.date.format(dayFormatter)} · ${formatMgDl(day.averageMgDl, unit)} ~"
         } ?: windowLabel
+
+        PatternTab.TIME_OF_DAY -> bestPart?.let { part ->
+            stringResource(R.string.stats_best_stretch, stringResource(part.part.labelResId))
+        } ?: windowLabel
+
+        PatternTab.WEEKDAY -> bestWeekday?.let { weekday ->
+            stringResource(
+                R.string.stats_best_stretch,
+                weekday.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault())
+            )
+        } ?: windowLabel
     }
-    val headerSecondary = if (selectedTab == PatternTab.AGP) {
-        val iqrLow = selectedAgpBin?.p25MgDl
-        val iqrHigh = selectedAgpBin?.p75MgDl
-        if (iqrLow != null && iqrHigh != null) {
-            "IQR ${formatMgDl(iqrLow, unit)}-${formatMgDl(iqrHigh, unit)}"
-        } else {
-            contextLabel
+    val headerSecondary = when (selectedTab) {
+        PatternTab.AGP -> {
+            val iqrLow = selectedAgpBin?.p25MgDl
+            val iqrHigh = selectedAgpBin?.p75MgDl
+            if (iqrLow != null && iqrHigh != null) {
+                "IQR ${formatMgDl(iqrLow, unit)}-${formatMgDl(iqrHigh, unit)}"
+            } else {
+                contextLabel
+            }
         }
-    } else {
-        selectedDaily?.let { day ->
+
+        PatternTab.DAILY -> selectedDaily?.let { day ->
             String.format(Locale.getDefault(), "%.0f%% TIR", day.inRangePercent)
+        } ?: contextLabel
+
+        PatternTab.TIME_OF_DAY -> bestPart?.let { part ->
+            String.format(Locale.getDefault(), "%.0f%% TIR", part.tir.inRangePercent)
+        } ?: contextLabel
+
+        PatternTab.WEEKDAY -> bestWeekday?.let { weekday ->
+            String.format(Locale.getDefault(), "%.0f%% TIR", weekday.tir.inRangePercent)
         } ?: contextLabel
     }
 
@@ -2109,10 +2272,11 @@ private fun PatternsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                val subtitle = if (selectedTab == PatternTab.AGP) {
-                    stringResource(R.string.hourly_patterns)
-                } else {
-                    stringResource(R.string.daily_trends)
+                val subtitle = when (selectedTab) {
+                    PatternTab.AGP -> stringResource(R.string.hourly_patterns)
+                    PatternTab.DAILY -> stringResource(R.string.daily_trends)
+                    PatternTab.TIME_OF_DAY -> stringResource(R.string.stats_time_of_day_subtitle)
+                    PatternTab.WEEKDAY -> stringResource(R.string.stats_weekday_subtitle)
                 }
                 Column(
                     modifier = Modifier.weight(1f),
@@ -2158,16 +2322,23 @@ private fun PatternsCard(
             }
 
             if (availableTabs.size > 1) {
-                val dailyTrendsLabel = stringResource(R.string.daily_trends)
+                val tabLabels = mapOf(
+                    PatternTab.AGP to "AGP",
+                    PatternTab.DAILY to stringResource(R.string.stats_tab_days),
+                    PatternTab.TIME_OF_DAY to stringResource(R.string.stats_tab_hours),
+                    PatternTab.WEEKDAY to stringResource(R.string.stats_tab_weekdays)
+                )
                 ConnectedButtonGroup(
                     options = availableTabs,
                     selectedOption = selectedTab,
                     onOptionSelected = { selectedTab = it },
-                    labelText = { tab -> if (tab == PatternTab.AGP) "AGP" else dailyTrendsLabel },
+                    labelText = { tab -> tabLabels[tab].orEmpty() },
                     label = { tab ->
                         Text(
-                            text = if (tab == PatternTab.AGP) "AGP" else stringResource(R.string.daily_trends),
-                            style = MaterialTheme.typography.labelMedium
+                            text = tabLabels[tab].orEmpty(),
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     },
                     itemHeight = 38.dp,
@@ -2214,16 +2385,38 @@ private fun PatternsCard(
                                 .height(chartHeight)
                         )
                     }
+
+                    PatternTab.TIME_OF_DAY -> {
+                        DayPartPatterns(
+                            dayParts = dayParts,
+                            unit = unit,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                        )
+                    }
+
+                    PatternTab.WEEKDAY -> {
+                        WeekdayPatterns(
+                            weekdays = weekdays,
+                            unit = unit,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                        )
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
     }
 }
 
 private enum class PatternTab {
     AGP,
-    DAILY
+    DAILY,
+    TIME_OF_DAY,
+    WEEKDAY
 }
 
 @Composable
@@ -2741,11 +2934,9 @@ private fun DailyTrendSparkline(
                 dailyStats.forEachIndexed { index, day ->
                     val x = xForIndex(index)
                     val y = yFor(day.averageMgDl)
-                    val tone = when {
-                        day.inRangePercent >= 70f -> Color(0xFF2E7D32)
-                        day.inRangePercent >= 50f -> Color(0xFFF9A825)
-                        else -> Color(0xFFD84315)
-                    }
+                    // Same scale as the day-by-day grid, so one day is one colour
+                    // whichever view you look at it in.
+                    val tone = tirHeatColor(day.inRangePercent)
                     drawCircle(
                         color = tone,
                         radius = if (index == safeSelectedIndex) 4.8.dp.toPx() else 3.dp.toPx(),
@@ -2806,9 +2997,9 @@ private fun DailyTrendSparkline(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            LegendDot(color = Color(0xFF2E7D32), label = ">=70%")
-            LegendDot(color = Color(0xFFF9A825), label = "50-69%")
-            LegendDot(color = Color(0xFFD84315), label = "<50%")
+            LegendDot(color = tirHeatColor(85f), label = ">=70%")
+            LegendDot(color = tirHeatColor(60f), label = "50-69%")
+            LegendDot(color = tirHeatColor(30f), label = "<50%")
         }
 
         Spacer(modifier = Modifier.height(2.dp))
@@ -3138,25 +3329,12 @@ private fun InsightsCard(insights: List<StatsInsight>) {
 
 @Composable
 private fun InsightRow(insight: StatsInsight) {
-    val (bgColor, contentColor, icon) = when (insight.severity) {
-        InsightSeverity.POSITIVE -> Triple(
-            Color(0xFF2E7D32).copy(alpha = 0.16f),
-            Color(0xFF2E7D32),
-            Icons.Default.Shield
-        )
-
-        InsightSeverity.ATTENTION -> Triple(
-            Color(0xFFF9A825).copy(alpha = 0.17f),
-            Color(0xFFF57F17),
-            Icons.Default.WarningAmber
-        )
-
-        InsightSeverity.CAUTION -> Triple(
-            MaterialTheme.colorScheme.errorContainer,
-            MaterialTheme.colorScheme.error,
-            Icons.Default.ErrorOutline
-        )
+    val (contentColor, icon) = when (insight.severity) {
+        InsightSeverity.POSITIVE -> TirInRangeColor to Icons.Default.Shield
+        InsightSeverity.ATTENTION -> TirHighColor to Icons.Default.WarningAmber
+        InsightSeverity.CAUTION -> TirVeryHighColor to Icons.Default.ErrorOutline
     }
+    val bgColor = contentColor.copy(alpha = 0.16f)
 
     Row(
         modifier = Modifier
@@ -3247,13 +3425,9 @@ private fun LegendDot(color: Color, label: String) {
     }
 }
 
-private fun formatMgDl(valueMgDl: Float, unit: GlucoseUnit): String {
+internal fun formatMgDl(valueMgDl: Float, unit: GlucoseUnit): String {
     return GlucoseFormatter.formatFromMgDl(
         valueMgDl = valueMgDl,
         isMmol = unit == GlucoseUnit.MMOL
     )
-}
-
-private fun unitLabel(unit: GlucoseUnit): String {
-    return if (unit == GlucoseUnit.MMOL) "mmol/L" else "mg/dL"
 }
