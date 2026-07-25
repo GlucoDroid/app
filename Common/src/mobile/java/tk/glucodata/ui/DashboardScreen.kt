@@ -1630,11 +1630,12 @@ fun DashboardScreen(
                 }
 
 
-                // Metrics the user pinned from Statistics → Arrange. The item is only
-                // emitted when something is pinned — an empty item still costs the
-                // list's inter-item spacing, which is the gap this used to leave.
-                if (showPinnedStats) {
-                    item {
+                item {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                    // The pinned strip rides in the readings item rather than one of its
+                    // own: a separate item would add another `dashboardItemSpacing` above
+                    // and below it, which is most of the gap this used to open up.
+                    if (showPinnedStats) {
                         tk.glucodata.ui.stats.PinnedStatsStrip(
                             history = glucoseHistory,
                             targetLowMgDl = targetLow,
@@ -1642,12 +1643,9 @@ fun DashboardScreen(
                             veryLowMgDl = veryLowThreshold,
                             veryHighMgDl = veryHighThreshold,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)
                         )
                     }
-                }
-
-                item {
                     Box(
                         modifier = Modifier
                             .padding(start = 16.dp, top = readingsTopSpacing, end = 16.dp)
@@ -1742,6 +1740,7 @@ fun DashboardScreen(
                                     .animateItem()
                             )
                         }
+                    }
                     }
                 }
 

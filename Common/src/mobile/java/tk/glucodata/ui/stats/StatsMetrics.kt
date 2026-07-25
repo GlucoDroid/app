@@ -13,9 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -38,6 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
@@ -634,11 +634,10 @@ private fun MetricRow(
         }
         val useOwnStatusRow = rememberScoreTileNeedsOwnRow(tileContentWidth, left.value, left.status) ||
             (right != null && rememberScoreTileNeedsOwnRow(tileContentWidth, right.value, right.status))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (anyExpanded) Modifier else Modifier.height(IntrinsicSize.Min)),
-            horizontalArrangement = Arrangement.spacedBy(spacing)
+        EqualHeightRow(
+            spacing = spacing,
+            equalise = !anyExpanded,
+            modifier = Modifier.fillMaxWidth()
         ) {
             ScoreTile(
                 title = left.title,
@@ -649,10 +648,7 @@ private fun MetricRow(
                 expanded = left.metric in expanded,
                 onToggleExpanded = { onToggleExpanded(left.metric) },
                 infoText = left.infoText,
-                forceStatusOwnRow = useOwnStatusRow,
-                modifier = Modifier
-                    .weight(1f)
-                    .then(if (anyExpanded) Modifier else Modifier.fillMaxHeight())
+                forceStatusOwnRow = useOwnStatusRow
             )
             if (right != null) {
                 ScoreTile(
@@ -664,11 +660,51 @@ private fun MetricRow(
                     expanded = right.metric in expanded,
                     onToggleExpanded = { onToggleExpanded(right.metric) },
                     infoText = right.infoText,
-                    forceStatusOwnRow = useOwnStatusRow,
-                    modifier = Modifier
-                        .weight(1f)
-                        .then(if (anyExpanded) Modifier else Modifier.fillMaxHeight())
+                    forceStatusOwnRow = useOwnStatusRow
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Equal-width columns, optionally stretched to the tallest.
+ *
+ * A plain Row with `height(IntrinsicSize.Min)` cannot do this here: the tiles contain a
+ * `BoxWithConstraints`, and asking a SubcomposeLayout for its intrinsic height throws.
+ * Measuring twice — once to learn the tallest, once with that as the minimum — gets the
+ * same result with ordinary measurement.
+ */
+@Composable
+private fun EqualHeightRow(
+    spacing: Dp,
+    equalise: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        if (measurables.isEmpty()) return@Layout layout(0, 0) {}
+        val spacingPx = spacing.roundToPx()
+        val totalSpacing = spacingPx * (measurables.size - 1)
+        val available = if (constraints.hasBoundedWidth) constraints.maxWidth else constraints.minWidth
+        val childWidth = ((available - totalSpacing) / measurables.size).coerceAtLeast(0)
+        val loose = Constraints(
+            minWidth = childWidth,
+            maxWidth = childWidth,
+            minHeight = 0,
+            maxHeight = constraints.maxHeight
+        )
+        var placeables = measurables.map { it.measure(loose) }
+        val rowHeight = placeables.maxOf { it.height }
+        if (equalise) {
+            placeables = measurables.map { it.measure(loose.copy(minHeight = rowHeight)) }
+        }
+        val rowWidth = childWidth * measurables.size + totalSpacing
+        layout(rowWidth, rowHeight) {
+            var x = 0
+            placeables.forEach { placeable ->
+                placeable.placeRelative(x, 0)
+                x += placeable.width + spacingPx
             }
         }
     }
@@ -711,6 +747,7 @@ private enum class PinnedWindow(val labelResId: Int, val hours: Int) {
     H6(R.string.stats_window_6h, 6),
     H12(R.string.stats_window_12h, 12),
     H24(R.string.stats_window_24h, 24),
+    D3(R.string.stats_window_3d, 24 * 3),
     D7(R.string.stats_window_7d, 24 * 7)
 }
 
@@ -775,23 +812,73 @@ fun PinnedStatsStrip(
     if (summary.readingCount == 0) return
     val unit = if (isMmol) GlucoseUnit.MMOL else GlucoseUnit.MGDL
 
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    // The period control is narrow and the metrics share what is left, all stretched to
+    // the tallest chip. It does not need to be a quarter of the row to be tappable.
+    PinnedStripRow(spacing = 8.dp, modifier = modifier.fillMaxWidth()) {
         PinnedWindowPill(
             label = stringResource(window.labelResId),
             onClick = {
                 val entries = PinnedWindow.entries
                 window = entries[(entries.indexOf(window) + 1) % entries.size]
-            },
-            modifier = Modifier.weight(1f)
+            }
         )
         pinned.forEach { metric ->
-            PinnedMetricChip(
-                spec = metricSpec(metric, summary, targets, unit),
-                modifier = Modifier.weight(1f)
+            PinnedMetricChip(spec = metricSpec(metric, summary, targets, unit))
+        }
+    }
+}
+
+/**
+ * Leading control at its natural width, the rest sharing the remainder equally, every
+ * child stretched to the tallest. Same reason as [EqualHeightRow] for not using
+ * intrinsics.
+ */
+@Composable
+private fun PinnedStripRow(
+    spacing: Dp,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        if (measurables.isEmpty()) return@Layout layout(0, 0) {}
+        val spacingPx = spacing.roundToPx()
+        val totalSpacing = spacingPx * (measurables.size - 1)
+        val available = if (constraints.hasBoundedWidth) constraints.maxWidth else constraints.minWidth
+        val leading = measurables.first().measure(
+            Constraints(minWidth = 0, maxWidth = available, minHeight = 0, maxHeight = constraints.maxHeight)
+        )
+        val rest = measurables.drop(1)
+        val restWidth = if (rest.isEmpty()) {
+            0
+        } else {
+            ((available - totalSpacing - leading.width) / rest.size).coerceAtLeast(0)
+        }
+        val restConstraints = Constraints(
+            minWidth = restWidth,
+            maxWidth = restWidth,
+            minHeight = 0,
+            maxHeight = constraints.maxHeight
+        )
+        val restPlaceables = rest.map { it.measure(restConstraints) }
+        val rowHeight = maxOf(leading.height, restPlaceables.maxOfOrNull { it.height } ?: 0)
+        val leadingStretched = measurables.first().measure(
+            Constraints(
+                minWidth = leading.width,
+                maxWidth = leading.width,
+                minHeight = rowHeight,
+                maxHeight = constraints.maxHeight.coerceAtLeast(rowHeight)
             )
+        )
+        val stretched = rest.map { it.measure(restConstraints.copy(minHeight = rowHeight)) }
+        val rowWidth = leadingStretched.width + restWidth * rest.size + totalSpacing
+        layout(rowWidth, rowHeight) {
+            var x = 0
+            leadingStretched.placeRelative(x, 0)
+            x += leadingStretched.width + spacingPx
+            stretched.forEach { placeable ->
+                placeable.placeRelative(x, 0)
+                x += placeable.width + spacingPx
+            }
         }
     }
 }
@@ -802,37 +889,30 @@ private fun PinnedWindowPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Row(
         modifier = modifier
             .clip(statsCardShape(16.dp, 10.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(1.dp)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(1.dp)
     ) {
         Text(
-            text = stringResource(R.string.stats_window_label),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = label,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontFeatureSettings = "tnum",
+                fontWeight = FontWeight.SemiBold
+            ),
+            color = MaterialTheme.colorScheme.primary,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            softWrap = false
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontFeatureSettings = "tnum",
-                    fontWeight = FontWeight.SemiBold
-                ),
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1
-            )
-            Icon(
-                imageVector = Icons.Default.UnfoldMore,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                modifier = Modifier.size(14.dp)
-            )
-        }
+        Icon(
+            imageVector = Icons.Default.UnfoldMore,
+            contentDescription = stringResource(R.string.stats_window_label),
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+            modifier = Modifier.size(14.dp)
+        )
     }
 }

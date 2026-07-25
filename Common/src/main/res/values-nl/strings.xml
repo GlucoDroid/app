@@ -2254,4 +2254,5 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_window_24h">24 u</string>
     <string name="stats_window_7d">7 d</string>
     <string name="stats_arrange_width">Halve of volle breedte</string>
+    <string name="stats_window_3d">3 d</string>
 </resources>

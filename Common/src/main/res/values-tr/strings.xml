@@ -2239,4 +2239,5 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="stats_window_24h">24 sa</string>
     <string name="stats_window_7d">7 g</string>
     <string name="stats_arrange_width">Yarım veya tam genişlik</string>
+    <string name="stats_window_3d">3 g</string>
 </resources>

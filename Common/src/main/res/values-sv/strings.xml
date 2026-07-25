@@ -2211,4 +2211,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_window_24h">24 h</string>
     <string name="stats_window_7d">7 d</string>
     <string name="stats_arrange_width">Halv eller hel bredd</string>
+    <string name="stats_window_3d">3 d</string>
 </resources>

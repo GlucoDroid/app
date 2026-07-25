@@ -2278,4 +2278,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_window_24h">24 гадз</string>
     <string name="stats_window_7d">7 дз</string>
     <string name="stats_arrange_width">Палова або ўся шырыня</string>
+    <string name="stats_window_3d">3 дз</string>
 </resources>

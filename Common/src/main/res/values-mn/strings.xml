@@ -2326,4 +2326,5 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_window_24h">24 ц</string>
     <string name="stats_window_7d">7 хоног</string>
     <string name="stats_arrange_width">Хагас эсвэл бүтэн өргөн</string>
+    <string name="stats_window_3d">3 хоног</string>
 </resources>
