@@ -1995,6 +1995,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="falling_fast_explanation">Avisa após %1$d intervalos consecutivos de %2$d minutos, cada um caindo em pelo menos %3$s (≈ %4$d min de queda sustentada) enquanto o valor estiver igual ou inferior a %5$s. Nenhuma previsão, apenas a tendência bruta.</string>
     <string name="glucose_palette_band_high">Alto</string>
     <string name="glucose_palette_band_in_range">No intervalo</string>
+    <string name="glucose_target_background_title">Fundo do intervalo-alvo</string>
     <string name="glucose_palette_band_low">Baixo</string>
     <string name="glucose_palette_band_very_high">Muito alto</string>
     <string name="glucose_palette_band_very_low">Muito baixo</string>

@@ -2123,6 +2123,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="falling_fast_explanation">%1$d дараалсан %2$d-минутын интервал бүр дор хаяж %3$s (≈ %4$d мин тасралтгүй уналт)-аар буурч, утга %5$s-д буюу түүнээс доош байвал анхааруулна. Урьдчилан таамаглаагүй, зүгээр л түүхий чиг хандлага.</string>
     <string name="glucose_palette_band_high">Өндөр</string>
     <string name="glucose_palette_band_in_range">Хүрээнд</string>
+    <string name="glucose_target_background_title">Зорилтот мужийн дэвсгэр</string>
     <string name="glucose_palette_band_low">Бага</string>
     <string name="glucose_palette_band_very_high">Маш өндөр</string>
     <string name="glucose_palette_band_very_low">Маш бага</string>

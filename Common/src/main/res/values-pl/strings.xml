@@ -2029,6 +2029,7 @@
     <string name="falling_fast_explanation">Ostrzega po %1$d kolejnych %2$d-minutowych odstępach, każdy spadający o co najmniej %3$s (≈ %4$d min ciągłego spadku), podczas gdy wartość jest równa lub niższa od %5$s. Żadnych przewidywań, tylko surowy trend.</string>
     <string name="glucose_palette_band_high">Wysoka</string>
     <string name="glucose_palette_band_in_range">W zakresie</string>
+    <string name="glucose_target_background_title">Tło zakresu docelowego</string>
     <string name="glucose_palette_band_low">Niski</string>
     <string name="glucose_palette_band_very_high">Bardzo wysoki</string>
     <string name="glucose_palette_band_very_low">Bardzo niski</string>

@@ -2223,6 +2223,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="falling_fast_explanation">Ka digaya ka dib %1$d isku xigta %2$d-daqiiqo u dhaxe mid kastaa hoos ugu dhacaya ugu yaraan %3$s (≈ %4$d daqadda dhicis joogta ah) halka qiimuhu uu joogo ama ka hooseeyo %5$s. Ma jirto saadaal, kaliya isbeddelka cayriin.</string>
     <string name="glucose_palette_band_high">Sare</string>
     <string name="glucose_palette_band_in_range">Xadka saxda ah</string>
+    <string name="glucose_target_background_title">Asalka xadka bartilmaameedka</string>
     <string name="glucose_palette_band_low">Hoose</string>
     <string name="glucose_palette_band_very_high">Aad u sarreeya</string>
     <string name="glucose_palette_band_very_low">Aad u hooseeya</string>

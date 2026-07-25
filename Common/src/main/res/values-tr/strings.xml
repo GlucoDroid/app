@@ -2022,6 +2022,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="falling_fast_explanation">Değer %5$s değerinde veya altındayken, her biri en az %3$s (≈ %4$d sürekli düşüş dakikası) düşen %1$d ardışık %2$d dakikalık aralıklardan sonra uyarı verir. Tahmin yok, sadece ham trend.</string>
     <string name="glucose_palette_band_high">Yüksek</string>
     <string name="glucose_palette_band_in_range">Hedef aralıkta</string>
+    <string name="glucose_target_background_title">Hedef aralığı arka planı</string>
     <string name="glucose_palette_band_low">Düşük</string>
     <string name="glucose_palette_band_very_high">Çok yüksek</string>
     <string name="glucose_palette_band_very_low">Çok düşük</string>

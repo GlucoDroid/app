@@ -1957,6 +1957,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_band_very_low">Very low</string>
     <string name="glucose_palette_band_low">Low</string>
     <string name="glucose_palette_band_in_range">In range</string>
+    <string name="glucose_target_background_title">Target range background</string>
     <string name="glucose_palette_band_high">High</string>
     <string name="glucose_palette_band_very_high">Very high</string>
     <string name="glucose_palette_edit">Edit</string>

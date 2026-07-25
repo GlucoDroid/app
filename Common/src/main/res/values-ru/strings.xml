@@ -2037,6 +2037,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="falling_fast_explanation">Предупреждает после %1$d последовательных %2$d-минутных интервалов, каждый из которых снижается как минимум на %3$s (≈ %4$d мин устойчивого падения), когда значение равно или ниже %5$s. Никаких прогнозов, только чистая тенденция.</string>
     <string name="glucose_palette_band_high">Высокий</string>
     <string name="glucose_palette_band_in_range">В диапазоне</string>
+    <string name="glucose_target_background_title">Фон целевого диапазона</string>
     <string name="glucose_palette_band_low">Низкий</string>
     <string name="glucose_palette_band_very_high">Очень высокий</string>
     <string name="glucose_palette_band_very_low">Очень низкий</string>

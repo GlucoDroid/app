@@ -2010,6 +2010,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="falling_fast_explanation">当连续 %1$d 个 %2$d 分钟区间均下降至少 %3$s（约持续下降 %4$d 分钟），且数值等于或低于 %5$s 时发出警告。不做预测，只依据原始趋势。</string>
     <string name="glucose_palette_band_high">高</string>
     <string name="glucose_palette_band_in_range">目标范围</string>
+    <string name="glucose_target_background_title">目标范围背景</string>
     <string name="glucose_palette_band_low">低</string>
     <string name="glucose_palette_band_very_high">非常高</string>
     <string name="glucose_palette_band_very_low">很低</string>

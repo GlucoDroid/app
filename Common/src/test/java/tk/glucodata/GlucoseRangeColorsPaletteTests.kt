@@ -87,6 +87,26 @@ class GlucoseRangeColorsPaletteTests {
     }
 
     @Test
+    fun targetBackgroundFollowsInRangeUntilOverridden() {
+        GlucoseRangeColors.setPalette(Palette.AURORA)
+        assertEquals(
+            GlucoseRangeColors.inRange(false),
+            GlucoseRangeColors.targetBackground(false)
+        )
+
+        val custom = 0xFF345678.toInt()
+        GlucoseRangeColors.setTargetBackgroundOverride(custom)
+        assertEquals(custom, GlucoseRangeColors.targetBackground(false))
+        assertTrue(GlucoseRangeColors.hasAnyOverride())
+
+        GlucoseRangeColors.clearOverrides()
+        assertEquals(
+            GlucoseRangeColors.inRange(false),
+            GlucoseRangeColors.targetBackground(false)
+        )
+    }
+
+    @Test
     fun clearingOverrideFallsBackToPreset() {
         GlucoseRangeColors.setPalette(Palette.GDH_LIKE)
         GlucoseRangeColors.setOverride(Band.LOW, 0xFF00FF00.toInt())

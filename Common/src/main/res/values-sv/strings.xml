@@ -1994,6 +1994,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="falling_fast_explanation">Varnar efter %1$d på varandra följande %2$d-minutersintervall som vart och ett faller med minst %3$s (≈ %4$d min av ihållande fall) medan värdet är på eller under %5$s. Ingen förutsägelse, bara den råa trenden.</string>
     <string name="glucose_palette_band_high">Hög</string>
     <string name="glucose_palette_band_in_range">Inom intervallet</string>
+    <string name="glucose_target_background_title">Bakgrund för målintervall</string>
     <string name="glucose_palette_band_low">Låg</string>
     <string name="glucose_palette_band_very_high">Mycket hög</string>
     <string name="glucose_palette_band_very_low">Mycket låg</string>

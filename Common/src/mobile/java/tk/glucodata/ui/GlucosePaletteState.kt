@@ -37,6 +37,8 @@ object GlucosePaletteState {
 
     fun override(band: Band): Int? = GlucoseRangeColors.getOverride(band)
 
+    fun targetBackgroundOverride(): Int? = GlucoseRangeColors.getTargetBackgroundOverride()
+
     fun hasAnyOverride(): Boolean = GlucoseRangeColors.hasAnyOverride()
 
     private fun prefs(context: Context) =
@@ -60,9 +62,22 @@ object GlucosePaletteState {
         refreshNotification()
     }
 
+    fun setTargetBackgroundOverride(context: Context, argb: Int?) {
+        prefs(context).edit {
+            if (argb == null) {
+                remove(GlucoseRangeColors.PREF_TARGET_BACKGROUND)
+            } else {
+                putInt(GlucoseRangeColors.PREF_TARGET_BACKGROUND, argb)
+            }
+        }
+        GlucoseRangeColors.setTargetBackgroundOverride(argb)
+        refreshNotification()
+    }
+
     fun clearOverrides(context: Context) {
         prefs(context).edit {
             GlucoseRangeColors.PREF_OVERRIDE_KEYS.forEach { remove(it) }
+            remove(GlucoseRangeColors.PREF_TARGET_BACKGROUND)
         }
         GlucoseRangeColors.clearOverrides()
         refreshNotification()

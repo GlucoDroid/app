@@ -2061,6 +2061,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="falling_fast_explanation">Папярэджвае пасля %1$d паслядоўных %2$d-хвілінных інтэрвалаў, кожны з якіх зніжаецца як мінімум на %3$s (≈ %4$d мін працяглага падзення), пакуль значэнне роўна або ніжэй за %5$s. Ніякіх прагнозаў, толькі сырая тэндэнцыя.</string>
     <string name="glucose_palette_band_high">Высокі</string>
     <string name="glucose_palette_band_in_range">У дыяпазоне</string>
+    <string name="glucose_target_background_title">Фон мэтавага дыяпазону</string>
     <string name="glucose_palette_band_low">Нізкі</string>
     <string name="glucose_palette_band_very_high">Вельмі высокая</string>
     <string name="glucose_palette_band_very_low">Вельмі нізкі</string>

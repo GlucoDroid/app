@@ -1678,6 +1678,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="glucose_palette_band_very_low">Sehr niedrig</string>
     <string name="glucose_palette_band_low">Niedrig</string>
     <string name="glucose_palette_band_in_range">Im Zielbereich</string>
+    <string name="glucose_target_background_title">Zielbereichshintergrund</string>
     <string name="glucose_palette_band_high">Hoch</string>
     <string name="glucose_palette_band_very_high">Sehr hoch</string>
     <string name="glucose_palette_edit">Ändern</string>

@@ -1984,6 +1984,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="falling_fast_explanation">Avvisa dopo %1$d intervalli consecutivi di %2$d minuti, ciascuno in calo di almeno %3$s (≈ %4$d min di caduta sostenuta) mentre il valore è pari o inferiore a %5$s. Nessuna previsione, solo il trend grezzo.</string>
     <string name="glucose_palette_band_high">Alto</string>
     <string name="glucose_palette_band_in_range">Nell’intervallo</string>
+    <string name="glucose_target_background_title">Sfondo intervallo obiettivo</string>
     <string name="glucose_palette_band_low">Basso</string>
     <string name="glucose_palette_band_very_high">Molto alto</string>
     <string name="glucose_palette_band_very_low">Molto basso</string>

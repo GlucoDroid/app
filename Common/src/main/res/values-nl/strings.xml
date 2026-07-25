@@ -2037,6 +2037,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="falling_fast_explanation">Waarschuwt na %1$d opeenvolgende intervallen van %2$d-minuten die elk met ten minste %3$s dalen (≈ %4$d min aanhoudende daling) terwijl de waarde op of onder %5$s ligt. Geen voorspelling, alleen de ruwe trend.</string>
     <string name="glucose_palette_band_high">Hoog</string>
     <string name="glucose_palette_band_in_range">Binnen bereik</string>
+    <string name="glucose_target_background_title">Achtergrond doelbereik</string>
     <string name="glucose_palette_band_low">Laag</string>
     <string name="glucose_palette_band_very_high">Zeer hoog</string>
     <string name="glucose_palette_band_very_low">Zeer laag</string>

@@ -2000,6 +2000,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="falling_fast_explanation">Avertit après %1$d intervalles consécutifs de %2$d minutes, chacun diminuant d\'au moins %3$s (≈ %4$d min de chute soutenue), lorsque la valeur est égale ou inférieure à %5$s. Aucune prédiction, seulement la tendance brute.</string>
     <string name="glucose_palette_band_high">Élevé</string>
     <string name="glucose_palette_band_in_range">Dans la cible</string>
+    <string name="glucose_target_background_title">Arrière-plan de la plage cible</string>
     <string name="glucose_palette_band_low">Faible</string>
     <string name="glucose_palette_band_very_high">Très élevé</string>
     <string name="glucose_palette_band_very_low">Très faible</string>
