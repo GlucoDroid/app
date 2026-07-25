@@ -40,6 +40,7 @@ object CalibrationManager {
     private const val KEY_VISUAL_CONTINUITY = "calibration_visual_continuity"
     private const val KEY_KEEP_DISABLED_HISTORY = "calibration_keep_disabled_history"
     private const val KEY_WEIGHT_MODE = "calibration_weight_mode"
+    private const val KEY_PROFILE_REVISION_PREFIX = "calibration_profile_revision_"
     private const val HOUR_MS = 3_600_000.0
     private const val PAST_BLEND_WINDOW_MS = 30L * 60L * 1000L
     private const val INTEGRATED_ANCHOR_MATCH_MS = 2L * 60L * 1000L
@@ -643,12 +644,55 @@ object CalibrationManager {
 
     private fun shouldMirrorSync(): Boolean = suppressMirrorSyncCount <= 0
 
+    private fun profileRevisionKey(sensorId: String) = KEY_PROFILE_REVISION_PREFIX + sensorId
+
+    private fun storedProfileRevision(sensorId: String): Long {
+        if (!::prefs.isInitialized || sensorId.isBlank()) return 0L
+        return runCatching { prefs.getLong(profileRevisionKey(sensorId), 0L) }.getOrDefault(0L)
+    }
+
+    private fun setStoredProfileRevision(sensorId: String, revision: Long) {
+        if (!::prefs.isInitialized || sensorId.isBlank()) return
+        prefs.edit().putLong(profileRevisionKey(sensorId), revision).apply()
+    }
+
+    /** How recent this device's calibration profile for [sensorId] is. */
+    private fun localProfileRevision(sensorId: String): Long {
+        val newestRow = _calibrations.value
+            .asSequence()
+            .filter { sensorMatches(it.sensorId, sensorId) }
+            .maxOfOrNull { it.timestamp } ?: 0L
+        return MirrorCalibrationProfilePolicy.localRevision(
+            storedRevision = storedProfileRevision(sensorId),
+            newestCalibrationTimestamp = newestRow
+        )
+    }
+
+    /** Marks the local profile as the newest one, so peers stop overwriting it. */
+    private fun bumpProfileRevision(sensorId: String) {
+        if (!::prefs.isInitialized || sensorId.isBlank()) return
+        setStoredProfileRevision(
+            sensorId,
+            MirrorCalibrationProfilePolicy.nextRevision(
+                now = System.currentTimeMillis(),
+                localRevision = localProfileRevision(sensorId)
+            )
+        )
+    }
+
     private fun requestMirrorCalibrationSync(sensorId: String?) {
         if (!shouldMirrorSync()) return
         val normalized = normalizeSensorId(sensorId)
         if (normalized.isBlank()) return
-        runCatching { Natives.requestMirrorCalibrationSync(normalized) }
-            .onFailure { Log.w(TAG, "Failed requesting mirror calibration sync for $normalized", it) }
+        bumpProfileRevision(normalized)
+        pushMirrorCalibrationProfile(normalized)
+    }
+
+    /** Re-offers the profile as it stands, without claiming a newer local edit. */
+    private fun pushMirrorCalibrationProfile(sensorId: String) {
+        if (sensorId.isBlank()) return
+        runCatching { Natives.requestMirrorCalibrationSync(sensorId) }
+            .onFailure { Log.w(TAG, "Failed requesting mirror calibration sync for $sensorId", it) }
     }
 
     private fun requestMirrorCalibrationSyncForSensors(sensorIds: Iterable<String?>) {
@@ -914,6 +958,7 @@ object CalibrationManager {
         root.put("version", 2)
         root.put("sensorId", normalizedSensorId)
         root.put("createdAt", System.currentTimeMillis())
+        root.put("revision", localProfileRevision(normalizedSensorId))
         root.put("rawEnabled", isEnabledForMode(isRawMode = true, sensorIdOverride = normalizedSensorId))
         root.put("autoEnabled", isEnabledForMode(isRawMode = false, sensorIdOverride = normalizedSensorId))
         root.put("hideInitialWhenCalibrated", _hideInitialWhenCalibrated.value)
@@ -1158,13 +1203,69 @@ object CalibrationManager {
         importProfileFromJson(json, replaceExisting, overrideSensorId)
     }
 
+    /**
+     * A mirror import replaces the target sensor's calibration set wholesale, so it may
+     * only ever be applied when the peer's profile is genuinely newer than ours. Without
+     * that check a master with no calibrations of its own wipes the follower's every time
+     * it pushes readings, which is exactly what the follower's own calibration is for.
+     * See [MirrorCalibrationProfilePolicy].
+     */
     fun importMirrorProfileFromJsonBlocking(
         json: String,
         overrideSensorId: String? = null
-    ): CalibrationProfileImportResult = withoutMirrorSync {
-        runBlocking {
-            importProfileFromJson(json, replaceExisting = true, overrideSensorId = overrideSensorId)
+    ): CalibrationProfileImportResult {
+        ensureCalibrationStateLoaded()
+        val root = runCatching { JSONObject(json) }.getOrNull()
+            ?: return CalibrationProfileImportResult(
+                sensorId = normalizeSensorId(overrideSensorId),
+                imported = 0,
+                skipped = 0,
+                replaced = 0,
+                message = "Unreadable mirror calibration profile"
+            )
+        val sourceSensorId = root.optString("sensorId", "").ifBlank { resolveSensorId() }
+        val targetSensorId = normalizeSensorId(overrideSensorId?.ifBlank { null } ?: sourceSensorId)
+        if (targetSensorId.isBlank()) {
+            return CalibrationProfileImportResult(
+                sensorId = "",
+                imported = 0,
+                skipped = 0,
+                replaced = 0,
+                message = "No target sensor found in mirror profile"
+            )
         }
+
+        val incomingRevision = MirrorCalibrationProfilePolicy.incomingRevision(root)
+        val localRevision = localProfileRevision(targetSensorId)
+        if (!MirrorCalibrationProfilePolicy.shouldApply(incomingRevision, localRevision)) {
+            Log.i(
+                TAG,
+                "Kept local calibration profile for $targetSensorId: mirror revision $incomingRevision <= local $localRevision"
+            )
+            if (MirrorCalibrationProfilePolicy.shouldOfferLocalBack(incomingRevision, localRevision)) {
+                // Ours is the newer profile — offer it back so the peer converges on it.
+                pushMirrorCalibrationProfile(targetSensorId)
+            }
+            return CalibrationProfileImportResult(
+                sensorId = targetSensorId,
+                imported = 0,
+                skipped = 0,
+                replaced = 0,
+                message = "Kept newer local calibration profile for $targetSensorId"
+            )
+        }
+
+        val result = withoutMirrorSync {
+            runBlocking {
+                importProfileFromJson(
+                    json,
+                    replaceExisting = true,
+                    overrideSensorId = targetSensorId
+                )
+            }
+        }
+        setStoredProfileRevision(targetSensorId, incomingRevision)
+        return result
     }
 
     /**
