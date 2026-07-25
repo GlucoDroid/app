@@ -304,6 +304,9 @@ fun DashboardScreen(
     val targetHigh by viewModel.targetHigh.collectAsState()
     val veryLowThreshold by viewModel.veryLowThreshold.collectAsState()
     val veryHighThreshold by viewModel.veryHighThreshold.collectAsState()
+    // Read outside the lazy list: an item that renders nothing still costs the list's
+    // inter-item spacing, so the row has to be omitted rather than emitted empty.
+    val showPinnedStats = tk.glucodata.ui.stats.hasPinnedStats()
     val chartSmoothingMinutes by viewModel.chartSmoothingMinutes.collectAsState()
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
@@ -1624,10 +1627,27 @@ fun DashboardScreen(
                             }
                         }
                     }
-                }
+
+                    // Shares the chart's item on purpose: the range chips are the last
+                    // thing inside it, so a separate item would put a full
+                    // `dashboardItemSpacing` between the chips and this strip.
+                    if (showPinnedStats) {
+                        tk.glucodata.ui.stats.PinnedStatsStrip(
+                            modifier = Modifier.padding(
+                                start = contentHorizontalPadding,
+                                end = contentHorizontalPadding,
+                                // Between the two extremes: a separate lazy item put a
+                                // full 12 dp here and read as a hole, 2 dp had the strip
+                                // welded to the chart card once the chart collapses.
+                                top = 8.dp
+                            )
+                        )
+                    }
+}
 
 
                 item {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                     Box(
                         modifier = Modifier
                             .padding(start = 16.dp, top = readingsTopSpacing, end = 16.dp)
@@ -1722,6 +1742,7 @@ fun DashboardScreen(
                                     .animateItem()
                             )
                         }
+                    }
                     }
                 }
 
