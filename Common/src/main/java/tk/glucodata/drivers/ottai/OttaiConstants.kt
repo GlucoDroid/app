@@ -269,6 +269,7 @@ object OttaiConstants {
     const val PREF_ACCESS_TOKEN = "ottai_access_token"
     const val PREF_GLUCOSE_SECRET = "ottai_glucose_secret_key"
     const val PREF_USER_ID = "ottai_user_id"
+    const val PREF_ACCOUNT_LOGIN = "ottai_account_login"  // login typed at sign-in (phone/email/username), display only
     const val PREF_API_BASE = "ottai_api_base"  // which backend the signed-in account is on (CN vs global)
     const val PREF_KEYA_PREFIX = "ottai_keya_"            // decrypted 6x16 hex (192)
     const val PREF_METHOD_PREFIX = "ottai_method_"        // decrypted method text
@@ -279,11 +280,16 @@ object OttaiConstants {
     // the first post-restart sample bypass the continuity gate.
     const val PREF_CONTINUITY_BASELINE_PREFIX = "ottai_continuity_baseline_"
     const val PREF_ACTIVE_EXPIRE_PREFIX = "ottai_active_expire_"  // activeExpireTime ms (maxActive duration)
+    // Actual maxActive duration (ms) the firmware ACCEPTED at activation — the real
+    // sensor lifetime. Persisted when the firmware ACKs the maxActive write, and/or
+    // recovered by reading b8fd9848 back off the sensor. Drives expected-end/remaining.
     const val PREF_ACCEPTED_MAX_ACTIVE_PREFIX = "ottai_accepted_max_active_"
     const val PREF_PREHEAT_PERIOD_PREFIX = "ottai_preheat_period_"
     const val PREF_RETAIN_TIME_PREFIX = "ottai_retain_time_"      // retainTime ms (destruction value)
     const val PREF_DEVICE_VERSION_PREFIX = "ottai_device_version_"
     const val PREF_LAST_DATA_NO_PREFIX = "ottai_last_datano_"
+    // Requested-but-undelivered history windows: "start:endExclusive:attempts" joined by ';'.
+    const val PREF_HISTORY_HOLES_PREFIX = "ottai_history_holes_"
     const val PREF_DEVICE_ID_PREFIX = "ottai_device_id_"
     const val PREF_ACTIVATION_ATTEMPTED_PREFIX = "ottai_act_tried_"  // one-shot auto-activate guard
     // "dataNo,sampleMs,tempC*10;" per accepted reading — feeds the stats temperature card.

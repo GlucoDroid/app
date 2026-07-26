@@ -25,6 +25,8 @@ object OttaiRegistry {
     private const val TAG = OttaiConstants.TAG
     private const val PREFS_NAME = "tk.glucodata_preferences"
     private const val PREF_DRAFT_SENSORS_KEY = "ottai_draft_sensors"
+    // Pre-1.0.6-merge key for the accepted lifetime; read once by loadAcceptedMaxActive migration.
+    private const val LEGACY_ACTIVATED_MAXACTIVE_PREFIX = "ottai_activated_maxactive_"
     // ~1 min cadence: 9000 samples is about 6 days of temperature, matching Anytime.
     private const val TEMPERATURE_HISTORY_LIMIT = 9000
 
@@ -78,6 +80,13 @@ object OttaiRegistry {
         prefs(c).getString(OttaiConstants.PREF_USER_ID, null).orEmpty()
     @JvmStatic fun saveUserId(c: Context, v: String?) {
         prefs(c).edit().putString(OttaiConstants.PREF_USER_ID, v).apply()
+    }
+
+    /** The login the user typed at sign-in (phone / email / username) — for display only. */
+    @JvmStatic fun loadAccountLogin(c: Context): String =
+        prefs(c).getString(OttaiConstants.PREF_ACCOUNT_LOGIN, null).orEmpty()
+    @JvmStatic fun saveAccountLogin(c: Context, v: String?) {
+        prefs(c).edit().putString(OttaiConstants.PREF_ACCOUNT_LOGIN, v).apply()
     }
 
     /** Backend host for the signed-in account (CN api.ottai.com vs global seas.ottai.com). */
@@ -219,6 +228,8 @@ object OttaiRegistry {
     ) {
         val set = records.map { "${it.sensorId}|${it.address}|${it.displayName}" }.toSet()
         prefs(context).edit().putStringSet(key, set).apply()
+        // The record set feeds SensorIdentity.resolveAppSensorId (memoized) — drop its cache.
+        tk.glucodata.SensorIdentity.invalidateCaches()
     }
 
     @JvmStatic
@@ -242,6 +253,8 @@ object OttaiRegistry {
                 OttaiConstants.PREF_DEVICE_VERSION_PREFIX, OttaiConstants.PREF_LAST_DATA_NO_PREFIX,
                 OttaiConstants.PREF_DEVICE_ID_PREFIX, OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX,
                 OttaiConstants.PREF_CONTINUITY_BASELINE_PREFIX,
+                OttaiConstants.PREF_HISTORY_HOLES_PREFIX,
+                LEGACY_ACTIVATED_MAXACTIVE_PREFIX,
                 OttaiConstants.PREF_TEMPERATURE_HISTORY_PREFIX,
             ).forEach { remove(it + canonical) }
         }.apply()
@@ -267,6 +280,9 @@ object OttaiRegistry {
             putString(OttaiConstants.PREF_DEVICE_VERSION_PREFIX + id, m.deviceVersion)
             putInt(OttaiConstants.PREF_DEVICE_ID_PREFIX + id, m.deviceId)
         }.apply()
+        // Stored auth material decides which record findRecord prefers, which feeds the memoized
+        // SensorIdentity.resolveAppSensorId — refresh it so a newly-material-backed id resolves.
+        tk.glucodata.SensorIdentity.invalidateCaches()
     }
 
     @JvmStatic
@@ -292,6 +308,18 @@ object OttaiRegistry {
         )
     }
 
+    /**
+     * Persist just the activation start (PREF_ACTIVE_TIME) without touching the rest of the
+     * materials. Used when the driver recovers the true activation from the live dataNo counter
+     * for a sensor activated on-device (no cloud activeTime), so the wizard/export recognise it as
+     * activated. Uses the same id resolution as save/loadMaterials.
+     */
+    @JvmStatic fun saveActiveTimeMs(c: Context, id: String, activeTimeMs: Long) {
+        val canonical = resolveCanonicalSensorId(c, id)
+            ?: OttaiConstants.canonicalSensorId(id).ifEmpty { id }
+        prefs(c).edit().putLong(OttaiConstants.PREF_ACTIVE_TIME_PREFIX + canonical, activeTimeMs).apply()
+    }
+
     @JvmStatic fun loadProvisionalActiveTime(c: Context, id: String): Long =
         prefs(c).getLong(
             OttaiConstants.PREF_PROVISIONAL_ACTIVE_TIME_PREFIX + OttaiConstants.canonicalSensorId(id),
@@ -306,11 +334,22 @@ object OttaiRegistry {
         }.apply()
     }
 
-    @JvmStatic fun loadAcceptedMaxActive(c: Context, id: String): Long =
-        prefs(c).getLong(
-            OttaiConstants.PREF_ACCEPTED_MAX_ACTIVE_PREFIX + OttaiConstants.canonicalSensorId(id),
-            0L,
-        )
+    @JvmStatic fun loadAcceptedMaxActive(c: Context, id: String): Long {
+        val canonical = OttaiConstants.canonicalSensorId(id)
+        val current = prefs(c).getLong(OttaiConstants.PREF_ACCEPTED_MAX_ACTIVE_PREFIX + canonical, 0L)
+        if (current > 0L) return current
+        // Lazy migration: pre-1.0.6-merge builds persisted the accepted lifetime under the
+        // dropped PREF_ACTIVATED_MAXACTIVE_PREFIX key. Rewrite it under the new key once so an
+        // upgraded install doesn't lose an extended sensor's real accepted lifetime.
+        val legacy = prefs(c).getLong(LEGACY_ACTIVATED_MAXACTIVE_PREFIX + canonical, 0L)
+        if (legacy > 0L) {
+            prefs(c).edit()
+                .putLong(OttaiConstants.PREF_ACCEPTED_MAX_ACTIVE_PREFIX + canonical, legacy)
+                .remove(LEGACY_ACTIVATED_MAXACTIVE_PREFIX + canonical)
+                .apply()
+        }
+        return legacy
+    }
 
     @JvmStatic fun saveAcceptedMaxActive(c: Context, id: String, durationMs: Long) {
         val canonical = OttaiConstants.canonicalSensorId(id)
@@ -338,6 +377,34 @@ object OttaiRegistry {
         prefs(c).getInt(OttaiConstants.PREF_LAST_DATA_NO_PREFIX + OttaiConstants.canonicalSensorId(id), -1)
     @JvmStatic fun saveLastDataNo(c: Context, id: String, dataNo: Int) {
         prefs(c).edit().putInt(OttaiConstants.PREF_LAST_DATA_NO_PREFIX + OttaiConstants.canonicalSensorId(id), dataNo).apply()
+    }
+
+    /**
+     * Hole ledger: requested-but-undelivered history windows, serialized by the driver as
+     * "start:endExclusive:attempts" entries joined by ';'. Persisted so a disconnect or app
+     * restart cannot turn a missed window into a permanent history gap.
+     */
+    @JvmStatic fun saveHistoryHoles(c: Context, id: String, serialized: String) {
+        val key = OttaiConstants.PREF_HISTORY_HOLES_PREFIX + OttaiConstants.canonicalSensorId(id)
+        prefs(c).edit().apply {
+            if (serialized.isBlank()) remove(key) else putString(key, serialized)
+        }.apply()
+    }
+
+    /** Returns (start, endExclusive, attempts) triples; malformed or empty entries are dropped. */
+    @JvmStatic
+    fun loadHistoryHoles(c: Context, id: String): List<Triple<Int, Int, Int>> {
+        val key = OttaiConstants.PREF_HISTORY_HOLES_PREFIX + OttaiConstants.canonicalSensorId(id)
+        val raw = prefs(c).getString(key, null)?.takeIf { it.isNotBlank() } ?: return emptyList()
+        return raw.split(';').mapNotNull { entry ->
+            val parts = entry.split(':')
+            if (parts.size != 3) return@mapNotNull null
+            val start = parts[0].toIntOrNull() ?: return@mapNotNull null
+            val endExclusive = parts[1].toIntOrNull() ?: return@mapNotNull null
+            val attempts = parts[2].toIntOrNull() ?: return@mapNotNull null
+            if (start < 0 || endExclusive <= start || attempts < 0) null
+            else Triple(start, endExclusive, attempts)
+        }
     }
 
     /** Last accepted spike-filter baseline, persisted so it survives an app restart. */

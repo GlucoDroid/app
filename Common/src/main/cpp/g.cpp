@@ -1505,6 +1505,29 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(
   return reinterpret_cast<jlong>(hist);
 }
 
+// Set the wear duration (days) for a direct-stream sensor (e.g. Ottai) by id. The
+// AiDex helper aidexSetWearDays takes an aidexstream* and cannot be reused here —
+// direct-stream sensors are plain SensorGlucoseData*. Writes info->wearduration2
+// (minutes) so officialendtime()/expectedEndTime() reflect the real activated life.
+extern "C" JNIEXPORT void JNICALL fromjava(setSensorWearDays)(
+    JNIEnv *env, jclass cl, jstring sensorId, jint days) {
+  if (!sensors || !sensorId || days <= 0)
+    return;
+  const char *str = env->GetStringUTFChars(sensorId, NULL);
+  if (!str)
+    return;
+  if (SensorGlucoseData *hist = ensureDirectStreamShellForId(str, 0)) {
+    if (!hist->error()) {
+      if (auto *info = hist->getinfo()) {
+        info->wearduration2 = static_cast<uint16_t>(days * 24 * 60);
+        LOGGER("setSensorWearDays: %s days=%d wear=%u\n", str, days,
+               info->wearduration2);
+      }
+    }
+  }
+  env->ReleaseStringUTFChars(sensorId, str);
+}
+
 extern "C" JNIEXPORT jboolean JNICALL fromjava(hasSensorStreamCapacity)(
     JNIEnv *env, jclass cl, jstring sensorId, jint minimumRecords) {
   if (!sensors || !sensorId || minimumRecords <= 0)

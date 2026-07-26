@@ -68,10 +68,50 @@ class OttaiBleManager(
         private const val HISTORY_CHUNK_DELAY_MS = 750L
         private const val RECENT_HISTORY_RECORDS = 60
         private const val HISTORY_REQUEST_COOLDOWN_MS = 60_000L
+        // Independent (live-sample-free) initial history backfill. Fires a few seconds after
+        // streaming starts so a session that opens with empty/rejected live reads still fetches
+        // history; retries a bounded number of times while the dataNo basis is unknown.
+        private const val INITIAL_HISTORY_DELAY_MS = 4_000L
+        private const val INITIAL_HISTORY_RETRY_MS = 5_000L
+        private const val INITIAL_HISTORY_MAX_ATTEMPTS = 4
+        // History chunk-chain watchdog: an in-flight chunk whose response never lands (dropped
+        // notify or short/empty frame) silently stalls the whole download. If no progress within
+        // the timeout, retry the same window a bounded number of times, then skip it after
+        // recording the window in the persisted hole ledger (retried when the chain is idle;
+        // only arrived data or the cross-session attempt cap removes a hole).
+        private const val HISTORY_PAGE_TIMEOUT_MS = 12_000L
+        private const val HISTORY_MAX_RETRIES = 3
+        // Hole ledger: requested-but-undelivered history windows, persisted per sensor (see
+        // historyHoles). Attempts are cross-session; the size cap bounds the pref for a
+        // runaway overshoot.
+        private const val MAX_HISTORY_HOLES = 16
+        private const val HISTORY_HOLE_MAX_ATTEMPTS = 5
+        private const val HISTORY_HOLE_RETRY_DELAY_MS = 5_000L
         private const val MAX_LIVE_POLL_INTERVAL_MS = 60_000L
         private const val STREAM_ACTIVITY_STALE_MS = 180_000L
         private const val SETUP_ACTIVITY_STALE_MS = 90_000L
         private const val CONNECTION_WATCHDOG_MS = 30_000L
+        // Grip under RF interference. The sensor renegotiates to economical link params
+        // (~385ms interval, slave latency 4, 6s supervision timeout) ~10s after every
+        // connect; with latency 4 it wakes only every ~1.9s, so a noisy radio window has
+        // ~3 chances to get a packet through before the link supervision-times-out
+        // (status=8). While the link is provably unstable — repeated abnormal drops in a
+        // short window — re-request the fast interval whenever the sensor renegotiates
+        // away from it: at ~15ms the same 5-6s timeout window holds hundreds of retry
+        // opportunities. Costs sensor battery, so it is strictly bounded to storm windows.
+        internal const val UNSTABLE_LINK_WINDOW_MS = 15L * 60_000L
+        internal const val UNSTABLE_LINK_MIN_DROPS = 2
+        internal const val SLOW_CONN_INTERVAL_UNITS = 100 // 1.25ms units -> 125ms
+        internal const val SLOW_CONN_LATENCY = 2
+        internal const val PRIORITY_REASSERT_MIN_GAP_MS = 20_000L
+        // A pending autoconnect only fires when the sensor's advertisement gets through;
+        // tearing it down every 90s in a jamming storm kept destroying the one object
+        // that could end the outage. Back the CONNECTING stale threshold off per
+        // consecutive stall instead: 90s -> 180s -> 360s.
+        internal const val MAX_CONNECT_STALL_BACKOFF_SHIFTS = 2
+        private const val LIVE_READ_MAX_RETRIES = 2
+        private const val LIVE_READ_RETRY_DELAY_MS = 1_500L
+        private const val USER_RECONNECT_DEBOUNCE_MS = 30_000L
         private const val RECORD_INTERVAL_MS = 60_000L
         private const val CURRENT_SAMPLE_FRESH_MS = 120_000L
         private const val CURRENT_SAMPLE_FLOOR_GRACE_MS = RECORD_INTERVAL_MS
@@ -90,6 +130,23 @@ class OttaiBleManager(
 
         internal fun previousDataNoForHistory(previousDataNo: Int, liveDataNo: Int): Int =
             if (isPersistedDataNoAheadOfLive(previousDataNo, liveDataNo)) -1 else previousDataNo
+
+        internal fun isLinkUnstable(dropTimesMs: List<Long>, nowMs: Long): Boolean =
+            dropTimesMs.count { nowMs - it <= UNSTABLE_LINK_WINDOW_MS } >= UNSTABLE_LINK_MIN_DROPS
+
+        internal fun shouldHoldFastParams(
+            intervalUnits: Int,
+            latency: Int,
+            unstable: Boolean,
+            nowMs: Long,
+            lastReassertMs: Long,
+        ): Boolean =
+            unstable &&
+                (intervalUnits >= SLOW_CONN_INTERVAL_UNITS || latency >= SLOW_CONN_LATENCY) &&
+                nowMs - lastReassertMs >= PRIORITY_REASSERT_MIN_GAP_MS
+
+        internal fun connectingStaleThresholdMs(stallStreak: Int): Long =
+            SETUP_ACTIVITY_STALE_MS shl stallStreak.coerceIn(0, MAX_CONNECT_STALL_BACKOFF_SHIFTS)
     }
 
     enum class Phase { IDLE, CONNECTING, DISCOVERING, ENABLING_NOTIFY, AUTH, STREAMING }
@@ -114,6 +171,14 @@ class OttaiBleManager(
 
     private val handlerThread = HandlerThread("Ottai-$serial").also { it.start() }
     private val handler = Handler(handlerThread.looper)
+
+    // Recent abnormal-disconnect timestamps (status!=0), pruned to UNSTABLE_LINK_WINDOW_MS;
+    // feeds the fast-params hold and is only touched under its own lock (binder threads).
+    private val abnormalDropAtMs = ArrayDeque<Long>()
+    @Volatile private var lastPriorityReassertAtMs = 0L
+    @Volatile private var connectStallStreak = 0
+    @Volatile private var liveReadRetryCount = 0
+    @Volatile private var lastUserReconnectAtMs = 0L
 
     private var svcDeviceInfo: BluetoothGattService? = null
     private var svcCgm: BluetoothGattService? = null
@@ -154,16 +219,30 @@ class OttaiBleManager(
     @Volatile private var notifyEnableIndex = 0
     @Volatile private var discoveryStarted = false
     @Volatile private var activationCommandSentAtMs = 0L
+    // Actual maxActive duration (ms) the firmware accepted at activation = the real
+    // sensor lifetime. Drives the displayed expected-end/remaining (Sensors tab) and
+    // the native graph end (Home tab). 0 = unknown -> falls back to EXTENDED_LIFETIME_MS.
+    @Volatile private var activatedMaxActiveMs = 0L
     @Volatile private var provisionalActiveTimeMs = 0L
     @Volatile private var commandStatus = -1
     @Volatile private var needsActivationAttempted = false
     @Volatile private var livePollIntervalMs = 60_000L
     @Volatile private var lastHistoryRequestAtMs = 0L
     @Volatile private var roomBackfillChecked = false
+    @Volatile private var initialHistoryAttempt = 0
     @Volatile private var pendingHistoryReason: String? = null
     @Volatile private var pendingHistoryNextStart = 0
     @Volatile private var pendingHistoryEndExclusive = 0
     @Volatile private var activeHistoryEndExclusive = -1
+    @Volatile private var activeHistoryStart = -1
+    @Volatile private var historyRetryCount = 0
+    // Persisted ledger of requested-but-undelivered history windows. A gap-driven request
+    // records its window here at request time; only actually-arrived data (or the cross-
+    // session attempt cap) removes it — so watchdog skips, chain teardown, disconnects and
+    // app restarts can no longer turn a missed window into a permanent history hole.
+    // Handler thread only (plus pre-connection restore), like recentlyRejectedSamples.
+    private data class HistoryHole(var start: Int, var endExclusive: Int, var attempts: Int)
+    private val historyHoles = mutableListOf<HistoryHole>()
     // Set while we re-run service discovery AFTER auth (the sensor exposes a Service
     // Changed characteristic and may restructure its GATT post-auth, leaving the
     // pre-auth handles for the activation chars stale). onServicesDiscovered consumes it.
@@ -210,6 +289,12 @@ class OttaiBleManager(
 
     private val endedHistoryBackfillRunnable = Runnable { runEndedHistoryBackfill() }
 
+    private val initialHistoryRunnable = Runnable { runInitialHistoryBackfill() }
+
+    private val historyWatchdogRunnable = Runnable { checkHistoryWatchdog() }
+
+    private val holeRetryRunnable = Runnable { retryNextHistoryHole() }
+
     private fun runEndedHistoryBackfill() {
         if (stop || commandStatus < 4 || phase != Phase.STREAMING || sessionKeyHex.isBlank()) {
             return
@@ -255,7 +340,12 @@ class OttaiBleManager(
             OttaiRegistry.loadProvisionalActiveTime(context, id)
         }
         authKeys = materials.authKeys
+        activatedMaxActiveMs = OttaiRegistry.loadAcceptedMaxActive(context, id)
         lastDataNo = OttaiRegistry.loadLastDataNo(context, id)
+        historyHoles.clear()
+        OttaiRegistry.loadHistoryHoles(context, id).forEach { (s, e, attempts) ->
+            historyHoles += HistoryHole(s, e, attempts)
+        }
         // Restore the spike-filter baseline so the first sample after an app restart is
         // still checked against the last real reading (an isolated raw spike otherwise
         // slips through with an empty baseline). The adjacency window in
@@ -314,10 +404,10 @@ class OttaiBleManager(
     }
 
     private fun connectionStaleThresholdMs(): Long =
-        if (phase == Phase.STREAMING) {
-            maxOf(STREAM_ACTIVITY_STALE_MS, livePollIntervalMs * 3L + 15_000L)
-        } else {
-            SETUP_ACTIVITY_STALE_MS
+        when {
+            phase == Phase.STREAMING -> maxOf(STREAM_ACTIVITY_STALE_MS, livePollIntervalMs * 3L + 15_000L)
+            phase == Phase.CONNECTING -> connectingStaleThresholdMs(connectStallStreak)
+            else -> SETUP_ACTIVITY_STALE_MS
         }
 
     private fun lastConnectionActivityMs(): Long = maxOf(lastBleActivityAtMs, connectTime)
@@ -333,6 +423,7 @@ class OttaiBleManager(
         if (stop || phase == Phase.IDLE) return
         val now = System.currentTimeMillis()
         if (isConnectionStale(now)) {
+            if (phase == Phase.CONNECTING) connectStallStreak += 1
             val ageSec = ((now - lastConnectionActivityMs()).coerceAtLeast(0L)) / 1000L
             recoverGattAndReconnect("no GATT activity for ${ageSec}s")
         } else {
@@ -352,6 +443,7 @@ class OttaiBleManager(
         handler.removeCallbacks(postHistoryLiveRunnable)
         handler.removeCallbacks(pendingHistoryChunkRunnable)
         handler.removeCallbacks(endedHistoryBackfillRunnable)
+        handler.removeCallbacks(initialHistoryRunnable)
         handler.removeCallbacks(connectionWatchdogRunnable)
         handler.removeCallbacks(pendingActivationNfcPromptRunnable)
         handler.removeCallbacks(serviceDiscoveryRunnable)
@@ -480,8 +572,31 @@ class OttaiBleManager(
     override fun softReconnect() {
         setPause(false)
         needsActivationAttempted = false
+        // Rapid repeated taps during an outage each destroyed the pending autoconnect that
+        // was waiting for the sensor's advertisement, restarting the recovery from zero
+        // (5 taps in 58s extended the worst logged outage). First tap acts immediately;
+        // follow-ups within the window just make sure an attempt is running.
+        val now = System.currentTimeMillis()
+        if (phase != Phase.IDLE && now - lastUserReconnectAtMs < USER_RECONNECT_DEBOUNCE_MS) {
+            Log.i(TAG, "user reconnect debounced — attempt already in flight phase=$phase")
+            connectDevice(0)
+            UiRefreshBus.requestStatusRefresh()
+            return
+        }
+        lastUserReconnectAtMs = now
         clearGattTransport("user reconnect", markSignalLoss = false)
         connectDevice(0)
+    }
+
+    override fun close() {
+        if (stop) {
+            // Permanent shutdown: free() sets stop=true before calling close(), so
+            // quit the HandlerThread here — otherwise it outlives the sensor object.
+            // Transient close() calls (stop=false) keep the thread alive for reconnect.
+            handler.removeCallbacksAndMessages(null)
+            runCatching { handlerThread.quitSafely() }
+        }
+        super.close()
     }
 
     override fun onBluetoothAdapterUnavailable() {
@@ -612,6 +727,8 @@ class OttaiBleManager(
                 activationCandidateProbeActive = activationCandidateDiscoveryPending
                 connectTime = System.currentTimeMillis()
                 lastBleActivityAtMs = connectTime
+                connectStallStreak = 0
+                liveReadRetryCount = 0
                 if (constatstatusstr == "Loss of signal" || constatstatusstr == lossOfSignalText()) {
                     constatstatusstr = ""
                 }
@@ -641,6 +758,8 @@ class OttaiBleManager(
             }
             BluetoothProfile.STATE_DISCONNECTED -> {
                 Log.i(TAG, "disconnected status=$status")
+                if (status != 0) noteAbnormalDrop()
+                liveReadRetryCount = 0
                 val disconnectedAddress = OttaiConstants.normalizeBleAddress(
                     gatt.device?.address,
                     allowPlain = false,
@@ -657,6 +776,7 @@ class OttaiBleManager(
                 handler.removeCallbacks(postHistoryLiveRunnable)
                 handler.removeCallbacks(pendingHistoryChunkRunnable)
                 handler.removeCallbacks(endedHistoryBackfillRunnable)
+                handler.removeCallbacks(initialHistoryRunnable)
                 handler.removeCallbacks(connectionWatchdogRunnable)
                 handler.removeCallbacks(serviceDiscoveryRunnable)
                 handler.removeCallbacks(serviceDiscoveryTimeoutRunnable)
@@ -712,6 +832,36 @@ class OttaiBleManager(
                 UiRefreshBus.requestStatusRefresh()
             }
         }
+    }
+
+    private fun noteAbnormalDrop(nowMs: Long = System.currentTimeMillis()) {
+        synchronized(abnormalDropAtMs) {
+            abnormalDropAtMs.addLast(nowMs)
+            while (abnormalDropAtMs.isNotEmpty() &&
+                nowMs - abnormalDropAtMs.first() > UNSTABLE_LINK_WINDOW_MS
+            ) {
+                abnormalDropAtMs.removeFirst()
+            }
+        }
+    }
+
+    private fun linkUnstable(nowMs: Long): Boolean =
+        synchronized(abnormalDropAtMs) { isLinkUnstable(abnormalDropAtMs.toList(), nowMs) }
+
+    override fun onConnectionParamsUpdated(
+        gatt: BluetoothGatt,
+        interval: Int,
+        latency: Int,
+        timeout: Int,
+        status: Int,
+    ) {
+        if (stop || status != 0 || gatt !== mBluetoothGatt) return
+        logi(TAG) { "conn params interval=$interval latency=$latency timeout=$timeout" }
+        val now = System.currentTimeMillis()
+        if (!shouldHoldFastParams(interval, latency, linkUnstable(now), now, lastPriorityReassertAtMs)) return
+        lastPriorityReassertAtMs = now
+        Log.i(TAG, "unstable link: holding fast conn params over interval=$interval latency=$latency timeout=$timeout")
+        runCatching { gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
     }
 
     override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
@@ -842,6 +992,9 @@ class OttaiBleManager(
         noteGattActivity()
         if (status != BluetoothGatt.GATT_SUCCESS) {
             Log.w(TAG, "read err ${ch.uuid.toString().take(8)} status=$status phase=$phase")
+            // The maxActive read is an optional display-only probe — never let its failure
+            // tear down a healthy stream.
+            if (ch.uuid == OttaiConstants.CHAR_MAX_ACTIVE_TIME) return
             if (phase == Phase.STREAMING || phase == Phase.AUTH) recoverGattAndReconnect("read failed status=$status")
             return
         }
@@ -863,6 +1016,7 @@ class OttaiBleManager(
                 }
                 writeAppParam(gatt)
             }
+            OttaiConstants.CHAR_MAX_ACTIVE_TIME -> handleMaxActiveRead(value)
             OttaiConstants.CHAR_CGM_INFO_NOTIFY -> handleCgmInfo(value, source = "read")
             OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true, source = "read")
             OttaiConstants.CHAR_COMMAND -> {
@@ -972,6 +1126,26 @@ class OttaiBleManager(
                 scheduleLivePoll()
             }
         }, 700L)
+        // Recover the real activated lifetime for a sensor we didn't just activate (e.g.
+        // already streaming from a previous session): read maxActive back off the sensor.
+        // One-shot — once known it is persisted and this is skipped. A failed read is
+        // swallowed in onCharacteristicRead so it never destabilizes the stream.
+        if (activatedMaxActiveMs <= 0L) {
+            handler.postDelayed({
+                runCatching { readChar(gatt, OttaiConstants.SERVICE_DEVICE_INFO, OttaiConstants.CHAR_MAX_ACTIVE_TIME) }
+            }, 1_200L)
+        }
+        // Independent history backfill: don't wait on the first accepted live sample. If the
+        // live path fills history first it flips roomBackfillChecked and this no-ops; otherwise
+        // this drives the full/gap backfill off the real lastDataNo or the activation-age estimate.
+        initialHistoryAttempt = 0
+        handler.removeCallbacks(initialHistoryRunnable)
+        handler.postDelayed(initialHistoryRunnable, INITIAL_HISTORY_DELAY_MS)
+        // Holes restored from prefs need a driver too: without this, a restart into a
+        // session that never starts another chunk chain would leave them unretried.
+        // Delayed past the initial backfill so it keeps chain priority (the retry never
+        // preempts an active chain and re-arms itself off chain completion anyway).
+        scheduleHoleRetry(delayMs = INITIAL_HISTORY_DELAY_MS + HISTORY_HOLE_RETRY_DELAY_MS)
     }
 
     private fun parseDeviceAuthParam(v: ByteArray) {
@@ -1172,6 +1346,45 @@ class OttaiBleManager(
         // is nothing to emit from cgm-info; do not fabricate a reading here.
     }
 
+    private fun handleMaxActiveRead(value: ByteArray) {
+        val secs = decodeMaxActiveSeconds(value)
+        if (secs == null) {
+            Log.w(TAG, "maxActive read: undecodable len=${value.size} hex=${OttaiCrypto.bytesToHex(value).take(48)}")
+            return
+        }
+        val days = secs / 86_400L
+        Log.i(TAG, "maxActive read: ${secs}s (~${days}d)")
+        // Accept only a plausible activation window; guards a wrong read format / stray bytes.
+        if (secs < 10L * 86_400L || secs > 45L * 86_400L) {
+            Log.w(TAG, "maxActive read out of plausible range — ignoring")
+            return
+        }
+        val ms = secs * 1000L
+        if (ms == activatedMaxActiveMs) return
+        activatedMaxActiveMs = ms
+        val id = SerialNumber.orEmpty()
+        Applic.app?.let { ctx -> if (id.isNotBlank()) OttaiRegistry.saveAcceptedMaxActive(ctx, id, ms) }
+        applyActivatedWearToNative(id)
+        UiRefreshBus.requestStatusRefresh()
+        Log.i(TAG, "activated lifetime recovered from sensor = ${days}d")
+    }
+
+    // b8fd9848 holds the activated maxActive duration. The write format is
+    // AES-ECB(zeroPad16(secondsLE)); a read returns the same cipher, so decrypt and read
+    // the 8-byte LE seconds. Fall back to a plaintext LE read if a firmware returns it raw.
+    private fun decodeMaxActiveSeconds(value: ByteArray): Long? {
+        if (value.isEmpty()) return null
+        OttaiCrypto.decryptPayload(value, sessionKeyHex)?.let { pt -> readSecondsLE(pt)?.let { return it } }
+        return readSecondsLE(value)
+    }
+    private fun readSecondsLE(b: ByteArray): Long? {
+        if (b.size < 4) return null
+        val n = if (b.size >= 8) 8 else 4
+        var v = 0L
+        for (i in 0 until n) v = v or ((b[i].toLong() and 0xFF) shl (i * 8))
+        return v.takeIf { it > 0L }
+    }
+
     private fun maybeUpdateLivePollInterval(value: ByteArray) {
         if (value.size < 4) return
         if (value[0].toInt() != 0x07 || value[1].toInt() != 0x77) return
@@ -1243,6 +1456,10 @@ class OttaiBleManager(
 
     private fun effectiveActiveTimeMs(): Long =
         materials.activeTimeMs.takeIf { it > 0L }
+            // A start derived from the live stream's own dataNo counter (streamStartTimeMs) is
+            // the true activation instant for a sensor we didn't just activate — it must win over
+            // the cgm-info provisional, whose 0x0477 window only ever yields a "just now" epoch.
+            ?: streamStartTimeMs.takeIf { it > 0L }
             ?: provisionalActiveTimeMs.takeIf { it > 0L }
             ?: 0L
 
@@ -1274,6 +1491,28 @@ class OttaiBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
+    /**
+     * Promote a live-anchor start to the authoritative, persisted activeTime. Runs once, only when
+     * no cloud activeTime is known: a sensor activated on-device otherwise leaves activeTimeMs=0 in
+     * its materials/exported JSON, so the wizard offers "start warmup" on the next add/import even
+     * though it's activated. The live dataNo counter gives the true activation, so persist it (and
+     * drop the now-redundant provisional).
+     */
+    private fun commitConfirmedActiveTime(startMs: Long) {
+        if (startMs <= 0L || materials.activeTimeMs > 0L) return
+        val id = SerialNumber.orEmpty()
+        if (id.isBlank()) return
+        materials = materials.copy(activeTimeMs = startMs)
+        provisionalActiveTimeMs = 0L
+        Applic.app?.let { ctx ->
+            OttaiRegistry.saveActiveTimeMs(ctx, id, startMs)
+            OttaiRegistry.saveProvisionalActiveTime(ctx, id, 0L)
+        }
+        Log.i(TAG, "confirmed activeTime=${startMs / 1000L} persisted from live anchor")
+        ensureNativePresenceShell("confirmed-active")
+        UiRefreshBus.requestStatusRefresh()
+    }
+
     private fun appString(resId: Int, fallback: String, vararg args: Any): String =
         runCatching { Applic.app?.getString(resId, *args) }.getOrNull() ?: fallback
 
@@ -1296,7 +1535,20 @@ class OttaiBleManager(
         val records = OttaiParser.frameRecords(payload, materials.deviceVersion)
         if (records.isEmpty()) {
             Log.w(TAG, "$kind $source no records payloadLen=${payload.size} hex=${OttaiCrypto.bytesToHex(payload).take(160)}")
-            if (live) handler.postDelayed({ requestRecentHistory("empty-live") }, 1_800L)
+            if (live) {
+                handler.postDelayed({ requestRecentHistory("empty-live") }, 1_800L)
+            } else if (activeHistoryEndExclusive > 0) {
+                // An empty response IS a response: don't let it stall the chunk chain — treat the
+                // in-flight window as yielding nothing and advance to the next pending chunk.
+                // Record the miss first: a detected-gap window stays on the hole ledger until its
+                // data arrives or the attempt cap retires it (truly-empty overshoot ranges).
+                val missedStart = activeHistoryStart
+                val missedEnd = activeHistoryEndExclusive
+                cancelHistoryWatchdog()
+                historyRetryCount = 0
+                noteHoleFailure(missedStart, missedEnd)
+                advanceHistoryChunkChain()
+            }
             return
         }
         logi(TAG) { "$kind $source decrypted payloadLen=${payload.size} records=${records.size} front=${OttaiParser.frontDataNo(payload)}" }
@@ -1306,8 +1558,19 @@ class OttaiBleManager(
             records.map { OttaiParser.toReading(it, materials.method, materials.coefficients, activeMs) }
         }
         val previousDataNo = lastDataNo
-        val emittedReadings = ArrayList<EmittedReading>(readings.size)
-        for ((index, r) in readings.withIndex()) {
+        // Corrupt/misaligned frames: a dataNo far past the sensor's current position is garbage
+        // (seen: front ~17k at sensor ~1.6k). Drop such records BEFORE any state mutation — the
+        // emit loop, lastDataNo/continuity updates AND the chunk-chain accounting below all
+        // consume only the plausible set, so a corrupt frame can neither land in the future,
+        // poison the persisted lastDataNo (live included), nor mark an in-flight chunk complete.
+        val ceiling = dataNoCeiling(live)
+        val plausible =
+            if (ceiling == Int.MAX_VALUE) readings else readings.filter { it.record.dataNo <= ceiling }
+        if (plausible.size < readings.size) {
+            Log.w(TAG, "$kind $source dropped ${readings.size - plausible.size} corrupt records dataNo>ceiling=$ceiling")
+        }
+        val emittedReadings = ArrayList<EmittedReading>(plausible.size)
+        for ((index, r) in plausible.withIndex()) {
             if (!r.valid) {
                 Log.w(TAG, "$kind record rejected dataNo=${r.record.dataNo} runtime=${r.record.runtimeSec} raw=${r.record.rawCurrent}")
                 continue
@@ -1316,7 +1579,7 @@ class OttaiBleManager(
                 Log.w(TAG, "no method — skipping emit (raw only) dataNo=${r.record.dataNo}")
                 continue
             }
-            emitReading(r, live, receivedAtMs, readings, index)?.let(emittedReadings::add)
+            emitReading(r, live, receivedAtMs, plausible, index)?.let(emittedReadings::add)
         }
         if (emittedReadings.isNotEmpty()) {
             storeDecodedReadings(emittedReadings, live)
@@ -1328,14 +1591,18 @@ class OttaiBleManager(
                 if (previousForHistory != previousDataNo) {
                     Log.w(TAG, "ignore ahead previous dataNo for history previous=$previousDataNo live=$liveDataNo")
                 }
-                if (!requestRoomBackfillAfterLive(liveDataNo, previousForHistory)) {
+                // A live sample arrived — the live path owns the backfill now; drop the
+                // independent backstop so the two don't both issue (which would wipe and restart
+                // the in-flight chunk chain via clearPendingHistoryRange).
+                handler.removeCallbacks(initialHistoryRunnable)
+                if (!requestRoomBackfillAfterLive(liveDataNo, previousForHistory) && !roomBackfillChecked) {
                     val missingBeforeLive = liveDataNo - previousForHistory - 1
                     if (previousForHistory < 0 || missingBeforeLive > 0) {
                         handler.postDelayed({ requestHistoryAfterLive(previousForHistory, liveDataNo) }, 1_500L)
                     }
                 }
             } else {
-                if (!continueHistoryAfterPayload(readings)) {
+                if (!continueHistoryAfterPayload(plausible)) {
                     // History can arrive in a long burst and still end several minutes behind
                     // wall time. Ask live immediately afterwards on a one-shot that cgm-info
                     // cadence updates cannot cancel.
@@ -1345,7 +1612,7 @@ class OttaiBleManager(
             }
             UiRefreshBus.requestStatusRefresh()
         } else if (!live) {
-            continueHistoryAfterPayload(readings)
+            continueHistoryAfterPayload(plausible)
         }
     }
 
@@ -1457,6 +1724,23 @@ class OttaiBleManager(
         lastDataNo = acceptedDataNo - 1
         Applic.app?.let { OttaiRegistry.saveLastDataNo(it, SerialNumber.orEmpty(), lastDataNo) }
         Log.w(TAG, "reset ahead lastDataNo previous=$previous acceptedLive=$acceptedDataNo")
+    }
+
+    /**
+     * Physical upper bound for a record's dataNo: the whole minutes elapsed since activation
+     * (+a tolerance), since no sample can be newer than "now". Derived from the activation
+     * start, independent of the corruptible lastDataNo, so a garbage frame can't raise its own
+     * ceiling. For live frames only the activation-derived bound applies — the lastDataNo
+     * fallback must not gate live (a legit live sample after a long offline gap is far past
+     * the persisted lastDataNo). Returns Int.MAX_VALUE (no filtering) when unbounded.
+     */
+    private fun dataNoCeiling(live: Boolean): Int {
+        val start = effectiveActiveTimeMs()
+        if (start > 0L) {
+            return ((System.currentTimeMillis() - start) / RECORD_INTERVAL_MS).toInt() + MAX_REASONABLE_DATA_NO_AHEAD
+        }
+        if (live) return Int.MAX_VALUE
+        return if (lastDataNo > 0) lastDataNo + MAX_REASONABLE_DATA_NO_AHEAD else Int.MAX_VALUE
     }
 
     private fun noteSeenDataNo(dataNo: Int) {
@@ -1636,16 +1920,20 @@ class OttaiBleManager(
         if (live && receivedAtMs > 0L && r.record.dataNo >= 0) {
             val monitorMs = r.monitorTimeMs
             if (monitorMs > 0L && kotlin.math.abs(receivedAtMs - monitorMs) <= CURRENT_SAMPLE_FRESH_MS) {
-                return seedStreamTimeAnchor(r.record.dataNo, monitorMs, "monitor-live")
+                return seedStreamTimeAnchor(r.record.dataNo, monitorMs, "monitor-live", reliable = true)
             }
             if (monitorMs > 0L) {
                 val deltaSec = kotlin.math.abs(receivedAtMs - monitorMs) / 1000L
                 Log.w(TAG, "ignore stale live monitor timestamp dataNo=${r.record.dataNo} monitor=${monitorMs / 1000L} live=${receivedAtMs / 1000L} delta=${deltaSec}s")
             }
-            return seedStreamTimeAnchor(r.record.dataNo, receivedAtMs, "live")
+            return seedStreamTimeAnchor(r.record.dataNo, receivedAtMs, "live", reliable = true)
         }
 
         r.monitorTimeMs.takeIf { it > 0L }?.let { monitorMs ->
+            // monitorTimeMs is activeTimeMs + runtime (OttaiParser), i.e. derived from
+            // effectiveActiveTimeMs — possibly the provisional "just now" cgm-info seed. Unlike
+            // "monitor-live" there is no wall-clock corroboration here, so the derived start is
+            // circular and must NOT be committed as the confirmed activation (reliable).
             return seedStreamTimeAnchor(r.record.dataNo, monitorMs, "monitor")
         }
         val activeMs = effectiveActiveTimeMs()
@@ -1655,7 +1943,12 @@ class OttaiBleManager(
         return r.monitorTimeMs
     }
 
-    private fun seedStreamTimeAnchor(dataNo: Int, sampleHintMs: Long, reason: String): Long {
+    // reliable = the sampleHint is an independent wall-clock/monitor timestamp (live poll or a
+    // record's own monitor time), so start = hint - dataNo*interval is the true activation. Such
+    // a start is committed as the effective active time (persisted) so the dashboard and native
+    // record stop showing the bogus cgm-info "just now" provisional. Sources whose hint is itself
+    // derived from effectiveActiveTimeMs (active/initial-history/ended-live) must NOT set reliable.
+    private fun seedStreamTimeAnchor(dataNo: Int, sampleHintMs: Long, reason: String, reliable: Boolean = false): Long {
         if (dataNo < 0 || sampleHintMs <= 0L) return sampleHintMs
         val sampleMs = floorToRecordMinute(sampleHintMs)
         val start = sampleMs - dataNo.toLong() * RECORD_INTERVAL_MS
@@ -1665,6 +1958,10 @@ class OttaiBleManager(
             if (old == 0L || kotlin.math.abs(old - start) > RECORD_INTERVAL_MS) {
                 Log.i(TAG, "stream time anchor dataNo=$dataNo start=${start / 1000L} sample=${sampleMs / 1000L} source=$reason")
             }
+            // A live-dataNo-derived start is the true activation. Persist it as the authoritative
+            // activeTime so the setup wizard / exported JSON recognise an already-activated sensor
+            // (instead of offering "start warmup") on the next add or import.
+            if (reliable) commitConfirmedActiveTime(start)
             if (effectiveActiveTimeMs() <= 0L) ensureNativePresenceShell("stream-anchor-$reason")
         }
         return sampleMs
@@ -1679,7 +1976,22 @@ class OttaiBleManager(
         if (id.isBlank() || startMs <= 0L) return
         runCatching {
             Natives.ensureSensorShell(id, (startMs / 1000L).coerceAtLeast(1L))
+            applyActivatedWearToNative(id)
         }.onFailure { Log.stack(TAG, "ensureNativePresenceShell($reason)", it) }
+    }
+
+    /** Real activated lifetime in whole days (rounded), or 0 if unknown. */
+    private fun activatedLifetimeDays(): Int {
+        val ms = activatedMaxActiveMs
+        return if (ms <= 0L) 0 else ((ms + 43_200_000L) / 86_400_000L).toInt()
+    }
+
+    /** Push the real activated lifetime to the native sensor record (main-graph end). */
+    private fun applyActivatedWearToNative(id: String) {
+        val days = activatedLifetimeDays()
+        if (days <= 0 || id.isBlank()) return
+        runCatching { Natives.setSensorWearDays(id, days) }
+            .onFailure { Log.stack(TAG, "setSensorWearDays", it) }
     }
 
     private fun nativePresenceStartTimeMs(): Long =
@@ -1801,6 +2113,8 @@ class OttaiBleManager(
         val ctx = Applic.app
         if (ctx != null && id.isNotBlank()) {
             OttaiRegistry.setActivationAttempted(ctx, id, true)
+            // The accepted maxActive was already recorded in markMaxActiveAccepted() when the
+            // firmware ACKed the write; nothing to persist here.
             if (materials.activeTimeMs <= 0L) {
                 setProvisionalActiveTime(now, "activation-command")
             }
@@ -1928,10 +2242,13 @@ class OttaiBleManager(
         val acceptedMs = maxActiveAttemptMs
         if (acceptedMs <= 0L) return
         activationRetryPending = false
+        activatedMaxActiveMs = acceptedMs
         val id = SerialNumber.orEmpty()
         Applic.app?.takeIf { id.isNotBlank() }?.let { context ->
             OttaiRegistry.saveAcceptedMaxActive(context, id, acceptedMs)
         }
+        // Push the real accepted lifetime to the native (watch) sensor record.
+        applyActivatedWearToNative(id)
         Log.i(TAG, "maxActive accepted duration=${acceptedMs / 1000L}s")
         UiRefreshBus.requestStatusRefresh()
     }
@@ -1980,17 +2297,84 @@ class OttaiBleManager(
         return requestHistoryRange("manual", 0, latest + 1)
     }
 
-    private fun requestRoomBackfillAfterLive(liveDataNo: Int, previousDataNo: Int): Boolean {
+    /**
+     * Drive the initial history backfill WITHOUT waiting for the first accepted live sample.
+     * The live-triggered path (requestRoomBackfillAfterLive off a live reading) is the primary
+     * route, but it only fires when a live frame is accepted — and this sensor can open a session
+     * with empty/rejected live reads, leaving history unfetched. This backstop runs a few seconds
+     * after streaming starts, bounds the range from the real lastDataNo when known or the
+     * activation-age estimate otherwise, and hands off to the shared backfill.
+     */
+    private fun runInitialHistoryBackfill() {
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank() || commandStatus != 3) return
+        if (roomBackfillChecked) return // the live path already issued the backfill
+        SerialNumber ?: return
+        val estimate = estimatedNewestDataNo()
+        val newest = maxOf(lastDataNo, estimate)
+        if (newest <= 0) {
+            // No basis yet (activation time unknown and no sample). Nudge a live read to learn
+            // the current dataNo, then retry a bounded number of times.
+            if (initialHistoryAttempt < INITIAL_HISTORY_MAX_ATTEMPTS) {
+                initialHistoryAttempt++
+                mBluetoothGatt?.let { g -> runCatching { readLiveGlucose(g, "initial-history-probe") } }
+                handler.postDelayed(initialHistoryRunnable, INITIAL_HISTORY_RETRY_MS)
+            } else {
+                Log.w(TAG, "initial history backfill gave up — no dataNo basis after $initialHistoryAttempt attempts")
+            }
+            return
+        }
+        // Seed a time anchor from activation so backfilled history records get correct
+        // timestamps even before the first live sample lands (a later live sample re-anchors it).
+        if (streamStartTimeMs <= 0L) {
+            val activeMs = effectiveActiveTimeMs()
+            if (activeMs > 0L) {
+                seedStreamTimeAnchor(newest, activeMs + newest.toLong() * RECORD_INTERVAL_MS, "initial-history")
+            }
+        }
+        val previousForHistory = previousDataNoForHistory(lastDataNo, newest)
+        // 'newest' is only trustworthy when the activation-age estimate backs it; a stale
+        // persisted lastDataNo compared against itself must not consume the one-shot with a
+        // no-op (the live path then does the real gap check once a sample lands).
+        val issued = requestRoomBackfillAfterLive(
+            newest,
+            previousForHistory,
+            observedNewest = estimate > 0 && lastDataNo <= estimate,
+        )
+        Log.i(TAG, "initial history backfill newest=$newest previous=$previousForHistory issued=$issued")
+    }
+
+    /**
+     * Estimate the newest history dataNo from activation age (dataNo == minutes since
+     * activation). Stays a couple of records short of "now": the newest samples arrive via the
+     * live poll, and overshooting the sensor's real newest dataNo would leave the final backfill
+     * chunk empty (and stall the chunk chain). 0 when activation time is still unknown.
+     */
+    private fun estimatedNewestDataNo(): Int {
+        val activeMs = effectiveActiveTimeMs()
+        if (activeMs <= 0L) return 0
+        val minutes = ((System.currentTimeMillis() - activeMs) / RECORD_INTERVAL_MS).toInt()
+        return (minutes - 2).coerceAtLeast(0)
+    }
+
+    private fun requestRoomBackfillAfterLive(
+        liveDataNo: Int,
+        previousDataNo: Int,
+        observedNewest: Boolean = true,
+    ): Boolean {
         if (roomBackfillChecked || liveDataNo <= 0) return false
         val id = SerialNumber ?: return false
-        roomBackfillChecked = true
+        // The one-shot is consumed only by an actually-issued request or a trusted "nothing
+        // missing" verdict — an early-out on a no-op (stale basis, missing anchor, failed
+        // issue) must leave it clear so the live path can still do the real check.
         if (previousDataNo >= 0) {
             val missingBeforeLive = liveDataNo - previousDataNo - 1
             if (missingBeforeLive <= 0) {
-                Log.i(TAG, "skip history reason=room-backfill previous=$previousDataNo live=$liveDataNo")
+                if (observedNewest) roomBackfillChecked = true
+                Log.i(TAG, "skip history reason=room-backfill previous=$previousDataNo live=$liveDataNo observed=$observedNewest")
                 return false
             }
             return requestHistoryRange("room-backfill", previousDataNo + 1, missingBeforeLive)
+                .also { if (it) roomBackfillChecked = true }
         }
         val startMs = streamStartTimeMs.takeIf { it > 0L } ?: return false
         val endMs = (System.currentTimeMillis() + RECORD_INTERVAL_MS).coerceAtLeast(startMs)
@@ -2001,14 +2385,20 @@ class OttaiBleManager(
         )
         if (existing.isEmpty()) {
             return requestHistoryRange("room-backfill", 0, liveDataNo)
+                .also { if (it) roomBackfillChecked = true }
         }
         val present = BooleanArray(liveDataNo)
         for (timestamp in existing) {
             val dataNo = ((timestamp - startMs + RECORD_INTERVAL_MS / 2L) / RECORD_INTERVAL_MS).toInt()
             if (dataNo in present.indices) present[dataNo] = true
         }
-        val firstMissing = present.indices.firstOrNull { !present[it] } ?: return false
+        val firstMissing = present.indices.firstOrNull { !present[it] }
+            ?: run {
+                roomBackfillChecked = true // verified complete against Room = trusted
+                return false
+            }
         return requestHistoryRange("room-backfill", firstMissing, liveDataNo - firstMissing)
+            .also { if (it) roomBackfillChecked = true }
     }
 
     private fun requestRecentHistory(reason: String): Boolean {
@@ -2049,15 +2439,27 @@ class OttaiBleManager(
             Log.w(TAG, "history request too large reason=$reason start=$start count=$count")
             return false
         }
+        val bypassCooldown = reason == "manual" || reason == "room-backfill" || reason == "hole-retry"
+        if (!bypassCooldown && System.currentTimeMillis() - lastHistoryRequestAtMs < HISTORY_REQUEST_COOLDOWN_MS) {
+            // Never tear down an armed chain for a request that cannot issue anyway (cooldown).
+            return false
+        }
         clearPendingHistoryRange()
+        // Detected-gap windows go on the books at request time; only arrived data (or the
+        // attempt cap) takes them off — chain teardown/disconnect/restart can't lose them.
+        // "manual" and speculative "empty-live" windows are deliberately not ledgered.
+        if (reason == "room-backfill" || reason == "post-live" || reason == "hole-retry") {
+            addHistoryHole(start, start + count)
+        }
         val requestCount = count.coerceAtMost(HISTORY_REQUEST_CHUNK_RECORDS)
-        val issued = issueHistoryRequest(reason, start, requestCount, bypassCooldown = reason == "manual" || reason == "room-backfill")
+        val issued = issueHistoryRequest(reason, start, requestCount, bypassCooldown = bypassCooldown)
         if (issued && requestCount < count) {
             pendingHistoryReason = reason
             pendingHistoryNextStart = start + requestCount
             pendingHistoryEndExclusive = start + count
             Log.i(TAG, "history chunked reason=$reason start=$start count=$count first=$requestCount next=$pendingHistoryNextStart")
         }
+        if (!issued) scheduleHoleRetry() // a just-ledgered window still gets its retry driver
         return issued
     }
 
@@ -2075,7 +2477,9 @@ class OttaiBleManager(
         val issued = writeChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_HISTORY_REQUEST, payload)
         if (issued) {
             lastHistoryRequestAtMs = now
+            activeHistoryStart = start
             activeHistoryEndExclusive = start + count
+            armHistoryWatchdog()
             Log.i(TAG, "request history reason=$reason start=$start count=$count payload=${OttaiCrypto.bytesToHex(payload)}")
         }
         return issued
@@ -2094,6 +2498,10 @@ class OttaiBleManager(
         val issued = issueHistoryRequest("$reason-chunk", start, count, bypassCooldown = true)
         if (!issued) {
             Log.w(TAG, "history chunk request failed reason=$reason start=$start count=$count end=$endExclusive")
+            // Don't leave a half-dead chain (pending set, nothing armed): clear it and hand the
+            // ledgered remainder to the hole-retry driver.
+            clearPendingHistoryRange()
+            scheduleHoleRetry()
             return false
         }
         pendingHistoryNextStart = start + count
@@ -2108,24 +2516,172 @@ class OttaiBleManager(
     private fun continueHistoryAfterPayload(readings: List<OttaiReading>): Boolean {
         val activeEndExclusive = activeHistoryEndExclusive
         if (activeEndExclusive <= 0) return pendingHistoryReason != null
+        // Callers pass the ceiling-filtered plausible list: only plausible progress resets the
+        // stall budget or completes the window, so a corrupt frame can neither starve the
+        // watchdog bound nor mark the chunk done.
         val maxDataNo = readings.maxOfOrNull { it.record.dataNo } ?: return false
+        historyRetryCount = 0
         if (maxDataNo + 1 < activeEndExclusive) {
+            // Partial chunk — restart the stall timer so a later dropped frame is still caught.
+            armHistoryWatchdog()
             return true
         }
+        // Data actually arrived for the whole window — the only event that shrinks the ledger.
+        trimHistoryHoles(activeHistoryStart, activeEndExclusive)
+        cancelHistoryWatchdog()
         activeHistoryEndExclusive = -1
-        if (pendingHistoryReason == null) return false
+        activeHistoryStart = -1
+        if (pendingHistoryReason == null) {
+            scheduleHoleRetry()
+            return false
+        }
         handler.removeCallbacks(pendingHistoryChunkRunnable)
         handler.postDelayed(pendingHistoryChunkRunnable, HISTORY_CHUNK_DELAY_MS)
         Log.i(TAG, "history chunk complete through=$maxDataNo next=$pendingHistoryNextStart end=$pendingHistoryEndExclusive")
         return true
     }
 
+    // ---- history chunk-chain watchdog ----
+
+    private fun armHistoryWatchdog() {
+        handler.removeCallbacks(historyWatchdogRunnable)
+        handler.postDelayed(historyWatchdogRunnable, HISTORY_PAGE_TIMEOUT_MS)
+    }
+
+    private fun cancelHistoryWatchdog() {
+        handler.removeCallbacks(historyWatchdogRunnable)
+    }
+
+    /** Set the in-flight chunk to "done" and either fire the next pending chunk or finish. */
+    private fun advanceHistoryChunkChain() {
+        activeHistoryEndExclusive = -1
+        activeHistoryStart = -1
+        if (pendingHistoryReason == null) {
+            scheduleHoleRetry() // chain drained — let the ledger pick up any recorded misses
+            return
+        }
+        handler.removeCallbacks(pendingHistoryChunkRunnable)
+        handler.postDelayed(pendingHistoryChunkRunnable, HISTORY_CHUNK_DELAY_MS)
+    }
+
+    private fun checkHistoryWatchdog() {
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return
+        val end = activeHistoryEndExclusive
+        val start = activeHistoryStart
+        if (end <= 0) return // nothing in flight
+        if (start < 0 || end <= start) {
+            historyRetryCount = 0
+            advanceHistoryChunkChain()
+            return
+        }
+        if (historyRetryCount < HISTORY_MAX_RETRIES) {
+            historyRetryCount++
+            Log.w(TAG, "history page watchdog: no progress for chunk [$start,$end) — retry $historyRetryCount/$HISTORY_MAX_RETRIES")
+            // Re-issue the same window (issueHistoryRequest re-arms the watchdog on success).
+            if (!issueHistoryRequest("watchdog-retry", start, end - start, bypassCooldown = true)) {
+                noteHoleFailure(start, end)
+                advanceHistoryChunkChain()
+            }
+        } else {
+            Log.e(TAG, "history page watchdog: chunk [$start,$end) failed after $historyRetryCount retries — " +
+                "recorded in the hole ledger for a later retry")
+            historyRetryCount = 0
+            noteHoleFailure(start, end)
+            advanceHistoryChunkChain()
+        }
+    }
+
     private fun clearPendingHistoryRange() {
         handler.removeCallbacks(pendingHistoryChunkRunnable)
+        cancelHistoryWatchdog()
+        historyRetryCount = 0
         pendingHistoryReason = null
         pendingHistoryNextStart = 0
         pendingHistoryEndExclusive = 0
         activeHistoryEndExclusive = -1
+        activeHistoryStart = -1
+    }
+
+    // ---- history hole ledger ----
+    // Requested-but-undelivered windows. Added at request time for detected gaps, trimmed only
+    // when their data actually arrives, retired by the cross-session attempt cap. Survives
+    // disconnects and app restarts via OttaiRegistry (per-sensor pref).
+
+    private fun addHistoryHole(start: Int, endExclusive: Int) {
+        if (endExclusive <= start || start < 0) return
+        if (historyHoles.any { it.start <= start && it.endExclusive >= endExclusive }) return // covered
+        historyHoles += HistoryHole(start, endExclusive, 0)
+        historyHoles.sortBy { it.start }
+        while (historyHoles.size > MAX_HISTORY_HOLES) {
+            val dropped = historyHoles.removeAt(0)
+            Log.e(TAG, "history hole ledger full — dropping [${dropped.start},${dropped.endExclusive}) (records lost)")
+        }
+        persistHistoryHoles()
+    }
+
+    /** Data for [start,endExclusive) actually arrived — the ONLY way a hole shrinks. */
+    private fun trimHistoryHoles(start: Int, endExclusive: Int) {
+        if (endExclusive <= start) return
+        var changed = false
+        val iterator = historyHoles.listIterator()
+        while (iterator.hasNext()) {
+            val h = iterator.next()
+            when {
+                h.start >= start && h.endExclusive <= endExclusive -> { iterator.remove(); changed = true }
+                h.start in start until endExclusive -> { h.start = endExclusive; changed = true }
+                h.endExclusive in (start + 1)..endExclusive -> { h.endExclusive = start; changed = true }
+                // A mid-split (arrival strictly inside a hole) can't happen: requests are issued
+                // from hole/gap boundaries. If a future caller violates that, the hole just stays
+                // slightly larger than reality and self-corrects via refetch — data is never lost.
+            }
+        }
+        if (changed) persistHistoryHoles()
+    }
+
+    /** A request covering [start,endExclusive) failed to deliver — ledger it and bump its counter. */
+    private fun noteHoleFailure(start: Int, endExclusive: Int) {
+        if (endExclusive <= start || start < 0) return
+        // Bump every overlapping hole, not just an exact match: failures arrive per issued
+        // CHUNK, so a multi-chunk hole must absorb its chunks' failures or the attempt cap
+        // never retires it (a permanently-empty overshoot range would then retry forever).
+        var overlapped = false
+        for (h in historyHoles) {
+            if (h.start < endExclusive && start < h.endExclusive) {
+                h.attempts++
+                overlapped = true
+            }
+        }
+        if (!overlapped) {
+            historyHoles += HistoryHole(start, endExclusive, 1)
+            historyHoles.sortBy { it.start }
+        }
+        historyHoles.removeAll { h ->
+            (h.attempts >= HISTORY_HOLE_MAX_ATTEMPTS).also {
+                if (it) Log.e(TAG, "history range [${h.start},${h.endExclusive}) undelivered after ${h.attempts} attempts — giving up")
+            }
+        }
+        persistHistoryHoles()
+    }
+
+    private fun persistHistoryHoles() {
+        val id = SerialNumber ?: return
+        if (id.isBlank()) return
+        Applic.app?.let {
+            OttaiRegistry.saveHistoryHoles(it, id, historyHoles.joinToString(";") { h -> "${h.start}:${h.endExclusive}:${h.attempts}" })
+        }
+    }
+
+    private fun scheduleHoleRetry(delayMs: Long = HISTORY_HOLE_RETRY_DELAY_MS) {
+        handler.removeCallbacks(holeRetryRunnable)
+        if (historyHoles.isNotEmpty()) handler.postDelayed(holeRetryRunnable, delayMs)
+    }
+
+    private fun retryNextHistoryHole() {
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank() || commandStatus != 3) return
+        if (activeHistoryEndExclusive > 0 || pendingHistoryReason != null) return // never preempt a live chain
+        val hole = historyHoles.firstOrNull() ?: return
+        Log.i(TAG, "hole retry [${hole.start},${hole.endExclusive}) attempt=${hole.attempts}")
+        requestHistoryRange("hole-retry", hole.start, hole.endExclusive - hole.start)
     }
 
     // ---- GATT helpers ----
@@ -2146,11 +2702,27 @@ class OttaiBleManager(
     private fun readLiveGlucose(gatt: BluetoothGatt, reason: String) {
         if (sessionKeyHex.isBlank()) return
         Log.i(TAG, "read live glucose reason=$reason")
-        if (!readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_GLUCOSE_LIVE) &&
-            phase == Phase.STREAMING
-        ) {
-            recoverGattAndReconnect("live read could not start")
+        if (readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_GLUCOSE_LIVE)) {
+            liveReadRetryCount = 0
+            return
         }
+        if (phase != Phase.STREAMING) return
+        // A false start usually means another GATT op is still in flight (history chunk,
+        // notify enable right after auth) — a transient, not a dead transport. Tearing the
+        // link down here cost a full reconnect cycle per collision; retry briefly first.
+        if (liveReadRetryCount < LIVE_READ_MAX_RETRIES) {
+            liveReadRetryCount += 1
+            val attempt = liveReadRetryCount
+            handler.postDelayed({
+                val current = mBluetoothGatt
+                if (!stop && phase == Phase.STREAMING && current != null) {
+                    readLiveGlucose(current, "$reason-retry$attempt")
+                }
+            }, LIVE_READ_RETRY_DELAY_MS)
+            return
+        }
+        liveReadRetryCount = 0
+        recoverGattAndReconnect("live read could not start")
     }
 
     private fun scheduleLivePoll(delayMs: Long = livePollIntervalMs) {
@@ -2189,6 +2761,9 @@ class OttaiBleManager(
             provisionalActiveTimeMs = OttaiRegistry.loadProvisionalActiveTime(context, SerialNumber.orEmpty())
         }
         authKeys = m.authKeys
+        if (activatedMaxActiveMs <= 0L) {
+            activatedMaxActiveMs = OttaiRegistry.loadAcceptedMaxActive(context, SerialNumber.orEmpty())
+        }
         OttaiRegistry.saveMaterials(context, SerialNumber.orEmpty(), m)
     }
 
@@ -2204,10 +2779,12 @@ class OttaiBleManager(
     }
 
     override fun getStartTimeMs(): Long = effectiveActiveTimeMs()
-    // Rated/"official" end = vendor activation + the cloud-reported rated lifetime
-    // (activeExpireTime ms; ~14d for these units), falling back to the local default.
+    // Rated/"official" end = activation + the cloud-reported rated lifetime (activeExpireTime ms;
+    // ~14d for these units), falling back to the local default. Uses the effective activation so a
+    // sensor started in the vendor app (no cloud activeTime, start recovered over BLE) still shows
+    // a rated end instead of a blank.
     override fun getOfficialEndMs(): Long {
-        val start = materials.activeTimeMs
+        val start = effectiveActiveTimeMs()
         if (start <= 0L) return 0L
         val ratedMs = materials.activeExpireTimeMs.takeIf { it > 0L } ?: OttaiConstants.DEFAULT_ACTIVE_EXPIRE_MS
         return start + ratedMs
@@ -2217,9 +2794,11 @@ class OttaiBleManager(
     override fun getExpectedEndMs(): Long {
         val start = effectiveActiveTimeMs()
         if (start <= 0L) return 0L
-        val acceptedMs = Applic.app?.let {
-            OttaiRegistry.loadAcceptedMaxActive(it, SerialNumber.orEmpty())
-        } ?: 0L
+        // Real lifetime the firmware accepted at activation; fall back to the cloud-rated
+        // horizon while it is still unknown (honest, not optimistically 30d).
+        val acceptedMs = activatedMaxActiveMs.takeIf { it > 0L }
+            ?: Applic.app?.let { OttaiRegistry.loadAcceptedMaxActive(it, SerialNumber.orEmpty()) }
+            ?: 0L
         return start + OttaiConstants.expectedLifetimeMs(materials.activeExpireTimeMs, acceptedMs)
     }
     // Never expire on the calendar alone: past the negotiated horizon, keep reading while

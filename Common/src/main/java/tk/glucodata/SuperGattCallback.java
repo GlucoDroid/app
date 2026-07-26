@@ -1174,6 +1174,21 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         }
     }
 
+    /**
+     * Hidden framework callback (BluetoothGattCallback#onConnectionUpdated, present since
+     * Android O but absent from the SDK stubs — hence no @Override). The stack invokes it
+     * after every LL connection-parameter update, including ones the peripheral requested,
+     * so it is the only signal that a sensor renegotiated away from the fast interval the
+     * app asked for. Signature must stay exactly this for runtime dispatch to bind.
+     */
+    public void onConnectionUpdated(BluetoothGatt gatt, int interval, int latency, int timeout, int status) {
+        onConnectionParamsUpdated(gatt, interval, latency, timeout, status);
+    }
+
+    /** SDK-visible relay of the hidden onConnectionUpdated; drivers override this one. */
+    public void onConnectionParamsUpdated(BluetoothGatt gatt, int interval, int latency, int timeout, int status) {
+    }
+
     boolean disableNoCheck(BluetoothGatt gatt, BluetoothGattCharacteristic ch) {
         gatt.setCharacteristicNotification(ch, false);
         BluetoothGattDescriptor descriptor = ch.getDescriptor(mCharacteristicConfigDescriptor);

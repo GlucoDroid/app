@@ -4,8 +4,11 @@
 // recovered: header set + MD5 signature seed from NetManager (1.1.0 decompile).
 // The account/token is app-agnostic, so a phone-number SMS login works here.
 //
-// Geoblock: every request carries forwarded-IP headers set to a China IP so the
-// server's IP geolocation returns chinaFlag=1 (no VPN, no official app).
+// Geoblock: only CN-backend (api.ottai.com) requests carry forwarded-IP headers set to a China IP
+// (that backend is geoblocked to China). GLOBAL (seas.ottai.com) / SYAI (ru.syai.com) requests send
+// NO forwarded headers — a forged CN IP there looks cross-region and the backend rejects the token
+// (AuthFailed_TokenInvalid / accountLogin biz=Error). See headers(). CONFIRMED on-device: a RU user on
+// GLOBAL failed until a VPN masked the real IP; the official global app sends no such headers and works.
 //
 // SECURITY: the signature SEED and all returned secrets (accessToken,
 // glucoseSecretKey, keyA, method, coefficient) are credentials/IP. Never log them.
@@ -85,7 +88,7 @@ object OttaiCloudClient {
     private fun sign(deviceId: String, ts: Long, vararg args: String): String =
         md5Hex(APP_NAME + "$APP_NAME:a:$deviceId" + ts + args.joinToString("") + SEED)
 
-    private fun headers(ctx: Context, ts: Long): MutableMap<String, String> {
+    private fun headers(ctx: Context, ts: Long, apiBase: String): MutableMap<String, String> {
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val token = OttaiRegistry.loadAccessToken(ctx)
         val offsetSec = TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000
@@ -102,12 +105,19 @@ object OttaiCloudClient {
             "timestamp" to ts.toString(),
             "country" to "zh_CN",
             "deviceId" to "$APP_NAME:a:$deviceId",
-            // geoblock bypass — CN source IP via forwarded-for headers
-            "X-Forwarded-For" to OttaiConstants.CN_FORWARD_IP,
-            "X-Real-IP" to OttaiConstants.CN_FORWARD_IP,
-            "CF-Connecting-IP" to OttaiConstants.CN_FORWARD_IP,
-            "True-Client-IP" to OttaiConstants.CN_FORWARD_IP,
         )
+        // Geoblock bypass — forge a CN source IP ONLY for the CN backend (api.ottai.com), which is
+        // geoblocked to China and REQUIRES a CN IP. The GLOBAL (seas.ottai.com) and SYAI (ru.syai.com)
+        // backends serve non-China users; forging a CN IP there makes the request look cross-region and
+        // the backend rejects the session (AuthFailed_TokenInvalid, accountLogin biz=Error). The official
+        // global app sends no forwarded headers and works from any region, so we mirror that here.
+        // (Web-API calls already omit these — see webHeaders.)
+        if (apiBase == OttaiConstants.API_BASE) {
+            h["X-Forwarded-For"] = OttaiConstants.CN_FORWARD_IP
+            h["X-Real-IP"] = OttaiConstants.CN_FORWARD_IP
+            h["CF-Connecting-IP"] = OttaiConstants.CN_FORWARD_IP
+            h["True-Client-IP"] = OttaiConstants.CN_FORWARD_IP
+        }
         if (token.isNotBlank()) h["Authorization"] = token
         return h
     }
@@ -124,7 +134,7 @@ object OttaiCloudClient {
         val ts = now()
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val sig = sign(deviceId, ts)
-        val resp = httpGet(apiBase + OttaiConstants.EP_API_TOKEN, mapOf("signature" to sig), headers(ctx, ts))
+        val resp = httpGet(apiBase + OttaiConstants.EP_API_TOKEN, mapOf("signature" to sig), headers(ctx, ts, apiBase))
         return resp?.optStringDeep("data")
     }
 
@@ -144,7 +154,7 @@ object OttaiCloudClient {
             put("smsType", 1)
             put("signature", sign(deviceId, ts, ph, apiToken))
         }
-        val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_SMS_CODE, body.toString(), headers(ctx, ts))
+        val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_SMS_CODE, body.toString(), headers(ctx, ts, OttaiConstants.API_BASE))
         return resp?.optStringDeep("data")
     }
 
@@ -160,7 +170,7 @@ object OttaiCloudClient {
             put("requestId", requestId)
             put("signature", sign(deviceId, ts, requestId, ph, code))
         }
-        val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_SMS_LOGIN, body.toString(), headers(ctx, ts)) ?: return null
+        val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_SMS_LOGIN, body.toString(), headers(ctx, ts, OttaiConstants.API_BASE)) ?: return null
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val result = LoginResult(
             userId = data.optString("userId").orEmptyIfNull(),
@@ -209,7 +219,7 @@ object OttaiCloudClient {
             put("apiToken", apiToken)
             put("signature", sign(deviceId, ts, apiToken, acct, password))
         }
-        val resp = httpPostJson(base + OttaiConstants.EP_ACCOUNT_LOGIN, body.toString(), headers(ctx, ts)) ?: return null
+        val resp = httpPostJson(base + OttaiConstants.EP_ACCOUNT_LOGIN, body.toString(), headers(ctx, ts, base)) ?: return null
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val result = LoginResult(
             userId = data.optString("userId").orEmptyIfNull(),
@@ -231,11 +241,12 @@ object OttaiCloudClient {
     fun logout(ctx: Context) {
         runCatching {
             val ts = now()
-            httpPostJson(base(ctx) + OttaiConstants.EP_LOGOUT, "{}", headers(ctx, ts))
+            httpPostJson(base(ctx) + OttaiConstants.EP_LOGOUT, "{}", headers(ctx, ts, base(ctx)))
         }
         OttaiRegistry.saveAccessToken(ctx, null)
         OttaiRegistry.saveGlucoseSecretKey(ctx, null)
         OttaiRegistry.saveUserId(ctx, null)
+        OttaiRegistry.saveAccountLogin(ctx, null)
         OttaiRegistry.saveApiBase(ctx, OttaiConstants.API_BASE)  // reset to CN default
     }
 
@@ -247,7 +258,7 @@ object OttaiCloudClient {
         val resp = httpGet(
             base(ctx) + OttaiConstants.EP_VALIDATE_BY_MAC,
             mapOf("mac" to canonical, "signature" to sig),
-            headers(ctx, ts),
+            headers(ctx, ts, base(ctx)),
         ) ?: return null
         return parseDeviceResp(resp)
     }
@@ -268,7 +279,7 @@ object OttaiCloudClient {
             put("userId", userId)
             put("newBindType", 2)
         }
-        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_BIND, body.toString(), headers(ctx, ts)) ?: return null
+        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_BIND, body.toString(), headers(ctx, ts, base(ctx))) ?: return null
         return parseDeviceResp(resp)
     }
 
@@ -298,7 +309,7 @@ object OttaiCloudClient {
             put("deviceType", "cgm")
             put("unbindType", 0)
         }
-        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_UNBIND, body.toString(), headers(ctx, ts)) ?: return false
+        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_UNBIND, body.toString(), headers(ctx, ts, base(ctx))) ?: return false
         val bizCode = resp.opt("code")?.toString().orEmpty()
         return bizCode.isBlank() || bizCode == "200" || bizCode.equals("OK", ignoreCase = true)
     }
@@ -309,7 +320,7 @@ object OttaiCloudClient {
         val resp = httpGet(
             base(ctx) + OttaiConstants.EP_GET_BIND_DEVICE,
             emptyMap(),
-            headers(ctx, ts),
+            headers(ctx, ts, base(ctx)),
         ) ?: return null
         return parseDeviceResp(resp)
     }
@@ -337,7 +348,7 @@ object OttaiCloudClient {
         val resp = httpGet(
             base(ctx) + OttaiConstants.EP_DEVICE_LIST,
             mapOf("pageSize" to pageSize.toString(), "pageNumber" to pageNumber.toString()),
-            headers(ctx, ts),
+            headers(ctx, ts, base(ctx)),
         ) ?: return emptyList()
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return emptyList()
         val items = data.optJSONArray("items")
