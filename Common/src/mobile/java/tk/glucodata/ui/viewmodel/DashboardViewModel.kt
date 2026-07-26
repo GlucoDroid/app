@@ -47,11 +47,38 @@ import tk.glucodata.ui.util.resolveDashboardSensorStatus
 import kotlin.math.roundToInt
 
 internal object DashboardHistoryCollectionPolicy {
+    const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
+    const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
+
     fun usesMergedCrossSensorHistory(mode: DashboardViewModel.CollectionMode): Boolean =
         mode == DashboardViewModel.CollectionMode.FULL_HISTORY
 
     fun shouldCoalesceEmission(mode: DashboardViewModel.CollectionMode, hasSeenHistoryEmission: Boolean): Boolean =
         mode == DashboardViewModel.CollectionMode.DASHBOARD && hasSeenHistoryEmission
+
+    fun shouldRequestHistoryRecovery(
+        startTimeMs: Long,
+        history: List<tk.glucodata.ui.GlucosePoint>,
+        serial: String?,
+        currentTimeMs: Long,
+        currentSensorMatchesSerial: Boolean
+    ): Boolean {
+        if (history.isEmpty()) {
+            return true
+        }
+        val oldestTimestamp = history.firstOrNull()?.timestamp ?: return true
+        if (startTimeMs > 0L && oldestTimestamp > (startTimeMs + HISTORY_RECOVERY_TOLERANCE_MS)) {
+            return true
+        }
+        val latestTimestamp = history.lastOrNull()?.timestamp ?: return true
+        if (currentTimeMs <= 0L || serial.isNullOrBlank()) {
+            return false
+        }
+        if (!currentSensorMatchesSerial) {
+            return false
+        }
+        return currentTimeMs > (latestTimestamp + HISTORY_RECOVERY_TAIL_TOLERANCE_MS)
+    }
 }
 
 class DashboardViewModel(
@@ -105,8 +132,6 @@ class DashboardViewModel(
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
         const val DASHBOARD_HISTORY_COALESCE_MS = 300L
-        const val HISTORY_RECOVERY_TOLERANCE_MS = 5L * 60L * 1000L
-        const val HISTORY_RECOVERY_TAIL_TOLERANCE_MS = 2L * 60L * 1000L
         const val DASHBOARD_PEER_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
         const val JOURNAL_NAVIGATION_TAB_KEY = "dashboard_journal_navigation_tab_enabled"
@@ -1716,21 +1741,16 @@ class DashboardViewModel(
         serial: String?,
         current: CurrentDisplaySource.Snapshot?
     ): Boolean {
-        if (history.isEmpty()) {
-            return true
-        }
-        val oldestTimestamp = history.firstOrNull()?.timestamp ?: return true
-        if (startTimeMs > 0L && oldestTimestamp > (startTimeMs + HISTORY_RECOVERY_TOLERANCE_MS)) {
-            return true
-        }
-        val latestTimestamp = history.lastOrNull()?.timestamp ?: return true
-        if (current == null || current.timeMillis <= 0L || serial.isNullOrBlank()) {
-            return false
-        }
-        if (!current.sensorId.isNullOrBlank() && !SensorIdentity.matches(current.sensorId, serial)) {
-            return false
-        }
-        return current.timeMillis > (latestTimestamp + HISTORY_RECOVERY_TAIL_TOLERANCE_MS)
+        // A blank current sensorId means "no conflicting sensor to check" — treat as a match.
+        val currentSensorMatchesSerial = current?.sensorId.isNullOrBlank() ||
+            SensorIdentity.matches(current?.sensorId, serial)
+        return DashboardHistoryCollectionPolicy.shouldRequestHistoryRecovery(
+            startTimeMs = startTimeMs,
+            history = history,
+            serial = serial,
+            currentTimeMs = current?.timeMillis ?: 0L,
+            currentSensorMatchesSerial = currentSensorMatchesSerial
+        )
     }
 
     private fun resolveCurrentForHistoryRecovery(serial: String?): CurrentDisplaySource.Snapshot? {
