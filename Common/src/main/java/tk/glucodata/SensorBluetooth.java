@@ -160,9 +160,9 @@ public class SensorBluetooth {
         return getCallback(device, null, null);
     }
 
+    @SuppressLint("MissingPermission")
     private SuperGattCallback getCallback(BluetoothDevice device, String advertisedName, ScanResult scanResult) {
         try {
-            @SuppressLint("MissingPermission")
             String deviceName = advertisedName;
             if (deviceName == null || deviceName.trim().isEmpty()) {
                 deviceName = device.getName();
@@ -221,6 +221,7 @@ public class SensorBluetooth {
         return checkdevice(device, null, null);
     }
 
+    @SuppressLint("MissingPermission")
     private boolean checkdevice(BluetoothDevice device, String advertisedName, ScanResult scanResult) {
         try {
             SuperGattCallback cb = getCallback(device, advertisedName, scanResult);

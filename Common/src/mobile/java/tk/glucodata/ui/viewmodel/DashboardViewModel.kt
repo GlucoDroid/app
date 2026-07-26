@@ -1567,6 +1567,7 @@ class DashboardViewModel(
         tk.glucodata.Notify.showoldglucose()
         context.sendBroadcast(
             android.content.Intent(tk.glucodata.accessibility.AODOverlayService.ACTION_IMMEDIATE_REFRESH)
+                .setPackage(context.packageName)
         )
     }
 

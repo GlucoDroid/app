@@ -265,7 +265,7 @@ if(shortedit==null) {
 			var width= getscreenwidth(act);
 			if(width>w)
 			    l.setX(( width- w)* 0.7f);
-          l.setY(MainActivity.systembarTop);
+			l.setY(MainActivity.systembarTop);
 
 			return new int[] {w,h};
 			    }, new View[] {label,labedit},new View[] {value,valedit},new View[] {delete,cancel,save});

@@ -850,7 +850,7 @@ boolean[] askednums=new boolean[2];
 private void getnums(int base) {
    if(!usewatch)
       return;
-     if(didreceivebackup(base))
+   if(didreceivebackup(base))
       return;
    if(isSending())  {
       {if(doLog) {Log.i(LOG_ID,"asknums "+base);};};

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="USE_ALARM">Тревога - это тревога</string>
     <string name="aboutname">About</string>
     <string name="active">Активно</string>
@@ -2064,11 +2064,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sound_delay_hypo_warning">Внимание: это задерживает звуковой сигнал предупреждения о низком уровне глюкозы.</string>
     <string name="sound_delay_label">Задержка звука</string>
     <string name="sound_delay_title">Задержка звукового сигнала</string>
-    <plurals name="sensor_expires_in_days">
+    <plurals name="sensor_expires_in_days" tools:ignore="MissingQuantity">
         <item quantity="one">Срок действия сенсора истекает через %d день.</item>
         <item quantity="other">Срок действия сенсора истекает через %d дн.</item>
     </plurals>
-    <plurals name="sensor_expires_in_hours">
+    <plurals name="sensor_expires_in_hours" tools:ignore="MissingQuantity">
         <item quantity="one">Срок действия сенсора истекает через %d час.</item>
         <item quantity="other">Срок действия сенсора истекает через %d часов.</item>
     </plurals>

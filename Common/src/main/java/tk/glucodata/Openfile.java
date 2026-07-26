@@ -87,7 +87,7 @@ Layout lay=null;
         }
         else
             text.setText(fromHtml(context.getString(R.string.getlib)));
-           text.setTextIsSelectable(true);
+        text.setTextIsSelectable(true);
 	   text.setMovementMethod(LinkMovementMethod.getInstance());
  	    text.setLinksClickable(true);
 	 lay=new Layout(context,new View[]{text},new View[]{Mirror,Open},new View[]{status});

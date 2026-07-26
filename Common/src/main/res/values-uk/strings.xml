@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="language">uk</string>
     <string name="languagename">Мова</string>
 
@@ -2093,11 +2093,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sound_delay_hypo_warning">Увага: це затримує звуковий сигнал для оповіщення про низький рівень глюкози.</string>
     <string name="sound_delay_label">Затримка звуку</string>
     <string name="sound_delay_title">Затримка звуку будильника</string>
-    <plurals name="sensor_expires_in_days">
+    <plurals name="sensor_expires_in_days" tools:ignore="MissingQuantity">
         <item quantity="one">Термін дії датчика закінчується через %d день</item>
         <item quantity="other">Термін дії датчика закінчується через %d днів</item>
     </plurals>
-    <plurals name="sensor_expires_in_hours">
+    <plurals name="sensor_expires_in_hours" tools:ignore="MissingQuantity">
         <item quantity="one">Термін дії датчика закінчується через %d годин</item>
         <item quantity="other">Термін дії датчика закінчується через %d годин</item>
     </plurals>

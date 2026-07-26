@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_widget_description">Glucose widget</string>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_widget_description" tools:ignore="MissingTranslation">Glucose widget</string>
 </resources>

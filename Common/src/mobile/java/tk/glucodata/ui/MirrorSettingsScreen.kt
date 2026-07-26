@@ -4,6 +4,7 @@ package tk.glucodata.ui
 
 import android.app.Activity
 import android.content.Context
+import android.os.Build
 import android.text.Html
 import android.widget.TextView
 import android.widget.Toast
@@ -577,7 +578,14 @@ fun MirrorConnectionCard(
                     if (!mirror.isDeactivated) {
                         AndroidView<TextView>(
                             factory = { ctx -> TextView(ctx).apply { textSize = 13f } },
-                            update = { it.text = Html.fromHtml(mirror.status, Html.FROM_HTML_MODE_LEGACY) },
+                            update = {
+                                it.text = if (Build.VERSION.SDK_INT >= 24) {
+                                    Html.fromHtml(mirror.status, Html.FROM_HTML_MODE_LEGACY)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    Html.fromHtml(mirror.status)
+                                }
+                            },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
