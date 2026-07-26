@@ -1720,7 +1720,7 @@ private fun UnitPickerDialog(isMmol: Boolean, onSelect: (Int) -> Unit, onDismiss
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
                 )
-                listOf(stringResource(R.string.unit_mg) to 0, stringResource(R.string.unit_mmol) to 1).forEach { (label, value) ->
+                listOf(stringResource(R.string.unit_mg) to 2, stringResource(R.string.unit_mmol) to 1).forEach { (label, value) ->
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -1729,7 +1729,7 @@ private fun UnitPickerDialog(isMmol: Boolean, onSelect: (Int) -> Unit, onDismiss
                             .padding(horizontal = 24.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(selected = (if (isMmol) 1 else 0) == value, onClick = null)
+                        RadioButton(selected = (if (isMmol) 1 else 2) == value, onClick = null)
                         Spacer(Modifier.width(16.dp))
                         Text(label, style = MaterialTheme.typography.bodyLarge)
                     }
