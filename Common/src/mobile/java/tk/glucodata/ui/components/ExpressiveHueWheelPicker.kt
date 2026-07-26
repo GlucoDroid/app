@@ -18,12 +18,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.sin
 
 @Composable
 fun ExpressiveHueWheelPicker(
     hue: Float,
     onHueChange: (Float) -> Unit,
+    previewColor: Color? = null,
     modifier: Modifier = Modifier
 ) {
     val sweepColors = remember {
@@ -38,6 +40,8 @@ fun ExpressiveHueWheelPicker(
         )
     }
     val handleHaloColor = MaterialTheme.colorScheme.surface
+    val previewHaloColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val previewOutlineColor = MaterialTheme.colorScheme.outlineVariant
 
     Canvas(
         modifier = modifier
@@ -45,11 +49,11 @@ fun ExpressiveHueWheelPicker(
             .height(176.dp)
             .pointerInput(Unit) {
                 fun updateHue(offset: Offset) {
+                    val dx = offset.x - size.width / 2f
+                    val dy = offset.y - size.height / 2f
+                    if (hypot(dx, dy) < minOf(size.width, size.height) * 0.28f) return
                     val angle = Math.toDegrees(
-                        atan2(
-                            (offset.y - size.height / 2f).toDouble(),
-                            (offset.x - size.width / 2f).toDouble()
-                        )
+                        atan2(dy.toDouble(), dx.toDouble())
                     ).toFloat()
                     onHueChange((angle + 450f) % 360f)
                 }
@@ -58,11 +62,13 @@ fun ExpressiveHueWheelPicker(
             .pointerInput(Unit) {
                 detectDragGestures { change, _ ->
                     change.consume()
+                    val dx = change.position.x - size.width / 2f
+                    val dy = change.position.y - size.height / 2f
+                    if (hypot(dx, dy) < minOf(size.width, size.height) * 0.28f) {
+                        return@detectDragGestures
+                    }
                     val angle = Math.toDegrees(
-                        atan2(
-                            (change.position.y - size.height / 2f).toDouble(),
-                            (change.position.x - size.width / 2f).toDouble()
-                        )
+                        atan2(dy.toDouble(), dx.toDouble())
                     ).toFloat()
                     onHueChange((angle + 450f) % 360f)
                 }
@@ -87,5 +93,20 @@ fun ExpressiveHueWheelPicker(
             radius = 8.dp.toPx(),
             center = handleCenter
         )
+        previewColor?.let { color ->
+            drawCircle(
+                color = previewHaloColor,
+                radius = 43.dp.toPx()
+            )
+            drawCircle(
+                color = color,
+                radius = 35.dp.toPx()
+            )
+            drawCircle(
+                color = previewOutlineColor,
+                radius = 35.dp.toPx(),
+                style = Stroke(width = 1.dp.toPx())
+            )
+        }
     }
 }

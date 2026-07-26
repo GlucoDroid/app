@@ -266,10 +266,22 @@ fun SensorScreen(
     val titleBottomPadding = if (compactLayout) 16.dp else 24.dp
     val fabPadding = 20.dp
     
-    // Start/stop real-time polling based on screen visibility
-    DisposableEffect(Unit) {
-        viewModel.startPolling() // Start 2-second refresh when screen visible
+    // Start/stop real-time polling based on screen visibility.
+    // Tied to the lifecycle, not just to composition: this screen is a tab, so leaving the
+    // app while it is open keeps it composed. Without ON_START/ON_STOP the refresh loop would
+    // keep polling native sensor state in the background forever.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.startPolling()
+                Lifecycle.Event.ON_STOP -> viewModel.stopPolling()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             viewModel.stopPolling() // Stop when leaving screen
         }
     }

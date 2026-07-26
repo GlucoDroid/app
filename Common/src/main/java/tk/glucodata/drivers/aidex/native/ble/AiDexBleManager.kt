@@ -35,6 +35,8 @@ import tk.glucodata.Applic
 import tk.glucodata.BatteryTrace
 import tk.glucodata.ExchangeTrend
 import tk.glucodata.Log
+import tk.glucodata.logd
+import tk.glucodata.logi
 import tk.glucodata.Natives
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.UiRefreshBus
@@ -2290,7 +2292,8 @@ class AiDexBleManager(
         val data = characteristic.value ?: return
         if (data.isEmpty()) return
 
-        Log.i(TAG, "onCharacteristicChanged: uuid=$uuid len=${data.size} hex=${AiDexParser.hexString(data.copyOfRange(0, minOf(data.size, 8)))}")
+        // Lazy: this fires per notification and the hex preview copies + formats bytes.
+        logi(TAG) { "onCharacteristicChanged: uuid=$uuid len=${data.size} hex=${AiDexParser.hexString(data.copyOfRange(0, minOf(data.size, 8)))}" }
 
         when (uuid) {
             CHAR_F003 -> handleF003(data)
@@ -2302,7 +2305,7 @@ class AiDexBleManager(
 
     override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
         super.onCharacteristicWrite(gatt, characteristic, status)
-        Log.d(TAG, "onCharacteristicWrite: uuid=${characteristic.uuid} status=$status")
+        logd(TAG) { "onCharacteristicWrite: uuid=${characteristic.uuid} status=$status" }
         if (
             pendingResetReconnect &&
             characteristic.uuid == CHAR_F002 &&
@@ -3647,7 +3650,7 @@ class AiDexBleManager(
         val now = System.currentTimeMillis()
         lastF003FrameTimeMs = now
         handler.removeCallbacks(noStreamWatchdog)
-        Log.i(TAG, "handleF003: len=${encryptedData.size}, raw=${AiDexParser.hexString(encryptedData.copyOfRange(0, minOf(encryptedData.size, 8)))}")
+        logi(TAG) { "handleF003: len=${encryptedData.size}, raw=${AiDexParser.hexString(encryptedData.copyOfRange(0, minOf(encryptedData.size, 8)))}" }
 
         // Status/keepalive frames (5 bytes) — decrypt and extract battery voltage
         val frameType = AiDexParser.classifyFrame(encryptedData)
@@ -3682,12 +3685,11 @@ class AiDexBleManager(
             return
         }
 
-        Log.i(
-            TAG,
+        logi(TAG) {
             "F003 parsed: offset=${frame.timeOffsetMinutes}min glucose=${frame.glucoseMgDl} mg/dL " +
                 "packed=${frame.rawGlucosePacked} i1=${frame.i1} i2=${frame.i2} " +
                 "opcode=0x${"%02X".format(frame.opcode)} valid=${frame.isValid}"
-        )
+        }
 
         // Validate CRC-16 embedded in frame (bytes 15-16)
         val frameCrc = Crc16CcittFalse.checksum(decrypted.copyOfRange(0, 15))
@@ -6225,14 +6227,13 @@ class AiDexBleManager(
         val hadRecentLiveDataBeforeBroadcast = hasRecentLiveData(now)
         val sample = parseBroadcastSamplePayload(payload)
         if (sample == null) {
-            Log.d(TAG, "$source payload rejected: len=${payload.size}")
+            logd(TAG) { "$source payload rejected: len=${payload.size}" }
             return
         }
 
-        Log.i(
-            TAG,
+        logi(TAG) {
             "$source sample: offset=${sample.offsetMinutes}min glucose=${sample.glucoseMgDl} mg/dL trend=${sample.trend}"
-        )
+        }
 
         // Capture timing of the previous *fresh* (non-duplicate) accepted broadcast
         // before any state is touched. The cadence estimator MUST anchor here, not
@@ -6250,11 +6251,10 @@ class AiDexBleManager(
             sample.trend == lastBroadcastTrendSeen &&
             (now - lastBroadcastOffsetSeenAtMs) < BROADCAST_DUPLICATE_SUPPRESS_MS
         ) {
-            Log.d(
-                TAG,
+            logd(TAG) {
                 "$source duplicate suppressed: offset=${sample.offsetMinutes}min glucose=${sample.glucoseMgDl} trend=${sample.trend} " +
                     "ageMs=${now - lastBroadcastOffsetSeenAtMs}"
-            )
+            }
             if (stopActiveScanAfterHandling) {
                 stopBroadcastScan("broadcast-duplicate", found = true)
             }
@@ -6326,10 +6326,9 @@ class AiDexBleManager(
         // scan happened to catch it. Never drop a new minute just because it arrived
         // only ~40s after the previous one; that is how visible chart gaps were created.
         if (lastBroadcastStoredOffsetMinutes > 0 && sample.offsetMinutes < lastBroadcastStoredOffsetMinutes) {
-            Log.d(
-                TAG,
+            logd(TAG) {
                 "$source older minute suppressed: offset=${sample.offsetMinutes} storedOffset=$lastBroadcastStoredOffsetMinutes"
-            )
+            }
             maybePromoteFallbackReadingToHistory(now, source)
             if (stopActiveScanAfterHandling) {
                 stopBroadcastScan("broadcast-older-minute", found = true)

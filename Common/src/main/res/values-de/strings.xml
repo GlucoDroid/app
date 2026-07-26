@@ -630,6 +630,9 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="sibionics_custom_algorithm_desc">Kompensation von Sensordrift, physiologischer Verzögerung und Artefakten</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics-Standard</string>
     <string name="sibionics_stock_algorithm_detail">Kalibrierungen innerhalb des Sensoralgorithmus verwenden</string>
+    <string name="sibionics_sensitivity">Empfindlichkeit</string>
+    <string name="sibionics_sensor_sensitivity">Sensorwert: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Sensorwert verwenden</string>
     <string name="sibionics_restart_algorithm_desc">Minütlichen Algorithmuszustand aus dem gespeicherten Sensorverlauf neu aufbauen</string>
     <string name="juggluco_native">Juggluco nativ</string>
     <string name="window_label">Fenster</string>
@@ -1668,6 +1671,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="glucose_palette_preset_muted">Gedämpft</string>
     <string name="glucose_palette_preset_vibrant">Kräftig</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_custom">Benutzerdefiniert</string>
     <string name="glucose_palette_custom_suffix">· angepasst</string>
     <string name="glucose_palette_band_very_low">Sehr niedrig</string>
@@ -2110,4 +2114,24 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="display_colors_title">Anzeige &amp; Farben</string>
     <string name="display_colors_desc">Farben, Dashboard-Werte und Diagramme</string>
     <string name="display_readouts_section">Dashboard-Anzeigen</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Fehler melden</string>
+    <string name="debug_howto_step1">Schalten Sie unten die Aufzeichnung ein.</string>
+    <string name="debug_howto_step2">Reproduzieren Sie das Problem und kehren Sie dann zu diesem Bildschirm zurück.</string>
+    <string name="debug_howto_step3">Tippen Sie auf Teilen und hängen Sie die Datei an Ihren Fehlerbericht an.</string>
+    <string name="debug_howto_hint">Die Aufzeichnung läuft weiter, während Sie die App nutzen. Sie bleibt auf Ihrem Telefon, bis Sie sie teilen.</string>
+    <string name="debug_record_title">Diagnose aufzeichnen</string>
+    <string name="debug_record_on">Zeichnet auf — reproduzieren Sie jetzt das Problem</string>
+    <string name="debug_record_off">Aus — es werden keine Daten erfasst</string>
+    <string name="debug_log_stats">%1$s · %2$d Zeilen</string>
+    <string name="debug_log_stats_tail">%1$s · zeigt die letzten %2$d Zeilen</string>
+    <string name="debug_log_empty">Noch keine Einträge</string>
+    <string name="debug_loading">Wird geladen…</string>
+    <string name="debug_truncated">[…ältere Einträge ausgelassen…]</string>
+    <string name="debug_share_log">Teilen</string>
+    <string name="debug_share_chooser">Debug-Protokoll teilen</string>
+    <string name="debug_nothing_to_share">Noch nichts aufgezeichnet</string>
+    <string name="debug_jump_to_latest">Zum Ende springen</string>
+    <string name="debug_dismiss_howto">Diese Anleitung ausblenden</string>
 </resources>

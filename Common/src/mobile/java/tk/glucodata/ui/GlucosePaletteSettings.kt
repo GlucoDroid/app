@@ -2,26 +2,21 @@ package tk.glucodata.ui
 
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,8 +24,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import tk.glucodata.GlucoseRangeColors
@@ -39,11 +41,13 @@ import tk.glucodata.GlucoseRangeColors.Palette
 import tk.glucodata.R
 import tk.glucodata.ui.components.ColorSwatchButton
 
-private val BASE_PRESETS = listOf(Palette.MUTED, Palette.VIBRANT, Palette.GDH_LIKE)
+private val BASE_PRESETS =
+    listOf(Palette.MUTED, Palette.VIBRANT, Palette.AURORA, Palette.GDH_LIKE)
 
 private fun presetLabelRes(palette: Palette): Int = when (palette) {
     Palette.MUTED -> R.string.glucose_palette_preset_muted
     Palette.VIBRANT -> R.string.glucose_palette_preset_vibrant
+    Palette.AURORA -> R.string.glucose_palette_preset_aurora
     Palette.GDH_LIKE -> R.string.glucose_palette_preset_gdh
     Palette.CUSTOM -> R.string.glucose_palette_preset_custom
 }
@@ -90,6 +94,27 @@ fun GlucosePalettePresetSelector(modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun GlucosePaletteResetAllButton(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val revision = GlucosePaletteState.revision
+    val hasOverrides = remember(revision) { GlucosePaletteState.hasAnyOverride() }
+
+    if (hasOverrides) {
+        Column(modifier = modifier.fillMaxWidth()) {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+            TextButton(
+                onClick = { GlucosePaletteState.clearOverrides(context) },
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(stringResource(R.string.glucose_palette_reset_all))
+            }
+        }
+    }
+}
+
+@Composable
 fun GlucoseBandColorButton(
     band: Band,
     modifier: Modifier = Modifier,
@@ -109,14 +134,17 @@ fun GlucoseBandColorButton(
     )
 
     if (showDialog) {
-        PaletteColorDialog(
+        ExpressiveColorPickerDialog(
             title = stringResource(bandLabelRes(band)),
             initialColor = color,
-            isOverridden = GlucosePaletteState.override(band) != null,
             onDismiss = { showDialog = false },
-            onReset = {
-                GlucosePaletteState.setOverride(context, band, null)
-                showDialog = false
+            onReset = if (GlucosePaletteState.override(band) != null) {
+                {
+                    GlucosePaletteState.setOverride(context, band, null)
+                    showDialog = false
+                }
+            } else {
+                null
             },
             onConfirm = { updatedColor ->
                 GlucosePaletteState.setOverride(context, band, updatedColor)
@@ -127,100 +155,107 @@ fun GlucoseBandColorButton(
 }
 
 @Composable
-private fun PaletteColorDialog(
+fun ExpressiveColorPickerDialog(
     title: String,
     initialColor: Int,
-    isOverridden: Boolean,
     onDismiss: () -> Unit,
-    onReset: () -> Unit,
-    onConfirm: (Int) -> Unit
+    onConfirm: (Int) -> Unit,
+    onReset: (() -> Unit)? = null
 ) {
     var colorState by remember(initialColor) { mutableStateOf(initialColor.toPaletteColorState()) }
     var colorText by remember(initialColor) { mutableStateOf(formatColorHex(initialColor)) }
     val composedColor = remember(colorState) { colorState.toColorInt() }
     val parsedColor = remember(colorText) { parseColorHex(colorText) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(colorState) {
-        val resolvedHex = formatColorHex(composedColor)
-        if (colorText != resolvedHex) {
-            colorText = resolvedHex
-        }
-    }
-
-    LaunchedEffect(parsedColor) {
-        parsedColor?.let { parsed ->
-            val parsedState = parsed.toPaletteColorState()
-            if (parsedState != colorState) {
-                colorState = parsedState
-            }
-        }
+    fun updateColorState(updated: PaletteColorState) {
+        colorState = updated
+        colorText = formatColorHex(updated.toColorInt())
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Surface(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .align(Alignment.CenterHorizontally),
-                    shape = CircleShape,
-                    color = Color(composedColor)
-                ) {}
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 tk.glucodata.ui.components.ExpressiveHueWheelPicker(
                     hue = colorState.hue,
-                    onHueChange = { hue -> colorState = colorState.copy(hue = hue) }
+                    onHueChange = { hue ->
+                        updateColorState(colorState.copy(hue = hue))
+                    },
+                    previewColor = Color(composedColor)
                 )
-                ColorControlRow(icon = Icons.Default.Palette) {
-                    Slider(
-                        value = colorState.saturation,
-                        onValueChange = { saturation ->
-                            colorState = colorState.copy(saturation = saturation.coerceIn(0f, 1f))
-                        }
-                    )
-                }
-                ColorControlRow(
-                    indicator = {
-                        Text(
-                            text = "${(colorState.alpha * 100f).roundToInt()}%",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                LabeledColorSlider(
+                    label = stringResource(R.string.glucose_palette_saturation),
+                    value = colorState.saturation,
+                    onValueChange = { saturation ->
+                        updateColorState(
+                            colorState.copy(saturation = saturation.coerceIn(0f, 1f))
                         )
                     }
-                ) {
-                    Slider(
-                        value = colorState.alpha,
-                        onValueChange = { alpha ->
-                            colorState = colorState.copy(alpha = alpha.coerceIn(0f, 1f))
-                        }
-                    )
-                }
+                )
+                LabeledColorSlider(
+                    label = stringResource(R.string.glucose_palette_brightness),
+                    value = colorState.value,
+                    onValueChange = { brightness ->
+                        updateColorState(colorState.copy(value = brightness.coerceIn(0f, 1f)))
+                    }
+                )
+                LabeledColorSlider(
+                    label = stringResource(
+                        R.string.opacity_percent,
+                        (colorState.alpha * 100f).roundToInt()
+                    ),
+                    value = colorState.alpha,
+                    showTrailingValue = false,
+                    onValueChange = { alpha ->
+                        updateColorState(colorState.copy(alpha = alpha.coerceIn(0f, 1f)))
+                    }
+                )
                 OutlinedTextField(
                     value = colorText,
-                    onValueChange = { colorText = it.trim() },
+                    onValueChange = { raw ->
+                        val updatedText = raw.trim().uppercase().take(9)
+                        colorText = updatedText
+                        parseColorHex(updatedText)?.let { parsed ->
+                            colorState = parsed.toPaletteColorState()
+                        }
+                    },
                     label = { Text(stringResource(R.string.colors)) },
                     singleLine = true,
+                    isError = parsedColor == null,
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Palette,
                             contentDescription = null
                         )
-                    }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                        }
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(composedColor) },
-                enabled = parsedColor != null
+                onClick = { onConfirm(composedColor) }
             ) {
                 Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
             Row {
-                if (isOverridden) {
+                if (onReset != null) {
                     TextButton(onClick = onReset) {
                         Text(stringResource(R.string.glucose_palette_reset))
                     }
@@ -234,33 +269,32 @@ private fun PaletteColorDialog(
 }
 
 @Composable
-private fun ColorControlRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    indicator: @Composable (() -> Unit)? = null,
-    content: @Composable () -> Unit
+private fun LabeledColorSlider(
+    label: String,
+    value: Float,
+    showTrailingValue: Boolean = true,
+    onValueChange: (Float) -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
             )
-        } else {
-            Box(
-                modifier = Modifier.width(24.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                indicator?.invoke()
+            if (showTrailingValue) {
+                Text(
+                    text = "${(value * 100f).roundToInt()}%",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-        Box(modifier = Modifier.weight(1f)) {
-            content()
-        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

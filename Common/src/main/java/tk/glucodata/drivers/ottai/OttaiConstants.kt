@@ -222,6 +222,37 @@ object OttaiConstants {
     fun shouldStartActivation(commandStatus: Int, explicitlyRequested: Boolean): Boolean =
         explicitlyRequested && commandNeedsActivation(commandStatus)
 
+    fun shouldRescanPendingSetupActivation(
+        commandStatus: Int,
+        explicitlyRequested: Boolean,
+    ): Boolean = commandStatus < 0 && explicitlyRequested
+
+    /**
+     * A Chinese sensor can resume advertising under a different Android BLE address
+     * after NFC wake. Only admit that address while an activation recovery scan is
+     * already armed; the BLE manager still requires the sensor's auth signature before
+     * persisting the candidate.
+     */
+    fun shouldProbeActivationAdvertisement(
+        discoveryPending: Boolean,
+        scannedAddress: String?,
+        expectedAddress: String?,
+        advertisedName: String?,
+        rejectedAddresses: Set<String> = emptySet(),
+    ): Boolean {
+        if (!discoveryPending) return false
+        val scanned = normalizeBleAddress(scannedAddress, allowPlain = false) ?: return false
+        if (rejectedAddresses.any {
+                normalizeBleAddress(it, allowPlain = false)?.equals(scanned, ignoreCase = true) == true
+            }
+        ) {
+            return false
+        }
+        val expected = normalizeBleAddress(expectedAddress, allowPlain = false)
+        if (expected?.equals(scanned, ignoreCase = true) == true) return true
+        return advertisedName?.trim()?.contains("ottai", ignoreCase = true) == true
+    }
+
     /** Past the extended end, only declare the sensor expired once samples stop this long. */
     const val EXPIRED_STALE_GRACE_MS = 6L * 3600L * 1000L
 
@@ -255,5 +286,7 @@ object OttaiConstants {
     const val PREF_LAST_DATA_NO_PREFIX = "ottai_last_datano_"
     const val PREF_DEVICE_ID_PREFIX = "ottai_device_id_"
     const val PREF_ACTIVATION_ATTEMPTED_PREFIX = "ottai_act_tried_"  // one-shot auto-activate guard
+    // "dataNo,sampleMs,tempC*10;" per accepted reading — feeds the stats temperature card.
+    const val PREF_TEMPERATURE_HISTORY_PREFIX = "ottai_temp_history_"
     const val PREF_SELF_DEVICE_ID = "ottai_self_device_id"
 }

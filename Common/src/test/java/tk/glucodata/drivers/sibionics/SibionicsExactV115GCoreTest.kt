@@ -15,6 +15,15 @@ class SibionicsExactV115GCoreTest {
     }
 
     @Test
+    fun manualSensitivityUsesTheSameSupportedRangeAsQrSensitivity() {
+        assertTrue(SibionicsSensitivity.isSupported(0.8f))
+        assertTrue(SibionicsSensitivity.isSupported(2.5f))
+        assertFalse(SibionicsSensitivity.isSupported(0.79f))
+        assertFalse(SibionicsSensitivity.isSupported(2.51f))
+        assertFalse(SibionicsSensitivity.isSupported(Float.NaN))
+    }
+
+    @Test
     fun thisReplayConvergesToTheSameOutputWithFallbackSensitivity() {
         val qrCore = SibionicsExactV115GCore(decodedSensitivity = 1.40f)
         val fallbackCore = SibionicsExactV115GCore(decodedSensitivity = 1.27f)

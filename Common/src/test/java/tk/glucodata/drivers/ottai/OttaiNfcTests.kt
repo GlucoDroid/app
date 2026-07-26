@@ -43,11 +43,14 @@ class OttaiNfcTests {
     fun activationWakeIsDisarmedOnlyByTheMatchingSensor() {
         OttaiNfc.armForActivationRetry("6CA04230E260")
         assertTrue(OttaiNfc.dumpMode)
+        assertTrue(OttaiNfc.isActivationRetryArmed("6CA04230E260"))
 
         OttaiNfc.disarmActivationRetry("08FD5266CCB5")
         assertTrue(OttaiNfc.dumpMode)
+        assertTrue(OttaiNfc.isActivationRetryArmed("6CA04230E260"))
 
         OttaiNfc.disarmActivationRetry("6CA04230E260")
         assertFalse(OttaiNfc.dumpMode)
+        assertFalse(OttaiNfc.isActivationRetryArmed("6CA04230E260"))
     }
 }

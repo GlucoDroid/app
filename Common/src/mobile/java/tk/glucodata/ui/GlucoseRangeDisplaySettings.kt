@@ -173,47 +173,20 @@ fun GlucoseRangeDisplaySettings(viewModel: DashboardViewModel) {
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
             )
             GlucoseThresholdSliderRow(
-                label = stringResource(R.string.very_low_label),
-                value = veryLowSlider,
-                bounds = veryLowBounds,
+                label = stringResource(R.string.very_high_label),
+                value = veryHighSlider,
+                bounds = veryHighBounds,
                 isMmol = isMmol,
-                colorBand = Band.VERY_LOW,
+                colorBand = Band.VERY_HIGH,
                 onValueChange = { candidate ->
-                    veryLowSlider = clampLowerRangeValue(
-                        candidate, veryHighSlider, veryLowBounds, valueStep, isMmol
+                    veryHighSlider = clampUpperRangeValue(
+                        candidate, veryLowSlider, veryHighBounds, valueStep, isMmol
                     )
                 },
                 onValueChangeFinished = {
                     viewModel.setVeryLowHighThresholds(veryLowSlider, veryHighSlider)
                 }
             )
-            GlucoseThresholdSliderRow(
-                label = stringResource(R.string.low_label),
-                value = targetLowSlider,
-                bounds = targetLowBounds,
-                isMmol = isMmol,
-                colorBand = Band.LOW,
-                onValueChange = { candidate ->
-                    targetLowSlider = clampLowerRangeValue(
-                        candidate, targetHighSlider, targetLowBounds, valueStep, isMmol
-                    )
-                },
-                onValueChangeFinished = {
-                    viewModel.setTargetRange(targetLowSlider, targetHighSlider)
-                }
-            )
-            Row(
-                modifier = Modifier.padding(top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.target_range_title),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                RangeColorButton(Band.IN_RANGE)
-            }
             GlucoseThresholdSliderRow(
                 label = stringResource(R.string.high_label),
                 value = targetHighSlider,
@@ -229,21 +202,38 @@ fun GlucoseRangeDisplaySettings(viewModel: DashboardViewModel) {
                     viewModel.setTargetRange(targetLowSlider, targetHighSlider)
                 }
             )
+            TargetRangeColorRow()
             GlucoseThresholdSliderRow(
-                label = stringResource(R.string.very_high_label),
-                value = veryHighSlider,
-                bounds = veryHighBounds,
+                label = stringResource(R.string.low_label),
+                value = targetLowSlider,
+                bounds = targetLowBounds,
                 isMmol = isMmol,
-                colorBand = Band.VERY_HIGH,
+                colorBand = Band.LOW,
                 onValueChange = { candidate ->
-                    veryHighSlider = clampUpperRangeValue(
-                        candidate, veryLowSlider, veryHighBounds, valueStep, isMmol
+                    targetLowSlider = clampLowerRangeValue(
+                        candidate, targetHighSlider, targetLowBounds, valueStep, isMmol
+                    )
+                },
+                onValueChangeFinished = {
+                    viewModel.setTargetRange(targetLowSlider, targetHighSlider)
+                }
+            )
+            GlucoseThresholdSliderRow(
+                label = stringResource(R.string.very_low_label),
+                value = veryLowSlider,
+                bounds = veryLowBounds,
+                isMmol = isMmol,
+                colorBand = Band.VERY_LOW,
+                onValueChange = { candidate ->
+                    veryLowSlider = clampLowerRangeValue(
+                        candidate, veryHighSlider, veryLowBounds, valueStep, isMmol
                     )
                 },
                 onValueChangeFinished = {
                     viewModel.setVeryLowHighThresholds(veryLowSlider, veryHighSlider)
                 }
             )
+            GlucosePaletteResetAllButton()
         }
     }
 }
@@ -345,35 +335,23 @@ private fun GlucoseRangeSliderSection(
     onLowValueChangeFinished: () -> Unit,
     onHighValueChangeFinished: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "$lowLabel: ${formatRangeValue(lowValue, isMmol)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        GlucoseRangeSliderRow(
+            label = highLabel,
+            value = highValue,
+            bounds = highBounds,
+            isMmol = isMmol,
+            onValueChange = onHighValueChange,
+            onValueChangeFinished = onHighValueChangeFinished
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Slider(
-                value = lowValue,
-                onValueChange = onLowValueChange,
-                onValueChangeFinished = onLowValueChangeFinished,
-                valueRange = lowBounds,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Text(
-            text = "$highLabel: ${formatRangeValue(highValue, isMmol)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        GlucoseRangeSliderRow(
+            label = lowLabel,
+            value = lowValue,
+            bounds = lowBounds,
+            isMmol = isMmol,
+            onValueChange = onLowValueChange,
+            onValueChangeFinished = onLowValueChangeFinished
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Slider(
-                value = highValue,
-                onValueChange = onHighValueChange,
-                onValueChangeFinished = onHighValueChangeFinished,
-                valueRange = highBounds,
-                modifier = Modifier.weight(1f)
-            )
-        }
     }
 }
 
@@ -387,23 +365,72 @@ private fun GlucoseThresholdSliderRow(
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = "$label: ${formatRangeValue(value, isMmol)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    GlucoseRangeSliderRow(
+        label = label,
+        value = value,
+        bounds = bounds,
+        isMmol = isMmol,
+        colorBand = colorBand,
+        onValueChange = onValueChange,
+        onValueChangeFinished = onValueChangeFinished
+    )
+}
+
+@Composable
+private fun GlucoseRangeSliderRow(
+    label: String,
+    value: Float,
+    bounds: ClosedFloatingPointRange<Float>,
+    isMmol: Boolean,
+    colorBand: Band? = null,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = formatRangeValue(value, isMmol),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontFeatureSettings = "tnum"
+                    ),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             Slider(
                 value = value,
                 onValueChange = onValueChange,
                 onValueChangeFinished = onValueChangeFinished,
                 valueRange = bounds,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth()
             )
-            Spacer(Modifier.width(28.dp))
-            RangeColorButton(colorBand)
         }
+        colorBand?.let { band ->
+            Spacer(Modifier.width(16.dp))
+            RangeColorButton(band)
+        }
+    }
+}
+
+@Composable
+private fun TargetRangeColorRow() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = stringResource(R.string.target_range_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        RangeColorButton(Band.IN_RANGE)
     }
 }
 

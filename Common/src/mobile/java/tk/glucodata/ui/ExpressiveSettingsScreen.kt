@@ -64,6 +64,7 @@ import kotlinx.coroutines.withContext
 import tk.glucodata.BuildConfig
 import tk.glucodata.DataSmoothing
 import tk.glucodata.Natives
+import tk.glucodata.OutboundApiSettings
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.data.calibration.CalibrationManager
@@ -372,15 +373,25 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.MIDDLE,
                     onCheckedChange = { viewModel.toggleGlucodataBroadcast(it) }
                 )
-                SettingsSwitchItem(
-                    title = stringResource(R.string.broadcast_computed_trend_title),
-                    subtitle = stringResource(R.string.broadcast_computed_trend_desc),
-                    checked = broadcastComputedTrend,
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
-                    iconTint = exchangeColor,
-                    position = CardPosition.MIDDLE,
-                    onCheckedChange = { viewModel.setBroadcastComputedTrend(it) }
-                )
+                // The computed trend only ever reaches an ExchangeGlucosePayload consumer, so the
+                // row is noise until one of them is on. Stay visible while the setting itself is
+                // enabled, otherwise turning the last consumer off would strand it out of reach.
+                val anyExchangeConsumer = patchedLibreEnabled || xdripEnabled || glucodataBroadcastEnabled ||
+                        OutboundApiSettings.isEnabled() ||
+                        Natives.geteverSensebroadcast() ||
+                        Natives.getgadgetbridge() ||
+                        Natives.getwatchdrip()
+                if (anyExchangeConsumer || broadcastComputedTrend) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.broadcast_computed_trend_title),
+                        subtitle = stringResource(R.string.broadcast_computed_trend_desc),
+                        checked = broadcastComputedTrend,
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                        iconTint = exchangeColor,
+                        position = CardPosition.MIDDLE,
+                        onCheckedChange = { viewModel.setBroadcastComputedTrend(it) }
+                    )
+                }
                 SettingsItem(
                     title = stringResource(R.string.outbound_api_title),
                     subtitle = stringResource(R.string.outbound_api_desc),

@@ -599,6 +599,9 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="sibionics_custom_algorithm_desc">Sensör kayması, fizyolojik gecikme ve artefakt telafisi</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics varsayılanı</string>
     <string name="sibionics_stock_algorithm_detail">Ölçüm kalibrasyonlarını sensör algoritması içinde kullan</string>
+    <string name="sibionics_sensitivity">Hassasiyet</string>
+    <string name="sibionics_sensor_sensitivity">Sensör değeri: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Sensör değerini kullan</string>
     <string name="sibionics_restart_algorithm_desc">Dakikalık algoritma durumunu kayıtlı sensör geçmişinden yeniden oluştur</string>
     <string name="juggluco_native">Juggluco yerel</string>
     <string name="window_label">pencere</string>
@@ -2027,6 +2030,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="glucose_palette_edit_title">Glikoz renkleri</string>
     <string name="glucose_palette_preset_custom">Özel</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_label">Palet</string>
     <string name="glucose_palette_preset_muted">Yumuşak</string>
     <string name="glucose_palette_preset_vibrant">Canlı</string>
@@ -2099,4 +2103,24 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="display_colors_title">Görünüm ve renkler</string>
     <string name="display_colors_desc">Renkler, pano değerleri ve grafikler</string>
     <string name="display_readouts_section">Pano değerleri</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Hata nasıl bildirilir</string>
+    <string name="debug_howto_step1">Aşağıdan kaydı açın.</string>
+    <string name="debug_howto_step2">Sorunu yeniden oluşturun, sonra bu ekrana dönün.</string>
+    <string name="debug_howto_step3">Paylaş\'a dokunun ve dosyayı hata bildiriminize ekleyin.</string>
+    <string name="debug_howto_hint">Uygulamayı kullanırken kayıt devam eder. Dosya, siz paylaşana kadar telefonunuzda kalır.</string>
+    <string name="debug_record_title">Tanılama kaydı</string>
+    <string name="debug_record_on">Kaydediliyor — sorunu şimdi yeniden oluşturun</string>
+    <string name="debug_record_off">Kapalı — hiçbir veri toplanmıyor</string>
+    <string name="debug_log_stats">%1$s · %2$d satır</string>
+    <string name="debug_log_stats_tail">%1$s · son %2$d satır</string>
+    <string name="debug_log_empty">Henüz kayıt yok</string>
+    <string name="debug_loading">Yükleniyor…</string>
+    <string name="debug_truncated">[…eski kayıtlar atlandı…]</string>
+    <string name="debug_share_log">Paylaş</string>
+    <string name="debug_share_chooser">Hata ayıklama günlüğünü paylaş</string>
+    <string name="debug_nothing_to_share">Henüz bir şey kaydedilmedi</string>
+    <string name="debug_jump_to_latest">Sona git</string>
+    <string name="debug_dismiss_howto">Bu talimatları gizle</string>
 </resources>

@@ -252,7 +252,7 @@ public class ScanNfcV {
                             ret = 0xFC;
                             value = 1;
                             askcalendar = true;
-                            curve.render.badscan = calendar(main, ret, name);
+                            curve.render.badscan = calendar(main, ret, name, getlibreAccountIDnumber());
                         }
                     }
                 } else {
@@ -451,7 +451,7 @@ public class ScanNfcV {
                                     else
                                         vibrator.vibrate(VibrationEffect.createWaveform(newsensorwait, -1));
                                     String sensorident = Natives.getserial(uid, info);
-                                    curve.render.badscan = calendar(main, ret, sensorident);
+                                    curve.render.badscan = calendar(main, ret, sensorident, 0L);
                                 }
                                     ;
                                     break;
@@ -465,7 +465,7 @@ public class ScanNfcV {
                                     else
                                         vibrator.vibrate(VibrationEffect.createWaveform(newsensorVib, -1));
                                     String sensorident = Natives.getserial(uid, info);
-                                    curve.render.badscan = calendar(main, ret, sensorident);
+                                    curve.render.badscan = calendar(main, ret, sensorident, 0L);
                                     // ret=0;
                                     break;
                             }
@@ -528,7 +528,7 @@ public class ScanNfcV {
         return glucoseValue > 0 || (resultCode & 0x7F) <= 9;
     }
 
-    static private void newsensor(Activity act, String text, String name) {
+    static private void newsensor(Activity act, String text, String name, long accountid) {
         if (!isWearable) {
             XInfuus.sendSensorActivateBroadcast(act, name, Natives.laststarttime());
         }
@@ -568,7 +568,7 @@ public class ScanNfcV {
             ok.setOnClickListener(v -> {
                 removeContentView(lay);
                 if (stillused && calBox.isChecked()) {
-                    insertcalendar(act, name, endtime);
+                    insertcalendar(act, name, endtime, accountid);
                 } else
                     askcalendar = false;
             });
@@ -593,20 +593,20 @@ public class ScanNfcV {
 
     static boolean askcalendar = true;
 
-    static int calendar(Activity act, int ret, String name) {
+    static int calendar(Activity act, int ret, String name, long accountid) {
         if (askcalendar) {
             int waitmin = (ret & 0xff) == 5 ? ret >> 8 : 0;
             String mess = (waitmin > 0)
                     ? (act.getString(R.string.sensor) + " " + name + act.getString(R.string.ready_in) + waitmin + " "
                             + act.getString(R.string.minutes))
                     : act.getString(R.string.ready_for_use);
-            newsensor(act, mess, name);
+            newsensor(act, mess, name, accountid);
             return 0;
         } else
             return ret;
     }
 
-    private static void insertcalendar(Activity act, String name, long endtime) {
+    private static void insertcalendar(Activity act, String name, long endtime, long accountid) {
         /*
          * long endtime=Natives.sensorends()*1000L;
          * if(endtime<= System.currentTimeMillis())
@@ -617,7 +617,10 @@ public class ScanNfcV {
             Intent intent = new Intent(Intent.ACTION_INSERT)
                     .putExtra(CalendarContract.Events.TITLE, act.getString(R.string.enddatesensor) + name)
                     .putExtra(CalendarContract.Events.DESCRIPTION,
-                            act.getString(R.string.sensor) + " " + name + act.getString(R.string.endstime))
+                            act.getString(R.string.sensor) + " " + name + act.getString(R.string.endstime)
+                                    + (accountid > 0L
+                                            ? "\n" + act.getString(R.string.libreview_account_id) + ": " + accountid
+                                            : ""))
                     .setData(CalendarContract.Events.CONTENT_URI)
                     .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, endtime)
                     .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endtime + 1000L);

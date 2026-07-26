@@ -430,25 +430,41 @@ private	void oldonCharacteristicChanged(byte[] value) {
 			case 8: {
 				if (pack1 && pack2) {
 					final var wakeLock=Natives.hasRootcheck()?getwakelock():null;
-					if(wakeLock!=null)
-						wakeLock.acquire();
-					try {
-					pack1 = false;
-					pack2 = false;
-					System.arraycopy(value, 0, packet, 38, 8);
-					final long timmsec = System.currentTimeMillis();
-					final var newpacket= sensorgen==2?V2(773, tovalue, packet, null):packet;
-					if(newpacket!=null) {
-						long res = processTooth(dataptr, newpacket);
-						if(res!=1L) {
-							handleGlucoseResult(res,timmsec);
-							}
+					if(wakeLock!=null) {
+						wakeLock.setReferenceCounted(false);
+						wakeLock.acquire(Applic.GLUCOSE_WAKELOCK_TIMEOUT_MS);
 						}
-                    datatime=timmsec;
-					} finally {
-					if(wakeLock!=null && wakeLock.isHeld())
-						wakeLock.release();
-					}
+                        /*
+                    if(isWearable) {
+                        if(Natives.getDisconnectSensor()) {
+                            Log.i(LOG_ID,"enableNotification(mBluetoothGatt, characteristic)");
+                            setDescriptor(characteristic,  BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+                            Applic.scheduler.schedule(()-> {
+                                if(connected) {
+                                   setDescriptor(characteristic,  BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                                    }
+                                    }, 30, TimeUnit.SECONDS);
+
+                            }
+                        } */
+
+					try {
+						pack1 = false;
+						pack2 = false;
+						System.arraycopy(value, 0, packet, 38, 8);
+						final long timmsec = System.currentTimeMillis();
+						final var newpacket= sensorgen==2?V2(773, tovalue, packet, null):packet;
+						if(newpacket!=null) {
+							long res = processTooth(dataptr, newpacket);
+							if(res!=1L) {
+								handleGlucoseResult(res,timmsec);
+								}
+							}
+						datatime=timmsec;
+						}
+					finally {
+						Applic.releasewakelock(wakeLock);
+						}
                   /*  if(isWearable) {
                         if(Natives.getDisconnectSensor()&&!autoconnect) {
                             disconnect();  

@@ -34,7 +34,10 @@ import kotlin.math.round
 import tk.glucodata.Applic
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
+import tk.glucodata.logd
+import tk.glucodata.logi
 import tk.glucodata.Natives
+import tk.glucodata.NightscoutUploadWake
 import tk.glucodata.Notify
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
@@ -1334,7 +1337,8 @@ class ICanHealthBleManager(
             ICanHealthConstants.CGM_MEASUREMENT -> handleGlucoseNotification(data)
             ICanHealthConstants.CGM_SPECIFIC_OPS -> handleVendorAuthResponse(data)
             ICanHealthConstants.RACP -> handleRacpResponse(data)
-            else -> Log.d(TAG, "Unhandled notify ${characteristic.uuid}: ${data.toHexString()}")
+            // Lazy: hex-encodes the whole payload, and this fires per unhandled notification.
+            else -> logd(TAG) { "Unhandled notify ${characteristic.uuid}: ${data.toHexString()}" }
         }
     }
 
@@ -1587,10 +1591,9 @@ class ICanHealthBleManager(
                 currentSequenceObservedAtMs = nowMs
             }
             if (historyBackfillRequested && historyBackfillPhase == HistoryBackfillPhase.GLUCOSE) {
-                Log.d(
-                    TAG,
+                logd(TAG) {
                     "Delivering live seq=${reading.sequenceNumber} while iCan history backfill continues"
-                )
+                }
             }
             val historyCoveredLiveEdge = historySampleTimeMs?.let {
                 shouldSkipHistoryOverlap(reading.sequenceNumber, it)
@@ -1823,12 +1826,15 @@ class ICanHealthBleManager(
             // Native addGlucoseStream() multiplies its float input by 10 before
             // storing the internal mg/dL value. Feed mg/dL / 10 here so native
             // stream storage matches the driver-decoded glucose value.
-            Natives.addGlucoseStreamWithTemp(
+            val stored = Natives.addGlucoseStreamWithTemp(
                 sampleTimeSec,
                 nativeStreamValue,
                 latestTemperatureC,
                 nativeWriteName
             )
+            if (stored) {
+                NightscoutUploadWake.afterLiveNativeWrite("ican", sampleTimeMs)
+            }
             applyNativeSensorMetadata()
             val sensorPtr = resolveNativeSensorPtr(SerialNumber)
             if (sensorPtr != 0L || nativeWriteName.isNotBlank()) {

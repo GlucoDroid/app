@@ -39,6 +39,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -94,10 +97,15 @@ fun GlucoseMeterSettingsScreen(navController: NavController) {
         else Toast.makeText(context, R.string.turn_on_nearby_devices_permission, Toast.LENGTH_LONG).show()
     }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            meters = GlucoseMeterManager.configuredMeters()
-            delay(2_000L)
+    // Only poll while the screen is actually on-screen — composition alone outlives
+    // backgrounding, and this loop would otherwise keep running there.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                meters = GlucoseMeterManager.configuredMeters()
+                delay(2_000L)
+            }
         }
     }
 

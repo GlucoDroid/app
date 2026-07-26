@@ -48,6 +48,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -237,10 +240,15 @@ fun NightscoutSettingsScreen(navController: NavController) {
         }
     }
 
-    LaunchedEffect(mode) {
-        while (true) {
-            refreshStatus()
-            delay(if (mode == NightscoutMode.UPLOAD) 5_000L else 15_000L)
+    // Status polling stops when the screen leaves the foreground; composition alone would
+    // otherwise keep it hitting the uploader status every 5s in the background.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(mode, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                refreshStatus()
+                delay(if (mode == NightscoutMode.UPLOAD) 5_000L else 15_000L)
+            }
         }
     }
 

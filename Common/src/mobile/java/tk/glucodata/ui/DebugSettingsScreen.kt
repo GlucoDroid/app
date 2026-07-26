@@ -1,37 +1,53 @@
 package tk.glucodata.ui
 
+import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.os.Build
+import android.text.format.Formatter
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
-import tk.glucodata.ui.components.StyledSwitch
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -41,232 +57,526 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import tk.glucodata.BuildConfig
 import tk.glucodata.LogSanitizer
 import tk.glucodata.Natives
 import tk.glucodata.R
+import tk.glucodata.ui.components.MasterSwitchCard
+import tk.glucodata.ui.util.ConnectedButtonGroup
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+enum class LogType {
+    TRACE, LOGCAT
+}
+
+private const val LOG_TAIL_BYTES = 50L * 1024L
+private const val PREF_HOWTO_DISMISSED = "debug_howto_dismissed"
+
+private fun LogType.fileName(): String =
+    if (this == LogType.TRACE) "logs/trace.log" else "logs/logcat.txt"
+
+private fun LogType.exportName(): String {
+    val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+    return if (this == LogType.TRACE) "juggluco-trace-$stamp.log" else "juggluco-logcat-$stamp.txt"
+}
+
+/** Snapshot of what is currently on disk, so the poll loop can skip untouched files. */
+private data class LogSnapshot(
+    val lines: List<String> = emptyList(),
+    val bytes: Long = 0L,
+    val stamp: Long = 0L,
+    val truncated: Boolean = false
+)
+
+private fun readLog(file: File, truncationNotice: String): LogSnapshot {
+    if (!file.exists()) return LogSnapshot()
+    val size = file.length()
+    val stamp = file.lastModified()
+    return try {
+        if (size > LOG_TAIL_BYTES) {
+            file.inputStream().use { stream ->
+                stream.skip(size - LOG_TAIL_BYTES)
+                val text = stream.bufferedReader().readText()
+                LogSnapshot(
+                    lines = listOf(truncationNotice) + text.lineSequence().drop(1).toList(),
+                    bytes = size,
+                    stamp = stamp,
+                    truncated = true
+                )
+            }
+        } else {
+            LogSnapshot(lines = file.readLines(), bytes = size, stamp = stamp)
+        }
+    } catch (e: Exception) {
+        LogSnapshot(lines = listOf("${e.message}"), bytes = size, stamp = stamp)
+    }
+}
+
+/** Short, non-identifying preamble so a shared log says which build it came from. */
+private fun reportHeader(): String = buildString {
+    append("# Juggluco ").append(BuildConfig.VERSION_NAME).append('\n')
+    append("# Android ").append(Build.VERSION.RELEASE)
+        .append(" (SDK ").append(Build.VERSION.SDK_INT).append(")\n")
+    append("# Device ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n')
+    append("# Captured ").append(
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ssZ", Locale.US).format(Date())
+    ).append("\n\n")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugSettingsScreen(navController: NavController) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHost = remember { SnackbarHostState() }
     val clipboardManager = LocalClipboardManager.current
-    val coroutineScope = rememberCoroutineScope()
 
-    var logType by remember { mutableStateOf(LogType.TRACE) }
-    var isEnabled by remember { mutableStateOf(false) }
-    var logContent by remember { mutableStateOf("Loading...") }
-
-    LaunchedEffect(Unit) {
-        isEnabled = if (logType == LogType.TRACE) Natives.islogging() else Natives.islogcat()
+    val prefs = remember(context) {
+        context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
     }
 
-    // Polling loop
+    var logType by remember { mutableStateOf(LogType.TRACE) }
+    var isRecording by remember { mutableStateOf(false) }
+    var snapshot by remember { mutableStateOf(LogSnapshot()) }
+    var loading by remember { mutableStateOf(true) }
+    // Shown until the user dismisses it with the X; the title-bar help button brings it back
+    // without clearing that choice, so the card never returns uninvited.
+    var showHowTo by remember { mutableStateOf(!prefs.getBoolean(PREF_HOWTO_DISMISSED, false)) }
+
+    val truncationNotice = stringResource(R.string.debug_truncated)
+    val nothingToShare = stringResource(R.string.debug_nothing_to_share)
+    val chooserTitle = stringResource(R.string.debug_share_chooser)
+    val savingError = stringResource(R.string.error_saving_file)
+
+    fun currentFile(): File = File(context.filesDir, logType.fileName())
+
     LaunchedEffect(logType) {
-        isEnabled = if (logType == LogType.TRACE) Natives.islogging() else Natives.islogcat()
-
-        withContext(Dispatchers.IO) {
-            while (isActive) {
-                val fileName = if (logType == LogType.TRACE) "logs/trace.log" else "logs/logcat.txt"
-                val file = File(context.filesDir, fileName)
-
-                val content = if (file.exists()) {
-                    val fileSize = file.length()
-                    if (fileSize > 50 * 1024) {
-                        try {
-                            file.inputStream().use { stream ->
-                                stream.skip(fileSize - 50 * 1024)
-                                "[...truncated...]\n" + stream.bufferedReader().readText()
-                            }
-                        } catch (e: Exception) {
-                            "Error reading file: ${e.message}"
-                        }
-                    } else {
-                        file.readText()
-                    }
+        isRecording = if (logType == LogType.TRACE) Natives.islogging() else Natives.islogcat()
+        loading = true
+        var lastStamp = -1L
+        var lastBytes = -1L
+        while (isActive) {
+            val next = withContext(Dispatchers.IO) {
+                val file = currentFile()
+                if (file.exists() && file.lastModified() == lastStamp && file.length() == lastBytes) {
+                    null
                 } else {
-                    if (isEnabled) "Log enabled. Waiting for entries..." else "Log unchecked. Enable to start logging."
+                    readLog(file, truncationNotice)
                 }
-
-                withContext(Dispatchers.Main) { logContent = content }
-                delay(1000)
             }
+            if (next != null) {
+                lastStamp = next.stamp
+                lastBytes = next.bytes
+                snapshot = next
+            }
+            loading = false
+            // Nothing appends while recording is off, so back the poll right down.
+            delay(if (isRecording) 1000L else 4000L)
         }
     }
 
-    fun logFile(): File {
-        val name = if (logType == LogType.TRACE) "logs/trace.log" else "logs/logcat.txt"
-        return File(context.filesDir, name)
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val error = withContext(Dispatchers.IO) {
+                runCatching {
+                    val source = currentFile()
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        output.write(reportHeader().toByteArray())
+                        source.inputStream().use { LogSanitizer.sanitizeTo(it, output) }
+                    }
+                }.exceptionOrNull()
+            }
+            if (error != null) snackbarHost.showSnackbar(savingError + error.message)
+        }
     }
 
-    // Save to file (sanitized, streaming — avoids OOM on large logs)
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-        uri?.let { targetUri ->
-            coroutineScope.launch(Dispatchers.IO) {
-                try {
-                    context.contentResolver.openOutputStream(targetUri)?.use { out ->
-                        val file = logFile()
-                        if (file.exists()) {
-                            file.inputStream().use { LogSanitizer.sanitizeTo(it, out) }
-                        } else {
-                            out.writer().use { it.write(logContent) }
-                        }
+    fun shareLog() {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val source = currentFile()
+                    if (!source.exists() || source.length() == 0L) return@runCatching null
+                    val outDir = File(context.cacheDir, "exports").apply { mkdirs() }
+                    // Each staged copy is as large as the log itself. Drop earlier ones so
+                    // repeated shares don't quietly park tens of MB in the cache.
+                    outDir.listFiles { f -> f.name.startsWith("juggluco-") }
+                        ?.forEach { it.delete() }
+                    val staged = File(outDir, logType.exportName())
+                    staged.outputStream().use { output ->
+                        output.write(reportHeader().toByteArray())
+                        source.inputStream().use { LogSanitizer.sanitizeTo(it, output) }
                     }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) { logContent += "\n[Error saving file: ${e.message}]" }
+                    FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        staged
+                    )
                 }
+            }
+            val uri = result.getOrNull()
+            if (uri == null) {
+                snackbarHost.showSnackbar(nothingToShare)
+                return@launch
+            }
+            Log.d("DebugSettings", "Share button clicked")
+            runCatching {
+                context.startActivity(
+                    Intent.createChooser(
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        },
+                        chooserTitle
+                        // NEW_TASK lets the chooser launch even if context isn't an Activity
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }.onFailure { e ->
+                Log.e("DebugSettings", "Share failed", e)
+                val detail = e.message ?: e.javaClass.simpleName
+                Toast.makeText(context, "Share failed: $detail", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0.dp),
+        snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
-                title = { Text(context.getString(R.string.debug_logs_title)) },
+                title = { Text(stringResource(R.string.debug_logs_title)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showHowTo = !showHowTo }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.HelpOutline,
+                            contentDescription = stringResource(R.string.debug_howto_title)
+                        )
+                    }
                     IconButton(onClick = {
                         if (logType == LogType.TRACE) Natives.zeroLog() else Natives.zeroLogcat()
-                        logContent = "Cleared."
+                        snapshot = LogSnapshot()
                     }) {
-                        Icon(Icons.Default.Delete, contentDescription = context.getString(R.string.clear))
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.clear))
                     }
                     // Copy all visible log content to clipboard (unsanitized — user's own data)
                     IconButton(onClick = {
-                        clipboardManager.setText(AnnotatedString(logContent))
+                        clipboardManager.setText(AnnotatedString(snapshot.lines.joinToString("\n")))
                     }) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = context.getString(R.string.copy_log))
-                    }
-                    // Share sanitized log via system share sheet
-                    IconButton(onClick = {
-                        Log.d("DebugSettings", "Share button clicked")
-                        coroutineScope.launch(Dispatchers.IO) {
-                            try {
-                                val exportDir = File(context.cacheDir, "exports").also { it.mkdirs() }
-                                val exportFile = File(exportDir, if (logType == LogType.TRACE) "trace.log" else "logcat.txt")
-                                val file = logFile()
-                                if (file.exists()) {
-                                    exportFile.outputStream().use { out ->
-                                        file.inputStream().use { LogSanitizer.sanitizeTo(it, out) }
-                                    }
-                                } else {
-                                    exportFile.writeText(logContent)
-                                }
-                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", exportFile)
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                val chooser = Intent.createChooser(intent, context.getString(R.string.share_log))
-                                // NEW_TASK lets the chooser launch even if context isn't an Activity
-                                chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                withContext(Dispatchers.Main) {
-                                    Log.d("DebugSettings", "Starting chooser activity")
-                                    context.startActivity(chooser)
-                                }
-                            } catch (e: Exception) {
-                                Log.e("DebugSettings", "Share failed", e)
-                                withContext(Dispatchers.Main) {
-                                    val detail = e.message ?: e.javaClass.simpleName
-                                    logContent += "\n[Error sharing: $detail]"
-                                    Toast.makeText(context, "Share failed: $detail", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        }
-                    }) {
-                        Icon(Icons.Default.Share, contentDescription = context.getString(R.string.share_log))
-                    }
-                    IconButton(onClick = {
-                        val name = if (logType == LogType.TRACE) "trace.log" else "logcat.txt"
-                        saveLauncher.launch(name)
-                    }) {
-                        Icon(Icons.Default.Save, contentDescription = context.getString(R.string.save))
+                        Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.copy_log))
                     }
                 }
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = logType == LogType.TRACE, onClick = { logType = LogType.TRACE })
-                    Text(context.getString(R.string.trace_log))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    RadioButton(selected = logType == LogType.LOGCAT, onClick = { logType = LogType.LOGCAT })
-                    Text(context.getString(R.string.logcat))
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-                StyledSwitch(
-                    checked = isEnabled,
-                    onCheckedChange = {
-                        isEnabled = it
-                        if (logType == LogType.TRACE) Natives.dolog(it) else Natives.dologcat(it)
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .padding(top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            AnimatedVisibility(visible = showHowTo) {
+                HowToReportCard(
+                    onDismiss = {
+                        showHowTo = false
+                        prefs.edit().putBoolean(PREF_HOWTO_DISMISSED, true).apply()
                     }
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            val scrollState = rememberScrollState()
-            var isAtBottom by remember { mutableStateOf(true) }
-
-            LaunchedEffect(scrollState.value, scrollState.maxValue) {
-                isAtBottom = (scrollState.maxValue - scrollState.value) < 50
-            }
-
-            LaunchedEffect(logContent) {
-                if (isAtBottom) scrollState.scrollTo(scrollState.maxValue)
-            }
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background((MaterialTheme.colorScheme.secondaryContainer), RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-                    .drawWithContent {
-                        drawContent()
-                        val containerHeight = size.height
-                        val totalContentHeight = scrollState.maxValue + containerHeight
-                        if (totalContentHeight > containerHeight) {
-                            val thumbHeight = (containerHeight * containerHeight / totalContentHeight).coerceAtLeast(20.dp.toPx())
-                            val scrollRange = totalContentHeight - containerHeight
-                            val thumbRange = containerHeight - thumbHeight
-                            val thumbOffset = if (scrollRange > 0) (scrollState.value / scrollRange) * thumbRange else 0f
-                            drawRect(
-                                color = Color.White.copy(alpha = 0.3f),
-                                topLeft = Offset(size.width - 4.dp.toPx(), thumbOffset),
-                                size = Size(4.dp.toPx(), thumbHeight)
-                            )
-                        }
+            MasterSwitchCard(
+                title = stringResource(R.string.debug_record_title),
+                subtitle = stringResource(
+                    if (isRecording) R.string.debug_record_on else R.string.debug_record_off
+                ),
+                checked = isRecording,
+                icon = Icons.Default.BugReport,
+                onCheckedChange = { enabled ->
+                    isRecording = enabled
+                    if (logType == LogType.TRACE) {
+                        Natives.dolog(enabled)
+                        // Java-side guards mirror the native switch — refresh or they stay
+                        // short-circuited and the trace comes back empty.
+                        tk.glucodata.Log.refreshDoLog()
+                    } else {
+                        Natives.dologcat(enabled)
                     }
+                }
+            )
+
+            val logTypeLabels = mapOf(
+                LogType.TRACE to stringResource(R.string.trace_log),
+                LogType.LOGCAT to stringResource(R.string.logcat)
+            )
+            ConnectedButtonGroup(
+                options = LogType.entries,
+                selectedOption = logType,
+                onOptionSelected = { logType = it },
+                labelText = { logTypeLabels[it].orEmpty() },
+                label = { Text(logTypeLabels[it].orEmpty()) },
+                modifier = Modifier.fillMaxWidth(),
+                // The alerts screen sits on a card, so its translucent unselected colour reads as
+                // grey there. This screen is on the bare background, so use the group's own
+                // container tone or the unselected half vanishes.
+                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                selectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                unselectedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurface
+            )
+
+            LogStatsRow(
+                recording = isRecording,
+                bytes = snapshot.bytes,
+                lineCount = snapshot.lines.size,
+                truncated = snapshot.truncated
+            )
+
+            LogConsole(
+                lines = snapshot.lines,
+                loading = loading,
+                recording = isRecording,
+                modifier = Modifier.weight(1f)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SelectionContainer {
-                    Text(
-                        text = logContent,
-                        color = Color(0xFFCCCCCC),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        lineHeight = 14.sp,
-                        modifier = Modifier.verticalScroll(scrollState)
-                    )
+                Button(
+                    onClick = { shareLog() },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.debug_share_log))
+                }
+                OutlinedButton(onClick = { saveLauncher.launch(logType.exportName()) }) {
+                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.save))
                 }
             }
         }
     }
 }
 
-enum class LogType {
-    TRACE, LOGCAT
+@Composable
+private fun HowToReportCard(onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.debug_howto_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.debug_dismiss_howto),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier.padding(end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                NumberedStep(1, stringResource(R.string.debug_howto_step1))
+                NumberedStep(2, stringResource(R.string.debug_howto_step2))
+                NumberedStep(3, stringResource(R.string.debug_howto_step3))
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.debug_howto_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun NumberedStep(number: Int, text: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Surface(
+            modifier = Modifier.size(20.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = number.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            lineHeight = 20.sp,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun LogStatsRow(recording: Boolean, bytes: Long, lineCount: Int, truncated: Boolean) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RecordingDot(active = recording)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = if (lineCount == 0) {
+                stringResource(R.string.debug_log_empty)
+            } else {
+                stringResource(
+                    if (truncated) R.string.debug_log_stats_tail else R.string.debug_log_stats,
+                    Formatter.formatShortFileSize(context, bytes),
+                    lineCount
+                )
+            },
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun RecordingDot(active: Boolean) {
+    val transition = rememberInfiniteTransition(label = "recordingPulse")
+    val pulse by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "recordingPulseAlpha"
+    )
+    val color by animateColorAsState(
+        if (active) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant,
+        label = "recordingDotColor"
+    )
+    Box(
+        modifier = Modifier
+            .size(8.dp)
+            .alpha(if (active) pulse else 1f)
+            .background(color, CircleShape)
+    )
+}
+
+@Composable
+private fun LogConsole(
+    lines: List<String>,
+    loading: Boolean,
+    recording: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val listState = rememberLazyListState()
+    // derivedStateOf { } is remembered without keys, so read the list through an updated
+    // State holder — capturing the parameter directly would freeze the first frame's size.
+    val currentLines by rememberUpdatedState(lines)
+    val following by remember {
+        derivedStateOf {
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            last >= currentLines.size - 2
+        }
+    }
+
+    LaunchedEffect(lines.size) {
+        if (following && lines.isNotEmpty()) listState.scrollToItem(lines.lastIndex)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+    ) {
+        when {
+            loading -> CenteredHint(stringResource(R.string.debug_loading))
+            lines.isEmpty() -> CenteredHint(
+                stringResource(
+                    if (recording) R.string.log_enabled_waiting else R.string.log_unchecked
+                )
+            )
+            else -> LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                // Keep the last lines clear of the floating jump-to-latest button.
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 60.dp)
+            ) {
+                items(lines.size) { index ->
+                    Text(
+                        text = lines[index],
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = !following && lines.isNotEmpty(),
+            enter = fadeIn() + scaleIn(),
+            exit = fadeOut() + scaleOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(12.dp)
+        ) {
+            val scope = rememberCoroutineScope()
+            SmallFloatingActionButton(
+                onClick = { scope.launch { listState.scrollToItem(lines.lastIndex) } },
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Icon(
+                    Icons.Default.ArrowDownward,
+                    contentDescription = stringResource(R.string.debug_jump_to_latest)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CenteredHint(text: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(24.dp)
+        )
+    }
 }
