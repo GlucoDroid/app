@@ -4,6 +4,18 @@ import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
 
 object ManagedSensorRuntime {
+    // resolveDriver builds a full UI snapshot per driver just to match a sensor, so the calibration
+    // display path (which calls integratesUserCalibration per glucose point per frame) is far too
+    // costly. The result is a driver-type property, stable per sensor across reconnects, so cache
+    // it — but only once a driver is actually found, so a not-yet-connected sensor isn't pinned to
+    // a wrong "false". Cleared by SensorIdentity.invalidateCaches on sensor set changes.
+    private val integratesUserCalibrationCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    @JvmStatic
+    fun clearCaches() {
+        integratesUserCalibrationCache.clear()
+    }
+
     @JvmStatic
     fun resolveDriver(sensorId: String?): ManagedBluetoothSensorDriver? {
         val resolvedSensorId = SensorIdentity.resolveAppSensorId(sensorId) ?: sensorId
@@ -48,10 +60,16 @@ object ManagedSensorRuntime {
     }
 
     @JvmStatic
-    fun integratesUserCalibration(sensorId: String?, isRawMode: Boolean): Boolean =
-        resolveDriver(sensorId)?.let { driver ->
-            runCatching { driver.integratesUserCalibration(isRawMode) }.getOrDefault(false)
-        } ?: false
+    fun integratesUserCalibration(sensorId: String?, isRawMode: Boolean): Boolean {
+        val resolved = SensorIdentity.resolveAppSensorId(sensorId) ?: sensorId ?: return false
+        val key = "$resolved|$isRawMode"
+        integratesUserCalibrationCache[key]?.let { return it }
+        // No driver yet: don't cache — the answer can change once the sensor connects.
+        val driver = resolveDriver(resolved) ?: return false
+        val result = runCatching { driver.integratesUserCalibration(isRawMode) }.getOrDefault(false)
+        integratesUserCalibrationCache[key] = result
+        return result
+    }
 
     @JvmStatic
     fun notifyUserCalibrationRevisionChanged(revision: Long) {

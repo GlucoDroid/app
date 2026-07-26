@@ -127,6 +127,8 @@ object AnytimeRegistry {
     private fun writeRecords(context: Context, records: List<SensorRecord>) {
         val set = records.map { "${it.sensorId}|${it.address}|${it.displayName}" }.toSet()
         prefs(context).edit().putStringSet(AnytimeConstants.PREF_SENSORS_KEY, set).apply()
+        // Records feed AnytimeManagedSensorIdentityAdapter.resolveCanonicalSensorId.
+        tk.glucodata.SensorIdentity.invalidateCaches()
     }
 
     // ---- Per-sensor state ----
@@ -183,6 +185,8 @@ object AnytimeRegistry {
         prefs(c).getString(AnytimeConstants.PREF_DEVICE_NAME_PREFIX + id, null).orEmpty()
     @JvmStatic fun saveDeviceName(c: Context, id: String, name: String) {
         prefs(c).edit().putString(AnytimeConstants.PREF_DEVICE_NAME_PREFIX + id, name).apply()
+        // The device name participates in findRecord matching — resolution may change.
+        tk.glucodata.SensorIdentity.invalidateCaches()
     }
 
     @JvmStatic fun loadTransmitterVersion(c: Context, id: String): String =

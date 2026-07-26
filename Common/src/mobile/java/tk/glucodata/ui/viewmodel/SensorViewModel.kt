@@ -749,6 +749,8 @@ class SensorViewModel : ViewModel() {
             val removed = updated.removeAll { it.startsWith("$serial|") || it == serial }
             if (removed) {
                 prefs.edit().putStringSet("aidex_sensors", updated).commit()
+                // aidex_sensors feeds AiDexManagedSensorIdentityAdapter.resolveCanonicalSensorId.
+                tk.glucodata.SensorIdentity.invalidateCaches()
                 android.util.Log.i("SensorVM", "Edit 56a: Removed $serial from aidex_sensors prefs")
             }
         } catch (t: Throwable) {
