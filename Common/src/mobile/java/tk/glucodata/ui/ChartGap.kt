@@ -5,19 +5,18 @@ import androidx.compose.ui.geometry.Offset
 /**
  * How far apart two readings may be before the chart stops connecting them.
  *
- * The threshold has to stay strictly above the coarsest cadence the app can produce,
- * which is the 15-minute Libre 1/2 NFC history record. It used to be exactly 15 minutes,
- * and that broke the line *between* consecutive history points: a slot's stored timestamp
- * is `scanTime - (currentId - slotId) * 60`, so adjacent slots written by different scans
- * land 15 minutes apart give or take the scans' second-offsets. Stretches covered only by
- * NFC history — every BLE streaming outage — therefore rendered as a row of one-point
- * sub-paths, which a Stroke draws as nothing at all.
+ * Deliberately 15 minutes — a missing reading has to look missing. Raising it would draw
+ * a straight line across a real hole in the data, which is worse than an honest gap.
  *
- * At 20 minutes a break means at least one 15-minute history slot is genuinely missing,
- * which is what a gap in the curve should mean.
+ * The consequence is that a stretch covered only by 15-minute Libre NFC history splits
+ * into one-point runs, because a slot's stored timestamp is
+ * `scanTime - (currentId - slotId) * 60` and slots written by different scans land 15
+ * minutes apart give or take those scans' second-offsets. [ChartLineRun] is what keeps
+ * those points visible: a lone point becomes a dot instead of nothing, so coarse
+ * scan-recovered data reads as dotted rather than as a blank stretch.
  */
 internal object ChartGap {
-    const val THRESHOLD_MS = 20L * 60L * 1000L
+    const val THRESHOLD_MS = 15L * 60L * 1000L
 }
 
 /**

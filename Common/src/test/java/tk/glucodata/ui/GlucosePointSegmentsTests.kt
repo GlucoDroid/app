@@ -29,7 +29,7 @@ class GlucosePointSegmentsTests {
             listOf(
                 point(1 * MINUTE_MS, "sensor-a"),
                 point(2 * MINUTE_MS, "sensor-a"),
-                point(25 * MINUTE_MS, "sensor-a")
+                point(20 * MINUTE_MS, "sensor-a")
             )
         )
 
@@ -37,38 +37,24 @@ class GlucosePointSegmentsTests {
     }
 
     /**
-     * Libre NFC history lands every 15 minutes give or take the second-offset of the scan
-     * that wrote each slot. Those points have to stay in one segment — a threshold equal
-     * to the history cadence used to cut them into invisible one-point segments.
+     * NFC history slots carry the second-offset of whichever scan wrote them, so a
+     * history-only stretch straddles the threshold and segments erratically: 15m47s
+     * splits, the following 14m25s does not. That is intended — a hole in the data must
+     * not be drawn over — and [ChartLineRun] is what keeps the resulting lone points
+     * visible as dots.
      */
     @Test
-    fun split_keepsFifteenMinuteHistoryPointsInOneSegment() {
+    fun split_isolatesFifteenMinuteHistoryPointsThatDriftPastTheThreshold() {
         val base = 3_600_000L
         val segments = GlucosePointSegments.split(
             listOf(
                 point(base, "sensor-a"),
                 point(base + 15 * MINUTE_MS + 47_000L, "sensor-a"),
-                point(base + 30 * MINUTE_MS + 12_000L, "sensor-a"),
-                point(base + 45 * MINUTE_MS + 51_000L, "sensor-a")
+                point(base + 30 * MINUTE_MS + 12_000L, "sensor-a")
             )
         )
 
-        assertEquals(listOf(4), segments.map { it.size })
-    }
-
-    /** One missing 15-minute slot is a real hole and must still break the curve. */
-    @Test
-    fun split_breaksWhenAHistorySlotIsMissing() {
-        val base = 3_600_000L
-        val segments = GlucosePointSegments.split(
-            listOf(
-                point(base, "sensor-a"),
-                point(base + 15 * MINUTE_MS, "sensor-a"),
-                point(base + 45 * MINUTE_MS, "sensor-a")
-            )
-        )
-
-        assertEquals(listOf(2, 1), segments.map { it.size })
+        assertEquals(listOf(1, 2), segments.map { it.size })
     }
 
     private fun point(timestamp: Long, sensorSerial: String) = GlucosePoint(
