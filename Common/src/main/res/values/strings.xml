@@ -1023,6 +1023,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_likely">Likely Ottai</string>
     <string name="ottai_ble_scan_possible">Possible CGM</string>
     <string name="ottai_ble_scan_unknown">Other CGM</string>
+    <string name="ottai_ble_scan_registered">Already added</string>
+    <string name="ottai_ble_scan_registered_hint">A sensor that is already connected stops advertising, so it cannot show up in the scan above.</string>
     <!-- Ottai wizard: entry / login modes / sensor list / advanced -->
     <string name="ottai_entry_import_title">Import credentials file</string>
     <string name="ottai_entry_import_desc">Use a saved .json — no account or network needed.</string>

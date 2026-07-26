@@ -232,6 +232,13 @@ object OttaiConstants {
      * after NFC wake. Only admit that address while an activation recovery scan is
      * already armed; the BLE manager still requires the sensor's auth signature before
      * persisting the candidate.
+     *
+     * [allowNameMatch] governs the name-only fallback, which exists solely for the
+     * address-changed case. It admits ANY advertisement whose name contains "ottai" —
+     * including a stranger's sensor in range — so callers must disable it once this
+     * sensor's own address is known to be stable (i.e. it is already activated).
+     * Otherwise the manager retargets its transport at every neighbouring Ottai in turn,
+     * each one failing the auth-signature check, and never reaches its own sensor.
      */
     fun shouldProbeActivationAdvertisement(
         discoveryPending: Boolean,
@@ -239,6 +246,7 @@ object OttaiConstants {
         expectedAddress: String?,
         advertisedName: String?,
         rejectedAddresses: Set<String> = emptySet(),
+        allowNameMatch: Boolean = true,
     ): Boolean {
         if (!discoveryPending) return false
         val scanned = normalizeBleAddress(scannedAddress, allowPlain = false) ?: return false
@@ -250,6 +258,7 @@ object OttaiConstants {
         }
         val expected = normalizeBleAddress(expectedAddress, allowPlain = false)
         if (expected?.equals(scanned, ignoreCase = true) == true) return true
+        if (!allowNameMatch) return false
         return advertisedName?.trim()?.contains("ottai", ignoreCase = true) == true
     }
 

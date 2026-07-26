@@ -1302,6 +1302,16 @@ private fun OttaiBleScanPanel(
         )
         .take(8)
 
+    // Sensors already added to the app that the scan cannot see. A connected peripheral
+    // stops advertising, and the stability filter above additionally drops anything that
+    // is not mostly above OTTAI_OFFICIAL_RSSI_THRESHOLD — so a perfectly healthy sensor
+    // reads as "not found here". List it explicitly instead of leaving the user to guess.
+    val scannedAddresses = stableDevices.map { it.candidate.address.uppercase() }.toSet()
+    val registeredElsewhere = remember(restartKey, scannedAddresses) {
+        OttaiRegistry.persistedRecords(context)
+            .filter { it.address.isNotBlank() && it.address.uppercase() !in scannedAddresses }
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -1409,6 +1419,40 @@ private fun OttaiBleScanPanel(
                             )
                         },
                         modifier = Modifier.clickable { onAddressSelected(device.address) },
+                    )
+                    HorizontalDivider()
+                }
+            }
+        }
+
+        if (registeredElsewhere.isNotEmpty()) {
+            Text(
+                stringResource(R.string.ottai_ble_scan_registered_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column {
+                registeredElsewhere.forEach { record ->
+                    val selected = selectedAddress.equals(record.address, ignoreCase = true)
+                    ListItem(
+                        headlineContent = {
+                            Text(record.displayName.ifBlank { record.sensorId })
+                        },
+                        supportingContent = {
+                            Text("${stringResource(R.string.ottai_ble_scan_registered)} · ${record.address}")
+                        },
+                        leadingContent = {
+                            Icon(
+                                Icons.Default.Bluetooth,
+                                contentDescription = null,
+                                tint = if (selected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        },
+                        modifier = Modifier.clickable { onAddressSelected(record.address) },
                     )
                     HorizontalDivider()
                 }

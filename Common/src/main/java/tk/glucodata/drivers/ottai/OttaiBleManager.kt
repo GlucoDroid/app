@@ -112,6 +112,10 @@ class OttaiBleManager(
         private const val LIVE_READ_MAX_RETRIES = 2
         private const val LIVE_READ_RETRY_DELAY_MS = 1_500L
         private const val USER_RECONNECT_DEBOUNCE_MS = 30_000L
+        // How long candidate discovery may wait for a matching advertisement before it
+        // gives up and reverts to connecting by the sensor's stored address. Generous
+        // enough to cover an NFC wake plus a couple of advertisement bursts.
+        private const val FRESH_ACTIVATION_ADVERTISEMENT_TIMEOUT_MS = 120_000L
         private const val RECORD_INTERVAL_MS = 60_000L
         private const val CURRENT_SAMPLE_FRESH_MS = 120_000L
         private const val CURRENT_SAMPLE_FLOOR_GRACE_MS = RECORD_INTERVAL_MS
@@ -212,6 +216,11 @@ class OttaiBleManager(
     @Volatile private var activationRetryAddress: String? = null
     @Volatile private var activationCandidateDiscoveryPending = false
     @Volatile private var activationCandidateProbeActive = false
+    // This sensor's own record-backed BLE address, captured when candidate discovery is
+    // armed. selectActivationCandidate retargets activationRetryAddress/mActiveDeviceAddress
+    // at whatever it probes, so without a separate copy a neighbouring Ottai permanently
+    // displaces our address and knownBleAddress() can never find its way home again.
+    @Volatile private var activationCandidateHomeAddress: String? = null
     private val rejectedActivationCandidateAddresses = linkedSetOf<String>()
     private val deferredActivationCandidateCgmInfo = mutableListOf<Pair<ByteArray, String>>()
     @Volatile private var latestCgmInfoActiveTimeCandidateMs = 0L
@@ -311,6 +320,13 @@ class OttaiBleManager(
 
     private val connectionWatchdogRunnable = Runnable {
         checkConnectionWatchdog()
+    }
+    // Candidate discovery has no natural end: it waits for an advertisement that a sensor
+    // which is already connected elsewhere, out of range, or simply not re-advertising will
+    // never send, and the UI sits on "Looking for nearby transmitters..." indefinitely. Give
+    // up after a bounded wait and fall back to the ordinary connect-by-known-address path.
+    private val freshActivationAdvertisementTimeoutRunnable = Runnable {
+        abandonFreshActivationAdvertisement("no matching advertisement within timeout")
     }
     private val serviceDiscoveryRunnable = Runnable {
         pendingServiceDiscoveryGatt?.let { startServiceDiscovery(it) }
@@ -640,6 +656,7 @@ class OttaiBleManager(
         }
         searchforDeviceAddress()
         activationRetryAddress = address
+        activationCandidateHomeAddress = address
         activationCandidateDiscoveryPending = true
         activationCandidateProbeActive = false
         clearDeferredActivationCandidateCgmInfo()
@@ -647,8 +664,50 @@ class OttaiBleManager(
         awaitingFreshActivationAdvertisement = true
         constatstatusstr = appString(R.string.looking_for_transmitters, "Looking for nearby transmitters...")
         SensorBluetooth.blueone?.scanStarter(0L)
+        handler.removeCallbacks(freshActivationAdvertisementTimeoutRunnable)
+        handler.postDelayed(
+            freshActivationAdvertisementTimeoutRunnable,
+            FRESH_ACTIVATION_ADVERTISEMENT_TIMEOUT_MS,
+        )
         UiRefreshBus.requestStatusRefresh()
         return true
+    }
+
+    /**
+     * Leave candidate discovery and go back to connecting by this sensor's own address.
+     * Safe to call from any state: it is a no-op unless discovery is armed, and it never
+     * interrupts a probe that is mid-authentication (that probe either verifies and clears
+     * discovery itself, or is rejected and re-arms the scan).
+     */
+    @Synchronized
+    private fun abandonFreshActivationAdvertisement(reason: String) {
+        if (stop || !activationCandidateDiscoveryPending) return
+        if (activationCandidateProbeActive) {
+            // A candidate is being authenticated right now — give it the full window again
+            // rather than tearing the transport down mid-handshake.
+            handler.postDelayed(
+                freshActivationAdvertisementTimeoutRunnable,
+                FRESH_ACTIVATION_ADVERTISEMENT_TIMEOUT_MS,
+            )
+            return
+        }
+        val home = activationCandidateHomeAddress
+        activationCandidateDiscoveryPending = false
+        awaitingFreshActivationAdvertisement = false
+        rejectedActivationCandidateAddresses.clear()
+        clearDeferredActivationCandidateCgmInfo()
+        if (home != null) {
+            activationRetryAddress = home
+            mActiveDeviceAddress = home
+        }
+        activationCandidateHomeAddress = null
+        Log.w(TAG, "abandoning activation candidate discovery ($reason); " +
+            "falling back to direct connect address=$home")
+        UiRefreshBus.requestStatusRefresh()
+        if (home != null) {
+            hydrateBluetoothDeviceFromAddress()
+            connectDevice(0)
+        }
     }
 
     fun isSetupConnectionComplete(): Boolean =
@@ -678,6 +737,19 @@ class OttaiBleManager(
         return selectActivationCandidate(scanned, advertisedName)
     }
 
+    /**
+     * The name-only fallback ("any advertisement called *ottai*") exists for a sensor whose
+     * BLE address changed across an activation. A sensor that already carries a persisted
+     * activation start keeps its address, so admitting strangers by name can only mislead:
+     * every neighbouring Ottai gets probed, fails the auth-signature check, and costs a
+     * connect/disconnect cycle while our own sensor waits.
+     */
+    private fun allowActivationCandidateNameMatch(): Boolean {
+        val ctx = Applic.app ?: return true
+        val id = SerialNumber ?: return true
+        return runCatching { OttaiRegistry.loadMaterials(ctx, id).activeTimeMs }.getOrDefault(0L) <= 0L
+    }
+
     @Synchronized
     private fun selectActivationCandidate(scannedAddress: String, advertisedName: String?): Boolean {
         val expectedAddress = activationRetryAddress
@@ -687,6 +759,7 @@ class OttaiBleManager(
             expectedAddress = expectedAddress,
             advertisedName = advertisedName,
             rejectedAddresses = rejectedActivationCandidateAddresses,
+            allowNameMatch = allowActivationCandidateNameMatch(),
         )
         if (!selected) return false
         if (!scannedAddress.equals(expectedAddress, ignoreCase = true)) {
@@ -1178,6 +1251,8 @@ class OttaiBleManager(
             activationRetryAddress = verifiedAddress
             activationCandidateProbeActive = false
             activationCandidateDiscoveryPending = false
+            activationCandidateHomeAddress = null
+            handler.removeCallbacks(freshActivationAdvertisementTimeoutRunnable)
             rejectedActivationCandidateAddresses.clear()
             mActiveDeviceAddress = verifiedAddress
             SerialNumber?.let { sensorId ->
@@ -1195,6 +1270,14 @@ class OttaiBleManager(
         if (address != null) rejectedActivationCandidateAddresses += address
         activationCandidateProbeActive = false
         clearDeferredActivationCandidateCgmInfo()
+        // Point the transport back at our own sensor. Without this the rejected stranger's
+        // address stays in activationRetryAddress/mActiveDeviceAddress, the disconnect
+        // handler re-arms the scan around it, and knownBleAddress() keeps answering with a
+        // device we have just proven is not ours.
+        activationCandidateHomeAddress?.let { home ->
+            activationRetryAddress = home
+            mActiveDeviceAddress = home
+        }
         Log.w(TAG, "activation retry candidate rejected by device signature address=$address")
         handler.post { runCatching { gatt.disconnect() } }
     }
@@ -2049,6 +2132,8 @@ class OttaiBleManager(
         activationRetryAddress = null
         activationCandidateDiscoveryPending = false
         activationCandidateProbeActive = false
+        activationCandidateHomeAddress = null
+        handler.removeCallbacks(freshActivationAdvertisementTimeoutRunnable)
         rejectedActivationCandidateAddresses.clear()
         clearDeferredActivationCandidateCgmInfo()
         activationFailed = false
@@ -2065,6 +2150,8 @@ class OttaiBleManager(
         activationRetryAddress = null
         activationCandidateDiscoveryPending = false
         activationCandidateProbeActive = false
+        activationCandidateHomeAddress = null
+        handler.removeCallbacks(freshActivationAdvertisementTimeoutRunnable)
         rejectedActivationCandidateAddresses.clear()
         clearDeferredActivationCandidateCgmInfo()
         activationFailed = failed

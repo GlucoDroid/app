@@ -1948,6 +1948,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_likely">Похож на Ottai</string>
     <string name="ottai_ble_scan_possible">Возможный CGM</string>
     <string name="ottai_ble_scan_unknown">Другой CGM</string>
+    <string name="ottai_ble_scan_registered">Уже добавлен</string>
+    <string name="ottai_ble_scan_registered_hint">Подключённый датчик перестаёт передавать рекламные пакеты, поэтому в списке выше он не появится.</string>
     <string name="ottai_account_hint">Эл. почта или имя пользователя</string>
     <string name="ottai_account_note">Войдите по эл. почте или имени пользователя.</string>
     <string name="ottai_code_sent_email">Код отправлен на %1$s</string>
