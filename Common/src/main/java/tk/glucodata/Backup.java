@@ -272,7 +272,7 @@ public class Backup {
       }
          if(title==null|| title.isEmpty())
             title="  ";
-           builder.setTitle(title).setMessage(R.string.deleteconnection).
+         builder.setTitle(title).setMessage(R.string.deleteconnection).
    //     setMessage(mess).
               setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                        public void onClick(DialogInterface dialog, int id) {

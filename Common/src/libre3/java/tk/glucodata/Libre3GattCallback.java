@@ -446,7 +446,7 @@ static final private String charglucosedata= "CHAR_GLUCOSE_DATA".intern();
 private  void logcharacter(UUID uuid,String str,byte[] value) {
         final long timmsec = System.currentTimeMillis();
        if(str!=charglucosedata) setsuccess(timmsec,str);
-            {if(doLog){showbytes(LOG_ID+ " "+SerialNumber +" onCharacteristicChanged  "+uuid.toString()+" "+str, value);};}
+       {if(doLog){showbytes(LOG_ID+ " "+SerialNumber +" onCharacteristicChanged  "+uuid.toString()+" "+str, value);};}
         }
 private void onCharacteristicChanged33(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value) {
        var wakelock=    Applic.usewakelock?(((PowerManager) app.getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Juggluco::Libre3")):null;

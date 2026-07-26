@@ -100,7 +100,7 @@ static private watchdrip receiver=null;
 static void register() {
 	if(receiver==null)
 		receiver=new watchdrip();
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+	if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         Applic.app.registerReceiver(receiver, new IntentFilter("com.eveningoutpost.dexdrip.watch.wearintegration.BROADCAST_SERVICE_RECEIVER"),RECEIVER_EXPORTED);
     }
 	else

@@ -119,7 +119,10 @@ public class ScanNfcV {
             : new VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_ALARM).build();
 
     static void vibrates(Vibrator vibrator, final long[] vibrationPatternstart, final int[] amplitude) {
-        if (android.os.Build.VERSION.SDK_INT < 33) {
+        if (android.os.Build.VERSION.SDK_INT < 26) {
+            // VibrationEffect/amplitude control need API 26; fall back to the plain pattern API.
+            vibrator.vibrate(vibrationPatternstart, 1);
+        } else if (android.os.Build.VERSION.SDK_INT < 33) {
             vibrator.vibrate(VibrationEffect.createWaveform(vibrationPatternstart, amplitude, 1), audioattributes);
         } else {
             vibrator.vibrate(VibrationEffect.createWaveform(vibrationPatternstart, amplitude, 1), vibrationattributes);

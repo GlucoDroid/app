@@ -153,7 +153,10 @@ public class StatusIcon {
             top = drawCenteredLine(canvas, paint, peerValue, top, primaryLineHeight * peerScale);
         }
 
-        return Icon.createWithBitmap(bitmap);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return Icon.createWithBitmap(bitmap);
+        }
+        return null;
     }
 
     private Paint createTextPaint() {

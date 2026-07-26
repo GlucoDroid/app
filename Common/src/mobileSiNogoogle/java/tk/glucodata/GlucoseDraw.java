@@ -810,7 +810,7 @@ static int getgludraw(float val,int sensorgen) {
 	if(unit==1) {
 		if(val<2.2f)
 			return R.drawable.alarm2_2;
-        if(sensorgen==0x40) {
+		if(sensorgen==0x40) {
             if(val>(400.0/mgdLmult))
                 return R.drawable.alarm22_2;
              }
@@ -825,7 +825,7 @@ static int getgludraw(float val,int sensorgen) {
 		int intval=(int)Math.round(val);
 		if(intval<40)
 			return R.drawable.alarm39;
-        if(sensorgen==0x40) {
+		if(sensorgen==0x40) {
             if(intval>400)
                 return R.drawable.alarm401;
            }

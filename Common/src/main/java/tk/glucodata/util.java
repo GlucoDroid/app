@@ -88,7 +88,7 @@ static void sethtml(TextView view, String text) {
         view.setText(fromHtml(text,TO_HTML_PARAGRAPH_LINES_CONSECUTIVE));
     }
     else view.setText(fromHtml(text));
-      view.setTextIsSelectable(true);
+    view.setTextIsSelectable(true);
            view.setTextColor(Color.WHITE);
 
 
