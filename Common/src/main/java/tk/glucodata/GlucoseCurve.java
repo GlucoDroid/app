@@ -150,7 +150,7 @@ if(!isWearable) {
         }
     search.setVisibility(View.VISIBLE);
          if(labelsel==Natives.getmealvar())
-         mkmealsearch(activity);
+             mkmealsearch(activity);
     }
     if(!smallScreen)
         showkeyboard(activity);
@@ -375,7 +375,7 @@ long multitime=0L;
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if(turnoffalarm())
-        Notify.stopalarm();
+            Notify.stopalarm();
         if((render.stepresult&STEPBACK)!=0) {
             final float x = event.getX();
             final float y = event.getY();
@@ -740,7 +740,7 @@ private void mktimedialog( Button but,final int num ,View parent) {
            hidekeyboard();
      if(searchcontrol!=null)
          searchcontrol.setVisibility(GONE);
-        reopener();
+     reopener();
        Natives.stopsearch();
        requestRender();
        }
@@ -1148,7 +1148,7 @@ if(!smallScreen) {
                 numberview.noroom=true;
                 }
                 else
-                numberview.noroom=false;
+                    numberview.noroom=false;
                 lay.setX(posx);
                {if(doLog) {Log.i(LOG_ID,"search h="+h+" height="+height+" w="+w+" width="+width+" posx="+posx);};};
                 }

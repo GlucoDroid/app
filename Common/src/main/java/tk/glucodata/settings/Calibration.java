@@ -126,7 +126,7 @@ static public void show(MainActivity act,View parent) {
     MainActivity.setonback( () -> {
       if(parent!=null)
             parent.setVisibility(VISIBLE);
-        removeContentView(flayout);
+      removeContentView(flayout);
         });
 
     close.setOnClickListener(v->{

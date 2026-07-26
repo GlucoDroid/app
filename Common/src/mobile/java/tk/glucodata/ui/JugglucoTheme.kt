@@ -3,6 +3,7 @@
 package tk.glucodata.ui
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -95,7 +96,13 @@ fun JugglucoTheme(
         // while preventing extreme Display Size settings from breaking M3 layouts.
         // fontScale capped at 1.15 — "slightly larger" text is fine, "huge" breaks cards.
         val currentDensity = LocalDensity.current
-        val nativeDensity = android.util.DisplayMetrics.DENSITY_DEVICE_STABLE / 160f
+        // DENSITY_DEVICE_STABLE needs API 24; below that, fall back to the current density
+        // so the cap below is a no-op instead of crashing on API 21-23.
+        val nativeDensity = if (Build.VERSION.SDK_INT >= 24) {
+            android.util.DisplayMetrics.DENSITY_DEVICE_STABLE / 160f
+        } else {
+            currentDensity.density
+        }
         val maxDensity = nativeDensity * 1.1f
         val clampedDensity = Density(
             density = currentDensity.density.coerceAtMost(maxDensity),

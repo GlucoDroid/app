@@ -331,7 +331,7 @@ public static void hidekeyboard(Activity activity) {
            View focus= activity.getCurrentFocus();
        if(focus==null)
             focus=activity.findViewById(android.R.id.content);
-           if(focus!=null)
+       if(focus!=null)
             imm.hideSoftInputFromWindow(focus.getWindowToken(), 0);
         }
 public static void showkeyboard(Activity activity,View focus) {

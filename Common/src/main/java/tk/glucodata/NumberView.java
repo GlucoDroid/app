@@ -318,7 +318,7 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
                     noroom=true;
                     }
                     else
-                    noroom=false;
+                        noroom=false;
                     lay.setX(posx);
                   }
                     else
@@ -345,7 +345,7 @@ public   View addnumberview(MainActivity context,final int bron,final long time,
             {if(doLog) {Log.i(LOG_ID,"smallScreen");};};
             if(wid>w)
                 lay.setX((wid - w)/2);
-              lay.setY(MainActivity.systembarTop*3/4);
+            lay.setY(MainActivity.systembarTop*3/4);
             }
 
             return new int[] {w,h}; },new View[]{helpbutton,getspinner(context), valueedit},new View[]{datebutton, excludebox,mealbutton,source,timebutton},new View[]{cancelbutton,messagetext,deletebutton, savebutton});
@@ -558,7 +558,7 @@ void deletedialog(View v,int[] mealptr) {
                     public void onClick(DialogInterface dialog, int id) {
             if(mealptr[0]!=0)
                  Natives.deletemeal(mealptr[0]);
-                 mealptr[0]=0;
+            mealptr[0]=0;
             if(currentnum!=0) {
                 if(currentnum!=numio.newhit) {
                     int index=Natives.gethitindex(currentnum);
@@ -884,7 +884,7 @@ final  boolean buttonsunder=false;
      int layparwidth,layparheight;
 if(isWearable) {
       if(!useclose) cancel.setVisibility(GONE);
-           views=new View[][]{new View[]{cancel},new View[]{pick},new View[]{ok}};
+      views=new View[][]{new View[]{cancel},new View[]{pick},new View[]{ok}};
          layparheight=layparwidth=MATCH_PARENT;
 
          }

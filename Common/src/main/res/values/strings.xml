@@ -193,24 +193,24 @@
     <string name="uselibreview">Send to Libreview</string>
     <string name="libreviewname">Libreview</string>
     <string name="sendnow">Send now</string>
-    <string name="blueormirror">"Sensor via Bluetooth" should be turned on or this should be configured as a mirror</string>
+    <string name="blueormirror" tools:ignore="MissingTranslation">"Sensor via Bluetooth" should be turned on or this should be configured as a mirror</string>
     <string name="vibrationname">Vibrate</string>
-    <string name="high_priority">Turbo</string>
+    <string name="high_priority" tools:ignore="MissingTranslation">Turbo</string>
     <string name="darkmode">Dark mode</string>
-    <string name="multiply">Multiply with:</string>
-    <string name="rapidinsulin">Rapid acting insulin</string>
- <string name="longinsulin">Long acting insulin</string>
-    <string name="comments">Comments</string>
- <string name="dontsend">Don\'t send</string>
+    <string name="multiply" tools:ignore="MissingTranslation">Multiply with:</string>
+    <string name="rapidinsulin" tools:ignore="MissingTranslation">Rapid acting insulin</string>
+ <string name="longinsulin" tools:ignore="MissingTranslation">Long acting insulin</string>
+    <string name="comments" tools:ignore="MissingTranslation">Comments</string>
+ <string name="dontsend" tools:ignore="MissingTranslation">Don\'t send</string>
  <string name="sendamounts">Send amounts</string>
  <string name="resendquestion">Resend data?</string>
  <string name="resendmessage">Be careful not to send overlapping data to Libreview.</string>
  <string name="getaccountidquestion">Get Account ID from Libreview?</string>
  <string name="getaccountidmessage">The Account ID is needed to use Libre3 sensors that are activated with Abbotts Libre3 app with this Libreview account.</string>
  <string name="deleteconnection">Delete connection?</string>
- <string name="wakelock">Wakelock</string>
+ <string name="wakelock" tools:ignore="MissingTranslation">Wakelock</string>
  <string name="wifi">Wifi</string>
- <string name="heartrate">Heart rate</string>
+ <string name="heartrate" tools:ignore="MissingTranslation">Heart rate</string>
     <string name="xdripbroadcast">Libre (patched App)</string>
     <string name="aaps_broadcast">Glucodata</string>
     <string name="glucodata_subtitle">GlucoDataHandler (GDH)</string>
@@ -218,17 +218,17 @@
     <string name="broadcast_computed_trend_desc">Use the app’s trend instead of the sensor’s</string>
     <string name="xdrip_compatible_title">xDrip broadcast</string>
     <string name="xdrip_compatible_desc">AAPS compatible</string>
-    <string name="sensorpermission">Sensors permission</string>
- <string name="sensorpermissionmessage">needed to display heart rate. Set it in Device Settings, Apps, Permissions, Juggluco</string>
+    <string name="sensorpermission" tools:ignore="MissingTranslation">Sensors permission</string>
+ <string name="sensorpermissionmessage" tools:ignore="MissingTranslation">needed to display heart rate. Set it in Device Settings, Apps, Permissions, Juggluco</string>
  <string name="floatglucose">Floating glucose</string>
  <string name="floatglucoseshort">@string/floatglucose</string>
 
  <string name="fontsize">Font size</string>
- <string name="fontsizeshort">@string/fontsize</string>
+ <string name="fontsizeshort" tools:ignore="MissingTranslation">@string/fontsize</string>
  <string name="fonttoolarge">Font size too large: max=</string>
  <string name="foreground">Foreground</string>
  <string name="background">Background</string>
- <string name="backgroundshort">Back-</string>
+ <string name="backgroundshort" tools:ignore="MissingTranslation">Back-</string>
 
  <string name="transparent">Transparent</string>
  <string name="touchable">Touchable</string>
@@ -268,7 +268,7 @@
 <string name="newport">"new port ="</string>
 <string name="webserver">Web server</string>
 <string name="treatments">Give Amounts</string>
-<string name="android13">Android</string>
+<string name="android13" tools:ignore="MissingTranslation">Android</string>
     <string name="wentwrong">Something went wrong</string>
     <string name="dosis">" dose "</string>
     <string name="doses">" doses "</string>
@@ -292,10 +292,10 @@
  <string name="streamhistory">Bluetooth History</string>
  <string name="libreisviewed">Spy views</string>
  <string name="novalue">No value</string>
- <string name="tts_missed_readings">Missed readings</string>
+ <string name="tts_missed_readings" tools:ignore="MissingTranslation">Missed readings</string>
  <string name="talk">Talk</string>
  <string name="watches">Watch</string>
- <string name="menus">Menus</string>
+ <string name="menus" tools:ignore="MissingTranslation">Menus</string>
  <string name="system_ui">System UI</string>
  <string name="sensor">Sensors</string>
  <string name="settings">Settings</string>
@@ -347,12 +347,12 @@
  <string name="floatjuggluco">Above</string>
  <string name="uploader">Uploader</string>
  <string name="upload">Upload</string>
- <string name="sibionics">Sibionics</string>
+ <string name="sibionics" tools:ignore="MissingTranslation">Sibionics</string>
  <string name="mmolL">mmol/L</string>
  <string name="mgdL">mg/dL</string>
  <string name="interval">Interval</string>
  <string name="off">Off</string>
- <string name="shortoff">Off</string>
+ <string name="shortoff" tools:ignore="MissingTranslation">Off</string>
  <string name="streamingenabled">" Streaming enabled"</string>
  <string name="streamingnotenabled">" Streaming not enabled"</string>
     <string name="everSensebroadcast">EverSense Broadcast</string>
@@ -361,27 +361,27 @@
 
  <string name="hour12">12h</string>
 <string name="complications">Complications</string>
-    <string name="colors_style_setting_description">Watchface color</string>
+    <string name="colors_style_setting_description" tools:ignore="MissingTranslation">Watchface color</string>
 
-   <string name="glucosenumbercomplicationlabel">Glucose value</string>
-   <string name="glucosearrowcomplicationlabel">Glucose arrow</string>
-   <string name="glucosearrowvaluecomplicationlabel">Value + arrow</string>
- <string name="glucosevalueiconcomplicationlabel">Glucose Value small</string>
- <string name="glucosearrowiconcomplicationlabel">Glucose Arrow small</string>
- <string name="glucoseshortcomplicationlabel">Value + arrow small</string>
+   <string name="glucosenumbercomplicationlabel" tools:ignore="MissingTranslation">Glucose value</string>
+   <string name="glucosearrowcomplicationlabel" tools:ignore="MissingTranslation">Glucose arrow</string>
+   <string name="glucosearrowvaluecomplicationlabel" tools:ignore="MissingTranslation">Value + arrow</string>
+ <string name="glucosevalueiconcomplicationlabel" tools:ignore="MissingTranslation">Glucose Value small</string>
+ <string name="glucosearrowiconcomplicationlabel" tools:ignore="MissingTranslation">Glucose Arrow small</string>
+ <string name="glucoseshortcomplicationlabel" tools:ignore="MissingTranslation">Value + arrow small</string>
 
-   <string name="text">Text</string>
-   <string name="arrow">Arrow</string>
+   <string name="text" tools:ignore="MissingTranslation">Text</string>
+   <string name="arrow" tools:ignore="MissingTranslation">Arrow</string>
    <string name="notalldata">WARNING: “Receive from” not set, but some data types are not sent.</string>
   <string name="libresetalllabels">First specify for each label what should be done with it.</string>
    <string name="photo">Photo</string>
-   <string name="photomessage">Scan the data matrix of a Dexcom G7/ONE+ or Sibionics GS1 sensor or the mirror QR code.</string>
+   <string name="photomessage" tools:ignore="MissingTranslation">Scan the data matrix of a Dexcom G7/ONE+ or Sibionics GS1 sensor or the mirror QR code.</string>
    <string name="dexfuture">Predict (Dexcom)</string>
-   <string name="initializing">Initializing</string> 
-   <string name="startjuggluco">Juggluco running on phone?\n\nWIFI and Bluetooth enabled?</string> 
+   <string name="initializing" tools:ignore="MissingTranslation">Initializing</string> 
+   <string name="startjuggluco" tools:ignore="MissingTranslation">Juggluco running on phone?\n\nWIFI and Bluetooth enabled?</string> 
    <string name="connected">Connected!</string> 
    <string name="useclose">Close button</string> 
-   <string name="alarmclock">\u23F0</string> 
+   <string name="alarmclock" tools:ignore="MissingTranslation">\u23F0</string> 
    <string name="filesize">File size</string> 
    <string name="logging">Logging</string> 
     <string name="aspart">Insulin Aspart/NovoRapid/NovoLog</string>
@@ -397,8 +397,8 @@
     <string name="hematonix">Hematonix</string>
     <string name="sibionics2">Sibionics 2 Split</string>
     <string name="gs3">Sibionics GS3</string>
-    <string name="datapresent">"Data present: "</string>
-    <string name="overwrite">Overwrite?</string>
+    <string name="datapresent" tools:ignore="MissingTranslation">"Data present: "</string>
+    <string name="overwrite" tools:ignore="MissingTranslation">Overwrite?</string>
     <string name="autoqr">Auto QR</string>
     <string name="autoqrmessage">
 Send data from this phone to another phone on your home network.
@@ -410,8 +410,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
  <string name="verylowglucose">" Very LOW glucose!"</string>
  <string name="veryhighglucose">" Very HIGH glucose!"</string>
 
- <string name="verylowglucoseshort">" Very LOW!"</string>
- <string name="veryhighglucoseshort">" Very HIGH!"</string>
+ <string name="verylowglucoseshort" tools:ignore="MissingTranslation">" Very LOW!"</string>
+ <string name="veryhighglucoseshort" tools:ignore="MissingTranslation">" Very HIGH!"</string>
 
  <string name="prelowglucose">" Soon LOW glucose!"</string>
  <string name="prehighglucose">" Soon HIGH glucose!"</string>
@@ -426,9 +426,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
  <string name="lossofsignal">Loss of signal</string>
  <string name="valuenotification">Value notification</string>
  <string name="nothing"></string>
- <string name="scantranstitle">Scan TRANSMITTER data matrix</string>
- <string name="scantransmessage">Sibionics 2 sensor data matrix succesfully scanned. \nScan now the transmitter data matrix."</string>
- <string name="mirrorscansucces">Successfully added connection to left middle menu→Mirror.</string>
+ <string name="scantranstitle" tools:ignore="MissingTranslation">Scan TRANSMITTER data matrix</string>
+ <string name="scantransmessage" tools:ignore="MissingTranslation">Sibionics 2 sensor data matrix succesfully scanned. \nScan now the transmitter data matrix."</string>
+ <string name="mirrorscansucces" tools:ignore="MissingTranslation">Successfully added connection to left middle menu→Mirror.</string>
  <string name="resettitle">Reset</string>
  <string name="resetmessage">Clears transmitter memory. Should be pressed before using a new sensor in an already used transmitter.</string>
  <string name="nolibrelink">Use the EverSense Broadcast instead. See help.</string>
@@ -445,7 +445,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
  <string name="calibrations">Calibrations</string>
  <string name="allvalues">All values</string>
  <string name="writedown">Write down!</string>
- <string name="switchtowatch">Switch</string>
+ <string name="switchtowatch" tools:ignore="MissingTranslation">Switch</string>
  <string name="last">"Last: "</string>
  <string name="bloodafter">"Only add glucose readings from after: "</string>
  <string name="specifyblood">"First select the label for blood glucose"</string>
@@ -468,7 +468,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
 <string name="directsensor">Direct sensor-</string>
 <string name="enternums">Enter amounts on</string>
 <string name="connectionl">connection</string>
-<string name="disconnectsensor">Bug</string>
+<string name="disconnectsensor" tools:ignore="MissingTranslation">Bug</string>
 <string name="internet">Internet</string>
 <string name="homenet">Home net</string>
 <string name="ICE">ICE</string>
@@ -478,7 +478,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
 <string name="zero">0</string>
 <string name="one">1</string>
 
-<string name="QRmirror">Mirror via QR</string>
+<string name="QRmirror" tools:ignore="MissingTranslation">Mirror via QR</string>
     <string name="turnservers">TURN Servers</string>
     <string name="turnserver">TURN Server</string>
 
@@ -498,7 +498,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="select_theme">Select Theme</string>
     <string name="select_language">Select Language</string>
     <string name="system_default">System Default</string>
-    <string name="scanner_label">Scanner</string>
+    <string name="scanner_label" tools:ignore="MissingTranslation">Scanner</string>
 
     <!-- Debug Settings Strings -->
     <string name="debug_logs_title">Debug Logs</string>
@@ -538,7 +538,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="internet_receiver">Internet Receiver</string>
     <string name="close">Close</string>
     <string name="connection_label">Connection</string>
-    <string name="label">Label</string>
+    <string name="label" tools:ignore="MissingTranslation">Label</string>
     <string name="deactivated">Deactivated</string>
     <string name="enable">Enable</string>
     <string name="disable">Disable</string>
@@ -557,8 +557,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="turn_server">Turn Server</string>
     <string name="add_connection">Add Connection</string>
     <string name="help">Help</string>
-    <string name="send_to">Send to</string>
-    <string name="receive_from">Receive from</string>
+    <string name="send_to" tools:ignore="MissingTranslation">Send to</string>
+    <string name="receive_from" tools:ignore="MissingTranslation">Receive from</string>
     <string name="qr">QR</string>
     <string name="amounts">Amounts</string>
     <string name="scans">Scans</string>
@@ -573,22 +573,22 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="no_data_available">No data available</string>
     <string name="duration_days">days</string>
     <string name="sensor_state">Status</string>
-    <string name="no_sensors_found">No sensors found</string>
+    <string name="no_sensors_found" tools:ignore="MissingTranslation">No sensors found</string>
     <string name="add_sensor">Add Sensor</string>
     <string name="sensors_title">Sensors</string>
-    <string name="add_sensor_title">Add Sensor</string>
+    <string name="add_sensor_title" tools:ignore="MissingTranslation">Add Sensor</string>
     
     <!-- Sensor Screen Strings -->
     <string name="calibration_algorithm">Calibration Algorithm</string>
-    <string name="restart_autocal_title">Restart auto-calibration?</string>
-    <string name="restart_autocal_desc">Clear all in-app auto-calibration data, restart algorithm and reconnect?</string>
-    <string name="restart">Restart</string>
+    <string name="restart_autocal_title" tools:ignore="MissingTranslation">Restart auto-calibration?</string>
+    <string name="restart_autocal_desc" tools:ignore="MissingTranslation">Clear all in-app auto-calibration data, restart algorithm and reconnect?</string>
+    <string name="restart" tools:ignore="MissingTranslation">Restart</string>
     <string name="auto">Auto</string>
     <string name="raw">Raw</string>
     <string name="auto_raw">Auto+Raw</string>
     <string name="raw_auto">Raw+Auto</string>
-    <string name="broadcast_only">Broadcast</string>
-    <string name="reset_autocal_button">Restart auto-calibration</string>
+    <string name="broadcast_only" tools:ignore="MissingTranslation">Broadcast</string>
+    <string name="reset_autocal_button" tools:ignore="MissingTranslation">Restart auto-calibration</string>
 
     <!-- Trend Descriptions -->
     <string name="trend_rising">The trend is rising by %1$s percent.</string>
@@ -596,11 +596,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="trend_unchanged">The trend remains unchanged.</string>
     
     <!-- Duration Strings (ViewModel) -->
-    <string name="in_use">%1$s in use</string>
-    <string name="remaining">%1$s remaining</string>
+    <string name="in_use" tools:ignore="MissingTranslation">%1$s in use</string>
+    <string name="remaining" tools:ignore="MissingTranslation">%1$s remaining</string>
     <string name="expired">Expired</string>
-    <string name="days_short">%1$dd</string>
-    <string name="hours_short">%1$dh</string>
+    <string name="days_short" tools:ignore="MissingTranslation">%1$dd</string>
+    <string name="hours_short" tools:ignore="MissingTranslation">%1$dh</string>
     
     <!-- Settings Strings -->
     <string name="theme_title">Theme</string>
@@ -657,9 +657,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="reset_sensor_desc">This will reset the Sibionics 2 sensor. Continue?</string>
     <string name="reset_sensor">Reset sensor</string>
     
-    <string name="reset_all_title">Reset all?</string>
-    <string name="reset_all_desc">Clear all old data, calibrations, and reset the sensor?</string>
-    <string name="reset_all">Reset all</string>
+    <string name="reset_all_title" tools:ignore="MissingTranslation">Reset all?</string>
+    <string name="reset_all_desc" tools:ignore="MissingTranslation">Clear all old data, calibrations, and reset the sensor?</string>
+    <string name="reset_all" tools:ignore="MissingTranslation">Reset all</string>
     
     <string name="unified_reset_desc">This will restart the sensor and reset the auto-calibration algorithm.</string>
     <string name="keep_auto_calibration">Keep auto-calibration data</string>
@@ -674,7 +674,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sensor_battery_voltage">Battery</string>
     <string name="auto_reset_title">Auto reset</string>
     <string name="auto_reset_days">%1$d days</string>
-    <string name="auto_reset_never">Never</string>
+    <string name="auto_reset_never" tools:ignore="MissingTranslation">Never</string>
     
     <!-- Sensor Onboarding Strings -->
     <string name="no_sensor_title">No Sensor Connected</string>
@@ -683,13 +683,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     
     <!-- Sibionics Setup Wizard -->
     <string name="sibionics_setup_title">Sibionics Setup</string>
-    <string name="scan_sensor_qr">Scan Sensor QR Code</string>
-    <string name="scan_sensor_qr_desc">Scan the data matrix on the sensor packaging</string>
+    <string name="scan_sensor_qr" tools:ignore="MissingTranslation">Scan Sensor QR Code</string>
+    <string name="scan_sensor_qr_desc" tools:ignore="MissingTranslation">Scan the data matrix on the sensor packaging</string>
     <string name="select_sibionics_type">Choose a Sibionics sensor</string>
-    <string name="scan_transmitter">Scan Transmitter</string>
+    <string name="scan_transmitter" tools:ignore="MissingTranslation">Scan Transmitter</string>
 
-    <string name="connecting">Connecting...</string>
-    <string name="setup_complete">Setup Complete</string>
+    <string name="connecting" tools:ignore="MissingTranslation">Connecting...</string>
+    <string name="setup_complete" tools:ignore="MissingTranslation">Setup Complete</string>
     
     <!-- Libre Setup Wizard -->
     <string name="libre_setup_title">Libre Setup</string>
@@ -733,11 +733,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="scan_caresens_air">Scan CareSens Air</string>
 
     <!-- Delete Sensor Strings -->
-    <string name="delete_sensor">Delete Sensor</string>
-    <string name="delete_sensor_desc">This will remove the sensor and all its data. This cannot be undone.</string>
-    <string name="delete_confirm">Delete</string>
+    <string name="delete_sensor" tools:ignore="MissingTranslation">Delete Sensor</string>
+    <string name="delete_sensor_desc" tools:ignore="MissingTranslation">This will remove the sensor and all its data. This cannot be undone.</string>
+    <string name="delete_confirm" tools:ignore="MissingTranslation">Delete</string>
 
-    <string name="general_settings">General Settings</string>
+    <string name="general_settings" tools:ignore="MissingTranslation">General Settings</string>
     <string name="notifications">Alerts and notifications</string>
 
     <!-- Expressive Settings Strings -->
@@ -746,19 +746,19 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="export_data_desc">Save history to CSV/TSV</string>
     <string name="export_settings">Export Settings</string>
     <string name="export_settings_desc">Save all app settings, credentials, and device keys</string>
-    <string name="export_data_settings">Export data/settings</string>
-    <string name="export_data_settings_desc">Choose settings, history, calibrations, or a complete package</string>
-    <string name="export_everything">Everything</string>
-    <string name="export_history_data_desc">Glucose history, journal entries, and insulin presets</string>
-    <string name="export_calibrations_desc">Manual calibration points and calibration behavior</string>
-    <string name="export_range_title">History range</string>
-    <string name="export_range_30_days">30 days</string>
-    <string name="export_range_90_days">90 days</string>
-    <string name="export_range_365_days">365 days</string>
-    <string name="export_range_all">All history</string>
-    <string name="export_save_to_files">Save to Files</string>
-    <string name="export_share_to_cloud">Share to cloud app</string>
-    <string name="export_nothing_selected">Choose at least one export item</string>
+    <string name="export_data_settings" tools:ignore="MissingTranslation">Export data/settings</string>
+    <string name="export_data_settings_desc" tools:ignore="MissingTranslation">Choose settings, history, calibrations, or a complete package</string>
+    <string name="export_everything" tools:ignore="MissingTranslation">Everything</string>
+    <string name="export_history_data_desc" tools:ignore="MissingTranslation">Glucose history, journal entries, and insulin presets</string>
+    <string name="export_calibrations_desc" tools:ignore="MissingTranslation">Manual calibration points and calibration behavior</string>
+    <string name="export_range_title" tools:ignore="MissingTranslation">History range</string>
+    <string name="export_range_30_days" tools:ignore="MissingTranslation">30 days</string>
+    <string name="export_range_90_days" tools:ignore="MissingTranslation">90 days</string>
+    <string name="export_range_365_days" tools:ignore="MissingTranslation">365 days</string>
+    <string name="export_range_all" tools:ignore="MissingTranslation">All history</string>
+    <string name="export_save_to_files" tools:ignore="MissingTranslation">Save to Files</string>
+    <string name="export_share_to_cloud" tools:ignore="MissingTranslation">Share to cloud app</string>
+    <string name="export_nothing_selected" tools:ignore="MissingTranslation">Choose at least one export item</string>
     <string name="import_data">Import Data</string>
     <string name="import_data_desc">Load backup or Libreview file</string>
     <string name="import_data_settings">Import Data/Settings</string>
@@ -837,10 +837,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="alert_persistent_high">Persistent High</string>
     <string name="alert_sensor_expiry">Sensor Expiry</string>
     <string name="missed_reading_channel_description">Alerts when no glucose reading arrives for the configured duration</string>
-    <string name="sustained_low_toggle">Require sustained below threshold</string>
-    <string name="sustained_low_duration">Sustained duration</string>
-    <string name="sustained_low_toggle_desc">Only alert when glucose stays below the threshold for the chosen duration. Helps suppress brief sensor compression lows.</string>
-    <string name="sustained_low_alert_suffix"> (sustained %1$d min)</string>
+    <string name="sustained_low_toggle" tools:ignore="MissingTranslation">Require sustained below threshold</string>
+    <string name="sustained_low_duration" tools:ignore="MissingTranslation">Sustained duration</string>
+    <string name="sustained_low_toggle_desc" tools:ignore="MissingTranslation">Only alert when glucose stays below the threshold for the chosen duration. Helps suppress brief sensor compression lows.</string>
+    <string name="sustained_low_alert_suffix" tools:ignore="MissingTranslation"> (sustained %1$d min)</string>
     <string name="sensor_expiry_channel_description">Alerts when the current sensor is nearing expiry</string>
     <string name="alert_falling_fast">Falling Fast</string>
     <string name="alert_rising_fast">Rising Fast</string>
@@ -947,17 +947,17 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     
     <string name="alert_sound">Alert Sound</string>
     <string name="about_text">GPL-3.0 • Fork of Juggluco</string>
-    <string name="refreshing">Refreshing...</string>
+    <string name="refreshing" tools:ignore="MissingTranslation">Refreshing...</string>
     <!-- Missing UI Strings -->
     <string name="auto_calibration_mode">Sensor algorithm</string>
-    <string name="sibionics_custom_algorithm">Adaptive sensor model (experimental)</string>
-    <string name="sibionics_custom_algorithm_desc">Sensor drift, physiological lag and artifact compensation</string>
+    <string name="sibionics_custom_algorithm" tools:ignore="MissingTranslation">Adaptive sensor model (experimental)</string>
+    <string name="sibionics_custom_algorithm_desc" tools:ignore="MissingTranslation">Sensor drift, physiological lag and artifact compensation</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics default</string>
-    <string name="sibionics_stock_algorithm_detail">Use calibrations inside the sensor algorithm</string>
+    <string name="sibionics_stock_algorithm_detail" tools:ignore="MissingTranslation">Use calibrations inside the sensor algorithm</string>
     <string name="sibionics_sensitivity">Sensitivity</string>
     <string name="sibionics_sensor_sensitivity">Sensor value: %1$s</string>
     <string name="sibionics_use_sensor_sensitivity">Use sensor value</string>
-    <string name="sibionics_restart_algorithm_desc">Rebuild the one-minute algorithm state from saved sensor history</string>
+    <string name="sibionics_restart_algorithm_desc" tools:ignore="MissingTranslation">Rebuild the one-minute algorithm state from saved sensor history</string>
     <string name="juggluco_native">Juggluco native</string>
     <string name="window_label">window</string>
     <string name="auto_restart_algorithm">Auto restart algorithm</string>
@@ -993,12 +993,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="caresens_air_sensor_desc">Scan code + Bluetooth</string>
     <string name="aidex_sensor">AiDex / LinX</string>
     <string name="aidex_sensor_desc">Configure AiDex or LinX CGM via Bluetooth</string>
-    <string name="icanhealth_sensor">iCan i3 / Sinocare</string>
-    <string name="icanhealth_sensor_desc">Configure iCan i3/i6/i7 CGM via Bluetooth</string>
-    <string name="mq_sensor">MQ / Glutec</string>
-    <string name="mq_sensor_desc">Pair a Glutec / MQ CGM transmitter via Bluetooth</string>
-    <string name="anytime_sensor">Anytime / Yuwell 4 / 4H / 5</string>
-    <string name="anytime_sensor_desc">Pair an Anytime / Yuwell CT3 CGM transmitter via Bluetooth</string>
+    <string name="icanhealth_sensor" tools:ignore="MissingTranslation">iCan i3 / Sinocare</string>
+    <string name="icanhealth_sensor_desc" tools:ignore="MissingTranslation">Configure iCan i3/i6/i7 CGM via Bluetooth</string>
+    <string name="mq_sensor" tools:ignore="MissingTranslation">MQ / Glutec</string>
+    <string name="mq_sensor_desc" tools:ignore="MissingTranslation">Pair a Glutec / MQ CGM transmitter via Bluetooth</string>
+    <string name="anytime_sensor" tools:ignore="MissingTranslation">Anytime / Yuwell 4 / 4H / 5</string>
+    <string name="anytime_sensor_desc" tools:ignore="MissingTranslation">Pair an Anytime / Yuwell CT3 CGM transmitter via Bluetooth</string>
     <string name="ottai_sensor">Ottai CGM</string>
     <string name="ottai_sensor_desc">Ottai account or credentials file + Bluetooth</string>
     <string name="ottai_sensor_picker_desc">Chinese-market CGM - cloud sign-in + Bluetooth</string>
@@ -1095,20 +1095,20 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_credentials_replace">Replace</string>
 
     <!-- Anytime/Yuwell Setup Wizard Strings -->
-    <string name="anytime_setup_title">Anytime / Yuwell Setup</string>
-    <string name="anytime_searching_sensors">Searching for Anytime / Yuwell transmitters…</string>
-    <string name="anytime_no_sensors_hint">Keep the transmitter close and make sure it is powered on.</string>
-    <string name="anytime_detected_label">%1$s · Anytime CT3 family</string>
-    <string name="anytime_selectable_unrecognized">%1$s · shown because \"See all devices\" is on</string>
-    <string name="anytime_connecting_to">Pairing %1$s…</string>
+    <string name="anytime_setup_title" tools:ignore="MissingTranslation">Anytime / Yuwell Setup</string>
+    <string name="anytime_searching_sensors" tools:ignore="MissingTranslation">Searching for Anytime / Yuwell transmitters…</string>
+    <string name="anytime_no_sensors_hint" tools:ignore="MissingTranslation">Keep the transmitter close and make sure it is powered on.</string>
+    <string name="anytime_detected_label" tools:ignore="MissingTranslation">%1$s · Anytime CT3 family</string>
+    <string name="anytime_selectable_unrecognized" tools:ignore="MissingTranslation">%1$s · shown because \"See all devices\" is on</string>
+    <string name="anytime_connecting_to" tools:ignore="MissingTranslation">Pairing %1$s…</string>
 
     <!-- MQ/Glutec Setup Wizard Strings -->
-    <string name="mq_setup_title">MQ / Glutec Setup</string>
-    <string name="mq_searching_sensors">Searching for MQ / Glutec transmitters…</string>
-    <string name="mq_no_sensors_hint">Keep the transmitter close and make sure it is powered on.</string>
-    <string name="mq_detected_label">%1$s · Nordic UART detected</string>
-    <string name="mq_selectable_unrecognized">%1$s · shown because \"See all devices\" is on</string>
-    <string name="mq_connecting_to">Pairing %1$s…</string>
+    <string name="mq_setup_title" tools:ignore="MissingTranslation">MQ / Glutec Setup</string>
+    <string name="mq_searching_sensors" tools:ignore="MissingTranslation">Searching for MQ / Glutec transmitters…</string>
+    <string name="mq_no_sensors_hint" tools:ignore="MissingTranslation">Keep the transmitter close and make sure it is powered on.</string>
+    <string name="mq_detected_label" tools:ignore="MissingTranslation">%1$s · Nordic UART detected</string>
+    <string name="mq_selectable_unrecognized" tools:ignore="MissingTranslation">%1$s · shown because \"See all devices\" is on</string>
+    <string name="mq_connecting_to" tools:ignore="MissingTranslation">Pairing %1$s…</string>
     <!-- Sibionics Setup Wizard Strings -->
     <string name="scan_transmitter_title">Scan Transmitter</string>
     <string name="scan_transmitter_desc">Select a nearby device or scan the QR code.</string>
@@ -1558,16 +1558,16 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_test_ok">Connected - HTTP %1$d</string>
     <string name="nightscout_test_error">Failed - %1$s</string>
     <string name="nightscout_test_testing">Testing...</string>
-    <string name="nightscout_mode_label">Mode</string>
-    <string name="nightscout_mode_off">Off</string>
-    <string name="nightscout_sensor_desc">Follow a Nightscout site as a read-only glucose source</string>
-    <string name="nightscout_test_server_ok">Server: HTTP %1$d ✓</string>
-    <string name="nightscout_test_server_err">Server: HTTP %1$d ✗</string>
-    <string name="nightscout_test_entries_ok">Entries: HTTP %1$d ✓</string>
-    <string name="nightscout_test_entries_auth_err">Entries: HTTP %1$d — check API secret</string>
-    <string name="nightscout_test_entries_err">Entries: HTTP %1$d</string>
-    <string name="nightscout_test_last_upload_ok">Last upload: %1$s — HTTP %2$d ✓</string>
-    <string name="nightscout_test_last_upload_err">Last upload: %1$s — HTTP %2$d</string>
+    <string name="nightscout_mode_label" tools:ignore="MissingTranslation">Mode</string>
+    <string name="nightscout_mode_off" tools:ignore="MissingTranslation">Off</string>
+    <string name="nightscout_sensor_desc" tools:ignore="MissingTranslation">Follow a Nightscout site as a read-only glucose source</string>
+    <string name="nightscout_test_server_ok" tools:ignore="MissingTranslation">Server: HTTP %1$d ✓</string>
+    <string name="nightscout_test_server_err" tools:ignore="MissingTranslation">Server: HTTP %1$d ✗</string>
+    <string name="nightscout_test_entries_ok" tools:ignore="MissingTranslation">Entries: HTTP %1$d ✓</string>
+    <string name="nightscout_test_entries_auth_err" tools:ignore="MissingTranslation">Entries: HTTP %1$d — check API secret</string>
+    <string name="nightscout_test_entries_err" tools:ignore="MissingTranslation">Entries: HTTP %1$d</string>
+    <string name="nightscout_test_last_upload_ok" tools:ignore="MissingTranslation">Last upload: %1$s — HTTP %2$d ✓</string>
+    <string name="nightscout_test_last_upload_err" tools:ignore="MissingTranslation">Last upload: %1$s — HTTP %2$d</string>
     <string name="no_active_sensor_selected">No active sensor selected</string>
     <string name="no_calibrations_to_export">No calibrations to export</string>
     <string name="not_implemented_natively">Not implemented natively</string>
@@ -1649,7 +1649,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wearosinfo">Wearosinfo</string>
     <string name="wipe_sensor_data_desc">Delete sensor data from this device.</string>
     <string name="wipe_sensor_data_title">Wipe sensor data</string>
-    <string name="manual_calibration">Manual calibarion</string>
+    <string name="manual_calibration" tools:ignore="MissingTranslation">Manual calibarion</string>
 
 
 
@@ -1713,20 +1713,20 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="calibration_initial_shown_status">Source + calibrated</string>
     <string name="calibration_lock_past_history_title">Lock past history</string>
     <string name="calibration_lock_past_history_subtitle">Use only calibration points at or before each reading time.</string>
-    <string name="calibration_apply_past_subtitle">When off, calibration starts near the first calibration point and extends forward.</string>
-    <string name="calibration_overwrite_values_title">Write calibrated values</string>
-    <string name="calibration_overwrite_values_subtitle">Write in DB for statistics, reports, and export.</string>
-    <string name="calibration_visual_continuity_subtitle">Visual mode: continue calibrating from the value you currently see.</string>
-    <string name="scan_with_follower">Scan this QR Code on the Follower device</string>
+    <string name="calibration_apply_past_subtitle" tools:ignore="MissingTranslation">When off, calibration starts near the first calibration point and extends forward.</string>
+    <string name="calibration_overwrite_values_title" tools:ignore="MissingTranslation">Write calibrated values</string>
+    <string name="calibration_overwrite_values_subtitle" tools:ignore="MissingTranslation">Write in DB for statistics, reports, and export.</string>
+    <string name="calibration_visual_continuity_subtitle" tools:ignore="MissingTranslation">Visual mode: continue calibrating from the value you currently see.</string>
+    <string name="scan_with_follower" tools:ignore="MissingTranslation">Scan this QR Code on the Follower device</string>
     <string name="sibionics_ble_probe_title">Nearby Sibionics BLE (FF30)</string>
     <string name="sibionics_ble_probe_desc">If your sensor appears here, Bluetooth is alive. QR scan is still preferred for full setup.</string>
     <string name="sibionics_ble_probe_empty">No FF30 Sibionics devices found yet.</string>
     <string name="sibionics_ble_selected">Selected: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Use fake QR info from this BLE name</string>
-    <string name="sibionics_use_ble_device">Use this Bluetooth device</string>
+    <string name="sibionics_use_ble_device" tools:ignore="MissingTranslation">Use this Bluetooth device</string>
     <string name="sibionics_legacy_driver_title">Legacy driver</string>
     <string name="sibionics_legacy_driver_desc">Use the old proprietary driver only for compatibility with an existing setup.</string>
-    <string name="sibionics_managed_sensor_added">Managed Sibionics sensor added: %1$s</string>
+    <string name="sibionics_managed_sensor_added" tools:ignore="MissingTranslation">Managed Sibionics sensor added: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
     <string name="wear_transport_runtime_available">Wear transport runtime is available.</string>
@@ -1952,18 +1952,18 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mq_friend_request_approved_message">Share request approved.</string>
     <string name="mq_friend_request_rejected_message">Share request rejected.</string>
     <string name="mq_friend_request_remark_format">Message: %1$s</string>
-    <string name="mq_account_section_credentials">Account</string>
-    <string name="mq_account_section_session">Session</string>
-    <string name="mq_account_section_sync">Cloud sync</string>
-    <string name="mq_account_section_followers">Followers</string>
-    <string name="mq_account_section_advanced">Advanced</string>
-    <string name="mq_follower_settings_title">Glutec follower</string>
-    <string name="mq_follower_settings_subtitle">Follow another account · approve share requests</string>
-    <string name="mq_followers_summary_off">Off</string>
-    <string name="mq_followers_summary_following">Following %1$s</string>
-    <string name="mq_sms_recovery_subtitle">Sign in by SMS code, create account, or reset password</string>
-    <string name="mq_sms_show_action">Show options</string>
-    <string name="mq_sms_hide_action">Hide options</string>
+    <string name="mq_account_section_credentials" tools:ignore="MissingTranslation">Account</string>
+    <string name="mq_account_section_session" tools:ignore="MissingTranslation">Session</string>
+    <string name="mq_account_section_sync" tools:ignore="MissingTranslation">Cloud sync</string>
+    <string name="mq_account_section_followers" tools:ignore="MissingTranslation">Followers</string>
+    <string name="mq_account_section_advanced" tools:ignore="MissingTranslation">Advanced</string>
+    <string name="mq_follower_settings_title" tools:ignore="MissingTranslation">Glutec follower</string>
+    <string name="mq_follower_settings_subtitle" tools:ignore="MissingTranslation">Follow another account · approve share requests</string>
+    <string name="mq_followers_summary_off" tools:ignore="MissingTranslation">Off</string>
+    <string name="mq_followers_summary_following" tools:ignore="MissingTranslation">Following %1$s</string>
+    <string name="mq_sms_recovery_subtitle" tools:ignore="MissingTranslation">Sign in by SMS code, create account, or reset password</string>
+    <string name="mq_sms_show_action" tools:ignore="MissingTranslation">Show options</string>
+    <string name="mq_sms_hide_action" tools:ignore="MissingTranslation">Hide options</string>
     <string name="journal_title">Journal</string>
     <string name="journal_gate_desc">Show journal actions in chart and reading rows</string>
     <string name="predictive_simulation_title">Predictive simulation</string>
@@ -2034,7 +2034,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_manage_title">Journal setup</string>
     <string name="journal_manage_desc">Build insulin types, colors, and activity curves</string>
     <string name="journal_import_health_activity">Import Health Connect activity</string>
-    <string name="journal_settings_summary">%1$s · %2$d insulin types</string>
+    <string name="journal_settings_summary" tools:ignore="MissingTranslation">%1$s · %2$d insulin types</string>
     <string name="journal_quick_actions">Quick log</string>
     <string name="journal_show_tab_title">Show Journal tab</string>
     <string name="journal_show_tab_desc">Add Journal to the main bottom navigation when journal tools are enabled</string>
@@ -2112,7 +2112,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_empty">No journal events in this window yet</string>
     <string name="journal_type_insulin">Insulin</string>
     <string name="journal_type_food">Food</string>
-    <string name="journal_type_bg_short">BG</string>
+    <string name="journal_type_bg_short" tools:ignore="MissingTranslation">BG</string>
     <string name="journal_type_fingerstick">Fingerstick</string>
     <string name="journal_type_activity">Activity</string>
     <string name="journal_type_note">Note</string>
@@ -2126,22 +2126,22 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_intensity_moderate">Moderate</string>
     <string name="journal_intensity_intense">Intense</string>
     <string name="journal_insulin_library">Insulin library</string>
-    <string name="journal_archived_presets">Disabled insulin types</string>
-    <string name="journal_curve_title">Editable activity curve</string>
-    <string name="journal_curve_preview">Curve preview</string>
-    <string name="journal_curve_add_point">Add curve point</string>
-    <string name="journal_curve_point">Point %1$d</string>
-    <string name="journal_curve_minutes">Minute</string>
-    <string name="journal_curve_activity">Activity</string>
-    <string name="journal_curve_reset">Reset curve</string>
-    <string name="journal_enable_preset">Restore</string>
-    <string name="journal_disable_preset">Disable</string>
+    <string name="journal_archived_presets" tools:ignore="MissingTranslation">Disabled insulin types</string>
+    <string name="journal_curve_title" tools:ignore="MissingTranslation">Editable activity curve</string>
+    <string name="journal_curve_preview" tools:ignore="MissingTranslation">Curve preview</string>
+    <string name="journal_curve_add_point" tools:ignore="MissingTranslation">Add curve point</string>
+    <string name="journal_curve_point" tools:ignore="MissingTranslation">Point %1$d</string>
+    <string name="journal_curve_minutes" tools:ignore="MissingTranslation">Minute</string>
+    <string name="journal_curve_activity" tools:ignore="MissingTranslation">Activity</string>
+    <string name="journal_curve_reset" tools:ignore="MissingTranslation">Reset curve</string>
+    <string name="journal_enable_preset" tools:ignore="MissingTranslation">Restore</string>
+    <string name="journal_disable_preset" tools:ignore="MissingTranslation">Disable</string>
     <string name="journal_active_insulin">Active insulin</string>
     <string name="journal_active_insulin_subtitle">Counts toward IOB and predictions</string>
     <string name="journal_active_insulin_summary">%1$d doses · %2$sU · %3$d%% now</string>
     <string name="journal_active_insulin_until">Running until %1$s</string>
-    <string name="journal_preset_nph">Intermediate / NPH</string>
-    <string name="journal_preset_ultra_long_basal">Ultra long basal</string>
+    <string name="journal_preset_nph" tools:ignore="MissingTranslation">Intermediate / NPH</string>
+    <string name="journal_preset_ultra_long_basal" tools:ignore="MissingTranslation">Ultra long basal</string>
     <string name="notification_settings_title">Notification settings</string>
     <string name="notification_settings_subtitle">Customize notification shade</string>
     <string name="notification_charts_section">Charts</string>
@@ -2431,21 +2431,21 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="api_source_telegram_token">Telegram bot token</string>
     <string name="api_source_telegram_chat_ids">Allowed chat IDs</string>
     <string name="api_source_telegram_note">Telegram keeps bot updates for up to 24 hours. Enter one or more chat IDs/usernames whose bot messages may be imported.</string>
-    <string name="voice_schedule_title">Speak Schedule</string>
-    <string name="voice_schedule_desc">Only speak readings during this time window</string>
-    <string name="voice_schedule_from">From</string>
-    <string name="voice_schedule_until">Until</string>
+    <string name="voice_schedule_title" tools:ignore="MissingTranslation">Speak Schedule</string>
+    <string name="voice_schedule_desc" tools:ignore="MissingTranslation">Only speak readings during this time window</string>
+    <string name="voice_schedule_from" tools:ignore="MissingTranslation">From</string>
+    <string name="voice_schedule_until" tools:ignore="MissingTranslation">Until</string>
     <string name="sensor_display_select">Select display sensor</string>
     <string name="sensor_display_selected">Display sensor selected</string>
     <string name="wrongcode">Wrong QR code</string>
-    <string name="sibionics_glucose_model">Glucose model</string>
-    <string name="sibionics_stock_model_detail">Exact Sibionics sensor algorithm</string>
+    <string name="sibionics_glucose_model" tools:ignore="MissingTranslation">Glucose model</string>
+    <string name="sibionics_stock_model_detail" tools:ignore="MissingTranslation">Exact Sibionics sensor algorithm</string>
     <string name="sibionics_responsive_algorithm">Fast response</string>
-    <string name="sibionics_responsive_algorithm_desc">Original trend-aware glucose and velocity estimator</string>
+    <string name="sibionics_responsive_algorithm_desc" tools:ignore="MissingTranslation">Original trend-aware glucose and velocity estimator</string>
     <string name="sibionics_balanced_algorithm">Light smoothing</string>
-    <string name="sibionics_balanced_algorithm_desc">Bounded noise reduction that follows the stock model closely</string>
+    <string name="sibionics_balanced_algorithm_desc" tools:ignore="MissingTranslation">Bounded noise reduction that follows the stock model closely</string>
     <string name="sibionics_state_algorithm">Adaptive correction</string>
-    <string name="sibionics_state_algorithm_desc">Sensor drift, physiological lag and artifact compensation</string>
+    <string name="sibionics_state_algorithm_desc" tools:ignore="MissingTranslation">Sensor drift, physiological lag and artifact compensation</string>
     <string name="sibionics_auto_reset_22_desc">Reset near 22 days, preferring a steadier glucose window. A final safety reset runs before expiry even when this is off.</string>
     <string name="sibionics_reset_reminder_title">Sibionics 2 reset coming up</string>
     <string name="sibionics_reset_reminder_text">The sensor reaches its reset point in about %1$d hours. Reset it in time to keep it running.</string>
@@ -2455,12 +2455,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_span_days">%1$d days</string>
     <string name="stats_window_24h">24H</string>
     <!-- GlucoDroid-specific strings -->
-    <string name="copy_log">Copy log</string>
-    <string name="share_log">Share log</string>
-    <string name="about_upstream">Fork of JugglucoNG v1.0.3-Alpha • GPL-3.0</string>
-    <string name="about_cloud">Made for glucodroid.cloud</string>
+    <string name="copy_log" tools:ignore="MissingTranslation">Copy log</string>
+    <string name="share_log" tools:ignore="MissingTranslation">Share log</string>
+    <string name="about_upstream" tools:ignore="MissingTranslation">Fork of JugglucoNG v1.0.3-Alpha • GPL-3.0</string>
+    <string name="about_cloud" tools:ignore="MissingTranslation">Made for glucodroid.cloud</string>
     <string name="outbound_api_glucodroid_subdomain" tools:ignore="MissingTranslation">Subdomain</string>
     <string name="outbound_api_glucodroid_ingest_token" tools:ignore="MissingTranslation">API secret</string>
-    <string name="outbound_api_preset_glucodroid_cloud">GlucoDroid Cloud</string>
-    <string name="outbound_api_preset_glucodroid_cloud_desc">Official GlucoDroid cloud endpoint</string>
+    <string name="outbound_api_preset_glucodroid_cloud" tools:ignore="MissingTranslation">GlucoDroid Cloud</string>
+    <string name="outbound_api_preset_glucodroid_cloud_desc" tools:ignore="MissingTranslation">Official GlucoDroid cloud endpoint</string>
 </resources>

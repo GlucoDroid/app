@@ -382,7 +382,7 @@ View[] durviews;
 
 			if(def.isChecked())
 				uri="";
-			  if(!Natives.writering(kind,uri,sound.isChecked(),hasflash&&flashview.isChecked(),vibration.isChecked())) {
+			if(!Natives.writering(kind,uri,sound.isChecked(),hasflash&&flashview.isChecked(),vibration.isChecked())) {
 				Applic.argToaster(context, uri+context.getString(R.string.too_large), Toast.LENGTH_SHORT);
 				return;
 			  	}
@@ -405,7 +405,7 @@ View[] durviews;
 
 			//	parview.setVisibility(VISIBLE);
 
-		        one=null;
+			one=null;
 		        hidekeyboard(context);
 			lay.setVisibility(GONE);
 			Settings.removeContentView(lay) ;

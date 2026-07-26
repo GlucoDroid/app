@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="language">pl</string>
     <string name="languagename">Język</string>
 
@@ -2056,11 +2056,11 @@
     <string name="sound_delay_hypo_warning">Uwaga: powoduje to opóźnienie alarmu dźwiękowego informującego o niskim poziomie glukozy.</string>
     <string name="sound_delay_label">Opóźnienie dźwięku</string>
     <string name="sound_delay_title">Opóźnij dźwięk alarmu</string>
-    <plurals name="sensor_expires_in_days">
+    <plurals name="sensor_expires_in_days" tools:ignore="MissingQuantity">
         <item quantity="one">Czujnik traci ważność za dzień %d</item>
         <item quantity="other">Czujnik traci ważność za %d dni</item>
     </plurals>
-    <plurals name="sensor_expires_in_hours">
+    <plurals name="sensor_expires_in_hours" tools:ignore="MissingQuantity">
         <item quantity="one">Czujnik traci ważność za godzinę %d</item>
         <item quantity="other">Ważność czujnika wygasa za %d godzin</item>
     </plurals>

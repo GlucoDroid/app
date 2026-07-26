@@ -268,6 +268,7 @@ public class UnifiedScanActivity extends AppCompatActivity {
         }, ContextCompat.getMainExecutor(this));
     }
 
+    @SuppressLint("UnsafeOptInUsageError")
     private void bindCameraUseCases() {
         if (cameraProvider == null || finished.get() || isFinishing() || isDestroyed()) return;
         cameraProvider.unbindAll();

@@ -77,9 +77,12 @@ private fun Context.hasCameraPermission(): Boolean {
     return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 }
 
+@SuppressLint("UnsafeOptInUsageError")
+private fun androidx.camera.core.ImageProxy.extractMediaImage() = image
+
 @Composable
 @SuppressLint("ClickableViewAccessibility")
-@androidx.camera.core.ExperimentalGetImage
+@OptIn(androidx.camera.core.ExperimentalGetImage::class)
 fun InlineQrScannerCard(
     modifier: Modifier = Modifier,
     scannerEnabled: Boolean = true,
@@ -229,7 +232,7 @@ fun InlineQrScannerCard(
                             .build()
                             .also { imageAnalysis ->
                                 imageAnalysis.setAnalyzer(analyzerExecutor) { imageProxy ->
-                                    val mediaImage = imageProxy.image
+                                    val mediaImage = imageProxy.extractMediaImage()
                                     val scanner = barcodeScanner
                                     if (mediaImage == null || consumed || scanner == null) {
                                         imageProxy.close()

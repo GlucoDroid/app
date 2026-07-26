@@ -1657,7 +1657,10 @@ public class Notify {
     Vibrator vibrator = null;
 
     private void vibrateWaveform(Vibrator vibrator, long[] timings, int[] amplitudes, int repeatIndex) {
-        if (android.os.Build.VERSION.SDK_INT < 33) {
+        if (android.os.Build.VERSION.SDK_INT < 26) {
+            // VibrationEffect/amplitude control need API 26; fall back to the plain pattern API.
+            vibrator.vibrate(timings, repeatIndex);
+        } else if (android.os.Build.VERSION.SDK_INT < 33) {
             vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, repeatIndex), ScanNfcV.audioattributes);
         } else {
             vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, repeatIndex), ScanNfcV.vibrationattributes);
