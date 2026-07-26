@@ -1,0 +1,973 @@
+package tk.glucodata.ui.stats
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
+import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalDensity
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import tk.glucodata.R
+import java.util.Locale
+
+/**
+ * One metric, formatted for display. The same spec drives the statistics grid and the
+ * pinned dashboard chips, so a number can only be formatted one way.
+ */
+internal data class MetricSpec(
+    val metric: StatsMetric,
+    val title: String,
+    val value: String,
+    val status: String,
+    val meta: String,
+    val tone: Color,
+    val infoText: String? = null
+)
+
+@Composable
+internal fun ScoreTile(
+    title: String,
+    value: String,
+    status: String,
+    meta: String,
+    tone: Color,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    modifier: Modifier = Modifier,
+    infoText: String? = null,
+    forceStatusOwnRow: Boolean? = null,
+    // Keep the line even when this tile has nothing for it, so a tile that does have
+    // one does not end up taller than its neighbour.
+    reserveStatus: Boolean = false,
+    reserveMeta: Boolean = false
+) {
+    val expandable = !infoText.isNullOrBlank()
+    val hasStatus = status.isNotBlank() || reserveStatus
+    val hasMeta = meta.isNotBlank() || reserveMeta
+    val tileShape = RoundedCornerShape(topStart = 20.dp, topEnd = 12.dp, bottomStart = 12.dp, bottomEnd = 20.dp)
+    val tileColor = tone.copy(alpha = 0.09f)
+        .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
+    val titleStyle = MaterialTheme.typography.titleMedium.copy(lineHeight = 22.sp)
+    val statusStyle = MaterialTheme.typography.titleSmall.copy(lineHeight = 20.sp)
+    val valueStyle = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum")
+    Box(
+        modifier = modifier
+            .animateContentSize()
+            .graphicsLayer {
+                shape = tileShape
+                clip = true
+            }
+            .background(
+                color = tileColor,
+                shape = tileShape
+            )
+            .then(
+                if (expandable) Modifier.clickable(onClick = onToggleExpanded) else Modifier
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(if (hasMeta) 6.dp else 4.dp)
+        ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val density = LocalDensity.current
+                val textMeasurer = rememberTextMeasurer()
+                val titleGapPx = with(density) { 12.dp.roundToPx() }
+                val sharedWidthPx = with(density) { maxWidth.roundToPx() }
+                val autoStatusNeedsOwnRow = remember(
+                    forceStatusOwnRow,
+                    value,
+                    status,
+                    textMeasurer,
+                    density,
+                    valueStyle,
+                    statusStyle,
+                    hasStatus,
+                    sharedWidthPx
+                ) {
+                    if (forceStatusOwnRow != null || !hasStatus) {
+                        false
+                    } else {
+                        val valueWidthPx = textMeasurer.measure(
+                            text = AnnotatedString(value),
+                            style = valueStyle,
+                            maxLines = 1
+                        ).size.width
+                        val statusWidthPx = textMeasurer.measure(
+                            text = AnnotatedString(status),
+                            style = statusStyle,
+                            maxLines = 1
+                        ).size.width
+                        statusWidthPx > (sharedWidthPx - valueWidthPx - titleGapPx).coerceAtLeast(0)
+                    }
+                }
+                val statusNeedsOwnRow = forceStatusOwnRow ?: autoStatusNeedsOwnRow
+
+                if (statusNeedsOwnRow) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = title,
+                                    style = titleStyle,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (expandable) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = value,
+                                style = valueStyle,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(start = 12.dp),
+                                maxLines = 1,
+                                softWrap = false,
+                                textAlign = TextAlign.End
+                            )
+                        }
+                        Text(
+                            text = status,
+                            style = statusStyle,
+                            color = tone,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(if (hasStatus) 4.dp else 0.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = title,
+                                    style = titleStyle,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (expandable) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                            if (hasStatus) {
+                                Text(
+                                    text = status,
+                                    style = statusStyle,
+                                    color = tone,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Text(
+                            text = value,
+                            style = valueStyle,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 12.dp),
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = TextAlign.End
+                        )
+                    }
+                }
+            }
+            if (hasMeta) {
+                Text(
+                    text = meta,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontFeatureSettings = "tnum",
+                        lineHeight = 18.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            AnimatedVisibility(
+                visible = expandable && expanded,
+                enter = fadeIn(animationSpec = tween(180)) + expandVertically(animationSpec = tween(220)),
+                exit = fadeOut(animationSpec = tween(140)) + shrinkVertically(animationSpec = tween(180))
+            ) {
+                Text(
+                    text = infoText.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Measures whether a tile's status still fits beside its value, so both tiles in a row
+ * can agree on one layout. Kept from the original tile; only its visibility changed.
+ */
+@Composable
+internal fun rememberScoreTileNeedsOwnRow(
+    contentWidth: Dp,
+    value: String,
+    status: String
+): Boolean {
+    if (status.isBlank()) return false
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+    val statusStyle = MaterialTheme.typography.titleSmall.copy(lineHeight = 20.sp)
+    val valueStyle = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum")
+    return remember(contentWidth, value, status, density, textMeasurer, statusStyle, valueStyle) {
+        val widthPx = with(density) { maxOf(contentWidth, 0.dp).roundToPx() }
+        val titleGapPx = with(density) { 12.dp.roundToPx() }
+        val valueWidthPx = textMeasurer.measure(
+            text = AnnotatedString(value),
+            style = valueStyle,
+            maxLines = 1
+        ).size.width
+        val statusWidthPx = textMeasurer.measure(
+            text = AnnotatedString(status),
+            style = statusStyle,
+            maxLines = 1
+        ).size.width
+        statusWidthPx > (widthPx - valueWidthPx - titleGapPx).coerceAtLeast(0)
+    }
+}
+
+/**
+ * Formats one metric from the current summary.
+ *
+ * Every glucose number goes through [formatMgDl], so a metric can never print mg/dL to
+ * someone reading mmol/L — including the bounds quoted in the explanations, which come
+ * from the user's own targets rather than fixed constants.
+ */
+@Composable
+internal fun metricSpec(
+    metric: StatsMetric,
+    summary: StatsSummary,
+    targets: StatsTargets,
+    unit: GlucoseUnit
+): MetricSpec {
+    val title = stringResource(metric.titleResId)
+    val targetRange = "${formatMgDl(targets.lowMgDl, unit)}-${formatMgDl(targets.highMgDl, unit)}"
+
+    val lowWord = stringResource(R.string.low_range)
+    val highWord = stringResource(R.string.high_range)
+    val inRangeWord = stringResource(R.string.in_range)
+    val steadyWord = stringResource(R.string.gvi_good)
+    val middlingWord = stringResource(R.string.gvi_moderate)
+    val swingyWord = stringResource(R.string.gvi_poor)
+    val typicalWord = stringResource(R.string.typical)
+    val noneWord = stringResource(R.string.stats_metric_none)
+    val rangeWord = stringResource(R.string.range)
+    val targetWord = stringResource(R.string.gmi_target)
+    val targetValue = stringResource(R.string.gmi_target_value)
+    val tirWord = stringResource(R.string.tir)
+    val stabilityWord = stringResource(R.string.stability)
+    val trendWord = stringResource(R.string.stats_trend)
+
+    fun bandTone(valueMgDl: Float): Color = when {
+        valueMgDl < targets.lowMgDl || valueMgDl > targets.highMgDl -> TirVeryHighColor
+        valueMgDl <= targets.lowMgDl + 8f || valueMgDl >= targets.highMgDl - 8f -> TirHighColor
+        else -> TirInRangeColor
+    }
+
+    fun bandStatus(valueMgDl: Float): String = when {
+        valueMgDl < targets.lowMgDl -> lowWord
+        valueMgDl > targets.highMgDl -> highWord
+        else -> inRangeWord
+    }
+
+    fun spec(
+        value: String,
+        status: String,
+        meta: String = "",
+        tone: Color,
+        infoText: String? = null
+    ) = MetricSpec(metric, title, value, status, meta, tone, infoText)
+
+    return when (metric) {
+        StatsMetric.TIME_IN_RANGE -> spec(
+            value = String.format(Locale.getDefault(), "%.0f%%", summary.tir.inRangePercent),
+            status = if (summary.tir.inRangePercent >= 70f) steadyWord else middlingWord,
+            meta = "$rangeWord $targetRange",
+            tone = tirHeatColor(summary.tir.inRangePercent)
+        )
+
+        StatsMetric.AVERAGE -> spec(
+            value = formatMgDl(summary.avgMgDl, unit),
+            status = bandStatus(summary.avgMgDl),
+            meta = "$rangeWord $targetRange",
+            tone = bandTone(summary.avgMgDl)
+        )
+
+        StatsMetric.GMI -> spec(
+            value = String.format(Locale.getDefault(), "%.1f%%", summary.gmiPercent),
+            status = if (summary.gmiPercent <= 7.0f) targetWord else highWord,
+            meta = "$targetWord $targetValue",
+            tone = when {
+                summary.gmiPercent < 5.7f -> TirInRangeColor
+                summary.gmiPercent < 6.5f -> TirHighColor
+                else -> TirVeryHighColor
+            }
+        )
+
+        StatsMetric.CV -> spec(
+            value = String.format(Locale.getDefault(), "%.1f%%", summary.cvPercent),
+            status = when {
+                summary.cvPercent < 32f -> steadyWord
+                summary.cvPercent < 40f -> middlingWord
+                else -> swingyWord
+            },
+            tone = when {
+                summary.cvPercent < 32f -> TirInRangeColor
+                summary.cvPercent < 40f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.cv_description)
+        )
+
+        StatsMetric.TIGHT_RANGE -> {
+            val (low, high) = StatsAnalytics.tightRangeBounds(targets)
+            val bounds = "${formatMgDl(low, unit)}-${formatMgDl(high, unit)}"
+            spec(
+                value = String.format(Locale.getDefault(), "%.0f%%", summary.tightRangePercent),
+                status = if (summary.tightRangePercent >= 50f) steadyWord else middlingWord,
+                meta = bounds,
+                tone = when {
+                    summary.tightRangePercent >= 50f -> TirInRangeColor
+                    summary.tightRangePercent >= 30f -> TirHighColor
+                    else -> TirVeryHighColor
+                },
+                infoText = stringResource(R.string.stats_tight_range_description, bounds)
+            )
+        }
+
+        StatsMetric.MEDIAN -> spec(
+            value = formatMgDl(summary.medianMgDl, unit),
+            status = bandStatus(summary.medianMgDl),
+            meta = "$typicalWord · ${String.format(Locale.getDefault(), "%.0f%% %s", summary.tir.inRangePercent, tirWord)}",
+            tone = bandTone(summary.medianMgDl)
+        )
+
+        StatsMetric.IQR -> spec(
+            value = formatMgDl((summary.p75MgDl - summary.p25MgDl).coerceAtLeast(0f), unit),
+            status = typicalWord,
+            meta = "${formatMgDl(summary.p25MgDl, unit)}-${formatMgDl(summary.p75MgDl, unit)}",
+            tone = when {
+                summary.cvPercent < 32f -> TirInRangeColor
+                summary.cvPercent < 40f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.iqr_description)
+        )
+
+        StatsMetric.STD_DEV -> spec(
+            value = formatMgDl(summary.stdDevMgDl, unit),
+            status = when {
+                summary.stdDevMgDl < 18f -> steadyWord
+                summary.stdDevMgDl < 27f -> middlingWord
+                else -> swingyWord
+            },
+            tone = when {
+                summary.stdDevMgDl < 18f -> TirInRangeColor
+                summary.stdDevMgDl < 27f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.std_dev_description)
+        )
+
+        StatsMetric.LOW_EPISODES -> spec(
+            value = summary.lowEpisodes.count.toString(),
+            status = if (summary.lowEpisodes.count == 0) noneWord else lowWord,
+            meta = episodeMeta(summary.lowEpisodes),
+            tone = if (summary.lowEpisodes.count == 0) TirInRangeColor else TirVeryLowColor,
+            infoText = stringResource(R.string.episodes_subtitle)
+        )
+
+        StatsMetric.HIGH_EPISODES -> spec(
+            value = summary.highEpisodes.count.toString(),
+            status = if (summary.highEpisodes.count == 0) noneWord else highWord,
+            meta = episodeMeta(summary.highEpisodes),
+            tone = if (summary.highEpisodes.count == 0) TirInRangeColor else TirVeryHighColor,
+            infoText = stringResource(R.string.episodes_subtitle)
+        )
+
+        StatsMetric.COVERAGE -> spec(
+            value = String.format(Locale.getDefault(), "%.0f%%", summary.coverage.percent),
+            status = if (summary.coverage.percent >= 85f) steadyWord else middlingWord,
+            meta = stringResource(R.string.stats_metric_readings, summary.coverage.readingCount),
+            tone = when {
+                summary.coverage.percent >= 85f -> TirInRangeColor
+                summary.coverage.percent >= 70f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.stats_card_coverage_description)
+        )
+
+        StatsMetric.LBGI -> spec(
+            value = String.format(Locale.getDefault(), "%.1f", summary.risk.lbgi),
+            status = stringResource(
+                when {
+                    summary.risk.lbgi < 1.1f -> R.string.risk_minimal
+                    summary.risk.lbgi < 2.5f -> R.string.risk_low
+                    summary.risk.lbgi < 5f -> R.string.risk_moderate
+                    else -> R.string.risk_high
+                }
+            ),
+            tone = if (summary.risk.lbgi < 2.5f) TirInRangeColor else TirVeryLowColor,
+            infoText = stringResource(R.string.lbgi_description)
+        )
+
+        StatsMetric.HBGI -> spec(
+            value = String.format(Locale.getDefault(), "%.1f", summary.risk.hbgi),
+            status = stringResource(
+                when {
+                    summary.risk.hbgi < 4.5f -> R.string.risk_low
+                    summary.risk.hbgi < 9f -> R.string.risk_moderate
+                    else -> R.string.risk_high
+                }
+            ),
+            tone = if (summary.risk.hbgi < 4.5f) TirInRangeColor else TirVeryHighColor,
+            infoText = stringResource(R.string.hbgi_description)
+        )
+
+        StatsMetric.GRI -> spec(
+            value = String.format(Locale.getDefault(), "%.0f", summary.gri.value),
+            status = stringResource(summary.gri.zone.labelResId),
+            meta = "${stringResource(R.string.gri_from_lows, String.format(Locale.getDefault(), "%.0f", summary.gri.hypoComponent))} · ${stringResource(R.string.gri_from_highs, String.format(Locale.getDefault(), "%.0f", summary.gri.hyperComponent))}",
+            tone = when (summary.gri.zone) {
+                GriZone.A, GriZone.B -> TirInRangeColor
+                GriZone.C -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.gri_description)
+        )
+
+        StatsMetric.GVI -> spec(
+            value = String.format(Locale.getDefault(), "%.2f", summary.gvi.value),
+            status = stringResource(summary.gvi.labelResId),
+            meta = "$stabilityWord ${String.format(Locale.getDefault(), "%.0f%%", summary.gvi.stability)} · ROC ${String.format(Locale.getDefault(), "%.2f", summary.gvi.rateOfChange)}",
+            tone = when {
+                summary.gvi.value < 1.55f -> TirInRangeColor
+                summary.gvi.value < 1.90f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.gvi_description)
+        )
+
+        StatsMetric.DAWN_RISE -> spec(
+            value = if (summary.dawnRiseMgDl > 0f) {
+                "+${formatMgDl(summary.dawnRiseMgDl, unit)}"
+            } else {
+                "—"
+            },
+            status = when {
+                summary.dawnRiseMgDl <= 0f -> noneWord
+                summary.dawnRiseMgDl < 30f -> steadyWord
+                summary.dawnRiseMgDl < 55f -> middlingWord
+                else -> swingyWord
+            },
+            meta = "00:00-09:00",
+            tone = when {
+                summary.dawnRiseMgDl < 30f -> TirInRangeColor
+                summary.dawnRiseMgDl < 55f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.stats_metric_dawn_description)
+        )
+
+        StatsMetric.MAGE -> spec(
+            value = formatMgDl(summary.mageMgDl, unit),
+            status = when {
+                summary.mageMgDl < 45f -> steadyWord
+                summary.mageMgDl < 90f -> middlingWord
+                else -> swingyWord
+            },
+            tone = when {
+                summary.mageMgDl < 45f -> TirInRangeColor
+                summary.mageMgDl < 90f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.stats_metric_mage_description)
+        )
+
+        StatsMetric.MODD -> spec(
+            value = formatMgDl(summary.moddMgDl, unit),
+            status = when {
+                summary.moddMgDl <= 0f -> noneWord
+                summary.moddMgDl < 36f -> steadyWord
+                summary.moddMgDl < 60f -> middlingWord
+                else -> swingyWord
+            },
+            tone = when {
+                summary.moddMgDl < 36f -> TirInRangeColor
+                summary.moddMgDl < 60f -> TirHighColor
+                else -> TirVeryHighColor
+            },
+            infoText = stringResource(R.string.stats_metric_modd_description)
+        )
+
+        StatsMetric.STREAK -> spec(
+            value = summary.bestStreakDays.toString(),
+            status = if (summary.bestStreakDays == 0) noneWord else steadyWord,
+            meta = stringResource(R.string.stats_metric_streak_meta),
+            tone = if (summary.bestStreakDays >= 3) TirInRangeColor else TirHighColor,
+            infoText = stringResource(R.string.stats_metric_streak_description)
+        )
+
+        StatsMetric.PSG -> spec(
+            value = formatMgDl(summary.psg.baselineMgDl, unit),
+            status = stringResource(summary.psg.labelResId),
+            meta = "${String.format(Locale.getDefault(), "%.0f%%", summary.psg.confidence)} · $trendWord ${if (summary.psg.trend >= 0f) "+" else ""}${String.format(Locale.getDefault(), "%.0f%%", summary.psg.trend * 100f)}",
+            tone = when (summary.psg.labelResId) {
+                R.string.psg_stable -> TirInRangeColor
+                R.string.psg_low -> TirLowColor
+                R.string.psg_elevated -> TirVeryHighColor
+                else -> TirHighColor
+            },
+            infoText = stringResource(R.string.psg_description)
+        )
+    }
+}
+
+@Composable
+private fun episodeMeta(summary: EpisodeSummary): String {
+    if (summary.count == 0) return ""
+    return "${stringResource(R.string.episodes_typical)} ${durationText(summary.medianDurationMinutes)}"
+}
+
+/**
+ * Packs metrics into rows.
+ *
+ * A metric marked wide takes a whole row; the rest pair up, and a metric left over at
+ * the end widens to fill its row instead of leaving a hole beside it. That hole was
+ * the gap — the tile design itself is unchanged.
+ */
+internal fun packMetricRows(
+    metrics: List<StatsMetric>,
+    wide: Set<StatsMetric>
+): List<Pair<StatsMetric, StatsMetric?>> {
+    val rows = ArrayList<Pair<StatsMetric, StatsMetric?>>()
+    var index = 0
+    while (index < metrics.size) {
+        val first = metrics[index]
+        val second = metrics.getOrNull(index + 1)
+        if (first in wide || second == null || second in wide) {
+            rows += first to null
+            index += 1
+        } else {
+            rows += first to second
+            index += 2
+        }
+    }
+    return rows
+}
+
+@Composable
+internal fun MetricsGrid(
+    metrics: List<StatsMetric>,
+    wideMetrics: Set<StatsMetric>,
+    summary: StatsSummary,
+    targets: StatsTargets,
+    unit: GlucoseUnit,
+    expanded: Set<StatsMetric>,
+    onToggleExpanded: (StatsMetric) -> Unit,
+    dragState: MetricDragState?,
+    modifier: Modifier = Modifier
+) {
+    val rows = remember(metrics, wideMetrics) { packMetricRows(metrics, wideMetrics) }
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        rows.forEach { (left, right) ->
+            MetricRow(
+                left = metricSpec(left, summary, targets, unit),
+                right = right?.let { metricSpec(it, summary, targets, unit) },
+                expanded = expanded,
+                onToggleExpanded = onToggleExpanded,
+                dragState = dragState
+            )
+        }
+    }
+}
+
+/**
+ * Two tiles share a row.
+ *
+ * They come out the same height without any layout trickery: both are given the same
+ * structure — same status row decision, and a reserved meta line when either of them
+ * has one — so a plain Row is enough. Two earlier attempts at stretching them are why
+ * this is now deliberately boring: `height(IntrinsicSize.Min)` throws because the tile
+ * contains a `BoxWithConstraints`, and measuring the children twice to find the tallest
+ * throws because a Measurable may only be measured once.
+ *
+ * When one tile is open the other keeps its own height and the row ends short, which is
+ * the intended behaviour — stretching it would make an unrelated tile look expanded.
+ */
+@Composable
+private fun MetricRow(
+    left: MetricSpec,
+    right: MetricSpec?,
+    expanded: Set<StatsMetric>,
+    onToggleExpanded: (StatsMetric) -> Unit,
+    dragState: MetricDragState?,
+    modifier: Modifier = Modifier,
+    spacing: Dp = 12.dp
+) {
+    // A blank placeholder string does not work here: " ".isBlank() is true, so the
+    // tile still dropped the line. The reservation has to be an explicit flag.
+    val reserveStatus = left.status.isNotBlank() || right?.status?.isNotBlank() == true
+    val reserveMeta = left.meta.isNotBlank() || right?.meta?.isNotBlank() == true
+    val leftSpec = left
+    val rightSpec = right
+
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val tileContentWidth = if (rightSpec == null) {
+            maxWidth - 28.dp
+        } else {
+            ((maxWidth - spacing) / 2f) - 28.dp
+        }
+        val useOwnStatusRow =
+            rememberScoreTileNeedsOwnRow(tileContentWidth, leftSpec.value, leftSpec.status) ||
+                (rightSpec != null &&
+                    rememberScoreTileNeedsOwnRow(tileContentWidth, rightSpec.value, rightSpec.status))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(spacing)
+        ) {
+            ScoreTile(
+                title = leftSpec.title,
+                value = leftSpec.value,
+                status = leftSpec.status,
+                meta = leftSpec.meta,
+                tone = leftSpec.tone,
+                expanded = leftSpec.metric in expanded,
+                onToggleExpanded = { onToggleExpanded(leftSpec.metric) },
+                infoText = leftSpec.infoText,
+                forceStatusOwnRow = useOwnStatusRow,
+                reserveStatus = reserveStatus,
+                reserveMeta = reserveMeta,
+                modifier = Modifier
+                    .weight(1f)
+                    .metricDrag(leftSpec.metric, dragState)
+            )
+            if (rightSpec != null) {
+                ScoreTile(
+                    title = rightSpec.title,
+                    value = rightSpec.value,
+                    status = rightSpec.status,
+                    meta = rightSpec.meta,
+                    tone = rightSpec.tone,
+                    expanded = rightSpec.metric in expanded,
+                    onToggleExpanded = { onToggleExpanded(rightSpec.metric) },
+                    infoText = rightSpec.infoText,
+                    forceStatusOwnRow = useOwnStatusRow,
+                    reserveStatus = reserveStatus,
+                    reserveMeta = reserveMeta,
+                    modifier = Modifier
+                        .weight(1f)
+                        .metricDrag(rightSpec.metric, dragState)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Lift-and-drop for one tile. Nothing is applied when no drag state is supplied, so the
+ * dashboard chips and any other reuse stay inert.
+ */
+@Composable
+private fun Modifier.metricDrag(metric: StatsMetric, dragState: MetricDragState?): Modifier {
+    if (dragState == null) return this
+    val view = LocalView.current
+    val isDragging = dragState.dragging == metric
+    val lift by animateFloatAsState(if (isDragging) 1f else 0f, label = "metricLift")
+    return this
+        .zIndex(if (isDragging) 1f else 0f)
+        .graphicsLayer {
+            translationX = if (isDragging) dragState.offset.x else 0f
+            translationY = if (isDragging) dragState.offset.y else 0f
+            scaleX = 1f + 0.03f * lift
+            scaleY = 1f + 0.03f * lift
+            shadowElevation = 10.dp.toPx() * lift
+        }
+        .draggableMetric(
+            metric = metric,
+            state = dragState,
+            onLift = { view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) },
+            onTick = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
+        )
+}
+
+/**
+ * Compact form used by the dashboard strip, where vertical space is precious.
+ *
+ * Time in range gets its band split in the space beside the number — the number alone
+ * says 92% without saying whether the missing 8% went high or low. Beside rather than
+ * underneath: underneath made the chip taller, and since the row matches heights, every
+ * other chip grew a band of dead space to match it.
+ */
+@Composable
+internal fun PinnedMetricChip(
+    spec: MetricSpec,
+    modifier: Modifier = Modifier,
+    tir: TimeInRangeBreakdown? = null
+) {
+    Row(
+        modifier = modifier
+            .clip(statsCardShape(16.dp, 10.dp))
+            .background(spec.tone.copy(alpha = 0.11f).compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                text = spec.title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = spec.value,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFeatureSettings = "tnum",
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = spec.tone,
+                maxLines = 1
+            )
+        }
+        if (tir != null) {
+            TirVerticalBar(tir = tir, modifier = Modifier.fillMaxHeight())
+        }
+    }
+}
+
+/**
+ * Windows the dashboard strip can summarise, cycled by tapping the leading pill.
+ *
+ * Today and 3 days have no [StatsTimeRange] of their own, so they go through the
+ * custom-range path instead; the rest map straight onto a quick range.
+ */
+private enum class PinnedWindow(@get:StringRes val labelResId: Int) {
+    TODAY(R.string.stats_window_today),
+    H24(R.string.stats_window_24h),
+    D3(R.string.stats_window_3d),
+    D7(R.string.range_7d),
+    D30(R.string.range_30d),
+    D90(R.string.range_90d);
+
+    val quickRange: StatsTimeRange?
+        get() = when (this) {
+            TODAY, D3 -> null
+            H24 -> StatsTimeRange.DAY_1
+            D7 -> StatsTimeRange.DAY_7
+            D30 -> StatsTimeRange.DAY_30
+            D90 -> StatsTimeRange.DAY_90
+        }
+
+    /** Start/end for the windows a quick range cannot express. */
+    fun customRange(): Pair<Long, Long>? {
+        val zone = java.time.ZoneId.systemDefault()
+        val now = System.currentTimeMillis()
+        return when (this) {
+            TODAY -> java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli() to now
+            D3 -> (now - 3L * 24L * 60L * 60L * 1000L) to now
+            else -> null
+        }
+    }
+}
+
+/** True when the user has pinned anything, so the dashboard can skip the row entirely. */
+@Composable
+fun hasPinnedStats(): Boolean {
+    val context = LocalContext.current
+    LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
+    val layout by StatsLayoutStore.state.collectAsState()
+    return layout.dashboardMetrics.isNotEmpty()
+}
+
+/**
+ * Metrics pinned from Statistics → Arrange, over a window the user can change in place.
+ *
+ * Reads its numbers from [StatsViewModel] — the same source, projection and calibration
+ * handling as the Statistics screen. Computing them from the Dashboard's own history
+ * instead was cheaper but produced a different series: that history carries no
+ * calibration projection, so the strip reported 54% time in range against the
+ * Statistics screen's 92% for the same window. Sharing the source is the only way the
+ * two can be guaranteed to agree.
+ */
+@Composable
+fun PinnedStatsStrip(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
+    val layout by StatsLayoutStore.state.collectAsState()
+    val pinned = layout.dashboardMetrics
+    val statsViewModel: StatsViewModel = viewModel()
+    val uiState by statsViewModel.uiState.collectAsState()
+    if (pinned.isEmpty() || uiState.summary.readingCount == 0) return
+
+    var window by rememberSaveable { mutableStateOf(PinnedWindow.H24) }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        PinnedWindowPill(
+            label = stringResource(window.labelResId),
+            onClick = {
+                val entries = PinnedWindow.entries
+                val next = entries[(entries.indexOf(window) + 1) % entries.size]
+                window = next
+                val quick = next.quickRange
+                if (quick != null) {
+                    statsViewModel.setTimeRange(quick)
+                } else {
+                    next.customRange()?.let { (start, end) ->
+                        statsViewModel.setCustomRange(start, end)
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxHeight()
+        )
+        pinned.forEach { metric ->
+            PinnedMetricChip(
+                spec = metricSpec(metric, uiState.summary, uiState.targets, uiState.unit),
+                tir = uiState.summary.tir.takeIf { metric == StatsMetric.TIME_IN_RANGE },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+        }
+    }
+}
+
+@Composable
+private fun PinnedWindowPill(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(statsCardShape(16.dp, 10.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(1.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontFeatureSettings = "tnum",
+                fontWeight = FontWeight.SemiBold
+            ),
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            softWrap = false
+        )
+        Icon(
+            imageVector = Icons.Default.UnfoldMore,
+            contentDescription = stringResource(R.string.stats_window_label),
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+            modifier = Modifier.size(14.dp)
+        )
+    }
+}

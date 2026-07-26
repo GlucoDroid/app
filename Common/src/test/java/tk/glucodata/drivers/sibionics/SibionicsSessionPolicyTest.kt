@@ -31,6 +31,28 @@ class SibionicsSessionPolicyTest {
     }
 
     @Test
+    fun newResetCycleRebasesNativeWindowOnlyAtItsBeginning() {
+        assertTrue(
+            SibionicsSessionPolicy.shouldRebaseNativeWindow(
+                hadStartTime = false,
+                index = 1,
+            ),
+        )
+        assertFalse(
+            SibionicsSessionPolicy.shouldRebaseNativeWindow(
+                hadStartTime = true,
+                index = 1,
+            ),
+        )
+        assertTrue(
+            SibionicsSessionPolicy.shouldRebaseNativeWindow(
+                hadStartTime = false,
+                index = 42,
+            ),
+        )
+    }
+
+    @Test
     fun liveStreamDoesNotRemainLabelledAsPartialHistory() {
         assertFalse(
             SibionicsSessionPolicy.shouldShowHistoryProgress(
@@ -94,6 +116,59 @@ class SibionicsSessionPolicyTest {
             SibionicsSessionPolicy.connectCallbackTimeoutDelayMs(
                 requestedDelayMs = -1L,
                 callbackTimeoutMs = 20_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun failedDirectConnectUsesOneAdvertisementRecovery() {
+        assertTrue(
+            SibionicsSessionPolicy.shouldUseAdvertisementRecovery(
+                failedDuringConnect = true,
+                isStopped = false,
+                isPaused = false,
+                hasKnownAddress = true,
+                recoveryAlreadyActive = false,
+            ),
+        )
+        assertFalse(
+            SibionicsSessionPolicy.shouldUseAdvertisementRecovery(
+                failedDuringConnect = true,
+                isStopped = false,
+                isPaused = false,
+                hasKnownAddress = true,
+                recoveryAlreadyActive = true,
+            ),
+        )
+    }
+
+    @Test
+    fun advertisementRecoveryDoesNotHijackNormalDisconnectsOrStoppedSensors() {
+        assertFalse(
+            SibionicsSessionPolicy.shouldUseAdvertisementRecovery(
+                failedDuringConnect = false,
+                isStopped = false,
+                isPaused = false,
+                hasKnownAddress = true,
+                recoveryAlreadyActive = false,
+            ),
+        )
+        assertFalse(
+            SibionicsSessionPolicy.shouldUseAdvertisementRecovery(
+                failedDuringConnect = true,
+                isStopped = true,
+                isPaused = false,
+                hasKnownAddress = true,
+                recoveryAlreadyActive = false,
+            ),
+        )
+        assertFalse(
+            SibionicsSessionPolicy.shouldUseAdvertisementRecovery(
+                failedDuringConnect = true,
+                isStopped = false,
+                isPaused = false,
+                hasKnownAddress = false,
+                recoveryAlreadyActive = false,
             ),
         )
     }

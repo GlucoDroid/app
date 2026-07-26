@@ -430,6 +430,11 @@ private fun TargetRangeColorRow() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
+        GlucoseTargetBackgroundColorButton(
+            modifier = Modifier.size(56.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+        )
+        Spacer(Modifier.width(8.dp))
         RangeColorButton(Band.IN_RANGE)
     }
 }

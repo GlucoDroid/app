@@ -155,12 +155,58 @@ fun GlucoseBandColorButton(
 }
 
 @Composable
+fun GlucoseTargetBackgroundColorButton(
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh
+) {
+    val context = LocalContext.current
+    val revision = GlucosePaletteState.revision
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    var showDialog by remember { mutableStateOf(false) }
+    val color = remember(revision, isDark) {
+        GlucoseRangeColors.targetBackground(isDark)
+    }
+
+    ColorSwatchButton(
+        color = Color(color),
+        onClick = { showDialog = true },
+        modifier = modifier,
+        containerColor = containerColor
+    )
+
+    if (showDialog) {
+        ExpressiveColorPickerDialog(
+            title = stringResource(R.string.glucose_target_background_title),
+            initialColor = color or 0xFF000000.toInt(),
+            showOpacity = false,
+            onDismiss = { showDialog = false },
+            onReset = if (GlucosePaletteState.targetBackgroundOverride() != null) {
+                {
+                    GlucosePaletteState.setTargetBackgroundOverride(context, null)
+                    showDialog = false
+                }
+            } else {
+                null
+            },
+            onConfirm = { updatedColor ->
+                GlucosePaletteState.setTargetBackgroundOverride(
+                    context,
+                    updatedColor or 0xFF000000.toInt()
+                )
+                showDialog = false
+            }
+        )
+    }
+}
+
+@Composable
 fun ExpressiveColorPickerDialog(
     title: String,
     initialColor: Int,
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit,
-    onReset: (() -> Unit)? = null
+    onReset: (() -> Unit)? = null,
+    showOpacity: Boolean = true
 ) {
     var colorState by remember(initialColor) { mutableStateOf(initialColor.toPaletteColorState()) }
     var colorText by remember(initialColor) { mutableStateOf(formatColorHex(initialColor)) }
@@ -202,17 +248,19 @@ fun ExpressiveColorPickerDialog(
                         updateColorState(colorState.copy(value = brightness.coerceIn(0f, 1f)))
                     }
                 )
-                LabeledColorSlider(
-                    label = stringResource(
-                        R.string.opacity_percent,
-                        (colorState.alpha * 100f).roundToInt()
-                    ),
-                    value = colorState.alpha,
-                    showTrailingValue = false,
-                    onValueChange = { alpha ->
-                        updateColorState(colorState.copy(alpha = alpha.coerceIn(0f, 1f)))
-                    }
-                )
+                if (showOpacity) {
+                    LabeledColorSlider(
+                        label = stringResource(
+                            R.string.opacity_percent,
+                            (colorState.alpha * 100f).roundToInt()
+                        ),
+                        value = colorState.alpha,
+                        showTrailingValue = false,
+                        onValueChange = { alpha ->
+                            updateColorState(colorState.copy(alpha = alpha.coerceIn(0f, 1f)))
+                        }
+                    )
+                }
                 OutlinedTextField(
                     value = colorText,
                     onValueChange = { raw ->
