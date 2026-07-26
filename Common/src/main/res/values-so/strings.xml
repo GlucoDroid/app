@@ -2231,6 +2231,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="glucose_palette_edit_title">Midabada gulukooska</string>
     <string name="glucose_palette_preset_custom">La habeeyey</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_label">Palette</string>
     <string name="glucose_palette_preset_muted">Deggan</string>
     <string name="glucose_palette_preset_vibrant">Firfircoon</string>
@@ -2257,6 +2258,9 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
         <item quantity="other">Dareemuhu wuxuu dhacaa saacadaha %d</item>
     </plurals>
     <string name="sibionics_stock_algorithm_desc">Sibionics caadiga ah</string>
+    <string name="sibionics_sensitivity">Dareen</string>
+    <string name="sibionics_sensor_sensitivity">Qiimaha dareemaha: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Isticmaal qiimaha dareemaha</string>
     <string name="sibionics_responsive_algorithm">Jawaab degdeg ah</string>
     <string name="sibionics_balanced_algorithm">Simid fudud</string>
     <string name="sibionics_state_algorithm">Sixid la-qabsi leh</string>
@@ -2279,4 +2283,24 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="display_colors_title">Muuqaalka &amp; midabada</string>
     <string name="display_colors_desc">Midabada, qiyamka dashboard-ka iyo garaafyada</string>
     <string name="display_readouts_section">Akhrisyada dashboard-ka</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Sida loo soo sheego cilad</string>
+    <string name="debug_howto_step1">Shid duubista hoose.</string>
+    <string name="debug_howto_step2">Ku celi dhibaatada, ka dibna ku soo laabo shaashaddan.</string>
+    <string name="debug_howto_step3">Taabo Wadaag oo ku lifaaq faylka warbixinta ciladda.</string>
+    <string name="debug_howto_hint">Duubistu way socotaa inta aad app-ka isticmaalayso. Faylku wuxuu ku sii jiraa taleefankaaga ilaa aad wadaagto.</string>
+    <string name="debug_record_title">Duub xogta cilad-baadhista</string>
+    <string name="debug_record_on">Waa la duubayaa — hadda ku celi dhibaatada</string>
+    <string name="debug_record_off">Damin — waxba lama ururinayo</string>
+    <string name="debug_log_stats">%1$s · %2$d saf</string>
+    <string name="debug_log_stats_tail">%1$s · muujinaya %2$d safkii u dambeeyay</string>
+    <string name="debug_log_empty">Wax gelin ah weli ma jiraan</string>
+    <string name="debug_loading">Waa la soo rarayaa…</string>
+    <string name="debug_truncated">[…gelinta hore waa laga tegey…]</string>
+    <string name="debug_share_log">Wadaag</string>
+    <string name="debug_share_chooser">Wadaag diiwaanka cilad-baadhista</string>
+    <string name="debug_nothing_to_share">Weli waxba lama duubin</string>
+    <string name="debug_jump_to_latest">U bood kii ugu dambeeyay</string>
+    <string name="debug_dismiss_howto">Qari tilmaamahan</string>
 </resources>

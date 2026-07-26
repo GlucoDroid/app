@@ -25,6 +25,16 @@ interface ManagedSensorMaintenanceDriver {
 
     fun setCustomAlgorithmMode(mode: Int): Boolean = setCustomAlgorithmEnabled(mode == 2)
 
+    fun supportsAlgorithmSensitivity(): Boolean = false
+
+    fun getAlgorithmSensitivity(): Float = Float.NaN
+
+    fun getAutomaticAlgorithmSensitivity(): Float = Float.NaN
+
+    fun hasAlgorithmSensitivityOverride(): Boolean = false
+
+    fun setAlgorithmSensitivityOverride(sensitivity: Float?): Boolean = false
+
     fun supportsClearCalibrationAction(): Boolean = false
 
     fun clearSensorCalibration(): Boolean = false

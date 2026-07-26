@@ -640,6 +640,9 @@
     <string name="sibionics_custom_algorithm_desc">Компенсация дрейфа датчика, физиологической задержки и артефактов</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics по умолчанию</string>
     <string name="sibionics_stock_algorithm_detail">Использовать калибровки внутри алгоритма датчика</string>
+    <string name="sibionics_sensitivity">Чувствительность</string>
+    <string name="sibionics_sensor_sensitivity">Значение датчика: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Использовать значение датчика</string>
     <string name="sibionics_restart_algorithm_desc">Восстановить минутное состояние алгоритма из сохранённой истории датчика</string>
     <string name="juggluco_native">Нативный Juggluco</string>
     <string name="window_label">окно</string>
@@ -2042,6 +2045,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">Цвета глюкозы</string>
     <string name="glucose_palette_preset_custom">Своя</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Аврора</string>
     <string name="glucose_palette_preset_label">Палитра</string>
     <string name="glucose_palette_preset_muted">Спокойная</string>
     <string name="glucose_palette_preset_vibrant">Яркая</string>
@@ -2114,4 +2118,24 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Экран и цвета</string>
     <string name="display_colors_desc">Цвета, данные на главной и графики</string>
     <string name="display_readouts_section">Данные на главной</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Как сообщить об ошибке</string>
+    <string name="debug_howto_step1">Включите запись ниже.</string>
+    <string name="debug_howto_step2">Воспроизведите проблему и вернитесь на этот экран.</string>
+    <string name="debug_howto_step3">Нажмите «Поделиться» и приложите файл к сообщению об ошибке.</string>
+    <string name="debug_howto_hint">Запись продолжается, пока вы пользуетесь приложением. Файл остаётся на телефоне, пока вы им не поделитесь.</string>
+    <string name="debug_record_title">Запись диагностики</string>
+    <string name="debug_record_on">Идёт запись — воспроизведите проблему</string>
+    <string name="debug_record_off">Выключено — данные не собираются</string>
+    <string name="debug_log_stats">%1$s · строк: %2$d</string>
+    <string name="debug_log_stats_tail">%1$s · последние строки: %2$d</string>
+    <string name="debug_log_empty">Записей пока нет</string>
+    <string name="debug_loading">Загрузка…</string>
+    <string name="debug_truncated">[…старые записи пропущены…]</string>
+    <string name="debug_share_log">Поделиться</string>
+    <string name="debug_share_chooser">Поделиться журналом отладки</string>
+    <string name="debug_nothing_to_share">Пока ничего не записано</string>
+    <string name="debug_jump_to_latest">К последним</string>
+    <string name="debug_dismiss_howto">Скрыть инструкцию</string>
 </resources>

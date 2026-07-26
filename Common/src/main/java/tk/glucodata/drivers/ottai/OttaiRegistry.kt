@@ -25,6 +25,8 @@ object OttaiRegistry {
     private const val TAG = OttaiConstants.TAG
     private const val PREFS_NAME = "tk.glucodata_preferences"
     private const val PREF_DRAFT_SENSORS_KEY = "ottai_draft_sensors"
+    // ~1 min cadence: 9000 samples is about 6 days of temperature, matching Anytime.
+    private const val TEMPERATURE_HISTORY_LIMIT = 9000
 
     data class SensorRecord(
         val sensorId: String, // canonical cloud id used by server + BLE auth
@@ -240,6 +242,7 @@ object OttaiRegistry {
                 OttaiConstants.PREF_DEVICE_VERSION_PREFIX, OttaiConstants.PREF_LAST_DATA_NO_PREFIX,
                 OttaiConstants.PREF_DEVICE_ID_PREFIX, OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX,
                 OttaiConstants.PREF_CONTINUITY_BASELINE_PREFIX,
+                OttaiConstants.PREF_TEMPERATURE_HISTORY_PREFIX,
             ).forEach { remove(it + canonical) }
         }.apply()
     }
@@ -358,6 +361,65 @@ object OttaiRegistry {
             mmol = parts[2].toFloatOrNull()?.takeIf { it.isFinite() } ?: return null,
             rawCurrent = parts[3].toIntOrNull() ?: return null,
         )
+    }
+
+    // ---- temperature history ----
+    //
+    // Every record the sensor sends carries a skin temperature; the stats screen shows
+    // it, so keep the accepted samples alongside the glucose the Room store already has.
+
+    data class TemperatureRecord(
+        val dataNo: Int,
+        val timestampMs: Long,
+        val temperatureC: Float,
+    )
+
+    private fun isPlausibleTemperature(t: Float): Boolean = t.isFinite() && t > -20f && t < 80f
+
+    @JvmStatic
+    fun loadTemperatureHistory(c: Context, id: String): List<TemperatureRecord> {
+        val key = OttaiConstants.PREF_TEMPERATURE_HISTORY_PREFIX + OttaiConstants.canonicalSensorId(id)
+        val encoded = prefs(c).getString(key, null).orEmpty()
+        if (encoded.isBlank()) return emptyList()
+        val out = ArrayList<TemperatureRecord>()
+        encoded.split(';').forEach { token ->
+            if (token.isBlank()) return@forEach
+            val parts = token.split(',')
+            if (parts.size != 3) return@forEach
+            val dataNo = parts[0].toIntOrNull() ?: return@forEach
+            val timestampMs = parts[1].toLongOrNull() ?: return@forEach
+            val temperatureC = (parts[2].toIntOrNull() ?: return@forEach) / 10f
+            if (timestampMs <= 0L || !isPlausibleTemperature(temperatureC)) return@forEach
+            out.add(TemperatureRecord(dataNo, timestampMs, temperatureC))
+        }
+        return out.distinctBy { it.timestampMs }.sortedBy { it.timestampMs }
+    }
+
+    @JvmStatic
+    fun appendTemperatureHistory(c: Context, id: String, records: Collection<TemperatureRecord>) {
+        if (records.isEmpty()) return
+        val key = OttaiConstants.PREF_TEMPERATURE_HISTORY_PREFIX + OttaiConstants.canonicalSensorId(id)
+        val merged = (loadTemperatureHistory(c, id).asSequence() + records.asSequence())
+            .filter { it.timestampMs > 0L && isPlausibleTemperature(it.temperatureC) }
+            .distinctBy { it.timestampMs }
+            .sortedBy { it.timestampMs }
+            .toList()
+            .takeLast(TEMPERATURE_HISTORY_LIMIT)
+        if (merged.isEmpty()) {
+            prefs(c).edit().remove(key).apply()
+            return
+        }
+        val encoded = buildString(merged.size * 24) {
+            merged.forEach { rec ->
+                append(rec.dataNo)
+                append(',')
+                append(rec.timestampMs)
+                append(',')
+                append(Math.round(rec.temperatureC * 10f))
+                append(';')
+            }
+        }
+        prefs(c).edit().putString(key, encoded).apply()
     }
 
     // ---- portable export / import ----
@@ -479,10 +541,12 @@ object OttaiRegistry {
         address: String,
         displayName: String? = null,
         activate: Boolean,
+        activateIfNeeded: Boolean,
     ): String? {
         val canonical = OttaiConstants.canonicalSensorId(sensorId).ifEmpty { sensorId }
         val activationWasAttempted = loadActivationAttempted(context, canonical)
-        if (activate) {
+        val armActivation = activate || activateIfNeeded
+        if (armActivation) {
             // Authorize the managed record before publishing it. updateDevices() can run
             // immediately after callback creation; without this marker it removes the
             // fresh sensor and closes its GATT before the first connection callback.
@@ -497,18 +561,34 @@ object OttaiRegistry {
             connectNow = false,
         )
         if (stableId == null) {
-            if (activate) setActivationAttempted(context, canonical, activationWasAttempted)
-            if (activate && OttaiBleManager.activateRequestedFor == canonical) {
+            if (armActivation) setActivationAttempted(context, canonical, activationWasAttempted)
+            if (armActivation && OttaiBleManager.activateRequestedFor == canonical) {
                 OttaiBleManager.activateRequestedFor = null
             }
             return null
         }
-        if (activate) requestActivation(context, stableId) else connectSensor(context, stableId)
+        if (activate) {
+            requestActivation(context, stableId)
+        } else {
+            connectSensor(
+                context,
+                stableId,
+                awaitFreshActivationAdvertisement = armActivation,
+            )
+        }
         return stableId
     }
 
     @JvmStatic
     fun connectSensor(context: Context, sensorId: String) {
+        connectSensor(context, sensorId, awaitFreshActivationAdvertisement = false)
+    }
+
+    private fun connectSensor(
+        context: Context,
+        sensorId: String,
+        awaitFreshActivationAdvertisement: Boolean,
+    ) {
         val blue = SensorBluetooth.blueone ?: return
         val record = findRecord(context, sensorId) ?: return
         val existing = SensorBluetooth.gattcallbacks.firstOrNull { cb ->
@@ -523,7 +603,10 @@ object OttaiRegistry {
             val bleAddress = OttaiConstants.normalizeBleAddress(record.address, allowPlain = false)
             callback.mActiveDeviceAddress = bleAddress
             callback.mActiveBluetoothDevice = null
-            if (bleAddress != null && BluetoothAdapter.checkBluetoothAddress(bleAddress)) {
+            if (!awaitFreshActivationAdvertisement &&
+                bleAddress != null &&
+                BluetoothAdapter.checkBluetoothAddress(bleAddress)
+            ) {
                 val adapter = runCatching {
                     (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
                         ?: BluetoothAdapter.getDefaultAdapter()
@@ -533,7 +616,12 @@ object OttaiRegistry {
             callback.restoreFromPersistence(context)
         }
         runCatching { SensorBluetooth.ensureCurrentSensorSelection() }
-        if (SensorBluetooth.blueone === blue) callback.connectDevice(0)
+        if (SensorBluetooth.blueone === blue) {
+            val awaitingAdvertisement =
+                awaitFreshActivationAdvertisement &&
+                    (callback as? OttaiBleManager)?.awaitFreshActivationAdvertisement() == true
+            if (!awaitingAdvertisement) callback.connectDevice(0)
+        }
         ManagedSensorUiSignals.markDeviceListDirty()
     }
 
@@ -554,7 +642,7 @@ object OttaiRegistry {
         // The Advanced "Activate" is an explicit user action — force it so it can also
         // attempt to re-arm/extend an already-started or expired (cmd>3) sensor.
         if (mgr != null && mgr.requestForceActivation()) return true
-        connectSensor(context, canonical)
+        connectSensor(context, canonical, awaitFreshActivationAdvertisement = true)
         return false
     }
 }

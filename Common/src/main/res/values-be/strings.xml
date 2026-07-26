@@ -536,6 +536,9 @@
     <string name="sibionics_custom_algorithm_desc">Кампенсацыя дрэйфу датчыка, фізіялагічнай затрымкі і артэфактаў</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics па змаўчанні</string>
     <string name="sibionics_stock_algorithm_detail">Выкарыстоўваць каліброўкі ўнутры алгарытму датчыка</string>
+    <string name="sibionics_sensitivity">Адчувальнасць</string>
+    <string name="sibionics_sensor_sensitivity">Значэнне датчыка: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Выкарыстоўваць значэнне датчыка</string>
     <string name="sibionics_restart_algorithm_desc">Аднавіць стан хвіліннага алгарытму з захаванай гісторыі датчыка</string>
     <string name="juggluco_native">Родны Juggluco</string>
     <string name="window_label">акно</string>
@@ -2066,6 +2069,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">Колер глюкозы</string>
     <string name="glucose_palette_preset_custom">Уласная</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Аўрора</string>
     <string name="glucose_palette_preset_label">Палітра</string>
     <string name="glucose_palette_preset_muted">Прыглушаны</string>
     <string name="glucose_palette_preset_vibrant">Жывы</string>
@@ -2138,4 +2142,24 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Экран і колеры</string>
     <string name="display_colors_desc">Колеры, даныя на галоўнай і графікі</string>
     <string name="display_readouts_section">Даныя на галоўнай</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Як паведаміць пра памылку</string>
+    <string name="debug_howto_step1">Уключыце запіс ніжэй.</string>
+    <string name="debug_howto_step2">Паўтарыце праблему, потым вярніцеся на гэты экран.</string>
+    <string name="debug_howto_step3">Націсніце «Падзяліцца» і дадайце файл да паведамлення пра памылку.</string>
+    <string name="debug_howto_hint">Запіс працягваецца, пакуль вы карыстаецеся праграмай. Файл застаецца на тэлефоне, пакуль вы ім не падзеліцеся.</string>
+    <string name="debug_record_title">Запіс дыягностыкі</string>
+    <string name="debug_record_on">Ідзе запіс — паўтарыце праблему</string>
+    <string name="debug_record_off">Выключана — даныя не збіраюцца</string>
+    <string name="debug_log_stats">%1$s · радкоў: %2$d</string>
+    <string name="debug_log_stats_tail">%1$s · апошнія радкі: %2$d</string>
+    <string name="debug_log_empty">Запісаў пакуль няма</string>
+    <string name="debug_loading">Загрузка…</string>
+    <string name="debug_truncated">[…старыя запісы прапушчаны…]</string>
+    <string name="debug_share_log">Падзяліцца</string>
+    <string name="debug_share_chooser">Падзяліцца журналам адладкі</string>
+    <string name="debug_nothing_to_share">Пакуль нічога не запісана</string>
+    <string name="debug_jump_to_latest">Да апошніх</string>
+    <string name="debug_dismiss_howto">Схаваць гэтыя інструкцыі</string>
 </resources>

@@ -419,6 +419,9 @@
     <string name="sibionics_custom_algorithm_desc">Compensazione della deriva del sensore, del ritardo fisiologico e degli artefatti</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics predefinito</string>
     <string name="sibionics_stock_algorithm_detail">Usa le calibrazioni nell’algoritmo del sensore</string>
+    <string name="sibionics_sensitivity">Sensibilità</string>
+    <string name="sibionics_sensor_sensitivity">Valore del sensore: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Usa il valore del sensore</string>
     <string name="sibionics_restart_algorithm_desc">Ricostruisci lo stato minuto per minuto dalla cronologia del sensore</string>
     <string name="juggluco_native">Juggluco nativo</string>
     <string name="window_label">finestra</string>
@@ -1989,6 +1992,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_edit_title">Colori del glucosio</string>
     <string name="glucose_palette_preset_custom">Personalizzato</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Aurora</string>
     <string name="glucose_palette_preset_label">Palette</string>
     <string name="glucose_palette_preset_muted">Attenuata</string>
     <string name="glucose_palette_preset_vibrant">Vibrante</string>
@@ -2061,4 +2065,24 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Display e colori</string>
     <string name="display_colors_desc">Colori, valori della dashboard e grafici</string>
     <string name="display_readouts_section">Letture della dashboard</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Come segnalare un bug</string>
+    <string name="debug_howto_step1">Attiva la registrazione qui sotto.</string>
+    <string name="debug_howto_step2">Riproduci il problema, poi torna a questa schermata.</string>
+    <string name="debug_howto_step3">Tocca Condividi e allega il file alla segnalazione.</string>
+    <string name="debug_howto_hint">La registrazione continua mentre usi l\'app. Resta sul telefono finché non la condividi.</string>
+    <string name="debug_record_title">Registra diagnostica</string>
+    <string name="debug_record_on">Registrazione — riproduci ora il problema</string>
+    <string name="debug_record_off">Disattivato — non viene raccolto nulla</string>
+    <string name="debug_log_stats">%1$s · %2$d righe</string>
+    <string name="debug_log_stats_tail">%1$s · ultime %2$d righe</string>
+    <string name="debug_log_empty">Nessuna voce</string>
+    <string name="debug_loading">Caricamento…</string>
+    <string name="debug_truncated">[…voci precedenti omesse…]</string>
+    <string name="debug_share_log">Condividi</string>
+    <string name="debug_share_chooser">Condividi il log di debug</string>
+    <string name="debug_nothing_to_share">Non è stato ancora registrato nulla</string>
+    <string name="debug_jump_to_latest">Vai alla fine</string>
+    <string name="debug_dismiss_howto">Nascondi queste istruzioni</string>
 </resources>

@@ -820,6 +820,9 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="sibionics_custom_algorithm_desc">Мэдрэгчийн хазайлт, физиологийн хоцролт ба артефактын нөхөн олговор</string>
     <string name="sibionics_stock_algorithm_desc">Sibionics үндсэн</string>
     <string name="sibionics_stock_algorithm_detail">Глюкометрийн тохируулгыг мэдрэгчийн алгоритмд ашиглах</string>
+    <string name="sibionics_sensitivity">Мэдрэмж</string>
+    <string name="sibionics_sensor_sensitivity">Мэдрэгчийн утга: %1$s</string>
+    <string name="sibionics_use_sensor_sensitivity">Мэдрэгчийн утгыг ашиглах</string>
     <string name="sibionics_restart_algorithm_desc">Хадгалсан мэдрэгчийн түүхээс минутын алгоритмын төлөвийг сэргээнэ</string>
     <string name="juggluco_native">Juggluco native</string>
     <string name="window_label">цонх</string>
@@ -2128,6 +2131,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="glucose_palette_edit_title">Глюкозын өнгө</string>
     <string name="glucose_palette_preset_custom">Захиалгат</string>
     <string name="glucose_palette_preset_gdh">GDH</string>
+    <string name="glucose_palette_preset_aurora">Туйлын туяа</string>
     <string name="glucose_palette_preset_label">Палитр</string>
     <string name="glucose_palette_preset_muted">Бүдэг</string>
     <string name="glucose_palette_preset_vibrant">Эрч хүчтэй</string>
@@ -2186,4 +2190,24 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="display_colors_title">Дэлгэц ба өнгө</string>
     <string name="display_colors_desc">Өнгө, хяналтын самбарын утга болон график</string>
     <string name="display_readouts_section">Хяналтын самбарын утга</string>
+
+    <!-- Debug log screen -->
+    <string name="debug_howto_title">Алдааг хэрхэн мэдээлэх вэ</string>
+    <string name="debug_howto_step1">Доорх бичлэгийг асаана уу.</string>
+    <string name="debug_howto_step2">Асуудлыг дахин давтаад энэ дэлгэц рүү буцаж ирнэ үү.</string>
+    <string name="debug_howto_step3">Хуваалцах товчийг дараад файлыг алдааны мэдээлэлдээ хавсаргана уу.</string>
+    <string name="debug_howto_hint">Та аппыг ашиглаж байх хугацаанд бичлэг үргэлжилнэ. Файл нь та хуваалцах хүртэл утсанд хадгалагдана.</string>
+    <string name="debug_record_title">Оношилгоо бичих</string>
+    <string name="debug_record_on">Бичиж байна — асуудлыг одоо давтана уу</string>
+    <string name="debug_record_off">Унтраалттай — юу ч цуглуулахгүй байна</string>
+    <string name="debug_log_stats">%1$s · %2$d мөр</string>
+    <string name="debug_log_stats_tail">%1$s · сүүлийн %2$d мөр</string>
+    <string name="debug_log_empty">Одоогоор бичлэг алга</string>
+    <string name="debug_loading">Ачаалж байна…</string>
+    <string name="debug_truncated">[…өмнөх бичлэгүүдийг орхигдуулав…]</string>
+    <string name="debug_share_log">Хуваалцах</string>
+    <string name="debug_share_chooser">Дебаг логийг хуваалцах</string>
+    <string name="debug_nothing_to_share">Одоогоор юу ч бичигдээгүй</string>
+    <string name="debug_jump_to_latest">Сүүлд очих</string>
+    <string name="debug_dismiss_howto">Эдгээр зааврыг нуух</string>
 </resources>
