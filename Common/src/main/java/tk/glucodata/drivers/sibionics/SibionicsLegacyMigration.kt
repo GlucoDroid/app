@@ -8,7 +8,9 @@ import tk.glucodata.drivers.ManagedSensorViewModeStore
 
 /** One-time handoff of active native Sibionics 1/2 sensors to the managed driver. */
 object SibionicsLegacyMigration {
-    private const val MIGRATION_VERSION = 1
+    // Version 2 also retires the legacy native BLE owner after preserving its
+    // name as a history alias. Version 1 only created the managed record.
+    private const val MIGRATION_VERSION = 2
     private const val PREF_MIGRATION_VERSION = "sibionics_managed_legacy_migration_version"
 
     internal data class LegacySnapshot(
@@ -32,7 +34,10 @@ object SibionicsLegacyMigration {
         val viewMode: Int,
         val autoResetDays: Int,
         val protocolMode: SibionicsConstants.ProtocolMode,
-    )
+    ) {
+        fun managedStartTimeMs(): Long =
+            if (variant == SibionicsConstants.Variant.SIBIONICS2) 0L else startTimeMs
+    }
 
     internal fun LegacySnapshot.toCandidate(): Candidate? {
         val name = nativeName.trim()
@@ -87,53 +92,104 @@ object SibionicsLegacyMigration {
         }
 
         var migrated = 0
+        var retryRequired = false
         activeNames.forEach { nativeName ->
-            val dataptr = runCatching { Natives.getdataptr(nativeName) }.getOrDefault(0L)
-            if (dataptr == 0L || !runCatching { Natives.isSibionics(dataptr) }.getOrDefault(false)) {
+            val dataptr = runCatching { Natives.getdataptr(nativeName) }
+                .onFailure {
+                    retryRequired = true
+                    Log.stack(SibionicsConstants.TAG, "legacy migration: open $nativeName", it)
+                }
+                .getOrDefault(0L)
+            if (dataptr == 0L) {
+                retryRequired = true
+                Log.e(SibionicsConstants.TAG, "legacy migration: no stream for $nativeName")
                 return@forEach
             }
-            val snapshot = runCatching {
-                LegacySnapshot(
-                    nativeName = nativeName,
-                    address = Natives.getDeviceAddress(dataptr, true),
-                    subtype = Natives.getSiSubtype(dataptr),
-                    shortCode = Natives.getSiBluetoothNum(dataptr),
-                    bleName = Natives.siGetDeviceName(dataptr),
-                    startTimeMs = Natives.getSensorStartmsec(dataptr),
-                    viewMode = Natives.getViewMode(dataptr),
-                    autoResetDays = Natives.getAutoResetDays(dataptr),
-                )
-            }.onFailure {
-                Log.stack(SibionicsConstants.TAG, "legacy migration: read $nativeName", it)
-            }.getOrNull() ?: return@forEach
-            val candidate = snapshot.toCandidate() ?: return@forEach
-            val existing = SibionicsRegistry.findRecord(context, candidate.nativeName)
-            val record = SibionicsRegistry.ensureSensorRecord(
-                context = context,
-                rawInput = candidate.nativeName,
-                address = candidate.address,
-                displayName = candidate.nativeName,
-                variant = candidate.variant,
-                shortCodeOverride = candidate.shortCode,
-                bleNameOverride = candidate.bleName,
-            )
-            SibionicsRegistry.bindLegacyNativeName(context, record.sensorId, candidate.nativeName)
-            if (existing == null) {
-                SibionicsRegistry.saveStartTimeMs(context, record.sensorId, candidate.startTimeMs)
-                SibionicsRegistry.saveProtocolMode(context, record.sensorId, candidate.protocolMode)
-                SibionicsRegistry.saveAutoResetDays(context, record.sensorId, candidate.autoResetDays)
-                SibionicsRegistry.saveAlgorithmSelection(context, record.sensorId, SibionicsAlgorithmSelection.STOCK)
-                ManagedSensorViewModeStore.write(context, record.sensorId, candidate.viewMode)
+            val isSibionics = runCatching { Natives.isSibionics(dataptr) }
+                .onFailure {
+                    retryRequired = true
+                    Log.stack(SibionicsConstants.TAG, "legacy migration: identify $nativeName", it)
+                }
+                .getOrDefault(false)
+            if (!isSibionics) {
+                runCatching { Natives.freedataptr(dataptr) }
+                    .onFailure { Log.stack(SibionicsConstants.TAG, "legacy migration: free $nativeName", it) }
+                return@forEach
             }
-            migrated++
-            Log.i(
-                SibionicsConstants.TAG,
-                "Migrated active legacy sensor ${candidate.nativeName} as ${record.sensorId} (${candidate.variant.id})",
-            )
+            try {
+                val snapshot = runCatching {
+                    LegacySnapshot(
+                        nativeName = nativeName,
+                        address = Natives.getDeviceAddress(dataptr, true),
+                        subtype = Natives.getSiSubtype(dataptr),
+                        shortCode = Natives.getSiBluetoothNum(dataptr),
+                        bleName = Natives.siGetDeviceName(dataptr),
+                        startTimeMs = Natives.getSensorStartmsec(dataptr),
+                        viewMode = Natives.getViewMode(dataptr),
+                        autoResetDays = Natives.getAutoResetDays(dataptr),
+                    )
+                }.onFailure {
+                    retryRequired = true
+                    Log.stack(SibionicsConstants.TAG, "legacy migration: read $nativeName", it)
+                }.getOrNull() ?: return@forEach
+                val candidate = snapshot.toCandidate() ?: return@forEach
+                val existing = SibionicsRegistry.findRecord(context, candidate.nativeName)
+                val record = SibionicsRegistry.ensureSensorRecord(
+                    context = context,
+                    rawInput = candidate.nativeName,
+                    address = candidate.address,
+                    displayName = candidate.nativeName,
+                    variant = candidate.variant,
+                    shortCodeOverride = candidate.shortCode,
+                    bleNameOverride = candidate.bleName,
+                )
+                SibionicsRegistry.bindLegacyNativeName(context, record.sensorId, candidate.nativeName)
+                if (existing == null) {
+                    candidate.managedStartTimeMs()
+                        .takeIf { it > 0L }
+                        ?.let { SibionicsRegistry.saveStartTimeMs(context, record.sensorId, it) }
+                    SibionicsRegistry.saveProtocolMode(context, record.sensorId, candidate.protocolMode)
+                    SibionicsRegistry.saveAutoResetDays(context, record.sensorId, candidate.autoResetDays)
+                    SibionicsRegistry.saveAlgorithmSelection(
+                        context,
+                        record.sensorId,
+                        SibionicsAlgorithmSelection.STOCK,
+                    )
+                    ManagedSensorViewModeStore.write(context, record.sensorId, candidate.viewMode)
+                }
+
+                // finishSensor retires only the active sensors.dat entry. The
+                // directory remains available through legacyNativeName.
+                val retired = runCatching {
+                    Natives.finishSensor(dataptr)
+                    true
+                }.onFailure {
+                    Log.stack(SibionicsConstants.TAG, "legacy migration: retire $nativeName", it)
+                }.getOrDefault(false)
+                if (!retired) {
+                    retryRequired = true
+                    return@forEach
+                }
+                migrated++
+                Log.i(
+                    SibionicsConstants.TAG,
+                    "Migrated and retired active legacy sensor ${candidate.nativeName} as " +
+                        "${record.sensorId} (${candidate.variant.id})",
+                )
+            } catch (error: Throwable) {
+                retryRequired = true
+                Log.stack(SibionicsConstants.TAG, "legacy migration: persist $nativeName", error)
+            } finally {
+                runCatching { Natives.freedataptr(dataptr) }
+                    .onFailure { Log.stack(SibionicsConstants.TAG, "legacy migration: free $nativeName", it) }
+            }
         }
 
-        // Commit only after native enumeration completed, so a transient JNI failure retries next start.
-        prefs.edit().putInt(PREF_MIGRATION_VERSION, MIGRATION_VERSION).commit()
+        // A partial handoff stays retryable. Re-running is idempotent because
+        // ensureSensorRecord updates the same managed identity.
+        if (!retryRequired) {
+            prefs.edit().putInt(PREF_MIGRATION_VERSION, MIGRATION_VERSION).commit()
+        }
         return migrated
     }
 }

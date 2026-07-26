@@ -26,6 +26,7 @@ class SibionicsLegacyMigrationTest {
         assertEquals("P225043JMV", candidate.bleName)
         assertEquals(22, candidate.autoResetDays)
         assertEquals(SibionicsConstants.ProtocolMode.V120, candidate.protocolMode)
+        assertEquals(0L, candidate.managedStartTimeMs())
     }
 
     @Test
@@ -46,6 +47,7 @@ class SibionicsLegacyMigrationTest {
         assertEquals(SibionicsConstants.ProtocolMode.CHINESE, candidate.protocolMode)
         assertEquals(300, candidate.autoResetDays)
         assertEquals(0L, candidate.startTimeMs)
+        assertEquals(0L, candidate.managedStartTimeMs())
         assertEquals(3, candidate.viewMode)
     }
 

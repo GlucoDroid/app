@@ -9,6 +9,9 @@ internal object SibionicsSessionPolicy {
     ): Boolean =
         !isRehydrating && isCurrentReading && index <= 1 && previousNextIndex > 1
 
+    fun shouldRebaseNativeWindow(hadStartTime: Boolean, index: Int): Boolean =
+        !hadStartTime && index >= 0
+
     fun shouldShowHistoryProgress(
         receivedCount: Int,
         totalCount: Int,
@@ -28,4 +31,17 @@ internal object SibionicsSessionPolicy {
         callbackTimeoutMs: Long,
     ): Long =
         requestedDelayMs.coerceAtLeast(0L) + callbackTimeoutMs.coerceAtLeast(0L)
+
+    fun shouldUseAdvertisementRecovery(
+        failedDuringConnect: Boolean,
+        isStopped: Boolean,
+        isPaused: Boolean,
+        hasKnownAddress: Boolean,
+        recoveryAlreadyActive: Boolean,
+    ): Boolean =
+        failedDuringConnect &&
+            !isStopped &&
+            !isPaused &&
+            hasKnownAddress &&
+            !recoveryAlreadyActive
 }

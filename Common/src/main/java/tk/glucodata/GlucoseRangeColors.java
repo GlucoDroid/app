@@ -92,6 +92,7 @@ public final class GlucoseRangeColors {
     // SharedPreferences contract (shared with the app-start init and the UI).
     public static final String PREF_FILE = "tk.glucodata_preferences";
     public static final String PREF_PALETTE = "glucose_color_palette";
+    public static final String PREF_TARGET_BACKGROUND = "glucose_color_target_background";
     public static final String[] PREF_OVERRIDE_KEYS = {
             "glucose_color_very_low",
             "glucose_color_low",
@@ -103,6 +104,8 @@ public final class GlucoseRangeColors {
     private static volatile Palette activePalette = Palette.MUTED;
     // null entry = no override for that band. Overrides apply to both themes.
     private static final Integer[] overrides = new Integer[Band.values().length];
+    // null = follow the effective IN_RANGE color.
+    private static volatile Integer targetBackgroundOverride;
     // Notified after any state change so the Compose layer can recompose.
     private static volatile Runnable changeListener;
 
@@ -152,7 +155,19 @@ public final class GlucoseRangeColors {
         return overrides[band.ordinal()];
     }
 
+    public static Integer getTargetBackgroundOverride() {
+        return targetBackgroundOverride;
+    }
+
+    public static int targetBackground(boolean darkTheme) {
+        final Integer override = targetBackgroundOverride;
+        return override != null ? override : inRange(darkTheme);
+    }
+
     public static boolean hasAnyOverride() {
+        if (targetBackgroundOverride != null) {
+            return true;
+        }
         for (Integer override : overrides) {
             if (override != null) {
                 return true;
@@ -174,6 +189,13 @@ public final class GlucoseRangeColors {
         setOverride(band, null);
     }
 
+    public static void setTargetBackgroundOverride(Integer argb) {
+        if (!java.util.Objects.equals(targetBackgroundOverride, argb)) {
+            targetBackgroundOverride = argb;
+            notifyChanged();
+        }
+    }
+
     public static void clearOverrides() {
         boolean changed = false;
         for (int i = 0; i < overrides.length; i++) {
@@ -181,6 +203,10 @@ public final class GlucoseRangeColors {
                 overrides[i] = null;
                 changed = true;
             }
+        }
+        if (targetBackgroundOverride != null) {
+            targetBackgroundOverride = null;
+            changed = true;
         }
         if (changed) {
             notifyChanged();
@@ -224,6 +250,9 @@ public final class GlucoseRangeColors {
                         ? prefs.getInt(PREF_OVERRIDE_KEYS[i], 0)
                         : null;
             }
+            targetBackgroundOverride = prefs.contains(PREF_TARGET_BACKGROUND)
+                    ? prefs.getInt(PREF_TARGET_BACKGROUND, 0)
+                    : null;
         } catch (Throwable ignored) {
             // Any failure falls back to the compiled-in muted defaults.
         }

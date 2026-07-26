@@ -448,7 +448,11 @@ private fun PreviewWindowNavigator(
     val previewEnd = previewCenterTime + previewHalfDuration
     val lineColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.88f)
     val secondaryLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-    val targetBandColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+    val isDark = isSystemInDarkTheme()
+    val paletteRevision = GlucosePaletteState.revision
+    val targetBandColor = remember(isDark, paletteRevision) {
+        Color(GlucoseRangeColors.targetBackground(isDark)).copy(alpha = 0.12f)
+    }
     val windowFillColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.11f)
     val windowStrokeColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
     val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f)
@@ -799,10 +803,10 @@ fun InteractiveGlucoseChart(
     val tertiaryColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f) // Lighter shade for 3rd line
     val pointColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.125f)
-    // Target band inherits the active in-range band colour (was a hardcoded
-    // Material green). Keep the 0.12f container-level opacity.
-    // Keep custom in-range hues legible as a line without letting them flood the chart surface.
-    val targetBandColor = Color(GlucoseRangeColors.inRange(isDark)).copy(alpha = 0.06f)
+    // A dedicated override may replace the in-range hue; without one, the band
+    // follows IN_RANGE. The 0.12 alpha restores the original target-band weight.
+    val targetBandColor =
+        Color(GlucoseRangeColors.targetBackground(isDark)).copy(alpha = 0.12f)
 //    val targetBandColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
     val hoverLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     val minMaxLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
