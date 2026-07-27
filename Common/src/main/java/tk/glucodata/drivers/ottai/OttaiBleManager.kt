@@ -332,8 +332,14 @@ class OttaiBleManager(
     // records its window here at request time; only actually-arrived data (or the cross-
     // session attempt cap) removes it — so watchdog skips, chain teardown, disconnects and
     // app restarts can no longer turn a missed window into a permanent history hole.
-    // Handler thread only (plus pre-connection restore), like recentlyRejectedSamples.
+    // Guarded by historyHolesLock. The ledger is mutated from BOTH the driver's handler thread
+    // (watchdog, hole retry, initial backfill) and the BLE binder thread —
+    // onCharacteristicChanged calls handleGlucosePayload directly, with no handler hop, and that
+    // path reaches trimHistoryHoles/noteHoleFailure. The operations are compound (sort, remove
+    // while iterating, read-modify-write of attempts), so a lock is required rather than a
+    // concurrent collection.
     private data class HistoryHole(var start: Int, var endExclusive: Int, var attempts: Int)
+    private val historyHolesLock = Any()
     private val historyHoles = mutableListOf<HistoryHole>()
     // Set while we re-run service discovery AFTER auth (the sensor exposes a Service
     // Changed characteristic and may restructure its GATT post-auth, leaving the
@@ -458,9 +464,11 @@ class OttaiBleManager(
         authKeys = materials.authKeys
         activatedMaxActiveMs = OttaiRegistry.loadAcceptedMaxActive(context, id)
         lastDataNo = OttaiRegistry.loadLastDataNo(context, id)
-        historyHoles.clear()
-        OttaiRegistry.loadHistoryHoles(context, id).forEach { (s, e, attempts) ->
-            historyHoles += HistoryHole(s, e, attempts)
+        synchronized(historyHolesLock) {
+            historyHoles.clear()
+            OttaiRegistry.loadHistoryHoles(context, id).forEach { (s, e, attempts) ->
+                historyHoles += HistoryHole(s, e, attempts)
+            }
         }
         // Restore the spike-filter baseline so the first sample after an app restart is
         // still checked against the last real reading (an isolated raw spike otherwise
@@ -2961,60 +2969,67 @@ class OttaiBleManager(
 
     private fun addHistoryHole(start: Int, endExclusive: Int) {
         if (endExclusive <= start || start < 0) return
-        if (historyHoles.any { it.start <= start && it.endExclusive >= endExclusive }) return // covered
-        historyHoles += HistoryHole(start, endExclusive, 0)
-        historyHoles.sortBy { it.start }
-        while (historyHoles.size > MAX_HISTORY_HOLES) {
-            val dropped = historyHoles.removeAt(0)
-            Log.e(TAG, "history hole ledger full — dropping [${dropped.start},${dropped.endExclusive}) (records lost)")
+        synchronized(historyHolesLock) {
+            if (historyHoles.any { it.start <= start && it.endExclusive >= endExclusive }) return // covered
+            historyHoles += HistoryHole(start, endExclusive, 0)
+            historyHoles.sortBy { it.start }
+            while (historyHoles.size > MAX_HISTORY_HOLES) {
+                val dropped = historyHoles.removeAt(0)
+                Log.e(TAG, "history hole ledger full — dropping [${dropped.start},${dropped.endExclusive}) (records lost)")
+            }
+            persistHistoryHoles()
         }
-        persistHistoryHoles()
     }
 
     /** Data for [start,endExclusive) actually arrived — the ONLY way a hole shrinks. */
     private fun trimHistoryHoles(start: Int, endExclusive: Int) {
         if (endExclusive <= start) return
-        var changed = false
-        val iterator = historyHoles.listIterator()
-        while (iterator.hasNext()) {
-            val h = iterator.next()
-            when {
-                h.start >= start && h.endExclusive <= endExclusive -> { iterator.remove(); changed = true }
-                h.start in start until endExclusive -> { h.start = endExclusive; changed = true }
-                h.endExclusive in (start + 1)..endExclusive -> { h.endExclusive = start; changed = true }
-                // A mid-split (arrival strictly inside a hole) can't happen: requests are issued
-                // from hole/gap boundaries. If a future caller violates that, the hole just stays
-                // slightly larger than reality and self-corrects via refetch — data is never lost.
+        synchronized(historyHolesLock) {
+            var changed = false
+            val iterator = historyHoles.listIterator()
+            while (iterator.hasNext()) {
+                val h = iterator.next()
+                when {
+                    h.start >= start && h.endExclusive <= endExclusive -> { iterator.remove(); changed = true }
+                    h.start in start until endExclusive -> { h.start = endExclusive; changed = true }
+                    h.endExclusive in (start + 1)..endExclusive -> { h.endExclusive = start; changed = true }
+                    // A mid-split (arrival strictly inside a hole) can't happen: requests are issued
+                    // from hole/gap boundaries. If a future caller violates that, the hole just stays
+                    // slightly larger than reality and self-corrects via refetch — data is never lost.
+                }
             }
+            if (changed) persistHistoryHoles()
         }
-        if (changed) persistHistoryHoles()
     }
 
     /** A request covering [start,endExclusive) failed to deliver — ledger it and bump its counter. */
     private fun noteHoleFailure(start: Int, endExclusive: Int) {
         if (endExclusive <= start || start < 0) return
-        // Bump every overlapping hole, not just an exact match: failures arrive per issued
-        // CHUNK, so a multi-chunk hole must absorb its chunks' failures or the attempt cap
-        // never retires it (a permanently-empty overshoot range would then retry forever).
-        var overlapped = false
-        for (h in historyHoles) {
-            if (h.start < endExclusive && start < h.endExclusive) {
-                h.attempts++
-                overlapped = true
+        synchronized(historyHolesLock) {
+            // Bump every overlapping hole, not just an exact match: failures arrive per issued
+            // CHUNK, so a multi-chunk hole must absorb its chunks' failures or the attempt cap
+            // never retires it (a permanently-empty overshoot range would then retry forever).
+            var overlapped = false
+            for (h in historyHoles) {
+                if (h.start < endExclusive && start < h.endExclusive) {
+                    h.attempts++
+                    overlapped = true
+                }
             }
-        }
-        if (!overlapped) {
-            historyHoles += HistoryHole(start, endExclusive, 1)
-            historyHoles.sortBy { it.start }
-        }
-        historyHoles.removeAll { h ->
-            (h.attempts >= HISTORY_HOLE_MAX_ATTEMPTS).also {
-                if (it) Log.e(TAG, "history range [${h.start},${h.endExclusive}) undelivered after ${h.attempts} attempts — giving up")
+            if (!overlapped) {
+                historyHoles += HistoryHole(start, endExclusive, 1)
+                historyHoles.sortBy { it.start }
             }
+            historyHoles.removeAll { h ->
+                (h.attempts >= HISTORY_HOLE_MAX_ATTEMPTS).also {
+                    if (it) Log.e(TAG, "history range [${h.start},${h.endExclusive}) undelivered after ${h.attempts} attempts — giving up")
+                }
+            }
+            persistHistoryHoles()
         }
-        persistHistoryHoles()
     }
 
+    /** Caller must hold [historyHolesLock]. */
     private fun persistHistoryHoles() {
         val id = SerialNumber ?: return
         if (id.isBlank()) return
@@ -3025,13 +3040,16 @@ class OttaiBleManager(
 
     private fun scheduleHoleRetry(delayMs: Long = HISTORY_HOLE_RETRY_DELAY_MS) {
         handler.removeCallbacks(holeRetryRunnable)
-        if (historyHoles.isNotEmpty()) handler.postDelayed(holeRetryRunnable, delayMs)
+        val pending = synchronized(historyHolesLock) { historyHoles.isNotEmpty() }
+        if (pending) handler.postDelayed(holeRetryRunnable, delayMs)
     }
 
     private fun retryNextHistoryHole() {
         if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank() || commandStatus != 3) return
         if (activeHistoryEndExclusive > 0 || pendingHistoryReason != null) return // never preempt a live chain
-        val hole = historyHoles.firstOrNull() ?: return
+        // Snapshot under the lock: the request below can re-enter the ledger, and the binder
+        // thread may be mutating it concurrently from a history notification.
+        val hole = synchronized(historyHolesLock) { historyHoles.firstOrNull()?.copy() } ?: return
         Log.i(TAG, "hole retry [${hole.start},${hole.endExclusive}) attempt=${hole.attempts}")
         requestHistoryRange("hole-retry", hole.start, hole.endExclusive - hole.start)
     }
