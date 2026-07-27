@@ -2247,10 +2247,18 @@ class OttaiBleManager(
         live: Boolean,
         receivedAtMs: Long,
     ): Long {
-        // An unreliable anchor holds the slot only until a record that can do better arrives.
-        // A live record always can — it carries an independent wall-clock reference — so it must
-        // fall through and upgrade the anchor rather than be dated by the provisional-derived one.
-        if (streamStartTimeMs > 0L && (streamStartReliable || !live)) {
+        // Take the shortcut once the start is CONFIRMED, or for a history record, which cannot
+        // produce a wall-clock-corroborated anchor of its own.
+        //
+        // Deliberately NOT keyed on streamStartReliable: offerConfirmedActiveTime() needs a
+        // SECOND reliable anchor to corroborate the first, and seedStreamTimeAnchor() below is
+        // the only place one is offered. Short-circuiting as soon as a reliable anchor existed
+        // made that gate unreachable for the life of the driver, so the confirmed start was never
+        // written — and with materials.activeTimeMs stuck at 0 the dataNo ceiling never gained a
+        // bound at all, for exactly the vendor-activated sensors it was rewritten to protect.
+        // While the start is reliable-but-unconfirmed, live records must keep flowing through the
+        // anchor path; an unreliable anchor is still overridden by them, as before.
+        if (streamStartTimeMs > 0L && (materials.activeTimeMs > 0L || !live)) {
             return streamStartTimeMs + r.record.dataNo.toLong() * RECORD_INTERVAL_MS
         }
 
