@@ -5,7 +5,7 @@
 // The account/token is app-agnostic, so a phone-number SMS login works here.
 //
 // Geoblock: only CN-backend (api.ottai.com) requests carry forwarded-IP headers set to a China IP
-// (that backend is geoblocked to China). GLOBAL (seas.ottai.com) / SYAI (ru.syai.com) requests send
+// (that backend is geoblocked to China). GLOBAL (seas.ottai.com) / SYAI (api.syai.com) requests send
 // NO forwarded headers — a forged CN IP there looks cross-region and the backend rejects the token
 // (AuthFailed_TokenInvalid / accountLogin biz=Error). See headers(). CONFIRMED on-device: a RU user on
 // GLOBAL failed until a VPN masked the real IP; the official global app sends no such headers and works.
@@ -107,7 +107,7 @@ object OttaiCloudClient {
             "deviceId" to "$APP_NAME:a:$deviceId",
         )
         // Geoblock bypass — forge a CN source IP ONLY for the CN backend (api.ottai.com), which is
-        // geoblocked to China and REQUIRES a CN IP. The GLOBAL (seas.ottai.com) and SYAI (ru.syai.com)
+        // geoblocked to China and REQUIRES a CN IP. The GLOBAL (seas.ottai.com) and SYAI (api.syai.com)
         // backends serve non-China users; forging a CN IP there makes the request look cross-region and
         // the backend rejects the session (AuthFailed_TokenInvalid, accountLogin biz=Error). The official
         // global app sends no forwarded headers and works from any region, so we mirror that here.
@@ -202,7 +202,7 @@ object OttaiCloudClient {
     ): LoginResult? {
         val acct = account.trim()
         if (acct.isBlank() || password.isBlank()) { lastError = "account/password required"; return null }
-        // Username + password login on a GLOBAL backend (seas.ottai.com / ru.syai.com) — same
+        // Username + password login on a GLOBAL backend (seas.ottai.com / api.syai.com) — same
         // API + signature scheme, different host. The server keys on the account USERNAME, which
         // is a server-assigned RANDOM string (verified: NOT derived from the email), so the email
         // cannot be used here — email sign-in goes through the web API (see mailLogin). Password
@@ -447,7 +447,7 @@ object OttaiCloudClient {
     private const val WEB_AES_KEY = "miH5ngQ7z4NZU3JgZFq87Gg6v1Y7YJm9"  // web __ENV NEXT_PUBLIC_AES_KEY (AES-256)
     private const val WEB_FINGERPRINT = "0123456789abcdef0123456789abcdef01234567"  // opaque client fp (not validated)
 
-    // syai (syai.com / ru.syai.com) is a different, older web profile that shares ONLY the SEED and
+    // Syai is a different web profile that shares only the seed and
     // AES key with Ottai. appName=cgm, US/Americas/Android/v5, no deviceId header; login uses
     // /user/mail/login (not thirdLoginByPassword). Verified against a real syai.com login capture.
     private const val WEB_APP_SYAI = "cgm"
@@ -566,12 +566,11 @@ object OttaiCloudClient {
                 }
             }
         } ?: return null
-        // The web/email login token has NO device scope — the mobile deviceBind/list (+ validate/
-        // bind) reject it with AuthFailed_TokenInvalid. Upgrade to a mobile accountLogin token:
-        // getUser exposes the account's server-assigned random username, then accountLogin(username,
-        // password) yields a token the mobile CGM API accepts. (Verified end-to-end: a web-only
-        // token fails every device endpoint; the chained mobile token lists devices.)
         val mobileBase = webBaseToMobile(webBase)
+        // Syai's web JWT is accepted directly by its global mobile API. Ottai global still needs
+        // the web-token -> server username -> mobile accountLogin upgrade below.
+        if (isSyai(webBase)) return persistWebLogin(ctx, resp, mobileBase, webBase)
+
         val webToken = (resp.optJSONObject("data") ?: resp.optJSONObject("result"))
             ?.optString("accessToken").orEmptyIfNull()
         if (webToken.isNotBlank()) {
@@ -580,7 +579,7 @@ object OttaiCloudClient {
                 passwordLogin(ctx, userName, password, mobileBase)?.takeIf { it.ok }?.let { return it }
             }
         }
-        // Fallback: persist the web token (authenticated, but the device list may not work).
+        // Fallback for an Ottai web account whose profile does not expose a mobile username.
         return persistWebLogin(ctx, resp, mobileBase, webBase)
     }
 
@@ -658,7 +657,7 @@ object OttaiCloudClient {
     }
 
     /** Map a web API host to the matching mobile CGM API base for subsequent validate/list calls. */
-    private fun webBaseToMobile(webBase: String): String =
+    internal fun webBaseToMobile(webBase: String): String =
         if (webBase.contains("syai")) OttaiConstants.API_BASE_SYAI else OttaiConstants.API_BASE_GLOBAL
 
     /** Store accessToken/userId/glucoseSecretKey from a web login/signup; CGM ops use the region's mobile API. */
@@ -680,7 +679,7 @@ object OttaiCloudClient {
             OttaiRegistry.saveAccessToken(ctx, result.accessToken)
             if (result.glucoseSecretKey.isNotBlank()) OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
             OttaiRegistry.saveUserId(ctx, result.userId)
-            Log.i(TAG, "web login ok")
+            Log.i(TAG, "${if (isSyai(webBase)) "Syai" else "Ottai"} web login ok")
         }
         return result
     }

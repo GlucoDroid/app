@@ -49,7 +49,8 @@ object OttaiConstants {
 
     const val API_BASE = "https://api.ottai.com"          // CN app (phone/SMS account)
     const val API_BASE_GLOBAL = "https://seas.ottai.com"  // Ottai global app com.ottai.seas (username/password); same API, different host
-    const val API_BASE_SYAI = "https://ru.syai.com"       // syai (rebrand) global app; same API, different host
+    const val API_BASE_SYAI = "https://api.syai.com"      // Syai global mobile API
+    internal const val API_BASE_SYAI_LEGACY = "https://ru.syai.com"
     // Website account API (email login + registration). Same scheme/appName/SEED, different host.
     const val WEB_BASE_OTTAI = "https://www.ottai.com/api/cgm/web"
     const val WEB_BASE_SYAI = "https://www.syai.com/api/cgm/web"

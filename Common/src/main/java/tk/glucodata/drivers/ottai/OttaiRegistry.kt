@@ -89,9 +89,25 @@ object OttaiRegistry {
         prefs(c).edit().putString(OttaiConstants.PREF_ACCOUNT_LOGIN, v).apply()
     }
 
-    /** Backend host for the signed-in account (CN api.ottai.com vs global seas.ottai.com). */
-    @JvmStatic fun loadApiBase(c: Context): String =
-        prefs(c).getString(OttaiConstants.PREF_API_BASE, null)?.takeIf { it.isNotBlank() } ?: OttaiConstants.API_BASE
+    /** Backend host for the signed-in account (CN, Ottai global, or Syai global). */
+    @JvmStatic fun loadApiBase(c: Context): String {
+        val stored = prefs(c).getString(OttaiConstants.PREF_API_BASE, null)
+        val normalized = normalizeApiBase(stored)
+        if (!stored.isNullOrBlank() && stored != normalized) {
+            prefs(c).edit().putString(OttaiConstants.PREF_API_BASE, normalized).apply()
+        }
+        return normalized
+    }
+
+    internal fun normalizeApiBase(stored: String?): String {
+        val trimmed = stored?.trim()
+        return when (trimmed) {
+            null, "" -> OttaiConstants.API_BASE
+            OttaiConstants.API_BASE_SYAI_LEGACY -> OttaiConstants.API_BASE_SYAI
+            else -> trimmed
+        }
+    }
+
     @JvmStatic fun saveApiBase(c: Context, v: String) {
         prefs(c).edit().putString(OttaiConstants.PREF_API_BASE, v).apply()
     }
