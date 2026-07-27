@@ -1633,9 +1633,13 @@ fun DashboardScreen(
                     // `dashboardItemSpacing` between the chips and this strip.
                     if (showPinnedStats) {
                         tk.glucodata.ui.stats.PinnedStatsStrip(
+                            // 16 dp to match the readings card directly below, not the
+                            // adaptive gutter: that one is 12/14/16 dp by layout density,
+                            // so on anything but Comfortable the strip sat a couple of dp
+                            // wider than the list it stacks on.
                             modifier = Modifier.padding(
-                                start = contentHorizontalPadding,
-                                end = contentHorizontalPadding,
+                                start = 16.dp,
+                                end = 16.dp,
                                 // Between the two extremes: a separate lazy item put a
                                 // full 12 dp here and read as a hole, 2 dp had the strip
                                 // welded to the chart card once the chart collapses.
