@@ -2335,4 +2335,8 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_metric_streak">Хамгийн урт цуваа</string>
     <string name="stats_metric_streak_description">Мужид 70%% ба түүнээс дээш байсан дараалсан өдрүүдийн хамгийн урт цуваа.</string>
     <string name="stats_metric_streak_meta">өдөр 70%%+</string>
+    <string name="stats_pinned_add">Нэмэх</string>
+    <string name="stats_pinned_pick_title">Хяналтын самбарт харуулах</string>
+    <string name="stats_pinned_remove">Хяналтын самбараас хасах</string>
+    <string name="stats_pinned_already">бэхлэгдсэн</string>
 </resources>

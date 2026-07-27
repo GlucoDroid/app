@@ -2263,4 +2263,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_streak">Лучшая серия</string>
     <string name="stats_metric_streak_description">Самая длинная череда подряд идущих дней с 70%% и более в диапазоне.</string>
     <string name="stats_metric_streak_meta">дней по 70%%+</string>
+    <string name="stats_pinned_add">Добавить</string>
+    <string name="stats_pinned_pick_title">Показать на главном</string>
+    <string name="stats_pinned_remove">Убрать с главного</string>
+    <string name="stats_pinned_already">закреплено</string>
 </resources>

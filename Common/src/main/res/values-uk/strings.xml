@@ -2292,4 +2292,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_streak">Найкраща серія</string>
     <string name="stats_metric_streak_description">Найдовша низка поспіль днів із 70%% і більше в діапазоні.</string>
     <string name="stats_metric_streak_meta">днів по 70%%+</string>
+    <string name="stats_pinned_add">Додати</string>
+    <string name="stats_pinned_pick_title">Показати на головному</string>
+    <string name="stats_pinned_remove">Прибрати з головного</string>
+    <string name="stats_pinned_already">закріплено</string>
 </resources>

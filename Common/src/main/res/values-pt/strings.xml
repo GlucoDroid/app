@@ -2221,4 +2221,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_streak">Melhor sequência</string>
     <string name="stats_metric_streak_description">Sequência mais longa de dias consecutivos com 70%% ou mais no intervalo.</string>
     <string name="stats_metric_streak_meta">dias com 70%%+</string>
+    <string name="stats_pinned_add">Adicionar</string>
+    <string name="stats_pinned_pick_title">Mostrar no Painel</string>
+    <string name="stats_pinned_remove">Remover do Painel</string>
+    <string name="stats_pinned_already">fixado</string>
 </resources>

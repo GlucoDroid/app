@@ -202,6 +202,27 @@ object StatsLayoutStore {
         return true
     }
 
+    /** Whole pinned list at once, for reordering and for slot edits. */
+    fun setDashboardMetrics(order: List<StatsMetric>) = update { current ->
+        current.copy(dashboardMetrics = order.distinct().take(MAX_DASHBOARD_METRICS))
+    }
+
+    /** Replaces the metric in one slot, or drops the slot when [metric] is null. */
+    fun replaceDashboardMetric(slot: Int, metric: StatsMetric?) = update { current ->
+        val next = current.dashboardMetrics.toMutableList()
+        if (slot !in next.indices) {
+            if (metric != null && next.size < MAX_DASHBOARD_METRICS) next.add(metric)
+        } else if (metric == null) {
+            next.removeAt(slot)
+        } else {
+            // Pinning something already on the strip moves it here rather than
+            // duplicating it.
+            next.remove(metric)
+            if (slot in next.indices) next[slot] = metric else next.add(metric)
+        }
+        current.copy(dashboardMetrics = next.distinct().take(MAX_DASHBOARD_METRICS))
+    }
+
     fun resetLayout() = update { StatsLayoutState() }
 
     private inline fun update(transform: (StatsLayoutState) -> StatsLayoutState) {

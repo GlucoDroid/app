@@ -2248,4 +2248,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="stats_metric_streak">En iyi seri</string>
     <string name="stats_metric_streak_description">Aralıkta %%70 ve üzerinde geçen ardışık günlerin en uzun dizisi.</string>
     <string name="stats_metric_streak_meta">gün %%70+</string>
+    <string name="stats_pinned_add">Ekle</string>
+    <string name="stats_pinned_pick_title">Panoda göster</string>
+    <string name="stats_pinned_remove">Panodan kaldır</string>
+    <string name="stats_pinned_already">sabit</string>
 </resources>

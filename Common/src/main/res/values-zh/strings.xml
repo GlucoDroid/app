@@ -2236,4 +2236,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_streak">最佳连续</string>
     <string name="stats_metric_streak_description">目标范围内达到 70%% 及以上的最长连续天数。</string>
     <string name="stats_metric_streak_meta">天达到 70%%+</string>
+    <string name="stats_pinned_add">添加</string>
+    <string name="stats_pinned_pick_title">显示在主页</string>
+    <string name="stats_pinned_remove">从主页移除</string>
+    <string name="stats_pinned_already">已固定</string>
 </resources>

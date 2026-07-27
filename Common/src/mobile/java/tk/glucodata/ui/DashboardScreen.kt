@@ -1264,6 +1264,15 @@ fun DashboardScreen(
                         )
                     }
 
+                    // Pinned metrics live in the narrow left column here, two rows of
+                    // two, rather than four cells squeezed across it.
+                    if (showPinnedStats) {
+                        item {
+                            tk.glucodata.ui.stats.PinnedStatsStrip(rows = 2)
+                        }
+                    }
+
+
                     item {
                         DashboardCgmReadinessBanner(onOpenReadiness = onNavigateToReadiness)
                     }
@@ -1449,16 +1458,6 @@ fun DashboardScreen(
                                     }
                                 )
                             }
-                        }
-
-                        if (showPinnedStats) {
-                            tk.glucodata.ui.stats.PinnedStatsStrip(
-                                modifier = Modifier.padding(
-                                    start = contentHorizontalPadding,
-                                    end = contentHorizontalPadding,
-                                    top = 8.dp
-                                )
-                            )
                         }
 
                 }

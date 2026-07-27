@@ -2428,4 +2428,8 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="stats_metric_streak">Xariiqda ugu fiican</string>
     <string name="stats_metric_streak_description">Xariiqda ugu dheer ee maalmo isku xiga oo heerka ku jira 70%% ama ka badan.</string>
     <string name="stats_metric_streak_meta">maalmood 70%%+</string>
+    <string name="stats_pinned_add">Ku dar</string>
+    <string name="stats_pinned_pick_title">Ku muuji Dashboard-ka</string>
+    <string name="stats_pinned_remove">Ka saar Dashboard-ka</string>
+    <string name="stats_pinned_already">lagu dhejiyay</string>
 </resources>
