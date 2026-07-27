@@ -748,15 +748,26 @@ fun ScanSensorStep(
     val selectedBleDevice = remember(matchingBleDevices, selectedBleAddress) {
         matchingBleDevices.firstOrNull { it.address == selectedBleAddress }
     }
+    val submitManagedQr: (String) -> Boolean = { raw ->
+        if (SibionicsRegistry.isSupportedQrPayload(raw)) {
+            onManagedEntry(raw, selectedBleDevice)
+            true
+        } else {
+            tk.glucodata.Applic.Toaster(
+                context.getString(R.string.invalid_code_format),
+            )
+            false
+        }
+    }
     val launchFullscreenScan = rememberUnifiedQrScanLauncher(
         requestCode = tk.glucodata.MainActivity.REQUEST_BARCODE,
         title = stringResource(R.string.sibionics_setup_title),
         onScanResult = { raw ->
             if (!handledScan) {
-                handledScan = true
                 if (useManagedDriver) {
-                    onManagedEntry(raw, selectedBleDevice)
+                    handledScan = submitManagedQr(raw)
                 } else {
+                    handledScan = true
                     onInlineScanResult(raw)
                 }
             }
@@ -801,7 +812,7 @@ fun ScanSensorStep(
                     val decoded = decodeBitmapQr(context, uri)
                     if (decoded != null) {
                         if (useManagedDriver) {
-                            onManagedEntry(decoded, selectedBleDevice)
+                            submitManagedQr(decoded)
                         } else {
                             onManualEntry(decoded)
                         }
@@ -848,10 +859,10 @@ fun ScanSensorStep(
                 scannerEnabled = !galleryDecodeInProgress,
                 onScanResult = { raw ->
                     if (!handledScan) {
-                        handledScan = true
                         if (useManagedDriver) {
-                            onManagedEntry(raw, selectedBleDevice)
+                            handledScan = submitManagedQr(raw)
                         } else {
+                            handledScan = true
                             onInlineScanResult(raw)
                         }
                     }
