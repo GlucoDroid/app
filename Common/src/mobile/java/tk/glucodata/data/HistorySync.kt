@@ -1,6 +1,7 @@
 package tk.glucodata.data
 
 import android.util.Log
+import androidx.annotation.Keep
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -544,6 +545,8 @@ object HistorySync {
         }
     }
 
+    /** Resolved by name from [tk.glucodata.HistorySyncAccess], so the name must survive R8. */
+    @Keep
     fun markSensorReset(serial: String) {
         if (serial.isBlank()) return
         val deadline = System.currentTimeMillis() + RESET_PRESERVE_WINDOW_MS

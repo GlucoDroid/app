@@ -83,8 +83,17 @@ class OttaiBleManager(
         private const val HISTORY_MAX_RETRIES = 3
         // Hole ledger: requested-but-undelivered history windows, persisted per sensor (see
         // historyHoles). Attempts are cross-session; the size cap bounds the pref for a
-        // runaway overshoot.
-        private const val MAX_HISTORY_HOLES = 16
+        // runaway overshoot. Overflow drops the OLDEST window and loses those records, so the
+        // cap has to stay clear of what a normal session produces: up to
+        // MAX_HISTORY_GAP_RANGES diff windows plus whatever the chunk watchdog records.
+        private const val MAX_HISTORY_HOLES = 32
+        // Diffing the sensor's records against the local store yields the windows that are
+        // genuinely missing. Two windows separated by fewer than this many stored records are
+        // merged: one slightly redundant request costs less air time than a second round trip.
+        // At most MAX_HISTORY_GAP_RANGES windows are produced, so a fragmented history cannot
+        // flood the ledger. Both rules only ever widen a window — coverage is never traded away.
+        private const val HISTORY_GAP_COALESCE_RECORDS = 5
+        private const val MAX_HISTORY_GAP_RANGES = 8
         private const val HISTORY_HOLE_MAX_ATTEMPTS = 5
         private const val HISTORY_HOLE_RETRY_DELAY_MS = 5_000L
         private const val MAX_LIVE_POLL_INTERVAL_MS = 60_000L
@@ -144,6 +153,55 @@ class OttaiBleManager(
 
         internal fun previousDataNoForHistory(previousDataNo: Int, liveDataNo: Int): Int =
             if (isPersistedDataNoAheadOfLive(previousDataNo, liveDataNo)) -1 else previousDataNo
+
+        /**
+         * The `false` windows of [present], coalesced and capped — i.e. exactly the records the
+         * local store is missing, expressed as the fewest requests that still cover all of them.
+         *
+         * Callers previously asked for one contiguous span from the first gap to the newest
+         * record. A single permanently-missing early record (the continuity filter rejects some,
+         * and rejected records are never stored) therefore re-requested the entire history on
+         * every reconnect.
+         *
+         * Merging is deliberately one-directional: a window only ever grows, and every missing
+         * index stays inside some returned window. Hitting [maxRanges] costs redundant records,
+         * never coverage.
+         */
+        internal fun missingRanges(
+            present: BooleanArray,
+            coalesceGap: Int = HISTORY_GAP_COALESCE_RECORDS,
+            maxRanges: Int = MAX_HISTORY_GAP_RANGES,
+        ): List<MissingRange> {
+            if (maxRanges <= 0) return emptyList()
+            val ranges = ArrayList<MissingRange>()
+            var index = 0
+            while (index < present.size) {
+                if (present[index]) {
+                    index++
+                    continue
+                }
+                val start = index
+                while (index < present.size && !present[index]) index++
+                ranges += MissingRange(start, index)
+            }
+            while (ranges.size > 1) {
+                var mergeAt = -1
+                var smallestSeparation = Int.MAX_VALUE
+                for (i in 0 until ranges.size - 1) {
+                    val separation = ranges[i + 1].start - ranges[i].endExclusive
+                    if (separation < smallestSeparation) {
+                        smallestSeparation = separation
+                        mergeAt = i
+                    }
+                }
+                // Stop once the closest pair is far apart AND the count already fits: past that
+                // point merging would only add redundancy for nothing.
+                if (mergeAt < 0 || (smallestSeparation > coalesceGap && ranges.size <= maxRanges)) break
+                ranges[mergeAt] = MissingRange(ranges[mergeAt].start, ranges[mergeAt + 1].endExclusive)
+                ranges.removeAt(mergeAt + 1)
+            }
+            return ranges
+        }
 
         internal fun isLinkUnstable(dropTimesMs: List<Long>, nowMs: Long): Boolean =
             dropTimesMs.count { nowMs - it <= UNSTABLE_LINK_WINDOW_MS } >= UNSTABLE_LINK_MIN_DROPS
@@ -367,6 +425,9 @@ class OttaiBleManager(
     // while iterating, read-modify-write of attempts), so a lock is required rather than a
     // concurrent collection.
     private data class HistoryHole(var start: Int, var endExclusive: Int, var attempts: Int)
+
+    /** A `[start, endExclusive)` window of records the local store does not have. */
+    internal data class MissingRange(val start: Int, val endExclusive: Int)
     private val historyHolesLock = Any()
     private val historyHoles = mutableListOf<HistoryHole>()
     // Set while we re-run service discovery AFTER auth (the sensor exposes a Service
@@ -2801,11 +2862,19 @@ class OttaiBleManager(
         }
         val startMs = streamStartTimeMs.takeIf { it > 0L } ?: return false
         val endMs = (System.currentTimeMillis() + RECORD_INTERVAL_MS).coerceAtLeast(startMs)
-        val existing = HistorySyncAccess.getHistoryTimestampsForSensor(
+        val existing = HistorySyncAccess.getHistoryTimestampsForSensorOrNull(
             id,
             (startMs - RECORD_INTERVAL_MS / 2L).coerceAtLeast(0L),
             endMs,
         )
+        if (existing == null) {
+            // The local store could not be asked. "Don't know" must not collapse into "have
+            // nothing": that answer costs a full re-download of the whole sensor history, and
+            // it repeats on every reconnect because nothing about it self-heals. Leave the
+            // one-shot clear so the live path retries off a real lastDataNo once a sample lands.
+            Log.e(TAG, "history diff unavailable — deferring backfill live=$liveDataNo")
+            return false
+        }
         if (existing.isEmpty()) {
             return requestHistoryRange("room-backfill", 0, liveDataNo)
                 .also { if (it) roomBackfillChecked = true }
@@ -2815,13 +2884,27 @@ class OttaiBleManager(
             val dataNo = ((timestamp - startMs + RECORD_INTERVAL_MS / 2L) / RECORD_INTERVAL_MS).toInt()
             if (dataNo in present.indices) present[dataNo] = true
         }
-        val firstMissing = present.indices.firstOrNull { !present[it] }
-            ?: run {
-                roomBackfillChecked = true // verified complete against Room = trusted
-                return false
-            }
-        return requestHistoryRange("room-backfill", firstMissing, liveDataNo - firstMissing)
-            .also { if (it) roomBackfillChecked = true }
+        val gaps = missingRanges(present)
+        if (gaps.isEmpty()) {
+            roomBackfillChecked = true // verified complete against Room = trusted
+            return false
+        }
+        // Run the newest gap as the live chain — that is the data the chart is waiting for —
+        // and put the older ones on the books first. The ledger's retry driver picks those up
+        // once the chain drains (advanceHistoryChunkChain/continueHistoryAfterPayload call
+        // scheduleHoleRetry), and because they are ledgered before anything is issued, a
+        // disconnect mid-chain cannot lose them.
+        val head = gaps.last()
+        for (gap in gaps.dropLast(1)) addHistoryHole(gap.start, gap.endExclusive)
+        val issued = requestHistoryRange("room-backfill", head.start, head.endExclusive - head.start)
+        if (issued) roomBackfillChecked = true else scheduleHoleRetry()
+        Log.i(
+            TAG,
+            "history diff live=$liveDataNo stored=${existing.size} gaps=${gaps.size} " +
+                "missing=${gaps.sumOf { it.endExclusive - it.start }} " +
+                "head=[${head.start},${head.endExclusive}) issued=$issued"
+        )
+        return issued
     }
 
     private fun requestRecentHistory(reason: String): Boolean {
