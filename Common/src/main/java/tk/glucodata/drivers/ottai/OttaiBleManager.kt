@@ -109,6 +109,11 @@ class OttaiBleManager(
         // that could end the outage. Back the CONNECTING stale threshold off per
         // consecutive stall instead: 90s -> 180s -> 360s.
         internal const val MAX_CONNECT_STALL_BACKOFF_SHIFTS = 2
+        // Consecutive payloads rejected in their entirety before the dataNo ceiling is treated as
+        // wrong rather than the data. Low, because the state it protects against is unrecoverable
+        // and each wasted payload is a missing reading; but above 1, so a single genuinely corrupt
+        // frame does not switch the filter off.
+        internal const val MAX_CONSECUTIVE_CEILING_FULL_DROPS = 3
         private const val LIVE_READ_MAX_RETRIES = 2
         private const val LIVE_READ_RETRY_DELAY_MS = 1_500L
         private const val USER_RECONNECT_DEBOUNCE_MS = 30_000L
@@ -137,6 +142,53 @@ class OttaiBleManager(
 
         internal fun isLinkUnstable(dropTimesMs: List<Long>, nowMs: Long): Boolean =
             dropTimesMs.count { nowMs - it <= UNSTABLE_LINK_WINDOW_MS } >= UNSTABLE_LINK_MIN_DROPS
+
+        /**
+         * Upper bound on a plausible dataNo, or Int.MAX_VALUE for "unbounded".
+         *
+         * [authoritativeStartMs] must be a *confirmed* activation start (cloud-supplied, or
+         * committed from a reliable live anchor) — never provisionalActiveTimeMs, nor
+         * streamStartTimeMs, which seedStreamTimeAnchor() writes from anchors whose own hint is
+         * derived from the provisional. A "~now" start yields a bound near
+         * [MAX_REASONABLE_DATA_NO_AHEAD] while the real dataNo is in the thousands, so every
+         * record is dropped — and since the anchor that learns the true start is seeded
+         * downstream of this filter, that state cannot recover on its own. [shouldDistrustCeiling]
+         * is the backstop for exactly that class of mistake.
+         *
+         * Deliberately NOT bounded by the continuity baseline: lastAcceptedSampleMs is not an
+         * observed arrival time but streamStartTimeMs + dataNo*interval, so a late anchor would
+         * launder the provisional straight back into this bound.
+         */
+        internal fun dataNoCeilingFor(
+            authoritativeStartMs: Long,
+            nowMs: Long,
+            lastDataNo: Int,
+            live: Boolean,
+        ): Int {
+            // A start at or after "now" (clock moved backwards, or a bogus committed start) must
+            // not produce a zero/negative bound — that drops everything, the very failure this
+            // filter must never cause. Fall through to the unbounded/high-water-mark branches.
+            if (authoritativeStartMs > 0L && authoritativeStartMs < nowMs) {
+                val elapsed = ((nowMs - authoritativeStartMs) / RECORD_INTERVAL_MS)
+                    .coerceAtMost((Int.MAX_VALUE / 2).toLong())
+                    .toInt()
+                return elapsed + MAX_REASONABLE_DATA_NO_AHEAD
+            }
+            // The persisted high-water mark gates history only: a legitimate live sample after a
+            // long offline gap is far past it.
+            if (live) return Int.MAX_VALUE
+            return if (lastDataNo > 0) lastDataNo + MAX_REASONABLE_DATA_NO_AHEAD else Int.MAX_VALUE
+        }
+
+        /**
+         * Every input that could widen the ceiling — materials.activeTimeMs, lastDataNo — is only
+         * ever updated by a record that already passed the ceiling. So a bound that is once too
+         * tight stays too tight forever, silently, and across restarts. When the filter has
+         * rejected whole payloads this many times in a row, the bound is far likelier to be wrong
+         * than the sensor, and the driver stops trusting it for the rest of the session.
+         */
+        internal fun shouldDistrustCeiling(consecutiveFullDrops: Int): Boolean =
+            consecutiveFullDrops >= MAX_CONSECUTIVE_CEILING_FULL_DROPS
 
         internal fun shouldHoldFastParams(
             intervalUnits: Int,
@@ -270,6 +322,8 @@ class OttaiBleManager(
     @Volatile private var lastAcceptedMmol = Float.NaN
     @Volatile private var lastAcceptedRawCurrent = 0
     @Volatile private var lastDataNo = -1
+    @Volatile private var consecutiveCeilingFullDrops = 0
+    @Volatile private var ceilingDistrusted = false
     @Volatile private var streamStartTimeMs = 0L
     @Volatile private var lastBleActivityAtMs = 0L
     private val recentlyRejectedSamples = object : LinkedHashMap<Int, RejectedSample>(64, 0.75f, true) {
@@ -1652,6 +1706,7 @@ class OttaiBleManager(
         if (plausible.size < readings.size) {
             Log.w(TAG, "$kind $source dropped ${readings.size - plausible.size} corrupt records dataNo>ceiling=$ceiling")
         }
+        noteCeilingOutcome(offered = readings.size, kept = plausible.size, ceiling = ceiling)
         val emittedReadings = ArrayList<EmittedReading>(plausible.size)
         for ((index, r) in plausible.withIndex()) {
             if (!r.valid) {
@@ -1810,20 +1865,55 @@ class OttaiBleManager(
     }
 
     /**
-     * Physical upper bound for a record's dataNo: the whole minutes elapsed since activation
-     * (+a tolerance), since no sample can be newer than "now". Derived from the activation
-     * start, independent of the corruptible lastDataNo, so a garbage frame can't raise its own
-     * ceiling. For live frames only the activation-derived bound applies — the lastDataNo
-     * fallback must not gate live (a legit live sample after a long offline gap is far past
-     * the persisted lastDataNo). Returns Int.MAX_VALUE (no filtering) when unbounded.
+     * Physical upper bound for a record's dataNo, since no sample can be newer than "now".
+     * See dataNoCeilingFor for the individual bounds and why the tightest of several is used
+     * rather than one: while the activation start is unconfirmed the frame that passes this
+     * filter is the one that commits that start, so the bound must not depend on it alone.
+     * The persisted lastDataNo gates history only — a legit live sample after a long offline
+     * gap is far past it.
      */
     private fun dataNoCeiling(live: Boolean): Int {
-        val start = effectiveActiveTimeMs()
-        if (start > 0L) {
-            return ((System.currentTimeMillis() - start) / RECORD_INTERVAL_MS).toInt() + MAX_REASONABLE_DATA_NO_AHEAD
+        // ONLY an authoritative start may bound dataNo — materials.activeTimeMs, which is set
+        // either by the cloud or by commitConfirmedActiveTime() from a reliable live anchor.
+        // The other two fallbacks inside effectiveActiveTimeMs() must never be used here:
+        //   - provisionalActiveTimeMs is the cgm-info 0x0477 sliding window, which for a
+        //     vendor-activated sensor is ~now, so the ceiling lands around
+        //     MAX_REASONABLE_DATA_NO_AHEAD while the real dataNo is in the thousands;
+        //   - streamStartTimeMs is written by every anchor, including "active"/"initial-history"
+        //     whose sample hint is itself derived from that provisional.
+        // Gating on either would drop every record, and since seedStreamTimeAnchor() runs
+        // downstream of this filter the true start could then never be learned: the sensor goes
+        // permanently silent, across restarts too, because the provisional is persisted and
+        // setProvisionalActiveTime() only ever moves it earlier.
+        if (ceilingDistrusted) return Int.MAX_VALUE
+        return dataNoCeilingFor(
+            authoritativeStartMs = materials.activeTimeMs,
+            nowMs = System.currentTimeMillis(),
+            lastDataNo = lastDataNo,
+            live = live,
+        )
+    }
+
+    /**
+     * Feed the outcome of one payload back to the ceiling. A payload whose records were ALL
+     * rejected is the signature of a wrong bound rather than a corrupt sensor — corruption comes
+     * in occasional frames, not in every frame in a row — so after
+     * [MAX_CONSECUTIVE_CEILING_FULL_DROPS] such payloads the filter is switched off for the
+     * session and the driver recovers on the next record.
+     */
+    private fun noteCeilingOutcome(offered: Int, kept: Int, ceiling: Int) {
+        if (offered <= 0 || ceiling == Int.MAX_VALUE) return
+        if (kept > 0) {
+            consecutiveCeilingFullDrops = 0
+            return
         }
-        if (live) return Int.MAX_VALUE
-        return if (lastDataNo > 0) lastDataNo + MAX_REASONABLE_DATA_NO_AHEAD else Int.MAX_VALUE
+        consecutiveCeilingFullDrops++
+        if (!ceilingDistrusted && shouldDistrustCeiling(consecutiveCeilingFullDrops)) {
+            ceilingDistrusted = true
+            Log.e(TAG, "dataNo ceiling=$ceiling rejected $consecutiveCeilingFullDrops payloads in a " +
+                "row — distrusting it for this session (activeTime=${materials.activeTimeMs / 1000L} " +
+                "lastDataNo=$lastDataNo)")
+        }
     }
 
     private fun noteSeenDataNo(dataNo: Int) {
