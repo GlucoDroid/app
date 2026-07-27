@@ -688,10 +688,15 @@ object OttaiCloudClient {
     /** GET /user/getUser (JWT bearer) → the user data object (glucoseSecretKey, userName, email, …). */
     private fun webGetUser(webBase: String, accessToken: String): JSONObject? {
         val ts = now()
-        val headers = webHeaders(webBase, ts) + ("Authorization" to "Bearer $accessToken")
+        val headers = webGetUserHeaders(webBase, ts, accessToken)
         val resp = httpGet("$webBase/user/getUser", emptyMap(), headers) ?: return null
         return resp.optJSONObject("data") ?: resp.optJSONObject("result")
     }
+
+    internal fun webGetUserHeaders(webBase: String, ts: Long, accessToken: String): Map<String, String> =
+        webHeaders(webBase, ts) +
+            (if (isSyai(webBase)) mapOf("deviceId" to WEB_DEVICE_ID) else emptyMap()) +
+            ("Authorization" to "Bearer $accessToken")
 
     private fun httpGet(base: String, query: Map<String, String>, headers: Map<String, String>): JSONObject? {
         val qs = query.entries.joinToString("&") {
