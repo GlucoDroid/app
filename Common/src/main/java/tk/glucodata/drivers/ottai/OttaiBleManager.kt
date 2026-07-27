@@ -190,6 +190,32 @@ class OttaiBleManager(
         internal fun shouldDistrustCeiling(consecutiveFullDrops: Int): Boolean =
             consecutiveFullDrops >= MAX_CONSECUTIVE_CEILING_FULL_DROPS
 
+        /**
+         * Which address the transport should hold once [candidateAddress] is done with.
+         *
+         * The test is [candidateVerified] — did this address prove possession of *this* sensor's
+         * auth material — and NOT "did we manage to disprove it". A probe that dies before the
+         * signature read (GATT 133, service-discovery timeout, remote drop) never reaches
+         * rejectActivationCandidate, so a disproved-only rule leaves that stranger installed. And
+         * an installed stranger is not merely cosmetic: SensorBluetooth.getCallback() dispatches
+         * on address before matchDeviceName/matchScanResult, so it is reconnected with no
+         * admission check at all, and a completed auth would persist it into the registry record.
+         *
+         * Falls back to [homeAddress], then the registry's [recordAddress]; an unverified
+         * candidate stands only when we know of no address of our own, since some address beats
+         * none.
+         */
+        internal fun addressAfterCandidateFor(
+            candidateAddress: String?,
+            candidateVerified: Boolean,
+            homeAddress: String?,
+            recordAddress: String?,
+        ): String? {
+            val normalized = OttaiConstants.normalizeBleAddress(candidateAddress, allowPlain = false)
+            if (candidateVerified && normalized != null) return normalized
+            return homeAddress ?: recordAddress ?: normalized
+        }
+
         internal fun shouldHoldFastParams(
             intervalUnits: Int,
             latency: Int,
@@ -324,6 +350,11 @@ class OttaiBleManager(
     @Volatile private var lastDataNo = -1
     @Volatile private var consecutiveCeilingFullDrops = 0
     @Volatile private var ceilingDistrusted = false
+    // Set when the bounded wait for a fresh advertisement gave up. connectDevice()'s
+    // pending-setup-activation branch would otherwise re-arm the very scan we just abandoned —
+    // the direct connect would never run and the NFC prompt would be torn down each cycle.
+    // Cleared whenever activation is (re)negotiated or a connection actually lands.
+    @Volatile private var freshActivationAdvertisementAbandoned = false
     @Volatile private var streamStartTimeMs = 0L
     @Volatile private var lastBleActivityAtMs = 0L
     private val recentlyRejectedSamples = object : LinkedHashMap<Int, RejectedSample>(64, 0.75f, true) {
@@ -550,13 +581,18 @@ class OttaiBleManager(
             commandStatus,
             explicitActivationRequest,
         )
-        val previousAddress = knownBleAddress()
+        // Same rule as the disconnect handlers: whatever knownBleAddress() answers here may be a
+        // candidate we were probing and never verified, and re-seeding it would reinstall a
+        // stranger — with no admission check, since SensorBluetooth dispatches on address first.
+        val previousAddress = addressAfterCandidate(knownBleAddress())
         clearGattTransport(
             reason,
             markSignalLoss = true,
             preserveActivationNegotiation = activationNegotiationActive,
         )
-        if (scanForPendingActivation && previousAddress != null) {
+        // Honour a bounded wait that already gave up: re-arming it here would restart the loop
+        // abandonFreshActivationAdvertisement() exists to break, and tear down the NFC prompt.
+        if (scanForPendingActivation && !freshActivationAdvertisementAbandoned && previousAddress != null) {
             mActiveDeviceAddress = previousAddress
             val scanning = awaitFreshActivationAdvertisement()
             Log.w(TAG, "pre-auth transport stalled; authenticated advertisement scan " +
@@ -579,6 +615,7 @@ class OttaiBleManager(
         val explicitActivationRequest =
             activateRequestedFor?.let { matchesManagedSensorId(it) } == true
         if (!activationCandidateDiscoveryPending &&
+            !freshActivationAdvertisementAbandoned &&
             phase == Phase.IDLE &&
             mBluetoothGatt == null &&
             OttaiConstants.shouldRescanPendingSetupActivation(
@@ -676,10 +713,41 @@ class OttaiBleManager(
 
     private fun knownBleAddress(): String? =
         OttaiConstants.normalizeBleAddress(mActiveDeviceAddress, allowPlain = false)
-            ?: OttaiConstants.normalizeBleAddress(
-                OttaiRegistry.findRecord(Applic.app, SerialNumber)?.address,
-                allowPlain = false,
-            )
+            ?: ownRecordAddress()
+
+    /**
+     * This sensor's own address as persisted in the registry. Unlike [knownBleAddress] it never
+     * consults mActiveDeviceAddress, which candidate discovery retargets at whatever it probes —
+     * so this is the one value a neighbouring sensor's advertisement cannot displace.
+     */
+    private fun ownRecordAddress(): String? =
+        OttaiConstants.normalizeBleAddress(
+            OttaiRegistry.findRecord(Applic.app, SerialNumber)?.address,
+            allowPlain = false,
+        )
+
+    /**
+     * The address the transport should hold after [candidate] disconnected. A candidate that has
+     * already failed this sensor's auth signature must never be adopted: the disconnect handlers
+     * re-arm discovery from mActiveDeviceAddress, so adopting it promotes a stranger to "home"
+     * and the driver spends the rest of the session chasing a device it has already disproved.
+     */
+    private fun addressAfterCandidate(candidate: String?): String? =
+        addressAfterCandidateFor(
+            candidateAddress = candidate,
+            candidateVerified = !activationCandidateUnverified(),
+            homeAddress = activationCandidateHomeAddress,
+            recordAddress = ownRecordAddress(),
+        )
+
+    /**
+     * True while candidate discovery is armed, or was armed and has not been resolved yet.
+     * activationCandidateHomeAddress is captured when discovery arms and cleared only by a
+     * verified candidate or by an activation reset, so it doubles as that "unresolved" marker —
+     * which matters because a probe can die before it ever reaches the signature check.
+     */
+    private fun activationCandidateUnverified(): Boolean =
+        activationCandidateDiscoveryPending || activationCandidateHomeAddress != null
 
     private fun hydrateBluetoothDeviceFromAddress(): Boolean {
         val address = knownBleAddress() ?: return false
@@ -710,7 +778,9 @@ class OttaiBleManager(
         }
         searchforDeviceAddress()
         activationRetryAddress = address
-        activationCandidateHomeAddress = address
+        // From the registry record, never from the address we may already have been retargeted
+        // to: an earlier probe can have left a stranger in mActiveDeviceAddress.
+        activationCandidateHomeAddress = ownRecordAddress() ?: address
         activationCandidateDiscoveryPending = true
         activationCandidateProbeActive = false
         clearDeferredActivationCandidateCgmInfo()
@@ -745,16 +815,21 @@ class OttaiBleManager(
             )
             return
         }
-        val home = activationCandidateHomeAddress
+        val home = activationCandidateHomeAddress ?: ownRecordAddress()
         activationCandidateDiscoveryPending = false
         awaitingFreshActivationAdvertisement = false
-        rejectedActivationCandidateAddresses.clear()
+        freshActivationAdvertisementAbandoned = true
         clearDeferredActivationCandidateCgmInfo()
         if (home != null) {
             activationRetryAddress = home
             mActiveDeviceAddress = home
         }
-        activationCandidateHomeAddress = null
+        // Deliberately keep rejectedActivationCandidateAddresses and the home address. A
+        // candidate's connectGatt can still be in flight here — activationCandidateProbeActive
+        // only goes true once its link lands — and clearing them would open the window where
+        // that stranger arrives unguarded, gets adopted by setDeviceAddress and, on a completed
+        // auth, persisted into the registry record. They cost nothing to keep; only an
+        // activation reset clears them.
         Log.w(TAG, "abandoning activation candidate discovery ($reason); " +
             "falling back to direct connect address=$home")
         UiRefreshBus.requestStatusRefresh()
@@ -856,6 +931,9 @@ class OttaiBleManager(
                 lastBleActivityAtMs = connectTime
                 connectStallStreak = 0
                 liveReadRetryCount = 0
+                // A link landed, so the abandoned-scan latch has served its purpose: a later
+                // activation attempt in this session may legitimately arm discovery again.
+                freshActivationAdvertisementAbandoned = false
                 if (constatstatusstr == "Loss of signal" || constatstatusstr == lossOfSignalText()) {
                     constatstatusstr = ""
                 }
@@ -921,7 +999,7 @@ class OttaiBleManager(
                     activationCandidateProbeActive = false
                     clearDeferredActivationCandidateCgmInfo()
                     searchforDeviceAddress()
-                    mActiveDeviceAddress = activationRetryAddress
+                    mActiveDeviceAddress = addressAfterCandidate(activationRetryAddress)
                     Log.i(TAG, "activation retry candidate disconnected status=$status; resuming authenticated scan")
                     SensorBluetooth.blueone?.scanStarter(250L)
                 } else if (resumeActivation && status == 147) {
@@ -929,7 +1007,7 @@ class OttaiBleManager(
                         "direct reconnect timed out with status=147",
                     )
                 } else if (resumeActivation) {
-                    mActiveDeviceAddress = activationRetryAddress
+                    mActiveDeviceAddress = addressAfterCandidate(activationRetryAddress)
                     Log.i(TAG, "activation lifetime retry requires fresh auth; reconnecting for " +
                         "attempt=${maxActiveCandidateIndex + 1}/${maxActiveCandidatesMs.size} " +
                         "address=$mActiveDeviceAddress")
@@ -943,7 +1021,7 @@ class OttaiBleManager(
                         explicitActivationRequest,
                     )
                 ) {
-                    mActiveDeviceAddress = disconnectedAddress
+                    mActiveDeviceAddress = addressAfterCandidate(disconnectedAddress)
                     val scanning = awaitFreshActivationAdvertisement()
                     Log.w(TAG, "setup activation disconnected before command status=$status; " +
                         "fresh advertisement scan started=$scanning address=$mActiveDeviceAddress")
@@ -1327,8 +1405,10 @@ class OttaiBleManager(
         // Point the transport back at our own sensor. Without this the rejected stranger's
         // address stays in activationRetryAddress/mActiveDeviceAddress, the disconnect
         // handler re-arms the scan around it, and knownBleAddress() keeps answering with a
-        // device we have just proven is not ours.
-        activationCandidateHomeAddress?.let { home ->
+        // device we have just proven is not ours. Falls back to the registry record so this
+        // still works on the entry path that did not capture a home address.
+        (activationCandidateHomeAddress ?: ownRecordAddress())?.let { home ->
+            activationCandidateHomeAddress = home
             activationRetryAddress = home
             mActiveDeviceAddress = home
         }
@@ -2223,6 +2303,7 @@ class OttaiBleManager(
         activationCandidateDiscoveryPending = false
         activationCandidateProbeActive = false
         activationCandidateHomeAddress = null
+        freshActivationAdvertisementAbandoned = false
         handler.removeCallbacks(freshActivationAdvertisementTimeoutRunnable)
         rejectedActivationCandidateAddresses.clear()
         clearDeferredActivationCandidateCgmInfo()
@@ -2241,6 +2322,7 @@ class OttaiBleManager(
         activationCandidateDiscoveryPending = false
         activationCandidateProbeActive = false
         activationCandidateHomeAddress = null
+        freshActivationAdvertisementAbandoned = false
         handler.removeCallbacks(freshActivationAdvertisementTimeoutRunnable)
         rejectedActivationCandidateAddresses.clear()
         clearDeferredActivationCandidateCgmInfo()
@@ -2400,10 +2482,14 @@ class OttaiBleManager(
         if (!activationNegotiationActive || !activationRetryPending) return
         activationCandidateDiscoveryPending = true
         activationCandidateProbeActive = false
+        // This is the second way into candidate discovery, and it used to leave the home address
+        // at the null beginActivationNegotiation() writes — which made rejectActivationCandidate's
+        // "restore our own address" a no-op on this path, so a disproved stranger stayed pinned.
+        activationCandidateHomeAddress = ownRecordAddress() ?: activationCandidateHomeAddress
         clearDeferredActivationCandidateCgmInfo()
         mActiveBluetoothDevice = null
         searchforDeviceAddress()
-        mActiveDeviceAddress = activationRetryAddress
+        mActiveDeviceAddress = addressAfterCandidate(activationRetryAddress)
         Log.w(TAG, "activation retry scanning for an authenticated Ottai candidate: $reason")
         if (OttaiRegistry.loadApiBase(Applic.app) == OttaiConstants.API_BASE) {
             SerialNumber?.takeIf { it.isNotBlank() }?.let { sensorId ->

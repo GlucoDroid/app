@@ -55,6 +55,77 @@ class OttaiReconnectPolicyTests {
         assertTrue(OttaiBleManager.shouldDistrustCeiling(limit + 1))
     }
 
+    private val ours = "70:D0:7E:42:4D:A2"
+    private val stranger = "C0:9B:9E:60:07:37"
+
+    @Test
+    fun aVerifiedCandidateBecomesTheTransportAddress() {
+        assertEquals(
+            stranger,
+            OttaiBleManager.addressAfterCandidateFor(
+                candidateAddress = stranger, candidateVerified = true,
+                homeAddress = ours, recordAddress = ours,
+            ),
+        )
+    }
+
+    @Test
+    fun anUnverifiedCandidateIsNeverAdoptedEvenIfItWasNeverDisproved() {
+        // The decisive case: a probe that dies before the signature read — GATT 133, a
+        // service-discovery timeout, a remote drop — never reaches rejectActivationCandidate.
+        // Keying on "was it disproved" would leave that stranger installed, and
+        // SensorBluetooth dispatches on address before any admission check.
+        assertEquals(
+            ours,
+            OttaiBleManager.addressAfterCandidateFor(
+                candidateAddress = stranger, candidateVerified = false,
+                homeAddress = ours, recordAddress = ours,
+            ),
+        )
+    }
+
+    @Test
+    fun theRegistryRecordBacksUpAMissingHomeAddress() {
+        // The second entry into candidate discovery used not to capture a home address at all,
+        // which made the restore a no-op on that path.
+        assertEquals(
+            ours,
+            OttaiBleManager.addressAfterCandidateFor(
+                candidateAddress = stranger, candidateVerified = false,
+                homeAddress = null, recordAddress = ours,
+            ),
+        )
+    }
+
+    @Test
+    fun anUnverifiedCandidateStandsOnlyWhenWeKnowOfNoAddressOfOurOwn() {
+        assertEquals(
+            stranger,
+            OttaiBleManager.addressAfterCandidateFor(
+                candidateAddress = stranger, candidateVerified = false,
+                homeAddress = null, recordAddress = null,
+            ),
+        )
+    }
+
+    @Test
+    fun aMissingCandidateFallsBackToOurOwnAddress() {
+        assertEquals(
+            ours,
+            OttaiBleManager.addressAfterCandidateFor(
+                candidateAddress = null, candidateVerified = true,
+                homeAddress = null, recordAddress = ours,
+            ),
+        )
+        assertEquals(
+            ours,
+            OttaiBleManager.addressAfterCandidateFor(
+                candidateAddress = "   ", candidateVerified = true,
+                homeAddress = ours, recordAddress = null,
+            ),
+        )
+    }
+
     @Test
     fun confirmedStartBoundsDataNoToTheSensorsElapsedLife() {
         val twoDaysAgo = now - 2 * 24 * 60 * minute
