@@ -739,7 +739,9 @@ fun DashboardChartSection(
         }
     }
     val safeExpandedProgress = expandedProgress.coerceIn(0f, 1f)
-    val collapseVisualProgress = (((1f - safeExpandedProgress) - 0.06f) / 0.94f).coerceIn(0f, 1f)
+    // No dead zone: the 6% one meant the colour and the corner radius sat still while
+    // the card was already pulling in from the edges, so the shape led the paint.
+    val collapseVisualProgress = 1f - safeExpandedProgress
     val containerColor = androidx.compose.ui.graphics.lerp(
         MaterialTheme.colorScheme.background,
         MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -750,7 +752,12 @@ fun DashboardChartSection(
         modifier = modifier,
         shape = RoundedCornerShape(cornerRadius),
         color = containerColor,
-        tonalElevation = 2.dp * collapseVisualProgress,
+        // Deliberately no tonalElevation. Material's Surface only applies it when the
+        // colour is exactly colorScheme.surface, so with a lerped colour it switches on
+        // and off at whichever endpoint happens to match in the current scheme — a tint
+        // that pops at the end of the animation in some themes and never appears in
+        // others. surfaceContainerHigh is already the elevated tone, so the lerp alone
+        // carries the intent.
         shadowElevation = 0.dp
     ) {
         chartContent()
