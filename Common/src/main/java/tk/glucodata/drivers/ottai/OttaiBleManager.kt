@@ -196,6 +196,19 @@ class OttaiBleManager(
             consecutiveFullDrops >= MAX_CONSECUTIVE_CEILING_FULL_DROPS
 
         /**
+         * Percent of a running history chunk chain that has been requested, or -1 when no chain
+         * is running or its bounds make no sense. Clamped to 0..99 while a chain is live: the
+         * chain is only cleared once it finishes, so reporting 100% while requests are still in
+         * flight would read as "done" for however long the tail takes.
+         */
+        internal fun historyBackfillPercent(chainStart: Int, nextStart: Int, endExclusive: Int): Int {
+            if (chainStart < 0 || endExclusive <= chainStart) return -1
+            val total = endExclusive - chainStart
+            val done = (nextStart - chainStart).coerceIn(0, total)
+            return ((done.toLong() * 100L) / total.toLong()).toInt().coerceIn(0, 99)
+        }
+
+        /**
          * Which address the transport should hold once [candidateAddress] is done with.
          *
          * The test is [candidateVerified] — did this address prove possession of *this* sensor's
@@ -325,6 +338,10 @@ class OttaiBleManager(
     @Volatile private var pendingHistoryReason: String? = null
     @Volatile private var pendingHistoryNextStart = 0
     @Volatile private var pendingHistoryEndExclusive = 0
+    // First record of the chunk chain currently running, so its progress can be shown. A full
+    // backfill after re-adding a sensor is ~19000 records and takes minutes, during which the
+    // driver otherwise just reads "Connected" and the graph fills in silently from behind.
+    @Volatile private var historyChainStart = -1
     @Volatile private var activeHistoryEndExclusive = -1
     @Volatile private var activeHistoryStart = -1
     @Volatile private var historyRetryCount = 0
@@ -2825,7 +2842,9 @@ class OttaiBleManager(
             pendingHistoryReason = reason
             pendingHistoryNextStart = start + requestCount
             pendingHistoryEndExclusive = start + count
+            historyChainStart = start
             Log.i(TAG, "history chunked reason=$reason start=$start count=$count first=$requestCount next=$pendingHistoryNextStart")
+            UiRefreshBus.requestStatusRefresh()
         }
         if (!issued) scheduleHoleRetry() // a just-ledgered window still gets its retry driver
         return issued
@@ -2906,6 +2925,7 @@ class OttaiBleManager(
         handler.removeCallbacks(pendingHistoryChunkRunnable)
         handler.postDelayed(pendingHistoryChunkRunnable, HISTORY_CHUNK_DELAY_MS)
         Log.i(TAG, "history chunk complete through=$maxDataNo next=$pendingHistoryNextStart end=$pendingHistoryEndExclusive")
+        UiRefreshBus.requestStatusRefresh()
         return true
     }
 
@@ -2959,6 +2979,10 @@ class OttaiBleManager(
         }
     }
 
+    /** Percent of the running backfill, or -1 when nothing is being fetched. */
+    private fun historyBackfillPercentNow(): Int =
+        historyBackfillPercent(historyChainStart, pendingHistoryNextStart, pendingHistoryEndExclusive)
+
     private fun clearPendingHistoryRange() {
         handler.removeCallbacks(pendingHistoryChunkRunnable)
         cancelHistoryWatchdog()
@@ -2966,8 +2990,10 @@ class OttaiBleManager(
         pendingHistoryReason = null
         pendingHistoryNextStart = 0
         pendingHistoryEndExclusive = 0
+        historyChainStart = -1
         activeHistoryEndExclusive = -1
         activeHistoryStart = -1
+        UiRefreshBus.requestStatusRefresh()
     }
 
     // ---- history hole ledger ----
@@ -3286,7 +3312,12 @@ class OttaiBleManager(
             Phase.DISCOVERING -> "Discovering"
             Phase.ENABLING_NOTIFY -> "Subscribing"
             Phase.AUTH -> "Authenticating"
-            Phase.STREAMING -> if (lastGlucoseAtMs > 0L) {
+            Phase.STREAMING -> if (historyBackfillPercentNow() >= 0) appString(
+                R.string.ottai_status_loading_history,
+                "Loading history ${historyBackfillPercentNow()}%",
+                historyBackfillPercentNow(),
+            )
+            else if (lastGlucoseAtMs > 0L) {
                 "Connected"
             } else if (effectiveActiveTimeMs() > 0L) {
                 val remaining = warmupRemainingMs()

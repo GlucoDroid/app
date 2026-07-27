@@ -1941,6 +1941,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved_fail">Нет материалов в аккаунте или сохраненных материалов для этого облачного ID</string>
     <string name="ottai_status_needs_ble_address">Нужен BLE-адрес</string>
     <string name="ottai_status_warmup_provisional">Предварительный прогрев • осталось %1$d мин</string>
+    <string name="ottai_status_loading_history">Загрузка истории • %1$d%%</string>
     <string name="ottai_ble_scan_title">Датчики Ottai рядом</string>
     <string name="ottai_ble_scan_hint">Поднесите телефон ближе к датчику. Здесь появятся стабильные CGM-устройства.</string>
     <string name="ottai_ble_scan_empty">Датчик Ottai рядом не найден. Поднесите телефон ближе и сканируйте снова.</string>
