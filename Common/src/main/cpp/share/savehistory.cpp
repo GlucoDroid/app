@@ -114,6 +114,59 @@ if(save.getStreamendhistory()) {
 return true;
 }
 
+extern int saveScanTrend(const nfcdata *nfcptr,time_t nutime,int nuid, SensorGlucoseData &save) ;
+/* Besides the 32 fifteen-minute history records, the patch carries trend[16]: the raw
+   sensor value for each of the 16 minutes before the scan. Juggluco kept those only in
+   trends.dat for the legacy trend thumbnail, so scanning during a BLE outage recovered
+   nothing at one-minute resolution even though the tag was holding it. Append the minutes
+   we do not have yet.
+
+   These are uncompensated sensor values in the same unit as the history raw lane
+   (mg/dL x 10), not algorithm output, so they go into the raw lane with no auto value.
+   Only the Abbott library can turn a raw sample into a glucose reading, and it exposes
+   that for the current minute alone — deriving the other fifteen would be inventing
+   readings, which this app does not do.
+
+   The newest entry is left out on purpose: the scan itself already records that minute
+   with a real algorithm value, and a raw-only poll at the same second would displace it
+   in getGlucoseHistory(). */
+int saveScanTrend(const nfcdata *nfcptr,time_t nutime,int nuid, SensorGlucoseData &save) {
+	if(!nfcptr)
+		return 0;
+	int added=0,skipped=0;
+	for(int i=0;i<trend::num-1;i++) {
+		const uint16_t raw=nfcptr->gettrendglucose(i);
+		if(!raw)	/*Ring buffer not filled yet.*/
+			continue;
+		/*Same plausibility window Glucose::valid() applies to this unit.*/
+		if(raw<=380||raw>=5020) {
+			LOGGER("GLU: scantrend implausible raw=%hu\n",raw);
+			continue;
+			}
+		const int minutesback=trend::num-1-i;
+		const int id=nuid-minutesback;
+		if(id<0)
+			continue;
+		if(!save.validPollIndex(save.pollcount())) {
+			LOGGER("GLU: scantrend poll store full at %d\n",save.pollcount());
+			break;
+			}
+		const time_t was=nutime-minutesback*60;
+		/*rawpolls holds mmol/L x 10, see compactRawMgdl() in g.cpp.*/
+		const int rawpoll=(int)lround(raw/convfactordL);
+		/*savepoll() refuses anything at or before the newest stored id, so minutes the
+		  BLE stream already delivered keep their algorithm value untouched.*/
+		if(save.savepoll(was,id,0,0,NAN,rawpoll)) {
+			++added;
+			LOGGER("scantrend add %d %.1f raw %s",id,raw/convfactor,ctime(&was));
+			}
+		else
+			++skipped;
+		}
+	LOGGER("saveScanTrend added=%d already known=%d\n",added,skipped);
+	return added;
+	}
+
 extern std::vector<int> usedsensors;
 extern void setusedsensors();
 void setstartedwithStreamhistory() {
