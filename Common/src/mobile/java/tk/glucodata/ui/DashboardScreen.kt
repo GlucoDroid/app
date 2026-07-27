@@ -246,6 +246,14 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 
+/** Scroll state the chart's snap-to-anchor logic reacts to, as one comparable value. */
+private data class SnapInput(
+    val scrolling: Boolean,
+    val firstIndex: Int,
+    val firstOffset: Int,
+    val boost: Float
+)
+
 enum class TimeRange(val label: String, val hours: Int) {
     H1("1H", 1),
     H3("3H", 3),
@@ -817,7 +825,10 @@ fun DashboardScreen(
             }
             val listState = rememberLazyListState()
             val collapseDistancePx = with(LocalDensity.current) { 220.dp.toPx() }
-            val collapseFraction by remember(listState, collapseDistancePx, isLandscape) {
+            // Held as a State rather than read through `by`: every consumer of this is
+            // inside the chart item, and reading it out here recomposed the whole
+            // ~1500-line dashboard body on every scrolled pixel.
+            val collapseFractionState = remember(listState, collapseDistancePx, isLandscape) {
                 derivedStateOf {
                     if (isLandscape) {
                         1f
@@ -829,26 +840,18 @@ fun DashboardScreen(
                 }
             }
             var isChartExpanded by rememberSaveable(isLandscape) { mutableStateOf(!isLandscape) }
-            LaunchedEffect(collapseFraction, isLandscape) {
+            // Collected rather than keyed on: as a LaunchedEffect key the fraction was
+            // read during composition, which is the recomposition-per-frame again. The
+            // hysteresis thresholds are unchanged.
+            LaunchedEffect(collapseFractionState, isLandscape) {
                 if (isLandscape) {
                     isChartExpanded = false
-                } else {
-                    isChartExpanded = if (isChartExpanded) {
-                        collapseFraction < 0.72f
-                    } else {
-                        collapseFraction < 0.48f
-                    }
+                    return@LaunchedEffect
+                }
+                snapshotFlow { collapseFractionState.value }.collect { fraction ->
+                    isChartExpanded = if (isChartExpanded) fraction < 0.72f else fraction < 0.48f
                 }
             }
-            val expandedProgressTarget = if (isLandscape) 0f else (1f - collapseFraction).coerceIn(0f, 1f)
-            val expandedProgress by animateFloatAsState(
-                        targetValue = expandedProgressTarget,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessLow
-                ),
-                label = "DashboardExpandedProgress"
-                        )
 
             val contentHorizontalPadding = when (adaptiveMetrics.layoutDensity) {
                 AdaptiveLayoutDensity.Compact -> 12.dp
@@ -937,7 +940,7 @@ fun DashboardScreen(
             val middleChartBoostPx = with(density) { middleChartBoostDp.toPx() }
             val maxChartBoostPx = with(density) { maxChartBoostDp.toPx() }
 
-            var chartBoostProgress by rememberSaveable { mutableFloatStateOf(0f) }
+            val chartBoostState = rememberSaveable { mutableFloatStateOf(0f) }
 
             val scope = rememberCoroutineScope()
 
@@ -947,11 +950,11 @@ fun DashboardScreen(
                         // Dragging UP (scroll delta < 0): Shrink chart first.
                         // 100% absorption means chart shrinks EXACTLY as finger moves, keeping top fixed.
                         // Once boost hits 0, remainders pass to the list for uninterrupted scrolling.
-                        val currentBoostPx = chartBoostProgress * maxChartBoostPx
+                        val currentBoostPx = chartBoostState.floatValue * maxChartBoostPx
                         if (available.y < 0 && currentBoostPx > 0f && maxChartBoostPx > 0f) {
                             val newBoost = (currentBoostPx + available.y).coerceAtLeast(0f)
                             val consumed = newBoost - currentBoostPx
-                            chartBoostProgress = (newBoost / maxChartBoostPx).coerceIn(0f, 1f)
+                            chartBoostState.floatValue = (newBoost / maxChartBoostPx).coerceIn(0f, 1f)
                             return Offset(0f, consumed)
                         }
                         return Offset.Zero
@@ -964,7 +967,7 @@ fun DashboardScreen(
                     ): Offset {
                         // Dragging DOWN at top of list: Grow chart 1:1 with finger.
                         // Removing artificial damping so it feels completely free, not restrictive or jiggly.
-                        val currentBoostPx = chartBoostProgress * maxChartBoostPx
+                        val currentBoostPx = chartBoostState.floatValue * maxChartBoostPx
                         if (
                             available.y > 0 &&
                             maxChartBoostPx > 0f &&
@@ -973,14 +976,14 @@ fun DashboardScreen(
                         ) {
                             val newBoost = (currentBoostPx + available.y).coerceAtMost(maxChartBoostPx)
                             val consumedY = newBoost - currentBoostPx
-                            chartBoostProgress = (newBoost / maxChartBoostPx).coerceIn(0f, 1f)
+                            chartBoostState.floatValue = (newBoost / maxChartBoostPx).coerceIn(0f, 1f)
                             return Offset(0f, consumedY)
                         }
                         return Offset.Zero
                     }
 
                     override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
-                        val currentBoostPx = chartBoostProgress * maxChartBoostPx
+                        val currentBoostPx = chartBoostState.floatValue * maxChartBoostPx
                         if (currentBoostPx > 0f && maxChartBoostPx > 0f) {
                             val middleAnchor = middleChartBoostPx.coerceIn(0f, maxChartBoostPx)
 
@@ -1023,7 +1026,7 @@ fun DashboardScreen(
                                                     else androidx.compose.animation.core.Spring.StiffnessMediumLow
                                     )
                                 ) { value, _ ->
-                                    chartBoostProgress = (value / maxChartBoostPx).coerceIn(0f, 1f)
+                                    chartBoostState.floatValue = (value / maxChartBoostPx).coerceIn(0f, 1f)
                                 }
                             }
 
@@ -1036,48 +1039,51 @@ fun DashboardScreen(
 
             LaunchedEffect(maxChartBoostPx) {
                 if (maxChartBoostPx <= 0f) {
-                    chartBoostProgress = 0f
+                    chartBoostState.floatValue = 0f
                 } else {
-                    chartBoostProgress = chartBoostProgress.coerceIn(0f, 1f)
+                    chartBoostState.floatValue = chartBoostState.floatValue.coerceIn(0f, 1f)
                 }
             }
 
-            LaunchedEffect(
-                listState.isScrollInProgress,
-                listState.firstVisibleItemIndex,
-                listState.firstVisibleItemScrollOffset,
-                maxChartBoostPx,
-                middleChartBoostPx,
-                chartBoostProgress
-            ) {
-                if (maxChartBoostPx <= 0f || listState.isScrollInProgress) return@LaunchedEffect
+            // Same reason as above: keying this on live scroll state read it during
+            // composition. Collecting the same values leaves the behaviour identical
+            // and the outer body untouched while a scroll is in flight.
+            LaunchedEffect(listState, chartBoostState, maxChartBoostPx, middleChartBoostPx) {
+                snapshotFlow {
+                    SnapInput(
+                        scrolling = listState.isScrollInProgress,
+                        firstIndex = listState.firstVisibleItemIndex,
+                        firstOffset = listState.firstVisibleItemScrollOffset,
+                        boost = chartBoostState.floatValue
+                    )
+                }.collect { input ->
+                    if (maxChartBoostPx <= 0f || input.scrolling) return@collect
 
-                val currentBoostPx = chartBoostProgress * maxChartBoostPx
-                if (currentBoostPx <= 1f) {
-                    if (chartBoostProgress != 0f) chartBoostProgress = 0f
-                    return@LaunchedEffect
-                }
+                    val currentBoostPx = input.boost * maxChartBoostPx
+                    if (currentBoostPx <= 1f) {
+                        if (input.boost != 0f) chartBoostState.floatValue = 0f
+                        return@collect
+                    }
 
-                val middleAnchorPx = middleChartBoostPx.coerceIn(0f, maxChartBoostPx)
-                val shouldCollapseToDefault =
-                    listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
-                val targetAnchorPx = if (shouldCollapseToDefault) {
-                    0f
-                } else {
-                    when {
-                        currentBoostPx <= middleAnchorPx * 0.5f -> 0f
-                        currentBoostPx < ((middleAnchorPx + maxChartBoostPx) * 0.5f) -> middleAnchorPx
-                        else -> maxChartBoostPx
+                    val middleAnchorPx = middleChartBoostPx.coerceIn(0f, maxChartBoostPx)
+                    val shouldCollapseToDefault = input.firstIndex > 0 || input.firstOffset > 0
+                    val targetAnchorPx = if (shouldCollapseToDefault) {
+                        0f
+                    } else {
+                        when {
+                            currentBoostPx <= middleAnchorPx * 0.5f -> 0f
+                            currentBoostPx < ((middleAnchorPx + maxChartBoostPx) * 0.5f) -> middleAnchorPx
+                            else -> maxChartBoostPx
+                        }
+                    }
+
+                    if (abs(targetAnchorPx - currentBoostPx) > 1f) {
+                        chartBoostState.floatValue =
+                            (targetAnchorPx / maxChartBoostPx).coerceIn(0f, 1f)
                     }
                 }
-
-                if (abs(targetAnchorPx - currentBoostPx) > 1f) {
-                    chartBoostProgress = (targetAnchorPx / maxChartBoostPx).coerceIn(0f, 1f)
-                }
             }
 
-            val chartHeightBoostPx = chartBoostProgress * maxChartBoostPx
-            val chartHeightBoostDp = with(density) { chartHeightBoostPx.toDp() }
 
 
             // --- REUSABLE UI SECTIONS ---
@@ -1510,6 +1516,22 @@ fun DashboardScreen(
                 }
 
                 item {
+                    // Every scroll-driven value is read here rather than in the screen
+                    // body, so a scroll invalidates this item and nothing else.
+                    val collapseFraction = collapseFractionState.value
+                    val chartBoostProgress = chartBoostState.floatValue
+                    val chartHeightBoostDp = with(density) {
+                        (chartBoostProgress * maxChartBoostPx).toDp()
+                    }
+                    val expandedProgress by animateFloatAsState(
+                        targetValue = if (isLandscape) 0f else (1f - collapseFraction).coerceIn(0f, 1f),
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessLow
+                        ),
+                        label = "DashboardExpandedProgress"
+                    )
+
                     // Portrait chart sizing is anchored to explicit visible-row budgets:
                     // top state shows ~3-4 rows, middle shows ~1-2, fullscreen hides the list.
                     val chartItemHeightTarget = (boundedCollapsedChartItemHeight + chartHeightBoostDp)
@@ -1633,13 +1655,9 @@ fun DashboardScreen(
                     // `dashboardItemSpacing` between the chips and this strip.
                     if (showPinnedStats) {
                         tk.glucodata.ui.stats.PinnedStatsStrip(
-                            // 16 dp to match the readings card directly below, not the
-                            // adaptive gutter: that one is 12/14/16 dp by layout density,
-                            // so on anything but Comfortable the strip sat a couple of dp
-                            // wider than the list it stacks on.
                             modifier = Modifier.padding(
-                                start = 16.dp,
-                                end = 16.dp,
+                                start = contentHorizontalPadding,
+                                end = contentHorizontalPadding,
                                 // Between the two extremes: a separate lazy item put a
                                 // full 12 dp here and read as a hole, 2 dp had the strip
                                 // welded to the chart card once the chart collapses.
@@ -1654,7 +1672,11 @@ fun DashboardScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                     Box(
                         modifier = Modifier
-                            .padding(start = 16.dp, top = readingsTopSpacing, end = 16.dp)
+                            .padding(
+                                start = contentHorizontalPadding,
+                                top = readingsTopSpacing,
+                                end = contentHorizontalPadding
+                            )
                     ) {
                         RecentReadingsCard(
                             recentReadings = recentReadings,
@@ -1752,7 +1774,7 @@ fun DashboardScreen(
 
                 // Calibrations Card
                 item {
-                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Box(modifier = Modifier.padding(horizontal = contentHorizontalPadding)) {
                         CalibrationsCard(
                             viewMode = viewMode,
                             isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit),
