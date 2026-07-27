@@ -122,6 +122,11 @@ class OttaiBleManager(
         // enough to cover an NFC wake plus a couple of advertisement bursts.
         private const val FRESH_ACTIVATION_ADVERTISEMENT_TIMEOUT_MS = 120_000L
         private const val RECORD_INTERVAL_MS = 60_000L
+        // How close two independently-derived activation starts must be to corroborate each
+        // other. Both are (wall clock - dataNo * interval); the wall clocks differ by the poll
+        // gap and each is floored to the record minute, so a genuine pair agrees within a couple
+        // of records while a corrupt dataNo lands hours or days away.
+        internal const val CONFIRMED_START_AGREEMENT_MS = 2L * RECORD_INTERVAL_MS
         private const val CURRENT_SAMPLE_FRESH_MS = 120_000L
         private const val CURRENT_SAMPLE_FLOOR_GRACE_MS = RECORD_INTERVAL_MS
         private const val MAX_REASONABLE_DATA_NO_AHEAD = 120
@@ -355,7 +360,17 @@ class OttaiBleManager(
     // the direct connect would never run and the NFC prompt would be torn down each cycle.
     // Cleared whenever activation is (re)negotiated or a connection actually lands.
     @Volatile private var freshActivationAdvertisementAbandoned = false
+    // The address that passed verifyDeviceSign for this sensor in this session, if any.
+    @Volatile private var verifiedTransportAddress: String? = null
     @Volatile private var streamStartTimeMs = 0L
+    // Whether streamStartTimeMs came from a wall-clock-corroborated anchor. Without this the slot
+    // is owned by whichever anchor happens to land first — often the initial-history seed a few
+    // seconds after connect, whose hint is derived from the cgm-info provisional — and since
+    // resolveSampleTimeMs() returns early on any non-zero anchor, the reliable live anchor (and
+    // so commitConfirmedActiveTime) could never run for the rest of the session.
+    @Volatile private var streamStartReliable = false
+    // First reliable activation start seen this session, held until a second one corroborates it.
+    @Volatile private var pendingConfirmedStartMs = 0L
     @Volatile private var lastBleActivityAtMs = 0L
     private val recentlyRejectedSamples = object : LinkedHashMap<Int, RejectedSample>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, RejectedSample>?): Boolean = size > 64
@@ -585,6 +600,9 @@ class OttaiBleManager(
         // candidate we were probing and never verified, and re-seeding it would reinstall a
         // stranger — with no admission check, since SensorBluetooth dispatches on address first.
         val previousAddress = addressAfterCandidate(knownBleAddress())
+        // Read the latch BEFORE the teardown: on the pre-auth path clearGattTransport runs
+        // resetActivationNegotiation, which clears it, so testing it afterwards was inert.
+        val alreadyAbandoned = freshActivationAdvertisementAbandoned
         clearGattTransport(
             reason,
             markSignalLoss = true,
@@ -592,7 +610,7 @@ class OttaiBleManager(
         )
         // Honour a bounded wait that already gave up: re-arming it here would restart the loop
         // abandonFreshActivationAdvertisement() exists to break, and tear down the NFC prompt.
-        if (scanForPendingActivation && !freshActivationAdvertisementAbandoned && previousAddress != null) {
+        if (scanForPendingActivation && !alreadyAbandoned && previousAddress != null) {
             mActiveDeviceAddress = previousAddress
             val scanning = awaitFreshActivationAdvertisement()
             Log.w(TAG, "pre-auth transport stalled; authenticated advertisement scan " +
@@ -732,22 +750,26 @@ class OttaiBleManager(
      * re-arm discovery from mActiveDeviceAddress, so adopting it promotes a stranger to "home"
      * and the driver spends the rest of the session chasing a device it has already disproved.
      */
-    private fun addressAfterCandidate(candidate: String?): String? =
-        addressAfterCandidateFor(
-            candidateAddress = candidate,
-            candidateVerified = !activationCandidateUnverified(),
-            homeAddress = activationCandidateHomeAddress,
+    /**
+     * Trust is decided by one positive fact — did this exact address prove possession of this
+     * sensor's auth material in this session — rather than by inferring "unverified" from the
+     * activation state machine. Inferring it was wrong in both directions: an activation reset
+     * cleared the marker while leaving a stranger installed (so it read as verified), and after
+     * an abandoned scan the marker stuck (so an address the driver had just authenticated was
+     * refused). Outside a probe there is nothing to verify against, and the registry record is
+     * the durable truth.
+     */
+    private fun addressAfterCandidate(candidate: String?): String? {
+        val normalized = OttaiConstants.normalizeBleAddress(candidate, allowPlain = false)
+        val verified = normalized != null &&
+            normalized.equals(verifiedTransportAddress, ignoreCase = true)
+        return addressAfterCandidateFor(
+            candidateAddress = normalized,
+            candidateVerified = verified,
+            homeAddress = null,
             recordAddress = ownRecordAddress(),
         )
-
-    /**
-     * True while candidate discovery is armed, or was armed and has not been resolved yet.
-     * activationCandidateHomeAddress is captured when discovery arms and cleared only by a
-     * verified candidate or by an activation reset, so it doubles as that "unresolved" marker —
-     * which matters because a probe can die before it ever reaches the signature check.
-     */
-    private fun activationCandidateUnverified(): Boolean =
-        activationCandidateDiscoveryPending || activationCandidateHomeAddress != null
+    }
 
     private fun hydrateBluetoothDeviceFromAddress(): Boolean {
         val address = knownBleAddress() ?: return false
@@ -781,6 +803,10 @@ class OttaiBleManager(
         // From the registry record, never from the address we may already have been retargeted
         // to: an earlier probe can have left a stranger in mActiveDeviceAddress.
         activationCandidateHomeAddress = ownRecordAddress() ?: address
+        // Every deliberate arming path reaches here, so clearing the latch here — rather than
+        // relying on an activation reset that preserveActivationNegotiation can skip — keeps a
+        // user-driven retry working while connectDevice()'s automatic branch stays suppressed.
+        freshActivationAdvertisementAbandoned = false
         activationCandidateDiscoveryPending = true
         activationCandidateProbeActive = false
         clearDeferredActivationCandidateCgmInfo()
@@ -824,12 +850,14 @@ class OttaiBleManager(
             activationRetryAddress = home
             mActiveDeviceAddress = home
         }
-        // Deliberately keep rejectedActivationCandidateAddresses and the home address. A
-        // candidate's connectGatt can still be in flight here — activationCandidateProbeActive
-        // only goes true once its link lands — and clearing them would open the window where
-        // that stranger arrives unguarded, gets adopted by setDeviceAddress and, on a completed
-        // auth, persisted into the registry record. They cost nothing to keep; only an
-        // activation reset clears them.
+        // The blacklist must not outlive the discovery episode. verifyDeviceSign() returns false
+        // for reasons that are not "this is a stranger" — absent authKeys, a deviceParamIndex out
+        // of range after key rotation, and its own acknowledged noisy polarity — and
+        // shouldProbeActivationAdvertisement() consults the rejected set BEFORE the exact-address
+        // match, so one bad signature read would otherwise blacklist our own sensor for the rest
+        // of the negotiation with no way back. Trust now rests on verifiedTransportAddress, which
+        // is a positive fact and cannot be poisoned by clearing this.
+        rejectedActivationCandidateAddresses.clear()
         Log.w(TAG, "abandoning activation candidate discovery ($reason); " +
             "falling back to direct connect address=$home")
         UiRefreshBus.requestStatusRefresh()
@@ -1375,6 +1403,14 @@ class OttaiBleManager(
         )
         // Per decompile notes the boolean polarity is noisy; log, do not hard-fail.
         Log.i(TAG, "device sign verify=$ok")
+        if (ok) {
+            // The one durable fact about trust: this address proved possession of THIS sensor's
+            // auth material. Recorded independently of the activation state machine, whose flags
+            // are cleared by a dozen teardown paths, so addressAfterCandidate() cannot be fooled
+            // by a stale marker in either direction.
+            OttaiConstants.normalizeBleAddress(mBluetoothGatt?.device?.address, allowPlain = false)
+                ?.let { verifiedTransportAddress = it }
+        }
         if (ok && activationCandidateProbeActive) {
             val verifiedAddress = OttaiConstants.normalizeBleAddress(
                 mBluetoothGatt?.device?.address,
@@ -1715,6 +1751,36 @@ class OttaiBleManager(
      * though it's activated. The live dataNo counter gives the true activation, so persist it (and
      * drop the now-redundant provisional).
      */
+    /**
+     * Gate before [commitConfirmedActiveTime]. The commit is one-way — nothing repairs
+     * materials.activeTimeMs once written — and it is the sole input the dataNo ceiling trusts,
+     * so a single corrupt frame must not be able to set it. Require two reliable anchors that
+     * agree: they are computed as (wall clock - dataNo * interval) from independent reads, so a
+     * genuine pair lands within a record or two while a corrupt dataNo lands far away.
+     */
+    private fun offerConfirmedActiveTime(startMs: Long) {
+        if (startMs <= 0L || materials.activeTimeMs > 0L) return
+        val now = System.currentTimeMillis()
+        // Physically impossible starts are rejected outright rather than corroborated.
+        if (startMs > now || now - startMs > OttaiConstants.EXTENDED_LIFETIME_MS) {
+            Log.w(TAG, "implausible activation start=${startMs / 1000L} ignored (now=${now / 1000L})")
+            return
+        }
+        val pending = pendingConfirmedStartMs
+        if (pending <= 0L) {
+            pendingConfirmedStartMs = startMs
+            Log.i(TAG, "activation start candidate=${startMs / 1000L} awaiting corroboration")
+            return
+        }
+        if (kotlin.math.abs(pending - startMs) <= CONFIRMED_START_AGREEMENT_MS) {
+            commitConfirmedActiveTime(startMs)
+            return
+        }
+        Log.w(TAG, "activation start candidates disagree: ${pending / 1000L} vs ${startMs / 1000L}; " +
+            "re-arming corroboration")
+        pendingConfirmedStartMs = startMs
+    }
+
     private fun commitConfirmedActiveTime(startMs: Long) {
         if (startMs <= 0L || materials.activeTimeMs > 0L) return
         val id = SerialNumber.orEmpty()
@@ -1848,13 +1914,20 @@ class OttaiBleManager(
             return
         }
         noteSeenDataNo(latest.dataNo)
-        val activeMs = effectiveActiveTimeMs()
-        if (streamStartTimeMs <= 0L && activeMs > 0L) {
+        // An ended sensor never produces a live read, so no wall-clock-corroborated anchor is
+        // possible here and this seed would own the session unchallenged. Derive it only from a
+        // confirmed activation: seeding from the cgm-info provisional instead would misdate the
+        // whole final backfill with no way back. No anchor is better than a wrong one — the
+        // backfill is then dated once a confirmed start is available, or not at all.
+        val confirmedMs = materials.activeTimeMs
+        if (streamStartTimeMs <= 0L && confirmedMs > 0L) {
             seedStreamTimeAnchor(
                 latest.dataNo,
-                activeMs + latest.runtimeSec.toLong() * 1_000L,
+                confirmedMs + latest.runtimeSec.toLong() * 1_000L,
                 "ended-live",
             )
+        } else if (streamStartTimeMs <= 0L) {
+            Log.w(TAG, "ended live buffer with no confirmed activation start; backfill left undated")
         }
         Log.i(TAG, "ended live buffer indexed dataNo=${latest.dataNo}; glucose suppressed")
         handler.removeCallbacks(endedHistoryBackfillRunnable)
@@ -2166,8 +2239,11 @@ class OttaiBleManager(
         live: Boolean,
         receivedAtMs: Long,
     ): Long {
-        streamStartTimeMs.takeIf { it > 0L }?.let { start ->
-            return start + r.record.dataNo.toLong() * RECORD_INTERVAL_MS
+        // An unreliable anchor holds the slot only until a record that can do better arrives.
+        // A live record always can — it carries an independent wall-clock reference — so it must
+        // fall through and upgrade the anchor rather than be dated by the provisional-derived one.
+        if (streamStartTimeMs > 0L && (streamStartReliable || !live)) {
+            return streamStartTimeMs + r.record.dataNo.toLong() * RECORD_INTERVAL_MS
         }
 
         if (live && receivedAtMs > 0L && r.record.dataNo >= 0) {
@@ -2207,14 +2283,21 @@ class OttaiBleManager(
         val start = sampleMs - dataNo.toLong() * RECORD_INTERVAL_MS
         if (start > 0L) {
             val old = streamStartTimeMs
+            // Never downgrade: once a wall-clock-corroborated anchor is in place, a hint derived
+            // from effectiveActiveTimeMs must not replace it. Dating stays consistent with the
+            // anchor that is actually trusted.
+            if (old > 0L && streamStartReliable && !reliable) {
+                return old + dataNo.toLong() * RECORD_INTERVAL_MS
+            }
             streamStartTimeMs = start
+            streamStartReliable = reliable
             if (old == 0L || kotlin.math.abs(old - start) > RECORD_INTERVAL_MS) {
-                Log.i(TAG, "stream time anchor dataNo=$dataNo start=${start / 1000L} sample=${sampleMs / 1000L} source=$reason")
+                Log.i(TAG, "stream time anchor dataNo=$dataNo start=${start / 1000L} sample=${sampleMs / 1000L} source=$reason reliable=$reliable")
             }
             // A live-dataNo-derived start is the true activation. Persist it as the authoritative
             // activeTime so the setup wizard / exported JSON recognise an already-activated sensor
             // (instead of offering "start warmup") on the next add or import.
-            if (reliable) commitConfirmedActiveTime(start)
+            if (reliable) offerConfirmedActiveTime(start)
             if (effectiveActiveTimeMs() <= 0L) ensureNativePresenceShell("stream-anchor-$reason")
         }
         return sampleMs
@@ -2247,9 +2330,15 @@ class OttaiBleManager(
             .onFailure { Log.stack(TAG, "setSensorWearDays", it) }
     }
 
+    /**
+     * The native shell's starttime update is monotone-decreasing, so whatever reaches it first
+     * and earliest sticks — a provisional "just now" that later moves earlier can never be
+     * corrected, and the explicit correction path becomes a no-op. Only offer a start we have
+     * actually confirmed, or a wall-clock-corroborated stream anchor; a provisional stays out.
+     */
     private fun nativePresenceStartTimeMs(): Long =
-        effectiveActiveTimeMs().takeIf { it > 0L }
-            ?: streamStartTimeMs.takeIf { it > 0L }
+        materials.activeTimeMs.takeIf { it > 0L }
+            ?: streamStartTimeMs.takeIf { it > 0L && streamStartReliable }
             ?: 0L
 
     // ---- activation (gated) ----

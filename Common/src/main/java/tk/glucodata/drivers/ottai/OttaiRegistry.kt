@@ -519,7 +519,11 @@ object OttaiRegistry {
             put("acceptedMaxActiveMs", loadAcceptedMaxActive(context, canonical))
             put("retainTimeMs", m.retainTimeMs)
             put("preheatPeriodMs", m.preheatPeriodMs)
-            put("provisionalActiveTimeMs", loadProvisionalActiveTime(context, canonical))
+            // provisionalActiveTimeMs is deliberately NOT exported. It is a local guess from the
+            // cgm-info sliding window — usually "just now" for a sensor that has really been
+            // running for days — and effectiveActiveTimeMs() consumes it as a start. Carrying it
+            // to another device would hand that device a wrong activation it treats as real,
+            // where (unlike here) no live anchor of its own has yet had a chance to correct it.
             put("deviceVersion", m.deviceVersion)
             put("deviceId", m.deviceId)
         }.toString(2)
@@ -550,7 +554,10 @@ object OttaiRegistry {
                 deviceId = o.optInt("deviceId", 0),
             ),
         )
-        saveProvisionalActiveTime(context, id, o.optLong("provisionalActiveTimeMs", 0L))
+        // Older exports carry provisionalActiveTimeMs; ignore it rather than adopting another
+        // device's guess as this one's activation start. A local live anchor establishes the real
+        // start here, and until it does, no start beats a wrong one.
+        saveProvisionalActiveTime(context, id, 0L)
         saveAcceptedMaxActive(context, id, o.optLong("acceptedMaxActiveMs", 0L))
         return id
     }

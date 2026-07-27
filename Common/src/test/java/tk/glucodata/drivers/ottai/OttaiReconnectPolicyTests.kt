@@ -58,6 +58,32 @@ class OttaiReconnectPolicyTests {
     private val ours = "70:D0:7E:42:4D:A2"
     private val stranger = "C0:9B:9E:60:07:37"
 
+    /**
+     * Two activation starts corroborate each other when they land within
+     * CONFIRMED_START_AGREEMENT_MS. Both are (wall clock - dataNo * interval) from independent
+     * reads, so a genuine pair differs only by flooring and poll jitter, while a corrupt dataNo
+     * lands hours or days away. The commit is one-way and is the sole input the dataNo ceiling
+     * trusts, so a single frame must never be enough to write it.
+     */
+    @Test
+    fun activationStartsAgreeOnlyWithinACoupleOfRecords() {
+        val tolerance = OttaiBleManager.CONFIRMED_START_AGREEMENT_MS
+        assertEquals(2 * minute, tolerance)
+
+        // Same start seen twice, and a start one record apart: corroborated.
+        assertTrue(kotlin.math.abs(now - now) <= tolerance)
+        assertTrue(kotlin.math.abs(now - (now - minute)) <= tolerance)
+
+        // A corrupt dataNo of 17_000 against a true one of 1_600 puts the derived starts
+        // 15_400 records apart — nowhere near agreement.
+        val truthful = now - 1_600 * minute
+        val corrupt = now - 17_000 * minute
+        assertFalse(kotlin.math.abs(truthful - corrupt) <= tolerance)
+
+        // Even a modest corruption of three records fails to corroborate.
+        assertFalse(kotlin.math.abs(truthful - (truthful - 3 * minute)) <= tolerance)
+    }
+
     @Test
     fun aVerifiedCandidateBecomesTheTransportAddress() {
         assertEquals(
