@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -867,7 +868,7 @@ fun DashboardScreen(
             val dashboardListTopPadding = 16.dp
             val dashboardItemSpacing = 12.dp
             val readingsTopSpacing = 0.dp
-            val collapsedChartHorizontalPadding = 16.dp
+            val collapsedChartHorizontalPadding = contentHorizontalPadding
             val defaultVisibleReadingRows = when (adaptiveMetrics.layoutDensity) {
                 AdaptiveLayoutDensity.Compact -> 3.0f
                 AdaptiveLayoutDensity.Regular -> 3.5f
@@ -1353,12 +1354,17 @@ fun DashboardScreen(
                     }
                 }
 
-                // Right Pane: Big Chart (Full Height)
+                // Right pane: the chart really is the whole pane in landscape, so it is
+                // drawn full-bleed (expandedProgress = 1) rather than as an inset card
+                // floating inside its own container. Pinned metrics ride underneath it.
                 Column(
                     modifier = Modifier
                         .weight(0.75f)
                         .fillMaxHeight()
-                        .padding(vertical = 16.dp)
+                        // The scaffold only consumes the top inset, so the bottom one has
+                        // to be taken here or the strip sits under the gesture bar.
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+                        .padding(top = 8.dp, bottom = 8.dp)
                 ) {
                         Box(modifier = Modifier.weight(1f).fillMaxSize()) {
                             key(sensorName) {
@@ -1386,8 +1392,8 @@ fun DashboardScreen(
                                     viewMode = viewMode,
                                     onTimeRangeSelected = { timeRange = it },
                                     selectedTimeRange = timeRange,
-                                    isExpanded = false,
-                                    expandedProgress = 0f,
+                                    isExpanded = true,
+                                    expandedProgress = 1f,
                                     expandedUnderlayBottom = 0.dp,
                                     onToggleExpanded = null,
                                     onPointClick = { point ->
@@ -1444,6 +1450,17 @@ fun DashboardScreen(
                                 )
                             }
                         }
+
+                        if (showPinnedStats) {
+                            tk.glucodata.ui.stats.PinnedStatsStrip(
+                                modifier = Modifier.padding(
+                                    start = contentHorizontalPadding,
+                                    end = contentHorizontalPadding,
+                                    top = 8.dp
+                                )
+                            )
+                        }
+
                 }
             }
             } else {
@@ -1523,20 +1540,26 @@ fun DashboardScreen(
                     val chartHeightBoostDp = with(density) {
                         (chartBoostProgress * maxChartBoostPx).toDp()
                     }
-                    val expandedProgress by animateFloatAsState(
-                        targetValue = if (isLandscape) 0f else (1f - collapseFraction).coerceIn(0f, 1f),
+                    // The card's inset and its colour used to be animated by two springs
+                    // of different stiffness. Mid-transition the chart was already inset
+                    // while still painted the screen background — the stray patch of
+                    // shade during expand and collapse. One spring drives both now, so
+                    // the shape and the colour can no longer disagree.
+                    val animatedCollapse by animateFloatAsState(
+                        targetValue = collapseFraction,
                         animationSpec = spring(
                             dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessLow
+                            stiffness = Spring.StiffnessMediumLow
                         ),
-                        label = "DashboardExpandedProgress"
+                        label = "DashboardChartCollapse"
                     )
+                    val expandedProgress = (1f - animatedCollapse).coerceIn(0f, 1f)
 
                     // Portrait chart sizing is anchored to explicit visible-row budgets:
                     // top state shows ~3-4 rows, middle shows ~1-2, fullscreen hides the list.
                     val chartItemHeightTarget = (boundedCollapsedChartItemHeight + chartHeightBoostDp)
                         .coerceIn(boundedCollapsedChartItemHeight, boundedFullscreenChartItemHeight)
-                    val chartHorizontalPaddingTarget = (collapsedChartHorizontalPadding.value * collapseFraction).dp
+                    val animatedChartHorizontalPadding = collapsedChartHorizontalPadding * animatedCollapse
                     val animatedChartItemHeight by animateDpAsState(
                                 targetValue = chartItemHeightTarget,
                                 animationSpec = spring(
@@ -1544,14 +1567,6 @@ fun DashboardScreen(
                                     stiffness = Spring.StiffnessLow
                         ),
                         label = "DashboardChartItemHeight"
-                                )
-                    val animatedChartHorizontalPadding by animateDpAsState(
-                                targetValue = chartHorizontalPaddingTarget,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMedium
-                        ),
-                        label = "DashboardChartHorizontalPadding"
                                 )
                     Box(
                         modifier = Modifier
