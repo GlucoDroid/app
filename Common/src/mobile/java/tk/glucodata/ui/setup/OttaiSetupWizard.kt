@@ -259,7 +259,12 @@ fun OttaiSetupWizard(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val alreadySignedIn = remember { OttaiRegistry.loadAccessToken(context).isNotBlank() }
+    // A Syai web JWT alone can validate IDs but cannot decrypt sensor materials. Older builds
+    // persisted that partial session, so require both mobile credentials before hiding login.
+    val alreadySignedIn = remember {
+        OttaiRegistry.loadAccessToken(context).isNotBlank() &&
+            OttaiRegistry.loadGlucoseSecretKey(context).isNotBlank()
+    }
     var signedIn by remember { mutableStateOf(alreadySignedIn) }
     var step by remember { mutableStateOf(OttaiSetupStep.SENSOR) }
 
@@ -823,7 +828,7 @@ fun OttaiSetupWizard(
                                                         OttaiCloudClient.mailLogin(context, id, password, wb)
                                                     else
                                                         OttaiCloudClient.passwordLogin(context, id, password, region.base)
-                                                    r?.accessToken?.isNotBlank() == true
+                                                    r?.ok == true
                                                 }.onFailure { Log.w(tag, "passwordLogin: ${it.message}") }.getOrDefault(false)
                                             }
                                             busy = false
