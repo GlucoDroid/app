@@ -2896,6 +2896,12 @@ class OttaiBleManager(
             pendingHistoryReason = null
             pendingHistoryNextStart = 0
             pendingHistoryEndExclusive = 0
+            // Retire the chain explicitly rather than relying on the zeroed bounds to make
+            // historyBackfillPercent() answer -1: that is true today only by coincidence, and a
+            // stale start left here would be one edit away from pinning the status on a
+            // percentage that never moves again.
+            historyChainStart = -1
+            UiRefreshBus.requestStatusRefresh()
         }
         return true
     }
@@ -3314,7 +3320,7 @@ class OttaiBleManager(
             Phase.AUTH -> "Authenticating"
             Phase.STREAMING -> if (historyBackfillPercentNow() >= 0) appString(
                 R.string.ottai_status_loading_history,
-                "Loading history ${historyBackfillPercentNow()}%",
+                "Loading history • ${historyBackfillPercentNow()}%",
                 historyBackfillPercentNow(),
             )
             else if (lastGlucoseAtMs > 0L) {
