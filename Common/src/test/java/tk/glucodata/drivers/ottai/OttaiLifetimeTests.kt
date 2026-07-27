@@ -37,6 +37,44 @@ class OttaiLifetimeTests {
     }
 
     @Test
+    fun acceptedLifetimeIsCommittedOnlyAfterActivationStatusThree() {
+        val accepted = 28L * DAY_MS
+
+        assertEquals(
+            0L,
+            OttaiBleManager.acceptedMaxActiveToCommit(
+                commandStatus = -1,
+                activationCommandAcknowledged = false,
+                pendingDurationMs = accepted,
+            ),
+        )
+        assertEquals(
+            0L,
+            OttaiBleManager.acceptedMaxActiveToCommit(
+                commandStatus = 2,
+                activationCommandAcknowledged = true,
+                pendingDurationMs = accepted,
+            ),
+        )
+        assertEquals(
+            0L,
+            OttaiBleManager.acceptedMaxActiveToCommit(
+                commandStatus = 3,
+                activationCommandAcknowledged = false,
+                pendingDurationMs = accepted,
+            ),
+        )
+        assertEquals(
+            accepted,
+            OttaiBleManager.acceptedMaxActiveToCommit(
+                commandStatus = 3,
+                activationCommandAcknowledged = true,
+                pendingDurationMs = accepted,
+            ),
+        )
+    }
+
+    @Test
     fun expectedLifetimeUsesAcceptedMaxActive() {
         assertEquals(
             25L * DAY_MS,

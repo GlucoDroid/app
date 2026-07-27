@@ -955,12 +955,14 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="ottai_login_button">Soo gal</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Saxiixday</string>
+    <string name="ottai_account_id">Akoon: %1$s</string>
     <string name="ottai_sensor_mac_hint">Aqoonsiga aaladda Cloud (12 hex ama QR)</string>
     <string name="ottai_connect_saved">Ku xidhnow</string>
     <string name="ottai_login_fail">Gelitaanku wuu guuldarraystay - hubi taleefanka/koodka</string>
     <string name="ottai_connect_saved_fail">Ma jiro akoon ama walxo kaydsan oo loogu talagalay aqoonsiga daruuriga ah</string>
     <string name="ottai_status_needs_ble_address">Wuxuu u baahan yahay ciwaanka BLE</string>
     <string name="ottai_status_warmup_provisional">Kuleyl ku meel gaar ah • %1$dm bidix</string>
+    <string name="ottai_status_loading_history">Taariikhda waa la soo dejinayaa • %1$d%%</string>
     <string name="ottai_ble_scan_title">Dareemayaasha Ottai ee dhow</string>
     <string name="ottai_ble_scan_hint">Taleefanka u dhowee dareemaha Xayeysiiyayaasha CGM deggan ayaa halkan ka muuqda.</string>
     <string name="ottai_ble_scan_empty">Wax dareeme Ottai dhow lama helin Dhaqso oo mar kale iskaan.</string>
@@ -968,6 +970,8 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="ottai_ble_scan_likely">Malaha Ottai</string>
     <string name="ottai_ble_scan_possible">CGM suurtagal ah</string>
     <string name="ottai_ble_scan_unknown">CGM kale</string>
+    <string name="ottai_ble_scan_registered">Hore ayaa loogu daray</string>
+    <string name="ottai_ble_scan_registered_hint">Dareeme hore u xiran wuu joojiyaa baahinta, sidaas darteed kuma muuqan doono liiska kore.</string>
     <!-- Ottai wizard: entry / login modes / sensor list / advanced -->
     <string name="ottai_entry_import_title">Soo rar faylka aqoonsiga</string>
     <string name="ottai_entry_import_desc">Isticmaal .json kaydsan - xisaab ama shabakad looma baahna.</string>

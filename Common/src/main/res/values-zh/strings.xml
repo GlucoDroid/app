@@ -1907,12 +1907,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_button">登录</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">已登录</string>
+    <string name="ottai_account_id">账户：%1$s</string>
     <string name="ottai_sensor_mac_hint">云端设备 ID（12 位十六进制或二维码）</string>
     <string name="ottai_connect_saved">连接</string>
     <string name="ottai_login_fail">登录失败 - 请检查手机号/验证码</string>
     <string name="ottai_connect_saved_fail">账号中或本地没有此云端 ID 的材料</string>
     <string name="ottai_status_needs_ble_address">需要 BLE 地址</string>
     <string name="ottai_status_warmup_provisional">预估预热 • 剩余 %1$d 分钟</string>
+    <string name="ottai_status_loading_history">正在加载历史记录 • %1$d%%</string>
     <string name="ottai_ble_scan_title">附近的 Ottai 传感器</string>
     <string name="ottai_ble_scan_hint">将手机靠近传感器。稳定的 CGM 广播会显示在这里。</string>
     <string name="ottai_ble_scan_empty">未找到附近的 Ottai 传感器。请靠近后再次扫描。</string>
@@ -1920,6 +1922,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_likely">可能是 Ottai</string>
     <string name="ottai_ble_scan_possible">可能是 CGM</string>
     <string name="ottai_ble_scan_unknown">其他 CGM</string>
+    <string name="ottai_ble_scan_registered">已添加</string>
+    <string name="ottai_ble_scan_registered_hint">已连接的传感器会停止广播，因此不会出现在上方列表中。</string>
     <string name="ottai_account_hint">邮箱或用户名</string>
     <string name="ottai_account_note">使用邮箱或账户用户名登录。</string>
     <string name="ottai_code_sent_email">验证码已发送至 %1$s</string>

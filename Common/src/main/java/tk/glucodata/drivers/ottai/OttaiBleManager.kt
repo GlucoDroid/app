@@ -247,6 +247,15 @@ class OttaiBleManager(
 
         internal fun connectingStaleThresholdMs(stallStreak: Int): Long =
             SETUP_ACTIVITY_STALE_MS shl stallStreak.coerceIn(0, MAX_CONNECT_STALL_BACKOFF_SHIFTS)
+
+        internal fun acceptedMaxActiveToCommit(
+            commandStatus: Int,
+            activationCommandAcknowledged: Boolean,
+            pendingDurationMs: Long,
+        ): Long =
+            pendingDurationMs.takeIf {
+                commandStatus == 3 && activationCommandAcknowledged && it > 0L
+            } ?: 0L
     }
 
     enum class Phase { IDLE, CONNECTING, DISCOVERING, ENABLING_NOTIFY, AUTH, STREAMING }
@@ -324,6 +333,8 @@ class OttaiBleManager(
     @Volatile private var notifyEnableIndex = 0
     @Volatile private var discoveryStarted = false
     @Volatile private var activationCommandSentAtMs = 0L
+    @Volatile private var pendingAcceptedMaxActiveMs = 0L
+    @Volatile private var activationCommandAcknowledged = false
     // Actual maxActive duration (ms) the firmware accepted at activation = the real
     // sensor lifetime. Drives the displayed expected-end/remaining (Sensors tab) and
     // the native graph end (Home tab). 0 = unknown -> falls back to EXTENDED_LIFETIME_MS.
@@ -1294,6 +1305,11 @@ class OttaiBleManager(
             return
         }
         if (OttaiConstants.commandNeedsActivation(status)) {
+            if (activationCommandAcknowledged) {
+                Log.w(TAG, "activation command was acknowledged but sensor still reports status=$status; " +
+                    "discarding staged maxActive")
+                clearStagedActivationLifetime()
+            }
             repairPoisonedProvisionalActiveTime()
             handler.removeCallbacks(livePollRunnable)
             handler.removeCallbacks(postHistoryLiveRunnable)
@@ -1335,6 +1351,7 @@ class OttaiBleManager(
             return
         }
         if (status == 3) {
+            commitStagedActivationLifetime(status)
             if (activateRequestedFor?.let { matchesManagedSensorId(it) } == true) {
                 activateRequestedFor = null
             }
@@ -1356,6 +1373,7 @@ class OttaiBleManager(
 
         handler.removeCallbacks(livePollRunnable)
         handler.removeCallbacks(postHistoryLiveRunnable)
+        clearStagedActivationLifetime()
         if (activateRequestedFor?.let { matchesManagedSensorId(it) } == true) {
             activateRequestedFor = null
         }
@@ -2419,6 +2437,7 @@ class OttaiBleManager(
         maxActiveCandidatesMs = OttaiConstants.activationMaxActiveCandidatesMs(cloudExpireMs)
         maxActiveCandidateIndex = 0
         maxActiveAttemptMs = 0L
+        clearStagedActivationLifetime()
         activationNegotiationActive = true
         activationRetryPending = false
         activationRetryAddress = null
@@ -2433,7 +2452,10 @@ class OttaiBleManager(
         UiRefreshBus.requestStatusRefresh()
     }
 
-    private fun resetActivationNegotiation(failed: Boolean = false) {
+    private fun resetActivationNegotiation(
+        failed: Boolean = false,
+        preserveStagedLifetime: Boolean = false,
+    ) {
         SerialNumber?.let { sensorId ->
             Applic.app?.let { OttaiNfcWakeReminder.cancel(it, sensorId) }
             OttaiNfc.disarmActivationRetry(sensorId)
@@ -2452,6 +2474,7 @@ class OttaiBleManager(
         maxActiveCandidatesMs = emptyList()
         maxActiveCandidateIndex = 0
         maxActiveAttemptMs = 0L
+        if (!preserveStagedLifetime) clearStagedActivationLifetime()
         pendingActivation = false
         actStep = ActStep.NONE
     }
@@ -2489,13 +2512,12 @@ class OttaiBleManager(
     private fun markActivationCommandSent() {
         val now = System.currentTimeMillis()
         activationCommandSentAtMs = now
-        resetActivationNegotiation()
+        activationCommandAcknowledged = true
+        resetActivationNegotiation(preserveStagedLifetime = true)
         val id = SerialNumber.orEmpty()
         val ctx = Applic.app
         if (ctx != null && id.isNotBlank()) {
             OttaiRegistry.setActivationAttempted(ctx, id, true)
-            // The accepted maxActive was already recorded in markMaxActiveAccepted() when the
-            // firmware ACKed the write; nothing to persist here.
             if (materials.activeTimeMs <= 0L) {
                 setProvisionalActiveTime(now, "activation-command")
             }
@@ -2627,15 +2649,31 @@ class OttaiBleManager(
         val acceptedMs = maxActiveAttemptMs
         if (acceptedMs <= 0L) return
         activationRetryPending = false
+        pendingAcceptedMaxActiveMs = acceptedMs
+        Log.i(TAG, "maxActive accepted duration=${acceptedMs / 1000L}s; staged until status=3")
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    private fun commitStagedActivationLifetime(status: Int) {
+        val acceptedMs = acceptedMaxActiveToCommit(
+            status,
+            activationCommandAcknowledged,
+            pendingAcceptedMaxActiveMs,
+        )
+        if (acceptedMs <= 0L) return
         activatedMaxActiveMs = acceptedMs
         val id = SerialNumber.orEmpty()
         Applic.app?.takeIf { id.isNotBlank() }?.let { context ->
             OttaiRegistry.saveAcceptedMaxActive(context, id, acceptedMs)
         }
-        // Push the real accepted lifetime to the native (watch) sensor record.
         applyActivatedWearToNative(id)
-        Log.i(TAG, "maxActive accepted duration=${acceptedMs / 1000L}s")
-        UiRefreshBus.requestStatusRefresh()
+        clearStagedActivationLifetime()
+        Log.i(TAG, "activation confirmed status=3; committed maxActive=${acceptedMs / 1000L}s")
+    }
+
+    private fun clearStagedActivationLifetime() {
+        pendingAcceptedMaxActiveMs = 0L
+        activationCommandAcknowledged = false
     }
 
     private fun writeDestructionTime(gatt: BluetoothGatt) {
