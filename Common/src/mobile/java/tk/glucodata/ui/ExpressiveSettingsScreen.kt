@@ -100,6 +100,13 @@ fun ExpressiveSettingsScreen(
             mqAccountState.hasCredentials ||
             mqAccountState.hasToken ||
             tk.glucodata.drivers.mq.MQRegistry.isCloudSyncEnabled(context)
+    // LibreView is relevant whenever the account is already set up *or* a Libre-family
+    // sensor is active — the account no longer has to be configured in the setup wizard first.
+    val showLibreView = remember {
+        runCatching { Natives.getuselibreview() }.getOrDefault(false) ||
+            runCatching { Natives.getlibreAccountIDnumber() }.getOrDefault(0L) > 0L ||
+            hasActiveLibreSensor()
+    }
     val showOttaiSettings = remember {
         SensorBluetooth.mygatts().any { callback ->
             (callback as? tk.glucodata.drivers.ottai.OttaiDriver)?.isUiEnabled() == true
@@ -411,7 +418,6 @@ fun ExpressiveSettingsScreen(
                     onClick = { navController.navigate("settings/mirror") }
                 )
                 // Edit 67b: Determine if LibreView is visible to adjust card positions
-                val showLibreView = Natives.getuselibreview() || Natives.getlibreAccountIDnumber() > 0L
                 SettingsItem(
                     title = stringResource(R.string.nightscout_config),
                     subtitle = stringResource(R.string.nightscout_desc),
