@@ -172,7 +172,10 @@ class OttaiBleManager(
             coalesceGap: Int = HISTORY_GAP_COALESCE_RECORDS,
             maxRanges: Int = MAX_HISTORY_GAP_RANGES,
         ): List<MissingRange> {
-            if (maxRanges <= 0) return emptyList()
+            // An empty result is the caller's proof that nothing is missing, and it latches
+            // "history complete" for the connection. A nonsensical cap must therefore still
+            // return a covering window rather than that answer.
+            val cap = maxRanges.coerceAtLeast(1)
             val ranges = ArrayList<MissingRange>()
             var index = 0
             while (index < present.size) {
@@ -196,7 +199,7 @@ class OttaiBleManager(
                 }
                 // Stop once the closest pair is far apart AND the count already fits: past that
                 // point merging would only add redundancy for nothing.
-                if (mergeAt < 0 || (smallestSeparation > coalesceGap && ranges.size <= maxRanges)) break
+                if (mergeAt < 0 || (smallestSeparation > coalesceGap && ranges.size <= cap)) break
                 ranges[mergeAt] = MissingRange(ranges[mergeAt].start, ranges[mergeAt + 1].endExclusive)
                 ranges.removeAt(mergeAt + 1)
             }
@@ -428,6 +431,20 @@ class OttaiBleManager(
 
     /** A `[start, endExclusive)` window of records the local store does not have. */
     internal data class MissingRange(val start: Int, val endExclusive: Int)
+
+    // Set by requestRoomBackfillAfterLive once it enters the local-store diff, which is the
+    // branch taken when the previous dataNo is unusable.
+    //
+    // The live path answers a negative backfill result by calling requestHistoryAfterLive, and
+    // that function's behaviour for an unusable previous dataNo is to ask for [0, live) — the
+    // exact full pull the diff exists to eliminate, reached by a second route. It fires not
+    // only when the diff cannot run but also when it runs fine and merely fails to get its
+    // first GATT write out, which under RF trouble is routine.
+    //
+    // Suppressing it there is safe: the diff ledgers every window before issuing anything, the
+    // ledger's retry driver owns recovery, and this payload has just advanced lastDataNo, so
+    // the next live sample takes the cheap incremental branch instead.
+    @Volatile private var historyDiffOwnsRecovery = false
     private val historyHolesLock = Any()
     private val historyHoles = mutableListOf<HistoryHole>()
     // Set while we re-run service discovery AFTER auth (the sensor exposes a Service
@@ -1983,7 +2000,10 @@ class OttaiBleManager(
                 // independent backstop so the two don't both issue (which would wipe and restart
                 // the in-flight chunk chain via clearPendingHistoryRange).
                 handler.removeCallbacks(initialHistoryRunnable)
-                if (!requestRoomBackfillAfterLive(liveDataNo, previousForHistory) && !roomBackfillChecked) {
+                if (!requestRoomBackfillAfterLive(liveDataNo, previousForHistory) &&
+                    !roomBackfillChecked &&
+                    !historyDiffOwnsRecovery
+                ) {
                     val missingBeforeLive = liveDataNo - previousForHistory - 1
                     if (previousForHistory < 0 || missingBeforeLive > 0) {
                         handler.postDelayed({ requestHistoryAfterLive(previousForHistory, liveDataNo) }, 1_500L)
@@ -2845,6 +2865,7 @@ class OttaiBleManager(
         previousDataNo: Int,
         observedNewest: Boolean = true,
     ): Boolean {
+        historyDiffOwnsRecovery = false
         if (roomBackfillChecked || liveDataNo <= 0) return false
         val id = SerialNumber ?: return false
         // The one-shot is consumed only by an actually-issued request or a trusted "nothing
@@ -2860,6 +2881,8 @@ class OttaiBleManager(
             return requestHistoryRange("room-backfill", previousDataNo + 1, missingBeforeLive)
                 .also { if (it) roomBackfillChecked = true }
         }
+        // From here on the diff owns recovery for this payload — see historyDiffOwnsRecovery.
+        historyDiffOwnsRecovery = true
         val startMs = streamStartTimeMs.takeIf { it > 0L } ?: return false
         val endMs = (System.currentTimeMillis() + RECORD_INTERVAL_MS).coerceAtLeast(startMs)
         val existing = HistorySyncAccess.getHistoryTimestampsForSensorOrNull(
@@ -3206,7 +3229,11 @@ class OttaiBleManager(
     }
 
     private fun retryNextHistoryHole() {
-        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank() || commandStatus != 3) return
+        // commandStatus >= 4 is an ended sensor, and its final backfill (runEndedHistoryBackfill)
+        // goes through the same diff, which ledgers every window but the newest. Gating this on
+        // == 3 meant those windows had no driver at all on the sensor's last connection: the
+        // records existed, were known to be missing, and were never asked for.
+        if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank() || commandStatus < 3) return
         if (activeHistoryEndExclusive > 0 || pendingHistoryReason != null) return // never preempt a live chain
         // Snapshot under the lock: the request below can re-enter the ledger, and the binder
         // thread may be mutating it concurrently from a history notification.

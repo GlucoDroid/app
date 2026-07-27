@@ -92,9 +92,29 @@ class OttaiHistoryDiffTests {
     fun handlesTheDegenerateInputs() {
         assertEquals(emptyList<OttaiBleManager.MissingRange>(), OttaiBleManager.missingRanges(BooleanArray(0)))
         assertEquals(ranges(0 to 3), OttaiBleManager.missingRanges(BooleanArray(3)))
-        assertEquals(
-            emptyList<OttaiBleManager.MissingRange>(),
-            OttaiBleManager.missingRanges(present(100, 5..5), maxRanges = 0)
-        )
+    }
+
+    @Test
+    fun anImpossibleCapStillReportsTheMissingRecord() {
+        // Empty is the caller's proof that nothing is missing, and it latches "history complete"
+        // for the connection. A cap that cannot be satisfied must never borrow that answer.
+        assertEquals(ranges(5 to 6), OttaiBleManager.missingRanges(present(100, 5..5), maxRanges = 0))
+        assertEquals(ranges(5 to 6), OttaiBleManager.missingRanges(present(100, 5..5), maxRanges = -3))
+    }
+
+    @Test
+    fun emptyOnlyEverMeansNothingIsMissing() {
+        // The one input that may produce an empty result.
+        assertTrue(OttaiBleManager.missingRanges(present(200)).isEmpty())
+        // Any genuinely-missing record must survive every combination of the tuning knobs.
+        for (cap in intArrayOf(-1, 0, 1, 2, 8, 1000)) {
+            for (coalesce in intArrayOf(-1, 0, 1, 5, 10_000)) {
+                val gaps = OttaiBleManager.missingRanges(present(200, 7..7, 150..151), coalesce, cap)
+                val covered = gaps.flatMap { it.start until it.endExclusive }.toSet()
+                assertTrue("cap=$cap coalesce=$coalesce lost record 7", 7 in covered)
+                assertTrue("cap=$cap coalesce=$coalesce lost record 150", 150 in covered)
+                assertTrue("cap=$cap coalesce=$coalesce lost record 151", 151 in covered)
+            }
+        }
     }
 }
