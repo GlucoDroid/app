@@ -96,6 +96,7 @@ import tk.glucodata.Notify
 import tk.glucodata.R
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.WatchInterop
+import tk.glucodata.WearSensorClaimState
 import tk.glucodata.watchdrip
 import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.MasterSwitchCard
@@ -346,7 +347,9 @@ fun WearOsConfigScreen(navController: NavController) {
 
     LaunchedEffect(selectedNodeId, nodes) {
         val selected = nodes.firstOrNull { it.id == selectedNodeId } ?: return@LaunchedEffect
-        if (selected.directSensorMode >= 0) {
+        if (selected.claimState != null) {
+            directOnWatch = selected.claimState != WearSensorClaimState.PHONE_OWNS
+        } else if (selected.directSensorMode >= 0) {
             directOnWatch = selected.directSensorMode > 0
         }
         if (selected.watchNumsMode >= 0) {
@@ -415,8 +418,15 @@ fun WearOsConfigScreen(navController: NavController) {
                             }
                             val liveStatus = if (isSelected) {
                                 val chunks = syncStatus.lastChunkCount
+                                val claimStatus = when (node.claimState) {
+                                    WearSensorClaimState.PHONE_OWNS -> stringResource(R.string.wear_claim_state_phone_owns)
+                                    WearSensorClaimState.REQUESTING -> stringResource(R.string.wear_claim_state_requesting)
+                                    WearSensorClaimState.CONNECTED -> stringResource(R.string.wear_claim_state_connected)
+                                    null -> null
+                                }
                                 "\nHistory served: ${timeStatus(syncStatus.lastServedMs)}${if (chunks > 0) " ($chunks chunks)" else ""}" +
-                                    "\nNetwork info: ${timeStatus(syncStatus.lastNetInfoExchangeMs)}"
+                                    "\nNetwork info: ${timeStatus(syncStatus.lastNetInfoExchangeMs)}" +
+                                    (claimStatus?.let { "\n$it" } ?: "")
                             } else ""
                             val appSubtitle = if (node.appInstalled) {
                                 "$appStatus • ${node.id}$liveStatus"

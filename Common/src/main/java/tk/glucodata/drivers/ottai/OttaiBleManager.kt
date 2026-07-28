@@ -1057,6 +1057,7 @@ class OttaiBleManager(
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        super.onConnectionStateChange(gatt, status, newState)
         if (stop) return
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
@@ -2379,6 +2380,7 @@ class OttaiBleManager(
     private fun publishCurrentReading(reading: EmittedReading) {
         val id = SerialNumber ?: return
         if (!reading.displayValue.isFinite() || reading.displayValue <= 0f) return
+        markLocalReadingAccepted(reading.sampleMs)
         SuperGattCallback.processExternalCurrentReading(id, reading.displayValue, 0f, reading.sampleMs, SENSOR_GEN)
         Log.i(TAG, "current publish sec=${reading.sampleMs / 1000L} display=%.2f mgdl=%.1f".format(reading.displayValue, reading.mgdl))
     }

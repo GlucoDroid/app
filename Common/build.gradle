@@ -115,7 +115,7 @@ android {
 // Single source of truth for the app version; bump here only.
 // Wear releases use appVersionCode + 1_000_000 so Play accepts both APKs
 // in one release (distinct versionCodes per form factor).
-def appVersionCode = 1005
+def appVersionCode = 1009
 
 flavorDimensions = ['wearos','libreVersion','SiBionics', 'DexCom','Google']
 //    flavorDimensions 'wearos','libreVersion','SiBionics', 'DexCom'

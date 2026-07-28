@@ -1403,6 +1403,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_direct_sensor_on_watch">Прямой датчик на часах</string>
     <string name="wear_direct_sensor_watch_desc">Часы ищут датчик и принимают управление Bluetooth после первого принятого показания.</string>
     <string name="wear_direct_sensor_phone_desc">Режим компаньона: телефон сканирует и отправляет показания.</string>
+    <string name="wear_claim_state_phone_owns">Датчиком управляет телефон</string>
+    <string name="wear_claim_state_requesting">Часы запрашивают датчик</string>
+    <string name="wear_claim_state_connected">Часы подключены к датчику</string>
     <string name="web_server_desc">Веб-сервер, совместимый с Nightscout</string>
     <string name="invalid_interval">Неверное значение интервала</string>
     <string name="status_waiting_for_connection">Ожидание подключения</string>

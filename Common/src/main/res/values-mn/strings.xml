@@ -1391,6 +1391,9 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="wear_direct_sensor_on_watch">Мэдрэгчийг цаг дээр шууд холбох</string>
     <string name="wear_direct_sensor_watch_desc">Цаг мэдрэгчийг хайж, эхний зөвшөөрөгдсөн уншилтын дараа Bluetooth-г шилжүүлэн авна.</string>
     <string name="wear_direct_sensor_phone_desc">Дагалдах горим: утас уншиж, хэмжилтийг илгээнэ.</string>
+    <string name="wear_claim_state_phone_owns">Утас мэдрэгчийг удирдаж байна</string>
+    <string name="wear_claim_state_requesting">Цаг мэдрэгчийг хүсэж байна</string>
+    <string name="wear_claim_state_connected">Цаг мэдрэгчид холбогдсон</string>
     <string name="web_server_desc">Nightscout-compatible web server</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Waiting for connection</string>

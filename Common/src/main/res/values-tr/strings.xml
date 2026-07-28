@@ -1388,6 +1388,9 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="wear_direct_sensor_on_watch">Saatte doğrudan sensör</string>
     <string name="wear_direct_sensor_watch_desc">Saat sensörü arar ve ilk kabul edilen ölçümden sonra Bluetooth\'u devralır.</string>
     <string name="wear_direct_sensor_phone_desc">Yardımcı mod: telefon tarar ve değerleri gönderir.</string>
+    <string name="wear_claim_state_phone_owns">Sensörü telefon yönetiyor</string>
+    <string name="wear_claim_state_requesting">Saat sensörü istiyor</string>
+    <string name="wear_claim_state_connected">Saat sensöre bağlı</string>
     <string name="web_server_desc">Nightscout uyumlu web sunucusu</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Bağlantı bekleniyor</string>

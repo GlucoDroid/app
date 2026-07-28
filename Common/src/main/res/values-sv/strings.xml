@@ -1360,6 +1360,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_direct_sensor_on_watch">Direkt sensor på klockan</string>
     <string name="wear_direct_sensor_watch_desc">Klockan söker efter sensorn och tar över Bluetooth efter den första godkända avläsningen.</string>
     <string name="wear_direct_sensor_phone_desc">Följeslagarläge: telefonen skannar och skickar värden.</string>
+    <string name="wear_claim_state_phone_owns">Telefonen styr sensorn</string>
+    <string name="wear_claim_state_requesting">Klockan begär sensorn</string>
+    <string name="wear_claim_state_connected">Klockan är ansluten till sensorn</string>
     <string name="web_server_desc">Nightscout-kompatibel webbserver</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Vantar på anslutning</string>

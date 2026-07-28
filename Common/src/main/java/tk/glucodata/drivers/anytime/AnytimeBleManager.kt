@@ -1571,6 +1571,7 @@ class AnytimeBleManager(
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        super.onConnectionStateChange(gatt, status, newState)
         if (stop) return
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
@@ -3098,6 +3099,7 @@ class AnytimeBleManager(
                 ?.takeIf { it.isFinite() && it > 0f }
                 ?: fallbackDisplayValue.takeIf { allowDirectFallback }
                 ?: return
+            markLocalReadingAccepted(sampleMs)
             SuperGattCallback.processExternalCurrentReading(
                 SerialNumber,
                 displayValue,

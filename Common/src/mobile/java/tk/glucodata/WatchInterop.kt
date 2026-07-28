@@ -25,6 +25,7 @@ object WatchInterop {
         val displayName: String,
         val isGalaxy: Boolean,
         val directSensorMode: Int,
+        val claimState: WearSensorClaimState?,
         val watchNumsMode: Int,
         val appInstalled: Boolean
     )
@@ -116,6 +117,7 @@ object WatchInterop {
                 displayName = node.displayName ?: id,
                 isGalaxy = MessageSender.isGalaxy(node),
                 directSensorMode = if (appInstalled) try { Natives.directsensorwatch(id) } catch (_: Throwable) { -1 } else -1,
+                claimState = WearSensorClaimStatus.remoteState(id),
                 watchNumsMode = if (appInstalled) try { Natives.hasWatchNums(id) } catch (_: Throwable) { -1 } else -1,
                 appInstalled = appInstalled
             )
@@ -160,7 +162,9 @@ object WatchInterop {
             Natives.getmynetinfo(
                 nodeId,
                 true,
-                if (directOnWatch) 1 else -1,
+                // This is only a request. Keep the phone streaming until the
+                // watch later proves local BLE ownership with watchsensor=1.
+                -1,
                 isGalaxy,
                 if (enterOnWatch) 1 else -1
             )

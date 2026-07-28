@@ -505,6 +505,7 @@ class SibionicsBleManager(
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        super.onConnectionStateChange(gatt, status, newState)
         // A late callback from a retired GATT must not invalidate the active connection's
         // notification queue. The handler repeats this ownership check before mutating state.
         if (isCurrentGatt(gatt)) {
@@ -1601,6 +1602,7 @@ class SibionicsBleManager(
         )
         val displayValue = toDisplay(reading.glucoseMgdl)
         val displayRate = if (Applic.unit == 1) latestRateMgdlPerMin / SibionicsConstants.MGDL_PER_MMOLL else latestRateMgdlPerMin
+        markLocalReadingAccepted(reading.sampleMs)
         SuperGattCallback.processExternalCurrentReading(
             SerialNumber,
             displayValue,

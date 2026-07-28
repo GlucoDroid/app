@@ -296,6 +296,7 @@ companion object {
     const val MESSAGES_PATH = "/messages"
     const val CALIBRATE_PATH = "/calibrate"
     const val SENSOR_HANDOFF_PATH = "/sensorhandoff"
+    const val SENSOR_CLAIM_STATUS_PATH = "/sensorclaimstatus"
     const val SYNC2_REQ_PATH = "/sync2/req"
     const val SYNC2_CHUNK_PATH = "/sync2/chunk"
     const val SYNC2_REMOVE_PATH = "/sync2/remove"
@@ -308,6 +309,16 @@ companion object {
     @JvmStatic
     fun markNetInfoExchanged() {
         lastNetInfoExchangeMs.set(System.currentTimeMillis())
+    }
+
+    @JvmStatic
+    fun sendSensorClaimStatus() {
+        if (!isWearable) return
+        val sender = messagesender ?: return
+        sender.sendmessage(
+            SENSOR_CLAIM_STATUS_PATH,
+            byteArrayOf(WearSensorClaim.currentStateValue().toByte()),
+        )
     }
 
     @JvmStatic
@@ -630,6 +641,12 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
                     Log.i(LOG_ID, "sendnetinfo already done " + node.id)
                   }
               }
+            if (isWearable) {
+                sender.sendmessage(
+                    SENSOR_CLAIM_STATUS_PATH,
+                    byteArrayOf(WearSensorClaim.currentStateValue().toByte()),
+                )
+            }
         }
       @JvmStatic    public fun sendnetinfo() {
         scope.launch {    

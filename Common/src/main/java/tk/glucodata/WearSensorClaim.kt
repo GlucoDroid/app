@@ -1,81 +1,288 @@
 package tk.glucodata
 
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
-import tk.glucodata.drivers.ManagedSensorRuntime
+import tk.glucodata.drivers.ManagedBluetoothSensorDriver
+
+enum class WearSensorClaimState(val wireValue: Int) {
+    PHONE_OWNS(0),
+    REQUESTING(1),
+    CONNECTED(2);
+
+    companion object {
+        fun fromWireValue(value: Int): WearSensorClaimState? = entries.firstOrNull { it.wireValue == value }
+    }
+}
+
+/** Last process-visible claim state reported by each remote watch. */
+object WearSensorClaimStatus {
+    private const val LOG_ID = "WearSensorClaimStatus"
+    private const val REMOTE_STATUS_MAX_AGE_MS = 4L * 60L * 1000L
+
+    private data class RemoteStatus(val state: WearSensorClaimState, val receivedAtMs: Long)
+
+    private val remoteByNode = ConcurrentHashMap<String, RemoteStatus>()
+
+    @JvmStatic
+    fun onRemoteStatus(nodeId: String?, data: ByteArray?) {
+        if (Applic.isWearable || nodeId.isNullOrBlank() || data == null || data.isEmpty()) return
+        val state = WearSensorClaimState.fromWireValue(data[0].toInt()) ?: run {
+            Log.w(LOG_ID, "Ignoring invalid watch claim state=${data[0].toInt()} node=$nodeId")
+            return
+        }
+        val previous = remoteByNode.put(nodeId, RemoteStatus(state, System.currentTimeMillis()))?.state
+        if (previous != state) {
+            Log.i(LOG_ID, "watch claim state node=$nodeId ${previous ?: "unknown"} -> $state")
+        }
+    }
+
+    @JvmStatic
+    fun remoteState(nodeId: String?): WearSensorClaimState? {
+        if (nodeId.isNullOrBlank()) return null
+        val status = remoteByNode[nodeId] ?: return null
+        if (System.currentTimeMillis() - status.receivedAtMs <= REMOTE_STATUS_MAX_AGE_MS) {
+            return status.state
+        }
+        remoteByNode.remove(nodeId, status)
+        return null
+    }
+}
+
+internal object WearSensorClaimPolicy {
+    fun hasLocalOwnershipProof(
+        targetSensorId: String?,
+        callbackSerial: String?,
+        hasLocallyConnectedGatt: Boolean,
+        requestedAtMs: Long,
+        localReadingSerial: String?,
+        localReadingAcceptedAtMs: Long,
+    ): Boolean {
+        if (
+            targetSensorId.isNullOrBlank() ||
+            callbackSerial.isNullOrBlank() ||
+            localReadingSerial.isNullOrBlank() ||
+            !hasLocallyConnectedGatt ||
+            requestedAtMs <= 0L ||
+            localReadingAcceptedAtMs < requestedAtMs
+        ) {
+            return false
+        }
+        return SensorIdentity.matches(callbackSerial, targetSensorId) &&
+            SensorIdentity.matches(localReadingSerial, targetSensorId) &&
+            SensorIdentity.matches(localReadingSerial, callbackSerial)
+    }
+}
 
 /** Watch-only, process-local ownership claim for direct managed-sensor routing. */
 object WearSensorClaim {
     private const val LOG_ID = "WearSensorClaim"
     private const val CLAIM_TIMEOUT_MS = 3L * 60L * 1000L
-    private const val READING_MAX_AGE_MS = 2L * 60L * 1000L
     private const val POLL_MS = 2_000L
 
     private val executor = Executors.newSingleThreadScheduledExecutor { runnable ->
         Thread(runnable, "WearSensorClaim").apply { isDaemon = true }
     }
+
     @Volatile private var directRequested = false
-    @Volatile private var claimed = false
+    @Volatile private var state = WearSensorClaimState.PHONE_OWNS
     @Volatile private var requestedAtMs = 0L
+    @Volatile private var localReadingSerial: String? = null
+    @Volatile private var localReadingAcceptedAtMs = 0L
+    private var lastWaitingReason = ""
     private var monitor: ScheduledFuture<*>? = null
 
     @JvmStatic
-    @Synchronized
     fun setDirectRequested(enabled: Boolean) {
         if (!Applic.isWearable) return
-        directRequested = enabled
-        requestedAtMs = if (enabled) System.currentTimeMillis() else 0L
-        setClaimed(false, if (enabled) "waiting for first accepted reading" else "direct mode disabled")
-        monitor?.cancel(false)
-        monitor = if (enabled) {
-            executor.scheduleWithFixedDelay(::checkClaim, 0L, POLL_MS, TimeUnit.MILLISECONDS)
-        } else {
-            null
+        synchronized(this) {
+            directRequested = enabled
+            requestedAtMs = if (enabled) System.currentTimeMillis() else 0L
+            clearLocalReadingLocked()
+            lastWaitingReason = ""
+            monitor?.cancel(false)
+            monitor = null
+            transitionLocked(
+                if (enabled) WearSensorClaimState.REQUESTING else WearSensorClaimState.PHONE_OWNS,
+                if (enabled) "direct mode requested; waiting for local GATT + local reading"
+                else "direct mode disabled",
+            )
+            if (enabled) scheduleMonitorLocked()
         }
-        MessageSender.sendnetinfo()
+        publishState()
     }
 
     @JvmStatic
-    fun netInfoValue(): Int = if (Applic.isWearable && directRequested && claimed) 1 else -1
+    fun netInfoValue(): Int =
+        if (Applic.isWearable && state == WearSensorClaimState.CONNECTED) 1 else -1
+
+    @JvmStatic
+    fun currentState(): WearSensorClaimState = state
+
+    @JvmStatic
+    fun currentStateValue(): Int = state.wireValue
+
+    /**
+     * Called only by a local sensor driver's accepted live-reading callback.
+     * WearSync2/store hydration must never call this.
+     */
+    @JvmStatic
+    fun onLocalReadingAccepted(serial: String?, sampleTimeMs: Long = 0L) {
+        if (!Applic.isWearable || serial.isNullOrBlank()) return
+        val acceptedAtMs = System.currentTimeMillis()
+        synchronized(this) {
+            if (
+                !directRequested ||
+                state == WearSensorClaimState.CONNECTED ||
+                acceptedAtMs < requestedAtMs
+            ) {
+                return
+            }
+            localReadingSerial = serial
+            localReadingAcceptedAtMs = acceptedAtMs
+            Log.i(
+                LOG_ID,
+                "local reading evidence serial=$serial sample=$sampleTimeMs acceptedAt=$acceptedAtMs " +
+                    "requestedAt=$requestedAtMs",
+            )
+        }
+        checkClaim()
+    }
+
+    /** Called directly from the local Android GATT callback/transport close path. */
+    @JvmStatic
+    fun onLocalGattDisconnected(serial: String?) {
+        if (!Applic.isWearable || serial.isNullOrBlank()) return
+        val activeSensor = runCatching { SensorIdentity.resolveMainSensor() }.getOrNull()
+        if (activeSensor != null && !SensorIdentity.matches(activeSensor, serial)) return
+
+        var publish = false
+        synchronized(this) {
+            if (!directRequested) return
+            val wasConnected = state == WearSensorClaimState.CONNECTED
+            if (wasConnected) {
+                requestedAtMs = System.currentTimeMillis()
+            }
+            clearLocalReadingLocked()
+            lastWaitingReason = ""
+            transitionLocked(
+                WearSensorClaimState.REQUESTING,
+                if (wasConnected) "local GATT disconnected; released claim and restarted scan window"
+                else "local GATT disconnected while requesting",
+            )
+            scheduleMonitorLocked()
+            publish = true
+        }
+        if (publish) publishState()
+    }
 
     private fun checkClaim() {
-        if (!directRequested) return
+        val requestStart: Long
+        val readingSerial: String?
+        val readingAcceptedAt: Long
+        synchronized(this) {
+            if (!directRequested || state == WearSensorClaimState.CONNECTED) return
+            requestStart = requestedAtMs
+            readingSerial = localReadingSerial
+            readingAcceptedAt = localReadingAcceptedAtMs
+        }
+
         val now = System.currentTimeMillis()
-        if (now - requestedAtMs >= CLAIM_TIMEOUT_MS) {
+        if (now - requestStart >= CLAIM_TIMEOUT_MS) {
             synchronized(this) {
+                if (!directRequested || requestedAtMs != requestStart) return
                 directRequested = false
                 requestedAtMs = 0L
+                clearLocalReadingLocked()
                 monitor?.cancel(false)
                 monitor = null
+                transitionLocked(WearSensorClaimState.PHONE_OWNS, "local connection scan timed out")
             }
-            setClaimed(false, "scan timeout")
-            MessageSender.sendnetinfo()
+            publishState()
             return
         }
-        val sensorId = runCatching { SensorIdentity.resolveMainSensor() }.getOrNull() ?: return
-        val driver = ManagedSensorRuntime.resolveDriver(sensorId) ?: return
-        val hasAcceptedReading = runCatching {
-            val reading = driver.getManagedCurrentSnapshot(READING_MAX_AGE_MS)
-            reading != null && reading.timeMillis >= requestedAtMs
-        }.getOrDefault(false)
-        val connected = runCatching {
-            driver.getManagedUiSnapshot(sensorId)?.isVendorConnected == true
-        }.getOrDefault(false)
-        if (hasAcceptedReading && connected) {
-            synchronized(this) {
-                monitor?.cancel(false)
-                monitor = null
-            }
-            setClaimed(true, "connected with accepted reading")
-            MessageSender.sendnetinfo()
+
+        val sensorId = runCatching { SensorIdentity.resolveMainSensor() }.getOrNull()
+        if (sensorId.isNullOrBlank()) {
+            logWaiting("no active sensor identity")
+            return
         }
+        val callback = SensorBluetooth.mygatts()
+            ?.firstOrNull { candidate ->
+                candidate is ManagedBluetoothSensorDriver &&
+                    SensorIdentity.matches(candidate.SerialNumber, sensorId)
+            }
+        if (callback == null) {
+            logWaiting("no matching local managed GATT callback for $sensorId")
+            return
+        }
+        if (!callback.hasLocallyConnectedGatt()) {
+            logWaiting("matching callback has no locally connected GATT")
+            return
+        }
+        if (!WearSensorClaimPolicy.hasLocalOwnershipProof(
+                targetSensorId = sensorId,
+                callbackSerial = callback.SerialNumber,
+                hasLocallyConnectedGatt = true,
+                requestedAtMs = requestStart,
+                localReadingSerial = readingSerial,
+                localReadingAcceptedAtMs = readingAcceptedAt,
+            )
+        ) {
+            logWaiting("local GATT connected; waiting for its accepted live reading")
+            return
+        }
+
+        synchronized(this) {
+            if (
+                !directRequested ||
+                requestedAtMs != requestStart ||
+                state == WearSensorClaimState.CONNECTED ||
+                !callback.hasLocallyConnectedGatt()
+            ) {
+                return
+            }
+            monitor?.cancel(false)
+            monitor = null
+            lastWaitingReason = ""
+            transitionLocked(
+                WearSensorClaimState.CONNECTED,
+                "matching local GATT connected and accepted local reading from ${callback.SerialNumber}",
+            )
+        }
+        publishState()
     }
 
     @Synchronized
-    private fun setClaimed(value: Boolean, reason: String) {
-        if (claimed == value) return
-        claimed = value
-        Log.i(LOG_ID, "watch sensor claim=$value: $reason")
+    private fun logWaiting(reason: String) {
+        if (lastWaitingReason == reason) return
+        lastWaitingReason = reason
+        Log.i(LOG_ID, "claim remains REQUESTING: $reason")
+    }
+
+    private fun clearLocalReadingLocked() {
+        localReadingSerial = null
+        localReadingAcceptedAtMs = 0L
+    }
+
+    private fun scheduleMonitorLocked() {
+        if (monitor?.isDone == false) return
+        monitor = executor.scheduleWithFixedDelay(::checkClaim, 0L, POLL_MS, TimeUnit.MILLISECONDS)
+    }
+
+    private fun transitionLocked(next: WearSensorClaimState, reason: String) {
+        val previous = state
+        state = next
+        if (previous == next) {
+            Log.i(LOG_ID, "watch sensor claim remains $next: $reason")
+        } else {
+            Log.i(LOG_ID, "watch sensor claim $previous -> $next: $reason")
+        }
+    }
+
+    private fun publishState() {
+        MessageSender.sendSensorClaimStatus()
+        MessageSender.sendnetinfo()
     }
 }

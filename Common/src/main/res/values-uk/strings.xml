@@ -1374,6 +1374,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_direct_sensor_on_watch">Прямий датчик на годиннику</string>
     <string name="wear_direct_sensor_watch_desc">Годинник шукає датчик і перебирає Bluetooth після першого прийнятого показання.</string>
     <string name="wear_direct_sensor_phone_desc">Режим компаньйона: телефон сканує й надсилає показання.</string>
+    <string name="wear_claim_state_phone_owns">Датчиком керує телефон</string>
+    <string name="wear_claim_state_requesting">Годинник запитує датчик</string>
+    <string name="wear_claim_state_connected">Годинник підключено до датчика</string>
     <string name="web_server_desc">Вебсервер, сумісний із Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Очікування підключення</string>

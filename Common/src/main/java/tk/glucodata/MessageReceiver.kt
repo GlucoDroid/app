@@ -84,6 +84,11 @@ class MessageReceiver: WearableListenerService() {
                     Log.i(LOG_ID, "sensor handoff stored=$ok")
                 }
             }
+            MessageSender.SENSOR_CLAIM_STATUS_PATH -> {
+                if (!isWearable) {
+                    WearSensorClaimStatus.onRemoteStatus(messageEvent.sourceNodeId, data)
+                }
+            }
             MessageSender.CALIBRATE_PATH -> {
                 // Watch-relayed fingerstick calibration; applied to the local
                 // driver that owns the BLE connection.
@@ -128,6 +133,9 @@ class MessageReceiver: WearableListenerService() {
 
                 if(Natives.setmynetinfo(name, data, galaxy)) {
                     sendnetinfo(sourceId)
+                    if (isWearable) {
+                        MessageSender.sendSensorClaimStatus()
+                    }
                 }
             }
             MessageSender.START_PATH ->  {

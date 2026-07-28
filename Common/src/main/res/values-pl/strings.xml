@@ -1395,6 +1395,9 @@
     <string name="wear_direct_sensor_on_watch">Bezpośredni sensor na zegarku</string>
     <string name="wear_direct_sensor_watch_desc">Zegarek wyszukuje sensor i przejmuje Bluetooth po pierwszym zaakceptowanym odczycie.</string>
     <string name="wear_direct_sensor_phone_desc">Tryb towarzyszący: telefon skanuje i wysyła odczyty.</string>
+    <string name="wear_claim_state_phone_owns">Telefon obsługuje sensor</string>
+    <string name="wear_claim_state_requesting">Zegarek żąda sensora</string>
+    <string name="wear_claim_state_connected">Zegarek połączony z sensorem</string>
     <string name="web_server_desc">Serwer WWW zgodny z Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Oczekiwanie na połączenie</string>
