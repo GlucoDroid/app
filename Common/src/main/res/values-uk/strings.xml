@@ -2296,4 +2296,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_pick_title">Показати на головному</string>
     <string name="stats_pinned_remove">Прибрати з головного</string>
     <string name="stats_pinned_already">закріплено</string>
+    <string name="stats_pinned_remove_short">Прибрати</string>
 </resources>

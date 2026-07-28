@@ -2252,4 +2252,5 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="stats_pinned_pick_title">Panoda göster</string>
     <string name="stats_pinned_remove">Panodan kaldır</string>
     <string name="stats_pinned_already">sabit</string>
+    <string name="stats_pinned_remove_short">Kaldır</string>
 </resources>

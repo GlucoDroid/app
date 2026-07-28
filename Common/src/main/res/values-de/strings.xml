@@ -2263,4 +2263,5 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="stats_pinned_pick_title">Auf dem Dashboard zeigen</string>
     <string name="stats_pinned_remove">Vom Dashboard entfernen</string>
     <string name="stats_pinned_already">angeheftet</string>
+    <string name="stats_pinned_remove_short">Entfernen</string>
 </resources>

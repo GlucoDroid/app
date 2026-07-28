@@ -2339,4 +2339,5 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_pinned_pick_title">Хяналтын самбарт харуулах</string>
     <string name="stats_pinned_remove">Хяналтын самбараас хасах</string>
     <string name="stats_pinned_already">бэхлэгдсэн</string>
+    <string name="stats_pinned_remove_short">Хасах</string>
 </resources>

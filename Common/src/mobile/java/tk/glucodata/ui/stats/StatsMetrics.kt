@@ -1,6 +1,7 @@
 package tk.glucodata.ui.stats
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -23,13 +24,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.RadioButtonChecked
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -1062,8 +1063,14 @@ private fun PinnedAddChip(
 }
 
 /**
- * Slot editor: every metric with its current value, so the choice is made against the
- * real number rather than a name alone.
+ * Slot editor.
+ *
+ * Every metric with its live value, so the choice is made against the real number rather
+ * than a name alone. Selection is carried by the row's own container — a filled,
+ * asymmetrically rounded surface in the same shape language as the tiles it is choosing
+ * between — rather than by a radio button bolted to the left of a plain list. Remove
+ * sits at the top, next to the title, because scrolling twenty rows to unpin something
+ * is the one thing this sheet should never make you do.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1081,86 +1088,106 @@ private fun PinnedMetricPickerSheet(
         onDismissRequest = onDismiss,
         dragHandle = { CompactSheetDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.stats_pinned_pick_title),
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            StatsMetric.entries.forEach { metric ->
-                val spec = metricSpec(metric, summary, targets, unit)
-                val selected = metric == current
-                val takenElsewhere = metric in alreadyPinned && !selected
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { onPick(metric) }
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = if (selected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
-                        contentDescription = null,
-                        tint = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        },
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = spec.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (takenElsewhere) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 16.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.stats_pinned_pick_title),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.weight(1f)
+                )
+                onRemove?.let { remove ->
+                    Row(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
+                            .clickable(onClick = remove)
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
                         Text(
-                            text = stringResource(R.string.stats_pinned_already),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            text = stringResource(R.string.stats_pinned_remove_short),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 1
                         )
                     }
-                    Text(
-                        text = spec.value,
-                        style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
-                        color = spec.tone,
-                        maxLines = 1
-                    )
                 }
             }
-            onRemove?.let { remove ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable(onClick = remove)
-                        .padding(horizontal = 12.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                StatsMetric.entries.forEach { metric ->
+                    val spec = metricSpec(metric, summary, targets, unit)
+                    val selected = metric == current
+                    val pinnedElsewhere = metric in alreadyPinned && !selected
+                    val rowShape = statsCardShape(20.dp, 12.dp)
+                    val container by animateColorAsState(
+                        targetValue = when {
+                            selected -> spec.tone.copy(alpha = 0.20f)
+                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            else -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f)
+                        },
+                        label = "pickerRow"
                     )
-                    Text(
-                        text = stringResource(R.string.stats_pinned_remove),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(rowShape)
+                            .background(container)
+                            .clickable { onPick(metric) }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = spec.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (pinnedElsewhere) {
+                            Icon(
+                                imageVector = Icons.Filled.PushPin,
+                                contentDescription = stringResource(R.string.stats_pinned_already),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                        Text(
+                            text = spec.value,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFeatureSettings = "tnum",
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = spec.tone,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }

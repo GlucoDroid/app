@@ -2240,4 +2240,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_pick_title">显示在主页</string>
     <string name="stats_pinned_remove">从主页移除</string>
     <string name="stats_pinned_already">已固定</string>
+    <string name="stats_pinned_remove_short">移除</string>
 </resources>

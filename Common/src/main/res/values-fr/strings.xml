@@ -2230,4 +2230,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_pick_title">Afficher sur le Tableau de bord</string>
     <string name="stats_pinned_remove">Retirer du Tableau de bord</string>
     <string name="stats_pinned_already">épinglé</string>
+    <string name="stats_pinned_remove_short">Retirer</string>
 </resources>

@@ -2224,4 +2224,5 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_pick_title">Visa på Översikt</string>
     <string name="stats_pinned_remove">Ta bort från Översikt</string>
     <string name="stats_pinned_already">fäst</string>
+    <string name="stats_pinned_remove_short">Ta bort</string>
 </resources>

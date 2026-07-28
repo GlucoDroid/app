@@ -2432,4 +2432,5 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="stats_pinned_pick_title">Ku muuji Dashboard-ka</string>
     <string name="stats_pinned_remove">Ka saar Dashboard-ka</string>
     <string name="stats_pinned_already">lagu dhejiyay</string>
+    <string name="stats_pinned_remove_short">Ka saar</string>
 </resources>

@@ -1216,7 +1216,7 @@ fun DashboardScreen(
                 // Left Pane: Status + Info + History (Scrollable)
                 LazyColumn(
                     modifier = Modifier.weight(0.25f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp), // Gap between Header and History?
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
                 ) {
                      item {

@@ -2259,4 +2259,5 @@
     <string name="stats_pinned_pick_title">Pokaż na Pulpicie</string>
     <string name="stats_pinned_remove">Usuń z Pulpitu</string>
     <string name="stats_pinned_already">przypięte</string>
+    <string name="stats_pinned_remove_short">Usuń</string>
 </resources>
