@@ -438,7 +438,15 @@ public class Applic extends Application implements androidx.work.Configuration.P
     }
 
     public static void updateservice(Context context, boolean usebluetooth) {
-        if (usebluetooth || Natives.backuphostNr() > 0) {
+        final int backupHosts = Natives.backuphostNr();
+        final boolean keepAliveRequired = usebluetooth || backupHosts > 0;
+        if (doLog) {
+            Log.i(LOG_ID, "updateservice decision bluetooth=" + usebluetooth
+                    + " backupHosts=" + backupHosts
+                    + " nightscoutEnabled=" + Natives.getuseuploader()
+                    + " keepAlive=" + keepAliveRequired);
+        }
+        if (keepAliveRequired) {
             if (keeprunning.start(context)) {
                 if (doLog) {
                     Log.i(LOG_ID, "updateservice: keeprunning started");
@@ -1087,6 +1095,12 @@ public class Applic extends Application implements androidx.work.Configuration.P
 
     static final boolean usewakelock = true;
 
+    /**
+     * Safety net on the ingest wakelock. Handling one reading is sub-second work; this only
+     * exists so a crash between acquire and release can never pin the CPU awake indefinitely.
+     */
+    static final long GLUCOSE_WAKELOCK_TIMEOUT_MS = 60_000L;
+
     @Keep
     static void doglucose(String SerialNumber, int mgdl, float gl, float rate, int alarm, long timmsec,
             boolean wasblueoff, long sensorstartmsec, long sensorptr, int sensorgen) {
@@ -1100,29 +1114,45 @@ public class Applic extends Application implements androidx.work.Configuration.P
 
         var wakelock = usewakelock ? (((PowerManager) app.getSystemService(POWER_SERVICE))
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Juggluco::Applic")) : null;
-        if (wakelock != null)
-            wakelock.acquire();
-        if (!wasblueoff) {
-            Applic.dontusebluetooth();
+        if (wakelock != null) {
+            wakelock.setReferenceCounted(false);
+            wakelock.acquire(GLUCOSE_WAKELOCK_TIMEOUT_MS);
         }
-        SuperGattCallback.dowithglucose(SerialNumber, mgdl, gl, rate, alarm, timmsec, sensorstartmsec,
-                Notify.glucosetimeout, sensorgen);
-        if (!isWearable) {
-            if (sensorptr != 0L) {
-                {
-                    if (doLog) {
-                        Log.i(LOG_ID, "sensorptr=" + format("%x", sensorptr));
+        try {
+            if (!wasblueoff) {
+                Applic.dontusebluetooth();
+            }
+            SuperGattCallback.dowithglucose(SerialNumber, mgdl, gl, rate, alarm, timmsec, sensorstartmsec,
+                    Notify.glucosetimeout, sensorgen);
+            if (!isWearable) {
+                if (sensorptr != 0L) {
+                    {
+                        if (doLog) {
+                            Log.i(LOG_ID, "sensorptr=" + format("%x", sensorptr));
+                        }
+                        ;
                     }
                     ;
-                }
-                ;
-                if (Build.VERSION.SDK_INT >= 28) {
-                    HealthConnection.Companion.writeAll(sensorptr, SerialNumber);
+                    if (Build.VERSION.SDK_INT >= 28) {
+                        HealthConnection.Companion.writeAll(sensorptr, SerialNumber);
+                    }
                 }
             }
+        } finally {
+            releasewakelock(wakelock);
         }
-        if (wakelock != null)
-            wakelock.release();
+    }
+
+    /** Release a wakelock without letting a release failure escape over the caller's own work. */
+    static void releasewakelock(PowerManager.WakeLock wakelock) {
+        if (wakelock == null)
+            return;
+        try {
+            if (wakelock.isHeld())
+                wakelock.release();
+        } catch (Throwable th) {
+            Log.stack(LOG_ID, "wakelock.release", th);
+        }
     }
 
     @Keep

@@ -37,8 +37,13 @@ object SibionicsRegistry {
     private const val PREF_RESET_REQUESTED_PREFIX = "sibionics_managed_reset_requested_"
     private const val PREF_CUSTOM_ALGORITHM_PREFIX = "sibionics_managed_custom_algorithm_"
     private const val PREF_ALGORITHM_SELECTION_PREFIX = "sibionics_managed_algorithm_selection_"
+    private const val PREF_ALGORITHM_SENSITIVITY_PREFIX = "sibionics_managed_algorithm_sensitivity_"
     private const val PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX = "sibionics_managed_rebuild_fingerprint_"
     private const val PREF_INTEGRATED_CALIBRATION_BASELINE_PREFIX = "sibionics_managed_calibration_baseline_"
+    private const val SIBIONICS_GTIN_PREFIX = "0697283164"
+    private val SENSOR_QR_PATTERN = Regex(
+        "^\u001D?01(\\d{14})11\\d{6}17\\d{6}10[A-Z0-9]{8,20}\u001D?21[A-Z0-9]{10,20}\u001D?$",
+    )
 
     data class IntegratedCalibrationBaseline(
         val unit: Int,
@@ -73,6 +78,19 @@ object SibionicsRegistry {
     fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    internal fun isSupportedQrPayload(source: String?): Boolean {
+        val match = SENSOR_QR_PATTERN.matchEntire(cleanQrPayload(source)) ?: return false
+        val gtin = match.groupValues[1]
+        if (!gtin.startsWith(SIBIONICS_GTIN_PREFIX)) return false
+        val body = gtin.dropLast(1)
+        val checksum = body.mapIndexed { index, char ->
+            val digit = char.digitToInt()
+            if ((body.length - index) % 2 == 1) digit * 3 else digit
+        }.sum()
+        return (10 - checksum % 10) % 10 == gtin.last().digitToInt() &&
+            deriveNativeQrName(source) != null
+    }
+
     @JvmStatic
     fun buildIdentity(
         rawInput: String?,
@@ -84,13 +102,14 @@ object SibionicsRegistry {
         // The native V120 identity window is defined against the framed QR payload. Keep GS
         // separators here: normalizing first shortens a 65-byte payload and selects the wrong
         // extraction branch, shifting both the leading and trailing identity characters.
-        val framedQrName = deriveNativeQrName(rawInput)
+        val useStructuredV120Serial = variant == SibionicsConstants.Variant.SIBIONICS2
+        val framedQrName = deriveNativeQrName(rawInput, useStructuredV120Serial)
         val source = when {
             normalizedRaw.isNotBlank() -> normalizedRaw
             normalizedBle.isNotBlank() -> normalizedBle
             else -> variant.displayLabel
         }
-        val qrName = framedQrName ?: deriveNativeQrName(source)
+        val qrName = framedQrName ?: deriveNativeQrName(source, useStructuredV120Serial)
         val qrShortView = qrName?.takeLast(11)?.takeIf { it.length == 11 }
         val resolvedBleName = deriveBleName(normalizedBle.takeIf { it.isNotBlank() } ?: source).orEmpty()
         val display = qrShortView ?: deriveDisplayName(source, variant)
@@ -276,6 +295,7 @@ object SibionicsRegistry {
                 remove(PREF_AUTO_RESET_DAYS_PREFIX + id)
                 remove(PREF_CUSTOM_ALGORITHM_PREFIX + id)
                 remove(PREF_ALGORITHM_SELECTION_PREFIX + id)
+                remove(PREF_ALGORITHM_SENSITIVITY_PREFIX + id)
                 remove(PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX + id)
                 remove(PREF_INTEGRATED_CALIBRATION_BASELINE_PREFIX + id)
             }
@@ -515,6 +535,25 @@ object SibionicsRegistry {
         prefs(context).edit()
             .putInt(PREF_ALGORITHM_SELECTION_PREFIX + sensorId, selection.storageId)
             .apply()
+    }
+
+    fun loadAlgorithmSensitivityOverride(context: Context, sensorId: String): Float? =
+        prefs(context)
+            .getFloat(PREF_ALGORITHM_SENSITIVITY_PREFIX + sensorId, Float.NaN)
+            .takeIf(SibionicsSensitivity::isSupported)
+
+    fun saveAlgorithmSensitivityOverride(
+        context: Context,
+        sensorId: String,
+        sensitivity: Float?,
+    ) {
+        prefs(context).edit().apply {
+            if (sensitivity == null) {
+                remove(PREF_ALGORITHM_SENSITIVITY_PREFIX + sensorId)
+            } else if (SibionicsSensitivity.isSupported(sensitivity)) {
+                putFloat(PREF_ALGORITHM_SENSITIVITY_PREFIX + sensorId, sensitivity)
+            }
+        }.apply()
     }
 
     fun loadLocalRebuildFingerprint(context: Context, sensorId: String): String =
@@ -762,10 +801,28 @@ object SibionicsRegistry {
         return -1
     }
 
-    private fun deriveNativeQrName(source: String?): String? {
+    private fun deriveNativeQrName(
+        source: String?,
+        useStructuredV120Serial: Boolean = false,
+    ): String? {
         val payload = cleanQrPayload(source)
         val magic = "0697283164"
         if (!payload.contains(magic) || payload.length < 50) return null
+
+        // V120 AI (21) values beginning with P contain the calibration-bearing
+        // serial consumed by the validated local decoder. Some labels use an XPT
+        // probe identifier as the entire AI (21) value instead; it does not expose
+        // that P-format token, so retain the native identity window below rather
+        // than deriving calibration data from unrelated characters.
+        if (useStructuredV120Serial) {
+            deriveGs1V120CalibrationSerial(payload)?.let { serial ->
+                // The legacy/native visible identity excludes the serial check
+                // character: its 16-byte end window consists of the final AI digit
+                // followed by the first 15 serial characters.
+                return "1" + serial.dropLast(1)
+            }
+        }
+
         return if (payload.length < 65) {
             val endLen = payload.length - 49
             val startLen = 16 - endLen
@@ -781,11 +838,43 @@ object SibionicsRegistry {
         }?.let { SibionicsConstants.normalizeBleName(it) }
     }
 
+    private fun deriveGs1V120CalibrationSerial(payload: String): String? {
+        val magicPos = payload.indexOf(SIBIONICS_GTIN_PREFIX)
+        if (magicPos < 0) return null
+
+        val explicitAi21 = payload.indexOf("\u001D21", startIndex = magicPos + 10)
+        val valueStart = if (explicitAi21 >= 0) {
+            explicitAi21 + 3
+        } else {
+            // Some scanners omit FNC1/group separators. In that representation,
+            // locate AI (21) only after the validated variable-length AI (10)
+            // batch field rather than matching an arbitrary "21" in the dates.
+            val ai10 = findBatchAi10(payload)
+            if (ai10 < 0) return null
+            val batchStart = ai10 + 2
+            val ai21 = payload.indexOf("21", startIndex = batchStart + 8)
+            if (ai21 < 0 || ai21 - batchStart !in 8..16) return null
+            ai21 + 2
+        }
+
+        // Only the established P-format V120 serial has a validated sensitivity
+        // token. XPT is a different AI (21) identifier form, not a P serial with
+        // a shifted prefix, so never manufacture calibration data from it.
+        if (payload.length - valueStart < 16) return null
+        return payload.substring(valueStart, valueStart + 16)
+            .takeIf { serial ->
+                serial.startsWith('P') && serial.all(Char::isLetterOrDigit)
+            }
+    }
+
     private fun cleanQrPayload(source: String?): String =
         source.orEmpty()
+            .trim()
             .uppercase(java.util.Locale.US)
+            .removePrefix("]D2")
             .replace("^]", "\u001D")
             .filter { it.isLetterOrDigit() || it == '\u001D' }
+
 }
 
 object SibionicsManagedSensorIdentityAdapter : tk.glucodata.drivers.ManagedSensorIdentityAdapter {
@@ -846,7 +935,9 @@ object SibionicsManagedSensorIdentityAdapter : tk.glucodata.drivers.ManagedSenso
     override fun isExternallyManagedBleSensor(sensorId: String?): Boolean =
         SibionicsRegistry.findRecord(Applic.app, sensorId) != null
 
-    override fun usesNativeDirectStreamShell(sensorId: String?): Boolean = false
+    override fun usesNativeDirectStreamShell(sensorId: String?): Boolean =
+        resolveCanonicalSensorId(sensorId)
+            ?.let { SibionicsRegistry.findRecord(Applic.app, it) } != null
 
     override fun hasNativeSensorBacking(sensorId: String?): Boolean? {
         SibionicsRegistry.findRecord(Applic.app, sensorId) ?: return null

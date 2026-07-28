@@ -31,7 +31,7 @@ public final class GlucoseRangeColors {
     public static final int VERY_HIGH_DARK = VERY_HIGH;
 
     /** Selectable colour presets. CUSTOM is a UI label for "base + overrides". */
-    public enum Palette { MUTED, VIBRANT, GDH_LIKE, CUSTOM }
+    public enum Palette { MUTED, VIBRANT, AURORA, GDH_LIKE, CUSTOM }
 
     /** The five glucose bands, ordered below-range to above-range. */
     public enum Band { VERY_LOW, LOW, IN_RANGE, HIGH, VERY_HIGH }
@@ -60,6 +60,22 @@ public final class GlucoseRangeColors {
             0xFFFFA726, // VERY_HIGH – Orange 400
     };
 
+    // Aurora: cooler teal and magenta accents with warm gold/orange highs.
+    private static final int[] AURORA_LIGHT = {
+            0xFFAD1457, // VERY_LOW
+            0xFFE05A6F, // LOW
+            0xFF00897B, // IN_RANGE
+            0xFFF9A825, // HIGH
+            0xFFD84315, // VERY_HIGH
+    };
+    private static final int[] AURORA_DARK = {
+            0xFFF06292, // VERY_LOW
+            0xFFFF8A80, // LOW
+            0xFF4DB6AC, // IN_RANGE
+            0xFFFFD54F, // HIGH
+            0xFFFF8A65, // VERY_HIGH
+    };
+
     // GDH-like: GlucoDataHandler's three colour tiers mapped onto five bands
     // (in-range <- colorOK, high/low <- colorOutOfRange, very-high/very-low <-
     // colorAlarm). These are the raw primaries GDH renders on black widget
@@ -76,6 +92,7 @@ public final class GlucoseRangeColors {
     // SharedPreferences contract (shared with the app-start init and the UI).
     public static final String PREF_FILE = "tk.glucodata_preferences";
     public static final String PREF_PALETTE = "glucose_color_palette";
+    public static final String PREF_TARGET_BACKGROUND = "glucose_color_target_background";
     public static final String[] PREF_OVERRIDE_KEYS = {
             "glucose_color_very_low",
             "glucose_color_low",
@@ -87,6 +104,8 @@ public final class GlucoseRangeColors {
     private static volatile Palette activePalette = Palette.MUTED;
     // null entry = no override for that band. Overrides apply to both themes.
     private static final Integer[] overrides = new Integer[Band.values().length];
+    // null = follow the effective IN_RANGE color.
+    private static volatile Integer targetBackgroundOverride;
     // Notified after any state change so the Compose layer can recompose.
     private static volatile Runnable changeListener;
 
@@ -94,6 +113,8 @@ public final class GlucoseRangeColors {
         switch (palette) {
             case VIBRANT:
                 return darkTheme ? VIBRANT_DARK : VIBRANT_LIGHT;
+            case AURORA:
+                return darkTheme ? AURORA_DARK : AURORA_LIGHT;
             case GDH_LIKE:
                 return darkTheme ? GDH_DARK : GDH_LIGHT;
             case MUTED:
@@ -134,7 +155,19 @@ public final class GlucoseRangeColors {
         return overrides[band.ordinal()];
     }
 
+    public static Integer getTargetBackgroundOverride() {
+        return targetBackgroundOverride;
+    }
+
+    public static int targetBackground(boolean darkTheme) {
+        final Integer override = targetBackgroundOverride;
+        return override != null ? override : inRange(darkTheme);
+    }
+
     public static boolean hasAnyOverride() {
+        if (targetBackgroundOverride != null) {
+            return true;
+        }
         for (Integer override : overrides) {
             if (override != null) {
                 return true;
@@ -156,6 +189,13 @@ public final class GlucoseRangeColors {
         setOverride(band, null);
     }
 
+    public static void setTargetBackgroundOverride(Integer argb) {
+        if (!java.util.Objects.equals(targetBackgroundOverride, argb)) {
+            targetBackgroundOverride = argb;
+            notifyChanged();
+        }
+    }
+
     public static void clearOverrides() {
         boolean changed = false;
         for (int i = 0; i < overrides.length; i++) {
@@ -163,6 +203,10 @@ public final class GlucoseRangeColors {
                 overrides[i] = null;
                 changed = true;
             }
+        }
+        if (targetBackgroundOverride != null) {
+            targetBackgroundOverride = null;
+            changed = true;
         }
         if (changed) {
             notifyChanged();
@@ -206,6 +250,9 @@ public final class GlucoseRangeColors {
                         ? prefs.getInt(PREF_OVERRIDE_KEYS[i], 0)
                         : null;
             }
+            targetBackgroundOverride = prefs.contains(PREF_TARGET_BACKGROUND)
+                    ? prefs.getInt(PREF_TARGET_BACKGROUND, 0)
+                    : null;
         } catch (Throwable ignored) {
             // Any failure falls back to the compiled-in muted defaults.
         }
@@ -278,6 +325,8 @@ public final class GlucoseRangeColors {
     private static final int[] MUTED_TRAFFIC_DARK = { VALUE_IN_RANGE_DARK, VALUE_BORDERLINE_DARK, VALUE_OUT_DARK };
     private static final int[] VIBRANT_TRAFFIC_LIGHT = { 0xFF00A651, 0xFFFFB300, 0xFFD50000 };
     private static final int[] VIBRANT_TRAFFIC_DARK = { 0xFF69F0AE, 0xFFFFD24D, 0xFFFF5252 };
+    private static final int[] AURORA_TRAFFIC_LIGHT = { 0xFF00897B, 0xFFF9A825, 0xFFAD1457 };
+    private static final int[] AURORA_TRAFFIC_DARK = { 0xFF4DB6AC, 0xFFFFD54F, 0xFFF06292 };
     private static final int[] GDH_TRAFFIC_LIGHT = { 0xFF00FF00, 0xFFFFDC00, 0xFFFF0000 };
     private static final int[] GDH_TRAFFIC_DARK = GDH_TRAFFIC_LIGHT;
 
@@ -285,6 +334,8 @@ public final class GlucoseRangeColors {
         switch (palette) {
             case VIBRANT:
                 return darkTheme ? VIBRANT_TRAFFIC_DARK : VIBRANT_TRAFFIC_LIGHT;
+            case AURORA:
+                return darkTheme ? AURORA_TRAFFIC_DARK : AURORA_TRAFFIC_LIGHT;
             case GDH_LIKE:
                 return darkTheme ? GDH_TRAFFIC_DARK : GDH_TRAFFIC_LIGHT;
             case MUTED:

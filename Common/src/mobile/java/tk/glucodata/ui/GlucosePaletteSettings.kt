@@ -1,70 +1,53 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package tk.glucodata.ui
 
 import android.graphics.Color as AndroidColor
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.GlucoseRangeColors.Band
 import tk.glucodata.GlucoseRangeColors.Palette
 import tk.glucodata.R
-import tk.glucodata.ui.components.CardPosition
-import tk.glucodata.ui.components.CompactSheetDragHandle
-import tk.glucodata.ui.components.ExpressiveHueWheelPicker
-import tk.glucodata.ui.components.SettingsItem
+import tk.glucodata.ui.components.ColorSwatchButton
 
-private val BASE_PRESETS = listOf(Palette.MUTED, Palette.VIBRANT, Palette.GDH_LIKE)
-private val BAND_ORDER = listOf(Band.VERY_LOW, Band.LOW, Band.IN_RANGE, Band.HIGH, Band.VERY_HIGH)
+private val BASE_PRESETS =
+    listOf(Palette.MUTED, Palette.VIBRANT, Palette.AURORA, Palette.GDH_LIKE)
 
 private fun presetLabelRes(palette: Palette): Int = when (palette) {
     Palette.MUTED -> R.string.glucose_palette_preset_muted
     Palette.VIBRANT -> R.string.glucose_palette_preset_vibrant
+    Palette.AURORA -> R.string.glucose_palette_preset_aurora
     Palette.GDH_LIKE -> R.string.glucose_palette_preset_gdh
     Palette.CUSTOM -> R.string.glucose_palette_preset_custom
 }
@@ -86,303 +69,316 @@ private fun effectiveBandColor(band: Band, dark: Boolean): Int = when (band) {
 }
 
 @Composable
-fun GlucosePaletteCard(position: CardPosition = CardPosition.SINGLE) {
+fun GlucosePalettePresetSelector(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val revision = GlucosePaletteState.revision
-    val isDark = isSystemInDarkTheme()
-    var showEditor by remember { mutableStateOf(false) }
     val activePreset = remember(revision) { GlucosePaletteState.palette() }
     val hasOverrides = remember(revision) { GlucosePaletteState.hasAnyOverride() }
-    val subtitle = if (hasOverrides) {
-        stringResource(R.string.glucose_palette_preset_custom)
-    } else {
-        stringResource(presetLabelRes(activePreset))
-    }
 
-    SettingsItem(
-        title = stringResource(R.string.glucose_palette_title),
-        subtitle = subtitle,
-        onClick = { showEditor = true },
-        position = position,
-        trailingContent = {
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                BAND_ORDER.forEach { band ->
-                    Box(
-                        modifier = Modifier
-                            .size(14.dp)
-                            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                            .background(Color(effectiveBandColor(band, isDark)), CircleShape)
-                    )
-                }
-            }
-        }
-    )
-
-    if (showEditor) {
-        GlucosePaletteEditorSheet(onDismiss = { showEditor = false })
-    }
-}
-
-@Composable
-private fun GlucosePaletteEditorSheet(onDismiss: () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val revision = GlucosePaletteState.revision
-    val isDark = isSystemInDarkTheme()
-    val activePreset = remember(revision) { GlucosePaletteState.palette() }
-    val hasOverrides = remember(revision) { GlucosePaletteState.hasAnyOverride() }
-    var editingBand by remember { mutableStateOf<Band?>(null) }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        dragHandle = { CompactSheetDragHandle() }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            val band = editingBand
-            if (band == null) {
-                PaletteOverview(
-                    activePreset = activePreset,
-                    hasOverrides = hasOverrides,
-                    isDark = isDark,
-                    onPresetSelected = { GlucosePaletteState.setPalette(context, it) },
-                    onBandSelected = { editingBand = it },
-                    onResetAll = { GlucosePaletteState.clearOverrides(context) },
-                    onDismiss = onDismiss
-                )
-            } else {
-                key(band, revision) {
-                    BandColorEditor(
-                        band = band,
-                        initialArgb = effectiveBandColor(band, isDark),
-                        isOverridden = GlucosePaletteState.override(band) != null,
-                        onBack = { editingBand = null },
-                        onSave = { color ->
-                            GlucosePaletteState.setOverride(context, band, color)
-                            editingBand = null
-                        },
-                        onReset = {
-                            GlucosePaletteState.setOverride(context, band, null)
-                            editingBand = null
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ColumnScope.PaletteOverview(
-    activePreset: Palette,
-    hasOverrides: Boolean,
-    isDark: Boolean,
-    onPresetSelected: (Palette) -> Unit,
-    onBandSelected: (Band) -> Unit,
-    onResetAll: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    SheetHeader(
-        title = stringResource(R.string.glucose_palette_edit_title),
-        onClose = onDismiss
-    )
-    Text(
-        text = stringResource(R.string.glucose_palette_sheet_desc),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(34.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        BAND_ORDER.forEachIndexed { index, band ->
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(34.dp)
-                    .background(
-                        Color(effectiveBandColor(band, isDark)),
-                        when (index) {
-                            0 -> RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)
-                            BAND_ORDER.lastIndex -> RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp)
-                            else -> RoundedCornerShape(4.dp)
-                        }
-                    )
-            )
-        }
-    }
-
-    Text(
-        text = stringResource(R.string.glucose_palette_preset_label),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary
-    )
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         BASE_PRESETS.forEach { preset ->
             FilterChip(
                 selected = activePreset == preset && !hasOverrides,
-                onClick = { onPresetSelected(preset) },
-                label = { Text(stringResource(presetLabelRes(preset))) }
-            )
-        }
-    }
-
-    Text(
-        text = stringResource(R.string.glucose_palette_bands_label),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        BAND_ORDER.forEachIndexed { index, band ->
-            val overridden = GlucosePaletteState.override(band) != null
-            SettingsItem(
-                title = stringResource(bandLabelRes(band)),
-                subtitle = if (overridden) stringResource(R.string.glucose_palette_preset_custom) else null,
-                onClick = { onBandSelected(band) },
-                position = when (index) {
-                    0 -> CardPosition.TOP
-                    BAND_ORDER.lastIndex -> CardPosition.BOTTOM
-                    else -> CardPosition.MIDDLE
+                onClick = {
+                    GlucosePaletteState.setPalette(context, preset)
+                    GlucosePaletteState.clearOverrides(context)
                 },
-                trailingContent = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                                .background(Color(effectiveBandColor(band, isDark)), RoundedCornerShape(10.dp))
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                label = { Text(stringResource(presetLabelRes(preset))) },
+                modifier = Modifier.weight(1f)
             )
-        }
-    }
-    if (hasOverrides) {
-        TextButton(onClick = onResetAll, modifier = Modifier.align(Alignment.End)) {
-            Text(stringResource(R.string.glucose_palette_reset_all))
         }
     }
 }
 
 @Composable
-private fun ColumnScope.BandColorEditor(
-    band: Band,
-    initialArgb: Int,
-    isOverridden: Boolean,
-    onBack: () -> Unit,
-    onSave: (Int) -> Unit,
-    onReset: () -> Unit
-) {
-    val initialHsv = remember(initialArgb) {
-        FloatArray(3).also { AndroidColor.colorToHSV(initialArgb or (0xFF shl 24), it) }
-    }
-    var hue by remember { mutableFloatStateOf(initialHsv[0]) }
-    var saturation by remember { mutableFloatStateOf(initialHsv[1]) }
-    var brightness by remember { mutableFloatStateOf(initialHsv[2]) }
-    val currentArgb = AndroidColor.HSVToColor(floatArrayOf(hue, saturation, brightness))
+fun GlucosePaletteResetAllButton(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val revision = GlucosePaletteState.revision
+    val hasOverrides = remember(revision) { GlucosePaletteState.hasAnyOverride() }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.navigate_back))
-        }
-        Text(
-            text = stringResource(bandLabelRes(band)),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f)
-        )
-    }
-    Surface(
-        modifier = Modifier
-            .size(68.dp)
-            .align(Alignment.CenterHorizontally),
-        shape = CircleShape,
-        color = Color(currentArgb),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {}
-    Text(
-        text = String.format("#%06X", currentArgb and 0xFFFFFF),
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.align(Alignment.CenterHorizontally)
-    )
-    ExpressiveHueWheelPicker(hue = hue, onHueChange = { hue = it })
-    PaletteSlider(
-        label = stringResource(R.string.glucose_palette_saturation),
-        value = saturation,
-        onValueChange = { saturation = it }
-    )
-    PaletteSlider(
-        label = stringResource(R.string.glucose_palette_brightness),
-        value = brightness,
-        onValueChange = { brightness = it }
-    )
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (isOverridden) {
-            TextButton(onClick = onReset) {
-                Text(stringResource(R.string.glucose_palette_reset))
+    if (hasOverrides) {
+        Column(modifier = modifier.fillMaxWidth()) {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+            TextButton(
+                onClick = { GlucosePaletteState.clearOverrides(context) },
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(stringResource(R.string.glucose_palette_reset_all))
             }
         }
-        Spacer(Modifier.weight(1f))
-        TextButton(onClick = onBack) {
-            Text(stringResource(R.string.cancel))
-        }
-        Button(onClick = { onSave(currentArgb or (0xFF shl 24)) }) {
-            Text(stringResource(R.string.save))
-        }
     }
 }
 
 @Composable
-private fun PaletteSlider(
+fun GlucoseBandColorButton(
+    band: Band,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh
+) {
+    val context = LocalContext.current
+    val revision = GlucosePaletteState.revision
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    var showDialog by remember { mutableStateOf(false) }
+    val color = remember(revision, isDark, band) { effectiveBandColor(band, isDark) }
+
+    ColorSwatchButton(
+        color = Color(color),
+        onClick = { showDialog = true },
+        modifier = modifier,
+        containerColor = containerColor
+    )
+
+    if (showDialog) {
+        ExpressiveColorPickerDialog(
+            title = stringResource(bandLabelRes(band)),
+            initialColor = color,
+            onDismiss = { showDialog = false },
+            onReset = if (GlucosePaletteState.override(band) != null) {
+                {
+                    GlucosePaletteState.setOverride(context, band, null)
+                    showDialog = false
+                }
+            } else {
+                null
+            },
+            onConfirm = { updatedColor ->
+                GlucosePaletteState.setOverride(context, band, updatedColor)
+                showDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun GlucoseTargetBackgroundColorButton(
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh
+) {
+    val context = LocalContext.current
+    val revision = GlucosePaletteState.revision
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    var showDialog by remember { mutableStateOf(false) }
+    val color = remember(revision, isDark) {
+        GlucoseRangeColors.targetBackground(isDark)
+    }
+
+    ColorSwatchButton(
+        color = Color(color),
+        onClick = { showDialog = true },
+        modifier = modifier,
+        containerColor = containerColor
+    )
+
+    if (showDialog) {
+        ExpressiveColorPickerDialog(
+            title = stringResource(R.string.glucose_target_background_title),
+            initialColor = color or 0xFF000000.toInt(),
+            showOpacity = false,
+            onDismiss = { showDialog = false },
+            onReset = if (GlucosePaletteState.targetBackgroundOverride() != null) {
+                {
+                    GlucosePaletteState.setTargetBackgroundOverride(context, null)
+                    showDialog = false
+                }
+            } else {
+                null
+            },
+            onConfirm = { updatedColor ->
+                GlucosePaletteState.setTargetBackgroundOverride(
+                    context,
+                    updatedColor or 0xFF000000.toInt()
+                )
+                showDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun ExpressiveColorPickerDialog(
+    title: String,
+    initialColor: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+    onReset: (() -> Unit)? = null,
+    showOpacity: Boolean = true
+) {
+    var colorState by remember(initialColor) { mutableStateOf(initialColor.toPaletteColorState()) }
+    var colorText by remember(initialColor) { mutableStateOf(formatColorHex(initialColor)) }
+    val composedColor = remember(colorState) { colorState.toColorInt() }
+    val parsedColor = remember(colorText) { parseColorHex(colorText) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    fun updateColorState(updated: PaletteColorState) {
+        colorState = updated
+        colorText = formatColorHex(updated.toColorInt())
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                tk.glucodata.ui.components.ExpressiveHueWheelPicker(
+                    hue = colorState.hue,
+                    onHueChange = { hue ->
+                        updateColorState(colorState.copy(hue = hue))
+                    },
+                    previewColor = Color(composedColor)
+                )
+                LabeledColorSlider(
+                    label = stringResource(R.string.glucose_palette_saturation),
+                    value = colorState.saturation,
+                    onValueChange = { saturation ->
+                        updateColorState(
+                            colorState.copy(saturation = saturation.coerceIn(0f, 1f))
+                        )
+                    }
+                )
+                LabeledColorSlider(
+                    label = stringResource(R.string.glucose_palette_brightness),
+                    value = colorState.value,
+                    onValueChange = { brightness ->
+                        updateColorState(colorState.copy(value = brightness.coerceIn(0f, 1f)))
+                    }
+                )
+                if (showOpacity) {
+                    LabeledColorSlider(
+                        label = stringResource(
+                            R.string.opacity_percent,
+                            (colorState.alpha * 100f).roundToInt()
+                        ),
+                        value = colorState.alpha,
+                        showTrailingValue = false,
+                        onValueChange = { alpha ->
+                            updateColorState(colorState.copy(alpha = alpha.coerceIn(0f, 1f)))
+                        }
+                    )
+                }
+                OutlinedTextField(
+                    value = colorText,
+                    onValueChange = { raw ->
+                        val updatedText = raw.trim().uppercase().take(9)
+                        colorText = updatedText
+                        parseColorHex(updatedText)?.let { parsed ->
+                            colorState = parsed.toPaletteColorState()
+                        }
+                    },
+                    label = { Text(stringResource(R.string.colors)) },
+                    singleLine = true,
+                    isError = parsedColor == null,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = null
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                        }
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(composedColor) }
+            ) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            Row {
+                if (onReset != null) {
+                    TextButton(onClick = onReset) {
+                        Text(stringResource(R.string.glucose_palette_reset))
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun LabeledColorSlider(
     label: String,
     value: Float,
+    showTrailingValue: Boolean = true,
     onValueChange: (Float) -> Unit
 ) {
-    Column {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "${(value * 100).toInt()}%",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = label,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
             )
+            if (showTrailingValue) {
+                Text(
+                    text = "${(value * 100f).roundToInt()}%",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
-        Slider(value = value, onValueChange = onValueChange, valueRange = 0f..1f)
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
-@Composable
-private fun SheetHeader(title: String, onClose: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f)
-        )
-        IconButton(onClick = onClose) {
-            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel))
-        }
+private data class PaletteColorState(
+    val hue: Float,
+    val saturation: Float,
+    val value: Float,
+    val alpha: Float
+)
+
+private fun Int.toPaletteColorState(): PaletteColorState {
+    val hsv = FloatArray(3)
+    AndroidColor.colorToHSV(this, hsv)
+    return PaletteColorState(
+        hue = hsv[0],
+        saturation = hsv[1],
+        value = hsv[2],
+        alpha = ((this ushr 24) and 0xFF) / 255f
+    )
+}
+
+private fun PaletteColorState.toColorInt(): Int {
+    return AndroidColor.HSVToColor(
+        (alpha * 255f).roundToInt(),
+        floatArrayOf(hue, saturation, value)
+    )
+}
+
+private fun formatColorHex(color: Int): String = "#%08X".format(color)
+
+private fun parseColorHex(raw: String): Int? {
+    val cleaned = raw.trim().removePrefix("#")
+    val normalized = when (cleaned.length) {
+        6 -> "FF$cleaned"
+        8 -> cleaned
+        else -> return null
     }
+    return normalized.toLongOrNull(16)?.toInt()
 }

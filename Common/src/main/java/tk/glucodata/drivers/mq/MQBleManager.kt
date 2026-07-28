@@ -30,6 +30,7 @@ import tk.glucodata.Applic
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
 import tk.glucodata.Natives
+import tk.glucodata.NightscoutUploadWake
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.drivers.VirtualGlucoseSensorBridge
@@ -464,7 +465,10 @@ class MQBleManager(
         runCatching {
             ensureNativeDataptr(SerialNumber)
             // Native direct-stream storage multiplies the float by 10 internally.
-            Natives.addGlucoseStream(sampleMs / 1000L, glucoseMgdl / 10f, nativeName)
+            val stored = Natives.addGlucoseStream(sampleMs / 1000L, glucoseMgdl / 10f, nativeName)
+            if (stored) {
+                NightscoutUploadWake.afterLiveNativeWrite("mq", sampleMs)
+            }
             applyNativeSensorMetadata(nativeName)
             Natives.wakebackup()
         }.onFailure { Log.stack(TAG, "mirrorReadingIntoNative", it) }

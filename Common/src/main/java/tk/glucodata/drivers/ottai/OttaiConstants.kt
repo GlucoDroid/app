@@ -49,7 +49,8 @@ object OttaiConstants {
 
     const val API_BASE = "https://api.ottai.com"          // CN app (phone/SMS account)
     const val API_BASE_GLOBAL = "https://seas.ottai.com"  // Ottai global app com.ottai.seas (username/password); same API, different host
-    const val API_BASE_SYAI = "https://ru.syai.com"       // syai (rebrand) global app; same API, different host
+    const val API_BASE_SYAI = "https://api.syai.com"      // Syai global mobile API
+    internal const val API_BASE_SYAI_LEGACY = "https://ru.syai.com"
     // Website account API (email login + registration). Same scheme/appName/SEED, different host.
     const val WEB_BASE_OTTAI = "https://www.ottai.com/api/cgm/web"
     const val WEB_BASE_SYAI = "https://www.syai.com/api/cgm/web"
@@ -179,28 +180,34 @@ object OttaiConstants {
     const val DEFAULT_RATED_LIFETIME_DAYS = 15
 
     /**
-     * The official app writes cloud activeExpireTime to maxActive. Field evidence from
-     * C09B9E4B2B48 proves that the firmware enforces that value: 1209600000 ms stopped
-     * the sensor at exactly 14 days. We deliberately raise maxActive to the managed
-     * lifetime below, while retaining the cloud value for the rated/official end shown
-     * in UI. retainTime remains cloud-driven; writing an absolute epoch to destruction
-     * made the sensor terminate the link.
+     * The official app writes cloud activeExpireTime to maxActive. retainTime remains
+     * cloud-driven; writing an absolute epoch to destruction made the sensor terminate
+     * the link.
      */
     const val DEFAULT_RETAIN_TIME_MS = 172_800_000L
     const val DEFAULT_ACTIVE_EXPIRE_MS = DEFAULT_RATED_LIFETIME_DAYS * 24L * 3600L * 1000L
 
-    /**
-     * Managed lifetime target. This value must be written to maxActive during activation;
-     * changing app-side metadata alone does not extend the sensor.
-     */
+    /** Longest managed lifetime requested during explicit activation. */
     const val EXTENDED_LIFETIME_DAYS = 30
     const val EXTENDED_LIFETIME_MS = EXTENDED_LIFETIME_DAYS * 24L * 3600L * 1000L
 
     @JvmStatic
-    fun activationMaxActiveMs(cloudActiveExpireMs: Long): Long {
-        val rated = cloudActiveExpireMs.takeIf { it > 0L } ?: DEFAULT_ACTIVE_EXPIRE_MS
-        return maxOf(rated, EXTENDED_LIFETIME_MS)
+    fun activationMaxActiveCandidatesMs(cloudActiveExpireMs: Long): List<Long> {
+        val cloudMs = cloudActiveExpireMs.takeIf { it > 0L } ?: DEFAULT_ACTIVE_EXPIRE_MS
+        val candidates = mutableListOf<Long>()
+        if (cloudMs > EXTENDED_LIFETIME_MS) candidates += cloudMs
+        (EXTENDED_LIFETIME_DAYS downTo 15).forEach { days ->
+            candidates += days * 24L * 3600L * 1000L
+        }
+        candidates += cloudMs
+        return candidates.distinct()
     }
+
+    @JvmStatic
+    fun expectedLifetimeMs(cloudActiveExpireMs: Long, acceptedMaxActiveMs: Long): Long =
+        acceptedMaxActiveMs.takeIf { it > 0L }
+            ?: cloudActiveExpireMs.takeIf { it > 0L }
+            ?: DEFAULT_ACTIVE_EXPIRE_MS
 
     @JvmStatic
     fun shouldAttemptEndedSensorRecovery(commandStatus: Int, activeTimeMs: Long, nowMs: Long): Boolean =
@@ -211,6 +218,50 @@ object OttaiConstants {
 
     /** Sensor command state is authoritative; cloud/provisional timestamps are not. */
     fun commandNeedsActivation(commandStatus: Int): Boolean = commandStatus in 0..2
+
+    /** Starting the irreversible lifetime additionally requires an explicit user action. */
+    fun shouldStartActivation(commandStatus: Int, explicitlyRequested: Boolean): Boolean =
+        explicitlyRequested && commandNeedsActivation(commandStatus)
+
+    fun shouldRescanPendingSetupActivation(
+        commandStatus: Int,
+        explicitlyRequested: Boolean,
+    ): Boolean = commandStatus < 0 && explicitlyRequested
+
+    /**
+     * A Chinese sensor can resume advertising under a different Android BLE address
+     * after NFC wake. Only admit that address while an activation recovery scan is
+     * already armed; the BLE manager still requires the sensor's auth signature before
+     * persisting the candidate.
+     *
+     * [allowNameMatch] governs the name-only fallback, which exists solely for the
+     * address-changed case. It admits ANY advertisement whose name contains "ottai" —
+     * including a stranger's sensor in range — so callers must disable it once this
+     * sensor's own address is known to be stable (i.e. it is already activated).
+     * Otherwise the manager retargets its transport at every neighbouring Ottai in turn,
+     * each one failing the auth-signature check, and never reaches its own sensor.
+     */
+    fun shouldProbeActivationAdvertisement(
+        discoveryPending: Boolean,
+        scannedAddress: String?,
+        expectedAddress: String?,
+        advertisedName: String?,
+        rejectedAddresses: Set<String> = emptySet(),
+        allowNameMatch: Boolean = true,
+    ): Boolean {
+        if (!discoveryPending) return false
+        val scanned = normalizeBleAddress(scannedAddress, allowPlain = false) ?: return false
+        if (rejectedAddresses.any {
+                normalizeBleAddress(it, allowPlain = false)?.equals(scanned, ignoreCase = true) == true
+            }
+        ) {
+            return false
+        }
+        val expected = normalizeBleAddress(expectedAddress, allowPlain = false)
+        if (expected?.equals(scanned, ignoreCase = true) == true) return true
+        if (!allowNameMatch) return false
+        return advertisedName?.trim()?.contains("ottai", ignoreCase = true) == true
+    }
 
     /** Past the extended end, only declare the sensor expired once samples stop this long. */
     const val EXPIRED_STALE_GRACE_MS = 6L * 3600L * 1000L
@@ -228,6 +279,7 @@ object OttaiConstants {
     const val PREF_ACCESS_TOKEN = "ottai_access_token"
     const val PREF_GLUCOSE_SECRET = "ottai_glucose_secret_key"
     const val PREF_USER_ID = "ottai_user_id"
+    const val PREF_ACCOUNT_LOGIN = "ottai_account_login"  // login typed at sign-in (phone/email/username), display only
     const val PREF_API_BASE = "ottai_api_base"  // which backend the signed-in account is on (CN vs global)
     const val PREF_KEYA_PREFIX = "ottai_keya_"            // decrypted 6x16 hex (192)
     const val PREF_METHOD_PREFIX = "ottai_method_"        // decrypted method text
@@ -238,11 +290,19 @@ object OttaiConstants {
     // the first post-restart sample bypass the continuity gate.
     const val PREF_CONTINUITY_BASELINE_PREFIX = "ottai_continuity_baseline_"
     const val PREF_ACTIVE_EXPIRE_PREFIX = "ottai_active_expire_"  // activeExpireTime ms (maxActive duration)
+    // Actual maxActive duration (ms) the firmware ACCEPTED at activation — the real
+    // sensor lifetime. Persisted when the firmware ACKs the maxActive write, and/or
+    // recovered by reading b8fd9848 back off the sensor. Drives expected-end/remaining.
+    const val PREF_ACCEPTED_MAX_ACTIVE_PREFIX = "ottai_accepted_max_active_"
     const val PREF_PREHEAT_PERIOD_PREFIX = "ottai_preheat_period_"
     const val PREF_RETAIN_TIME_PREFIX = "ottai_retain_time_"      // retainTime ms (destruction value)
     const val PREF_DEVICE_VERSION_PREFIX = "ottai_device_version_"
     const val PREF_LAST_DATA_NO_PREFIX = "ottai_last_datano_"
+    // Requested-but-undelivered history windows: "start:endExclusive:attempts" joined by ';'.
+    const val PREF_HISTORY_HOLES_PREFIX = "ottai_history_holes_"
     const val PREF_DEVICE_ID_PREFIX = "ottai_device_id_"
     const val PREF_ACTIVATION_ATTEMPTED_PREFIX = "ottai_act_tried_"  // one-shot auto-activate guard
+    // "dataNo,sampleMs,tempC*10;" per accepted reading — feeds the stats temperature card.
+    const val PREF_TEMPERATURE_HISTORY_PREFIX = "ottai_temp_history_"
     const val PREF_SELF_DEVICE_ID = "ottai_self_device_id"
 }

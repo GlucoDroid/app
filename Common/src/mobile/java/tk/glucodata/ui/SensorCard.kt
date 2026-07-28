@@ -47,6 +47,7 @@ import tk.glucodata.R
 import tk.glucodata.UiRefreshBus
 import tk.glucodata.drivers.ManagedSensorCalibrationSource
 import tk.glucodata.drivers.anytime.AnytimeCalibrationPolicy
+import tk.glucodata.drivers.sibionics.SibionicsSensitivity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
@@ -58,6 +59,7 @@ import tk.glucodata.ui.components.SettingsItem
 import tk.glucodata.ui.components.SettingsSwitchItem
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.util.Locale
 
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.foundation.shape.CircleShape
@@ -105,6 +107,9 @@ private fun nextSensorReadingAgeDelay(nowMillis: Long, readingMillis: Long): Lon
         ((60L - (ageSeconds % 60L)) * 1_000L).coerceAtLeast(1_000L)
     }
 }
+
+private fun formatSibionicsSensitivity(value: Float): String =
+    String.format(Locale.getDefault(), "%.2f", value)
 
 @Composable
 private fun SensorCurrentValueChip(
@@ -742,6 +747,88 @@ fun SensorCard(
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 RadioButton(selected = selected, onClick = null)
+                            }
+                        }
+                    }
+                }
+
+                if (sensor.algorithmSensitivity.isFinite() &&
+                    sensor.automaticAlgorithmSensitivity.isFinite()
+                ) {
+                    var sensitivityDraft by remember(
+                        sensor.serial,
+                        sensor.algorithmSensitivity,
+                    ) {
+                        mutableFloatStateOf(
+                            sensor.algorithmSensitivity.coerceIn(
+                                SibionicsSensitivity.MIN_SENSITIVITY,
+                                SibionicsSensitivity.MAX_SENSITIVITY,
+                            ),
+                        )
+                    }
+                    var sensitivityOverridden by remember(
+                        sensor.serial,
+                        sensor.hasAlgorithmSensitivityOverride,
+                    ) {
+                        mutableStateOf(sensor.hasAlgorithmSensitivityOverride)
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.sibionics_sensitivity),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Text(
+                                    stringResource(
+                                        R.string.sibionics_sensor_sensitivity,
+                                        formatSibionicsSensitivity(sensor.automaticAlgorithmSensitivity),
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Text(
+                                formatSibionicsSensitivity(sensitivityDraft),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        Slider(
+                            value = sensitivityDraft,
+                            onValueChange = {
+                                sensitivityDraft = (it * 100f).roundToInt() / 100f
+                            },
+                            onValueChangeFinished = {
+                                sensitivityOverridden = true
+                                viewModel.setSibionicsAlgorithmSensitivity(
+                                    sensor.serial,
+                                    sensitivityDraft,
+                                )
+                            },
+                            valueRange = SibionicsSensitivity.MIN_SENSITIVITY..
+                                SibionicsSensitivity.MAX_SENSITIVITY,
+                        )
+                        if (sensitivityOverridden) {
+                            TextButton(
+                                onClick = {
+                                    sensitivityDraft = sensor.automaticAlgorithmSensitivity
+                                    sensitivityOverridden = false
+                                    viewModel.setSibionicsAlgorithmSensitivity(sensor.serial, null)
+                                },
+                                modifier = Modifier.align(Alignment.End),
+                            ) {
+                                Text(stringResource(R.string.sibionics_use_sensor_sensitivity))
                             }
                         }
                     }

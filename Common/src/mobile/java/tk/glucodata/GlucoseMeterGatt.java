@@ -157,7 +157,11 @@ boolean newvalues=false;
             Log.showbytes("Meter: onCharacteristicChanged "+uuid,value);
         switch(uuid) {
             case GlucoseCharUUID:
-                if(Natives.GlucoseMeterSave(meterIndex,value)) {
+                final long[] saved = Natives.GlucoseMeterSaveResult(meterIndex,value);
+                if(saved != null && saved.length >= 2) {
+                    GlucoseMeterJournalBridge.record(meterIndex, saved[0], saved[1]);
+                }
+                if(saved != null && saved.length >= 3 && saved[2] != 0L) {
                     newvalues=true;
                     receivedTime=System.currentTimeMillis();
                     updateview();

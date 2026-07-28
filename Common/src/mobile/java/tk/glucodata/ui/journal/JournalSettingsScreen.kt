@@ -46,7 +46,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Restore
@@ -54,7 +53,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Vaccines
 import androidx.compose.material.icons.filled.History
 
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,7 +67,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -125,8 +122,9 @@ import tk.glucodata.data.journal.normalizeJournalCurvePoints
 import tk.glucodata.data.journal.serializeJournalCurve
 import tk.glucodata.ui.alerts.AddCustomAlertButton
 import tk.glucodata.ui.components.CardPosition
+import tk.glucodata.ui.components.ColorSwatchButton
 import tk.glucodata.ui.components.CompactSheetDragHandle
-import tk.glucodata.ui.components.ExpressiveHueWheelPicker
+import tk.glucodata.ui.ExpressiveColorPickerDialog
 import tk.glucodata.ui.components.MasterSwitchCard
 import tk.glucodata.ui.components.SectionLabel
 import tk.glucodata.ui.components.SettingsItem
@@ -1378,19 +1376,10 @@ private fun JournalFoodSheet(
                             .weight(1f)
                             .widthIn(min = 0.dp)
                     )
-                    FilledTonalIconButton(
+                    ColorSwatchButton(
+                        color = Color(draft.accentColor),
                         onClick = { showColorDialog = true },
-                        modifier = Modifier.size(56.dp),
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                        )
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(22.dp),
-                            shape = CircleShape,
-                            color = Color(draft.accentColor)
-                        ) {}
-                    }
+                    )
                 }
             }
 
@@ -2369,152 +2358,12 @@ private fun PresetColorDialog(
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit
 ) {
-    var colorState by remember(initialColor) { mutableStateOf(initialColor.toPresetColorState()) }
-    var colorText by remember(initialColor) { mutableStateOf(formatColorHex(initialColor)) }
-    val composedColor = remember(colorState) { colorState.toColorInt() }
-    val parsedColor = remember(colorText) { parseColorHex(colorText) }
-
-    LaunchedEffect(colorState) {
-        val resolvedHex = formatColorHex(composedColor)
-        if (colorText != resolvedHex) {
-            colorText = resolvedHex
-        }
-    }
-
-    LaunchedEffect(parsedColor) {
-        parsedColor?.let { parsed ->
-            val parsedState = parsed.toPresetColorState()
-            if (parsedState != colorState) {
-                colorState = parsedState
-            }
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.colors)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Surface(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .align(Alignment.CenterHorizontally),
-                    shape = CircleShape,
-                    color = Color(composedColor)
-                ) {}
-                ExpressiveHueWheelPicker(
-                    hue = colorState.hue,
-                    onHueChange = { hue -> colorState = colorState.copy(hue = hue) }
-                )
-                ColorControlRow(icon = Icons.Default.Palette) {
-                    Slider(
-                        value = colorState.saturation,
-                        onValueChange = { saturation ->
-                            colorState = colorState.copy(saturation = saturation.coerceIn(0f, 1f))
-                        }
-                    )
-                }
-                ColorControlRow(
-                    indicator = {
-                        Text(
-                            text = "${(colorState.alpha * 100f).roundToInt()}%",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                ) {
-                    Slider(
-                        value = colorState.alpha,
-                        onValueChange = { alpha ->
-                            colorState = colorState.copy(alpha = alpha.coerceIn(0f, 1f))
-                        }
-                    )
-                }
-                OutlinedTextField(
-                    value = colorText,
-                    onValueChange = { colorText = it.trim() },
-                    label = { Text(text = stringResource(R.string.colors)) },
-                    singleLine = true,
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Palette,
-                            contentDescription = null
-                        )
-                    }
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(composedColor) },
-                enabled = parsedColor != null
-            ) {
-                Text(text = stringResource(R.string.save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = stringResource(R.string.cancel))
-            }
-        }
+    ExpressiveColorPickerDialog(
+        title = stringResource(R.string.colors),
+        initialColor = initialColor,
+        onDismiss = onDismiss,
+        onConfirm = onConfirm
     )
-}
-
-private data class PresetColorState(
-    val hue: Float,
-    val saturation: Float,
-    val value: Float,
-    val alpha: Float
-)
-
-private fun Int.toPresetColorState(): PresetColorState {
-    val hsv = FloatArray(3)
-    android.graphics.Color.colorToHSV(this, hsv)
-    val alpha = ((this ushr 24) and 0xFF) / 255f
-    return PresetColorState(
-        hue = hsv[0],
-        saturation = hsv[1],
-        value = hsv[2].coerceAtLeast(0.65f),
-        alpha = alpha.coerceIn(0f, 1f)
-    )
-}
-
-private fun PresetColorState.toColorInt(): Int {
-    return android.graphics.Color.HSVToColor(
-        (alpha * 255f).roundToInt().coerceIn(0, 255),
-        floatArrayOf(hue, saturation.coerceIn(0f, 1f), value.coerceIn(0f, 1f))
-    )
-}
-
-@Composable
-private fun ColorControlRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    indicator: @Composable (() -> Unit)? = null,
-    content: @Composable () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            Box(
-                modifier = Modifier.width(24.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                indicator?.invoke()
-            }
-        }
-        Box(modifier = Modifier.weight(1f)) {
-            content()
-        }
-    }
 }
 
 @Composable
@@ -2942,20 +2791,6 @@ private fun parseFoodPortionGrams(value: String): Float {
         .parseFoodFloatOrNull()
         ?.coerceIn(1f, 2000f)
         ?: 100f
-}
-
-private fun formatColorHex(color: Int): String {
-    return "#%08X".format(color)
-}
-
-private fun parseColorHex(raw: String): Int? {
-    val cleaned = raw.trim().removePrefix("#")
-    val normalized = when (cleaned.length) {
-        6 -> "FF$cleaned"
-        8 -> cleaned
-        else -> return null
-    }
-    return normalized.toLongOrNull(16)?.toInt()
 }
 
 private val DEFAULT_PRESET_COLOR = 0xFF1565C0.toInt()

@@ -103,6 +103,7 @@ fun NotificationSettingsScreen(
     var fontType by rememberSaveable { mutableIntStateOf(prefs.getInt("notification_font_family", 0)) }
     var fontWeight by rememberSaveable { mutableIntStateOf(prefs.getInt("notification_font_weight", 400)) }
     var showArrow by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_show_arrow", true)) }
+    var largeArrow by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_large_trend_arrow", false)) }
     var arrowSize by rememberSaveable { mutableFloatStateOf(prefs.getFloat("notification_arrow_size", 1.0f)) }
     var collapsedChart by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_chart_collapsed", false)) }
     var showTargetRange by rememberSaveable { mutableStateOf(prefs.getBoolean("notification_chart_target_range", true)) }
@@ -119,6 +120,7 @@ fun NotificationSettingsScreen(
             .putInt("notification_font_family", fontType)
             .putInt("notification_font_weight", fontWeight)
             .putBoolean("notification_show_arrow", showArrow)
+            .putBoolean("notification_large_trend_arrow", largeArrow)
             .putFloat("notification_arrow_size", arrowSize)
             .putBoolean("notification_chart_collapsed", collapsedChart)
             .putBoolean("notification_chart_target_range", showTargetRange)
@@ -205,13 +207,24 @@ fun NotificationSettingsScreen(
             topPadding = 16.dp,
             modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
         )
-        SettingsSwitchItem(
-            title = stringResource(R.string.show_trend_arrow),
-            checked = showArrow,
-            onCheckedChange = { showArrow = it; save() },
-            position = CardPosition.SINGLE,
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
-        )
+        ) {
+            SettingsSwitchItem(
+                title = stringResource(R.string.show_trend_arrow),
+                checked = showArrow,
+                onCheckedChange = { showArrow = it; save() },
+                position = CardPosition.TOP
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.notification_large_arrow_title),
+                subtitle = stringResource(R.string.notification_large_arrow_desc),
+                checked = largeArrow,
+                onCheckedChange = { largeArrow = it; save() },
+                position = CardPosition.BOTTOM
+            )
+        }
         AnimatedVisibility(
             visible = showArrow,
             enter = fadeIn() + expandVertically(),
@@ -330,46 +343,33 @@ fun DisplayAndColorSettingsScreen(
     navController: NavController,
     viewModel: DashboardViewModel
 ) {
-    val context = LocalContext.current
-    val prefs = remember(context) {
-        context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
-    }
     val rangeColorsEnabled by viewModel.glucoseValueRangeColorsEnabled.collectAsState()
     val arrowForecastEnabled by viewModel.glucoseArrowForecastColorsEnabled.collectAsState()
     val chartRangeColorsEnabled by viewModel.glucoseChartRangeColorsEnabled.collectAsState()
     val appChartRangeColorsEnabled by viewModel.glucoseAppChartRangeColorsEnabled.collectAsState()
     val dashboardDeltaEnabled by viewModel.dashboardShowDelta.collectAsState()
     val dashboardRowsDeltaEnabled by viewModel.dashboardRowsShowDelta.collectAsState()
-    var largeArrow by rememberSaveable {
-        mutableStateOf(prefs.getBoolean("notification_large_trend_arrow", false))
-    }
-
-    fun setLargeArrow(enabled: Boolean) {
-        largeArrow = enabled
-        prefs.edit().putBoolean("notification_large_trend_arrow", enabled).apply()
-        viewModel.refreshNotificationSurfaces()
-    }
 
     LegacySettingsScaffold(
         navController = navController,
         title = stringResource(R.string.display_colors_title)
     ) {
+        GlucoseRangeDisplaySettings(viewModel)
+
         SectionLabel(
             stringResource(R.string.glucose_palette_edit_title),
-            topPadding = 0.dp,
             modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
         )
         Column(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
         ) {
-            GlucosePaletteCard(position = CardPosition.TOP)
             SettingsSwitchItem(
                 title = stringResource(R.string.glucose_range_colors_title),
                 subtitle = stringResource(R.string.glucose_range_colors_desc),
                 checked = rangeColorsEnabled,
                 onCheckedChange = { viewModel.setGlucoseValueRangeColorsEnabled(it) },
-                position = CardPosition.MIDDLE
+                position = CardPosition.TOP
             )
             SettingsSwitchItem(
                 title = stringResource(R.string.glucose_arrow_forecast_title),
@@ -418,18 +418,6 @@ fun DisplayAndColorSettingsScreen(
             )
         }
 
-        SectionLabel(
-            stringResource(R.string.appearance),
-            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
-        )
-        SettingsSwitchItem(
-            title = stringResource(R.string.notification_large_arrow_title),
-            subtitle = stringResource(R.string.notification_large_arrow_desc),
-            checked = largeArrow,
-            onCheckedChange = ::setLargeArrow,
-            position = CardPosition.SINGLE,
-            modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
-        )
     }
 }
 

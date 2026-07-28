@@ -64,6 +64,7 @@ import kotlinx.coroutines.withContext
 import tk.glucodata.BuildConfig
 import tk.glucodata.DataSmoothing
 import tk.glucodata.Natives
+import tk.glucodata.OutboundApiSettings
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.data.calibration.CalibrationManager
@@ -99,6 +100,13 @@ fun ExpressiveSettingsScreen(
             mqAccountState.hasCredentials ||
             mqAccountState.hasToken ||
             tk.glucodata.drivers.mq.MQRegistry.isCloudSyncEnabled(context)
+    // LibreView is relevant whenever the account is already set up *or* a Libre-family
+    // sensor is active — the account no longer has to be configured in the setup wizard first.
+    val showLibreView = remember {
+        runCatching { Natives.getuselibreview() }.getOrDefault(false) ||
+            runCatching { Natives.getlibreAccountIDnumber() }.getOrDefault(0L) > 0L ||
+            hasActiveLibreSensor()
+    }
     val showOttaiSettings = remember {
         SensorBluetooth.mygatts().any { callback ->
             (callback as? tk.glucodata.drivers.ottai.OttaiDriver)?.isUiEnabled() == true
@@ -145,12 +153,6 @@ fun ExpressiveSettingsScreen(
     val hasHighAlarm by viewModel.hasHighAlarm.collectAsState()
     val highAlarmValue by viewModel.highAlarmThreshold.collectAsState()
     val highAlarmSoundMode by viewModel.highAlarmSoundMode.collectAsState()
-    val graphLowValue by viewModel.graphLow.collectAsState()
-    val graphHighValue by viewModel.graphHigh.collectAsState()
-    val targetLowValue by viewModel.targetLow.collectAsState()
-    val veryLowThresholdValue by viewModel.veryLowThreshold.collectAsState()
-    val veryHighThresholdValue by viewModel.veryHighThreshold.collectAsState()
-    val targetHighValue by viewModel.targetHigh.collectAsState()
 
     // Dialog states
     var showUnitDialog by remember { mutableStateOf(false) }
@@ -164,7 +166,6 @@ fun ExpressiveSettingsScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     var pendingSettingsImportUri by remember { mutableStateOf<Uri?>(null) }
     var pendingExportPackageImportUri by remember { mutableStateOf<Uri?>(null) }
-    var glucoseRangeExpanded by rememberSaveable { mutableStateOf(false) }
 
 
 
@@ -255,21 +256,13 @@ fun ExpressiveSettingsScreen(
                     onClick = { showUnitDialog = true }
                 )
 
-                GlucoseRangeExpandableSettingsItem(
-                    targetLowValue = targetLowValue,
-                    targetHighValue = targetHighValue,
-                    chartLowValue = graphLowValue,
-                    chartHighValue = graphHighValue,
-                    veryLowValue = veryLowThresholdValue,
-                    veryHighValue = veryHighThresholdValue,
-                    isMmol = isMmol,
-                    expanded = glucoseRangeExpanded,
-                    onExpandedChange = { glucoseRangeExpanded = it },
-                    onTargetRangeChange = { low, high -> viewModel.setTargetRange(low, high) },
-                    onChartRangeChange = { low, high -> viewModel.setGraphRange(low, high) },
-                    onVeryRangeChange = { low, high -> viewModel.setVeryLowHighThresholds(low, high) },
+                SettingsItem(
+                    title = stringResource(R.string.display_colors_title),
+                    subtitle = stringResource(R.string.display_colors_desc),
+                    icon = Icons.Default.Palette,
                     iconTint = glucoseColor,
-                    position = CardPosition.MIDDLE
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/display-colors") }
                 )
 
                 SettingsItem(
@@ -396,15 +389,25 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.MIDDLE,
                     onCheckedChange = { viewModel.toggleGlucodataBroadcast(it) }
                 )
-                SettingsSwitchItem(
-                    title = stringResource(R.string.broadcast_computed_trend_title),
-                    subtitle = stringResource(R.string.broadcast_computed_trend_desc),
-                    checked = broadcastComputedTrend,
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
-                    iconTint = exchangeColor,
-                    position = CardPosition.MIDDLE,
-                    onCheckedChange = { viewModel.setBroadcastComputedTrend(it) }
-                )
+                // The computed trend only ever reaches an ExchangeGlucosePayload consumer, so the
+                // row is noise until one of them is on. Stay visible while the setting itself is
+                // enabled, otherwise turning the last consumer off would strand it out of reach.
+                val anyExchangeConsumer = patchedLibreEnabled || xdripEnabled || glucodataBroadcastEnabled ||
+                        OutboundApiSettings.isEnabled() ||
+                        Natives.geteverSensebroadcast() ||
+                        Natives.getgadgetbridge() ||
+                        Natives.getwatchdrip()
+                if (anyExchangeConsumer || broadcastComputedTrend) {
+                    SettingsSwitchItem(
+                        title = stringResource(R.string.broadcast_computed_trend_title),
+                        subtitle = stringResource(R.string.broadcast_computed_trend_desc),
+                        checked = broadcastComputedTrend,
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                        iconTint = exchangeColor,
+                        position = CardPosition.MIDDLE,
+                        onCheckedChange = { viewModel.setBroadcastComputedTrend(it) }
+                    )
+                }
                 SettingsItem(
                     title = stringResource(R.string.outbound_api_title),
                     subtitle = stringResource(R.string.outbound_api_desc),
@@ -424,7 +427,6 @@ fun ExpressiveSettingsScreen(
                     onClick = { navController.navigate("settings/mirror") }
                 )
                 // Edit 67b: Determine if LibreView is visible to adjust card positions
-                val showLibreView = Natives.getuselibreview() || Natives.getlibreAccountIDnumber() > 0L
                 SettingsItem(
                     title = stringResource(R.string.nightscout_config),
                     subtitle = stringResource(R.string.nightscout_desc),
@@ -467,6 +469,15 @@ fun ExpressiveSettingsScreen(
                         onClick = { navController.navigate("settings/ottai") }
                     )
                 }
+                SettingsItem(
+                    title = stringResource(R.string.meterlist),
+                    subtitle = stringResource(R.string.glucose_meters_desc),
+                    showArrow = true,
+                    icon = Icons.Default.Bloodtype,
+                    iconTint = exchangeColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/glucose-meters") }
+                )
                 SettingsItem(
                     title = stringResource(R.string.watches),
                     subtitle = "WearOS, Watchdrip, GadgetBridge, Kerfstok",
@@ -835,375 +846,6 @@ private fun SettingsLeadingIcon(
                 modifier = Modifier.size(24.dp)
             )
         }
-    }
-}
-
-@Composable
-private fun GlucoseRangeExpandableSettingsItem(
-    targetLowValue: Float,
-    targetHighValue: Float,
-    chartLowValue: Float,
-    chartHighValue: Float,
-    veryLowValue: Float,
-    veryHighValue: Float,
-    isMmol: Boolean,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onTargetRangeChange: (Float, Float) -> Unit,
-    onChartRangeChange: (Float, Float) -> Unit,
-    onVeryRangeChange: (Float, Float) -> Unit,
-    iconTint: Color,
-    position: CardPosition
-) {
-    val valueStep = if (isMmol) 0.1f else 1f
-    val targetLowBounds = if (isMmol) 2.0f..8.0f else 40f..140f
-    val targetHighBounds = if (isMmol) 6.0f..16.0f else 100f..350f
-    val chartLowBounds = if (isMmol) 0.0f..12.0f else 0f..216f
-    val chartHighBounds = if (isMmol) 4.0f..30.0f else 72f..540f
-    // Same bounds as the very-low/very-high alert editor.
-    val veryLowBounds = if (isMmol) 2.0f..4.0f else 36f..70f
-    val veryHighBounds = if (isMmol) 10.0f..20.0f else 180f..360f
-    val normalizedTargetLow = clampLowerRangeValue(
-        value = targetLowValue,
-        upperValue = targetHighValue,
-        bounds = targetLowBounds,
-        step = valueStep,
-        isMmol = isMmol
-    )
-    val normalizedTargetHigh = clampUpperRangeValue(
-        value = targetHighValue,
-        lowerValue = normalizedTargetLow,
-        bounds = targetHighBounds,
-        step = valueStep,
-        isMmol = isMmol
-    )
-    val normalizedChartLow = clampLowerRangeValue(
-        value = chartLowValue,
-        upperValue = chartHighValue,
-        bounds = chartLowBounds,
-        step = valueStep,
-        isMmol = isMmol
-    )
-    val normalizedChartHigh = clampUpperRangeValue(
-        value = chartHighValue,
-        lowerValue = normalizedChartLow,
-        bounds = chartHighBounds,
-        step = valueStep,
-        isMmol = isMmol
-    )
-    val chevronRotation by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
-        label = "glucoseRangeChevron"
-    )
-    var targetLowSlider by remember(targetLowValue, targetHighValue, isMmol) {
-        mutableFloatStateOf(normalizedTargetLow)
-    }
-    var targetHighSlider by remember(targetLowValue, targetHighValue, isMmol) {
-        mutableFloatStateOf(normalizedTargetHigh)
-    }
-    var chartLowSlider by remember(chartLowValue, chartHighValue, isMmol) {
-        mutableFloatStateOf(normalizedChartLow)
-    }
-    var chartHighSlider by remember(chartLowValue, chartHighValue, isMmol) {
-        mutableFloatStateOf(normalizedChartHigh)
-    }
-    val normalizedVeryLow = clampLowerRangeValue(
-        value = veryLowValue,
-        upperValue = veryHighValue,
-        bounds = veryLowBounds,
-        step = valueStep,
-        isMmol = isMmol
-    )
-    val normalizedVeryHigh = clampUpperRangeValue(
-        value = veryHighValue,
-        lowerValue = normalizedVeryLow,
-        bounds = veryHighBounds,
-        step = valueStep,
-        isMmol = isMmol
-    )
-    var veryLowSlider by remember(veryLowValue, veryHighValue, isMmol) {
-        mutableFloatStateOf(normalizedVeryLow)
-    }
-    var veryHighSlider by remember(veryLowValue, veryHighValue, isMmol) {
-        mutableFloatStateOf(normalizedVeryHigh)
-    }
-
-    val targetSummary = remember(targetLowSlider, targetHighSlider, isMmol) {
-        formatRangeSummary(targetLowSlider, targetHighSlider, isMmol)
-    }
-    val chartSummary = remember(chartLowSlider, chartHighSlider, isMmol) {
-        formatRangeSummary(chartLowSlider, chartHighSlider, isMmol)
-    }
-    val targetShortTitle = stringResource(R.string.target_short_title)
-    val chartShortTitle = stringResource(R.string.chart_short_title)
-    val veryShortTitle = stringResource(R.string.very_range_short_title)
-    val targetTitle = stringResource(R.string.target_range_title)
-    val chartTitle = stringResource(R.string.chart_limits_title)
-    val veryTitle = stringResource(R.string.very_range_title)
-    val verySummary = remember(veryLowSlider, veryHighSlider, isMmol) {
-        formatRangeSummary(veryLowSlider, veryHighSlider, isMmol)
-    }
-    val collapsedSummary = remember(targetShortTitle, chartShortTitle, veryShortTitle, targetSummary, chartSummary, verySummary) {
-        "$targetShortTitle $targetSummary • $chartShortTitle $chartSummary • $veryShortTitle $verySummary"
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = cardShape(position),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
-    ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onExpandedChange(!expanded) }
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SettingsLeadingIcon(icon = Icons.Default.TrackChanges, tint = iconTint)
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.glucose_range_title),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        modifier = Modifier.padding(top = 2.dp),
-                        text = collapsedSummary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Icon(
-                    imageVector = Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
-                )
-            }
-
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        GlucoseRangeEditorSection(
-                            title = targetTitle,
-                            lowLabel = stringResource(R.string.low_label),
-                            highLabel = stringResource(R.string.high_label),
-                            lowValue = targetLowSlider,
-                            highValue = targetHighSlider,
-                            lowBounds = targetLowBounds,
-                            highBounds = targetHighBounds,
-                            isMmol = isMmol,
-                            onLowValueChange = { candidate ->
-                                targetLowSlider = clampLowerRangeValue(
-                                    value = candidate,
-                                    upperValue = targetHighSlider,
-                                    bounds = targetLowBounds,
-                                    step = valueStep,
-                                    isMmol = isMmol
-                                )
-                            },
-                            onHighValueChange = { candidate ->
-                                targetHighSlider = clampUpperRangeValue(
-                                    value = candidate,
-                                    lowerValue = targetLowSlider,
-                                    bounds = targetHighBounds,
-                                    step = valueStep,
-                                    isMmol = isMmol
-                                )
-                            },
-                            onLowValueChangeFinished = {
-                                onTargetRangeChange(targetLowSlider, targetHighSlider)
-                            },
-                            onHighValueChangeFinished = {
-                                onTargetRangeChange(targetLowSlider, targetHighSlider)
-                            }
-                        )
-
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                        GlucoseRangeEditorSection(
-                            title = chartTitle,
-                            lowLabel = stringResource(R.string.low_label),
-                            highLabel = stringResource(R.string.high_label),
-                            lowValue = chartLowSlider,
-                            highValue = chartHighSlider,
-                            lowBounds = chartLowBounds,
-                            highBounds = chartHighBounds,
-                            isMmol = isMmol,
-                            onLowValueChange = { candidate ->
-                                chartLowSlider = clampLowerRangeValue(
-                                    value = candidate,
-                                    upperValue = chartHighSlider,
-                                    bounds = chartLowBounds,
-                                    step = valueStep,
-                                    isMmol = isMmol
-                                )
-                            },
-                            onHighValueChange = { candidate ->
-                                chartHighSlider = clampUpperRangeValue(
-                                    value = candidate,
-                                    lowerValue = chartLowSlider,
-                                    bounds = chartHighBounds,
-                                    step = valueStep,
-                                    isMmol = isMmol
-                                )
-                            },
-                            onLowValueChangeFinished = {
-                                onChartRangeChange(chartLowSlider, chartHighSlider)
-                            },
-                            onHighValueChangeFinished = {
-                                onChartRangeChange(chartLowSlider, chartHighSlider)
-                            }
-                        )
-
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                        GlucoseRangeEditorSection(
-                            title = veryTitle,
-                            lowLabel = stringResource(R.string.very_low_label),
-                            highLabel = stringResource(R.string.very_high_label),
-                            lowValue = veryLowSlider,
-                            highValue = veryHighSlider,
-                            lowBounds = veryLowBounds,
-                            highBounds = veryHighBounds,
-                            isMmol = isMmol,
-                            onLowValueChange = { candidate ->
-                                veryLowSlider = clampLowerRangeValue(
-                                    value = candidate,
-                                    upperValue = veryHighSlider,
-                                    bounds = veryLowBounds,
-                                    step = valueStep,
-                                    isMmol = isMmol
-                                )
-                            },
-                            onHighValueChange = { candidate ->
-                                veryHighSlider = clampUpperRangeValue(
-                                    value = candidate,
-                                    lowerValue = veryLowSlider,
-                                    bounds = veryHighBounds,
-                                    step = valueStep,
-                                    isMmol = isMmol
-                                )
-                            },
-                            onLowValueChangeFinished = {
-                                onVeryRangeChange(veryLowSlider, veryHighSlider)
-                            },
-                            onHighValueChangeFinished = {
-                                onVeryRangeChange(veryLowSlider, veryHighSlider)
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GlucoseRangeEditorSection(
-    title: String,
-    lowLabel: String,
-    highLabel: String,
-    lowValue: Float,
-    highValue: Float,
-    lowBounds: ClosedFloatingPointRange<Float>,
-    highBounds: ClosedFloatingPointRange<Float>,
-    isMmol: Boolean,
-    onLowValueChange: (Float) -> Unit,
-    onHighValueChange: (Float) -> Unit,
-    onLowValueChangeFinished: () -> Unit,
-    onHighValueChangeFinished: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = "$lowLabel: ${formatRangeValue(lowValue, isMmol)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Slider(
-            value = lowValue,
-            onValueChange = onLowValueChange,
-            onValueChangeFinished = onLowValueChangeFinished,
-            valueRange = lowBounds
-        )
-        Text(
-            text = "$highLabel: ${formatRangeValue(highValue, isMmol)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Slider(
-            value = highValue,
-            onValueChange = onHighValueChange,
-            onValueChangeFinished = onHighValueChangeFinished,
-            valueRange = highBounds
-        )
-    }
-}
-
-private fun formatRangeSummary(lowValue: Float, highValue: Float, isMmol: Boolean): String {
-    return "${formatRangeValue(lowValue, isMmol)}-${formatRangeValue(highValue, isMmol)}"
-}
-
-private fun formatRangeValue(value: Float, isMmol: Boolean): String {
-    return if (isMmol) {
-        String.format(Locale.getDefault(), "%.1f", value)
-    } else {
-        value.roundToInt().toString()
-    }
-}
-
-private fun clampLowerRangeValue(
-    value: Float,
-    upperValue: Float,
-    bounds: ClosedFloatingPointRange<Float>,
-    step: Float,
-    isMmol: Boolean
-): Float {
-    val maxValue = minOf(bounds.endInclusive, upperValue - step)
-    if (maxValue < bounds.start) {
-        return snapRangeValue(bounds.start, isMmol)
-    }
-    return snapRangeValue(value, isMmol).coerceIn(bounds.start, maxValue)
-}
-
-private fun clampUpperRangeValue(
-    value: Float,
-    lowerValue: Float,
-    bounds: ClosedFloatingPointRange<Float>,
-    step: Float,
-    isMmol: Boolean
-): Float {
-    val minValue = maxOf(bounds.start, lowerValue + step)
-    if (minValue > bounds.endInclusive) {
-        return snapRangeValue(bounds.endInclusive, isMmol)
-    }
-    return snapRangeValue(value, isMmol).coerceIn(minValue, bounds.endInclusive)
-}
-
-private fun snapRangeValue(value: Float, isMmol: Boolean): Float {
-    return if (isMmol) {
-        (value * 10f).roundToInt() / 10f
-    } else {
-        value.roundToInt().toFloat()
     }
 }
 
@@ -2093,7 +1735,7 @@ private fun UnitPickerDialog(isMmol: Boolean, onSelect: (Int) -> Unit, onDismiss
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
                 )
-                listOf(stringResource(R.string.unit_mg) to 0, stringResource(R.string.unit_mmol) to 1).forEach { (label, value) ->
+                listOf(stringResource(R.string.unit_mg) to 2, stringResource(R.string.unit_mmol) to 1).forEach { (label, value) ->
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -2102,7 +1744,7 @@ private fun UnitPickerDialog(isMmol: Boolean, onSelect: (Int) -> Unit, onDismiss
                             .padding(horizontal = 24.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(selected = (if (isMmol) 1 else 0) == value, onClick = null)
+                        RadioButton(selected = (if (isMmol) 1 else 2) == value, onClick = null)
                         Spacer(Modifier.width(16.dp))
                         Text(label, style = MaterialTheme.typography.bodyLarge)
                     }

@@ -50,6 +50,7 @@ import tk.glucodata.Applic
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.Log
 import tk.glucodata.Natives
+import tk.glucodata.NightscoutUploadWake
 import tk.glucodata.NotificationHistorySource
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
@@ -2886,7 +2887,16 @@ class AnytimeBleManager(
             val rawMgdl = if (rawMgdlIn.isNaN()) glucoseMgdl else rawMgdlIn
                 .takeIf { it.isFinite() && it > 0f }
                 ?: glucoseMgdl
-            Natives.addGlucoseStreamWithRawTemp(sampleSec, glucoseMgdl / 10f, rawMgdl, temperatureC, name)
+            val stored = Natives.addGlucoseStreamWithRawTemp(
+                sampleSec,
+                glucoseMgdl / 10f,
+                rawMgdl,
+                temperatureC,
+                name,
+            )
+            if (stored) {
+                NightscoutUploadWake.afterLiveNativeWrite("anytime", sampleMs)
+            }
             if (dataptr == 0L) {
                 dataptr = runCatching { Natives.getdataptr(name) }.getOrDefault(0L)
             }

@@ -1192,6 +1192,8 @@ public class SensorBluetooth {
             java.util.Set<String> newSensors = new java.util.HashSet<>(sensors);
             newSensors.add(name + "|" + address);
             prefs.edit().putStringSet("aidex_sensors", newSensors).apply();
+            // aidex_sensors feeds AiDexManagedSensorIdentityAdapter.resolveCanonicalSensorId.
+            SensorIdentity.invalidateCaches();
 
             // If SensorBluetooth is alive, add it immediately
             if (blueone != null) {

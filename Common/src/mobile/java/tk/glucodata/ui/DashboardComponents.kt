@@ -2053,32 +2053,49 @@ fun SignalQualityIndicator(
         else -> androidx.compose.ui.graphics.Color(0xB3F44336)               // Red
     }
     
-    // Animation: Pulse for medium+, Shake for heavy
-    val infiniteTransition = rememberInfiniteTransition(label = "signalPulse")
-    
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (noiseLevel >= 25f) 1.15f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = if (noiseLevel >= 60f) 300 else 600,
-                easing = LinearEasing
+    // Animation: Pulse for medium+, Shake for heavy.
+    // The transitions are created only once a threshold is actually crossed. Encoding the
+    // decision in the target value instead (1f -> 1f) still registers a live animation, so a
+    // clean signal — the common case, and this indicator shows for any noiseLevel > 0 — would
+    // drive the frame clock and recompose forever for no visible motion.
+    val pulses = noiseLevel >= 25f
+    val shakes = noiseLevel >= 60f
+
+    val pulseScale = if (pulses) {
+        val pulseTransition = rememberInfiniteTransition(label = "signalPulse")
+        val animated by pulseTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.15f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = if (shakes) 300 else 600,
+                    easing = LinearEasing
+                ),
+                repeatMode = RepeatMode.Reverse
             ),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseScale"
-    )
-    
-    val shakeRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = if (noiseLevel >= 60f) 8f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 100, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "shakeRotation"
-    )
-    
+            label = "pulseScale"
+        )
+        animated
+    } else {
+        1f
+    }
+
+    val shakeRotation = if (shakes) {
+        val shakeTransition = rememberInfiniteTransition(label = "signalShake")
+        val animated by shakeTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 8f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 100, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "shakeRotation"
+        )
+        animated
+    } else {
+        0f
+    }
+
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,

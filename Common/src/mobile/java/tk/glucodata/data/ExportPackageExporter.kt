@@ -306,6 +306,12 @@ object ExportPackageExporter {
         val insulinPresets = database.journalDao().getInsulinPresets()
         val foods = database.journalDao().getFoods()
 
+        // Non-destructive software calibration (issue #130): the stored values stay
+        // raw mg/dL; each reading additionally carries the calibrated mg/dL that live
+        // outputs (Nightscout/xDrip/screen) would show, when a calibration applies.
+        val isMmol = tk.glucodata.Applic.unit == 1
+        val viewModeOf = ExportCalibration.viewModeResolver()
+
         return JSONObject()
             .put("rangeStartEpochMillis", if (startMillis > 0L) startMillis else JSONObject.NULL)
             .put("rangeEndEpochMillis", endMillis)
@@ -313,7 +319,7 @@ object ExportPackageExporter {
             .put(
                 "readings",
                 JSONArray().also { array ->
-                    readings.forEach { array.put(it.toJson()) }
+                    readings.forEach { array.put(it.toJson(isMmol, viewModeOf)) }
                 }
             )
             .put(
@@ -516,12 +522,21 @@ object ExportPackageExporter {
         return rows.size
     }
 
-    private fun HistoryReading.toJson(): JSONObject {
+    private fun HistoryReading.toJson(isMmol: Boolean, viewModeOf: (String?) -> Int): JSONObject {
+        val calibratedMgDl = ExportCalibration.calibratedMgDl(
+            autoMgDl = value,
+            rawMgDl = rawValue,
+            timestamp = timestamp,
+            sensorId = sensorSerial,
+            viewMode = viewModeOf(sensorSerial),
+            isMmol = isMmol
+        )
         return JSONObject()
             .put("timestamp", timestamp)
             .put("sensorSerial", sensorSerial)
             .put("valueMgDl", value.toDouble())
             .put("rawValueMgDl", rawValue.toDouble())
+            .put("calibratedValueMgDl", calibratedMgDl?.toDouble() ?: JSONObject.NULL)
             .put("rate", rate?.toDouble() ?: JSONObject.NULL)
     }
 

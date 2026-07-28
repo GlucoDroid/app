@@ -45,6 +45,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -137,6 +140,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
     val followerConfig = remember { NightscoutFollowerRegistry.loadConfig(context) }
     var isActive by rememberSaveable { mutableStateOf(initialUploaderActive || followerConfig.enabled) }
     var sendTreatments by rememberSaveable { mutableStateOf(Natives.getpostTreatments()) }
+    var sendLongInsulin by rememberSaveable { mutableStateOf(JournalTreatmentUploader.getSendLongInsulin()) }
     var receiveTreatments by rememberSaveable { mutableStateOf(JournalTreatmentUploader.getReceiveTreatments()) }
     var isV3 by rememberSaveable { mutableStateOf(Natives.getnightscoutV3()) }
     var showSecret by rememberSaveable { mutableStateOf(false) }
@@ -164,6 +168,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
 
         Natives.setNightUploader(url.trim(), secret.trim(), uploadActive, isV3)
         Natives.setpostTreatments(sendTreatments)
+        JournalTreatmentUploader.setSendLongInsulin(sendLongInsulin)
         JournalTreatmentUploader.setReceiveTreatments(receiveTreatments)
         if (followActive) {
             if (normalizedUrl.isBlank()) {
@@ -222,10 +227,15 @@ fun NightscoutSettingsScreen(navController: NavController) {
         }
     }
 
-    LaunchedEffect(isActive, mode) {
-        while (true) {
-            refreshStatus()
-            delay(if (isActive && mode == NightscoutMode.UPLOAD) 5_000L else 15_000L)
+    // Status polling stops when the screen leaves the foreground; composition alone would
+    // otherwise keep it hitting the uploader status every 5s in the background.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(isActive, mode, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                refreshStatus()
+                delay(if (isActive && mode == NightscoutMode.UPLOAD) 5_000L else 15_000L)
+            }
         }
     }
 
@@ -489,6 +499,20 @@ fun NightscoutSettingsScreen(navController: NavController) {
                             icon = Icons.Default.Link,
                             iconTint = MaterialTheme.colorScheme.secondary,
                             enabled = isActive,
+                            position = CardPosition.MIDDLE
+                        )
+                        SettingsSwitchItem(
+                            title = stringResource(R.string.nightscout_send_long_insulin),
+                            subtitle = stringResource(R.string.nightscout_send_long_insulin_desc),
+                            checked = sendLongInsulin,
+                            onCheckedChange = {
+                                sendLongInsulin = it
+                                JournalTreatmentUploader.setSendLongInsulin(it)
+                                if (it) Natives.wakeuploader()
+                            },
+                            icon = Icons.Default.Medication,
+                            iconTint = MaterialTheme.colorScheme.tertiary,
+                            enabled = isActive && sendTreatments,
                             position = CardPosition.MIDDLE
                         )
                         SettingsSwitchItem(

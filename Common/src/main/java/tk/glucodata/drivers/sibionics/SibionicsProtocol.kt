@@ -342,6 +342,12 @@ object SibionicsProtocol {
 }
 
 object SibionicsSensitivity {
+    const val MIN_SENSITIVITY = 0.8f
+    const val MAX_SENSITIVITY = 2.5f
+
+    fun isSupported(value: Float): Boolean =
+        value.isFinite() && value in MIN_SENSITIVITY..MAX_SENSITIVITY
+
     fun deriveShortCode(source: String?, fallback: String): String {
         val normalized = SibionicsConstants.normalizeBleName(source)
         if (normalized.length >= 8) {
@@ -360,26 +366,35 @@ object SibionicsSensitivity {
         return if (candidate.length == 8) candidate else fallback
     }
 
-    fun sensitivityFor(shortCode: String?): Float =
-        tryDecode(shortCode).takeIf { it != null } ?: 1.27f
+    fun sensitivityFor(
+        shortCode: String?,
+        variant: SibionicsConstants.Variant,
+    ): Float =
+        tryDecode(shortCode)
+            // The legacy library retries this variant token when QR initialization
+            // rejects an otherwise valid sensor identity (notably V120 XPT codes).
+            ?: tryDecode(variant.fallbackShortCode)
+            ?: DEFAULT_SENSITIVITY
 
     fun tryDecode(shortCode: String?): Float? {
         val token = SibionicsConstants.normalizeBleName(shortCode).takeLast(4)
         if (token.length != 4) return null
         if (token.all(Char::isDigit)) {
             val value = token.toFloatOrNull()?.div(1000f) ?: return null
-            return value.takeIf { it in 0.8f..2.5f }
+            return value.takeIf(::isSupported)
         }
         decodedDigits(token, 'A')?.let {
             val value = it / 100f
-            if (value in 0.8f..2.5f) return value
+            if (isSupported(value)) return value
         }
         decodedDigits(token, 'P')?.let {
             val value = it / 100f
-            if (value in 0.8f..2.5f) return value
+            if (isSupported(value)) return value
         }
         return null
     }
+
+    private const val DEFAULT_SENSITIVITY = 1.27f
 
     private fun decodedDigits(token: String, base: Char): Int? {
         val mapped = token.uppercase(Locale.US).map {

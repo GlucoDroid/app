@@ -584,7 +584,11 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
         if (!DontTalk) {
             if (dotalk && !alarmSpeechStarted) {
-                talker.selspeak(sglucose.value);
+                // Speak the calibrated display value (same source as the display,
+                // notifications, and alarm speech) rather than the raw native value.
+                final CurrentDisplaySource.Snapshot speakcurrent =
+                        CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
+                talker.selspeak(speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
             }
         }
         if (isWearable) {
@@ -1169,6 +1173,21 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         } else {
             Log.e(LOG_ID, SerialNumber + " " + "setpriority BluetoothGatt==null");
         }
+    }
+
+    /**
+     * Hidden framework callback (BluetoothGattCallback#onConnectionUpdated, present since
+     * Android O but absent from the SDK stubs — hence no @Override). The stack invokes it
+     * after every LL connection-parameter update, including ones the peripheral requested,
+     * so it is the only signal that a sensor renegotiated away from the fast interval the
+     * app asked for. Signature must stay exactly this for runtime dispatch to bind.
+     */
+    public void onConnectionUpdated(BluetoothGatt gatt, int interval, int latency, int timeout, int status) {
+        onConnectionParamsUpdated(gatt, interval, latency, timeout, status);
+    }
+
+    /** SDK-visible relay of the hidden onConnectionUpdated; drivers override this one. */
+    public void onConnectionParamsUpdated(BluetoothGatt gatt, int interval, int latency, int timeout, int status) {
     }
 
     boolean disableNoCheck(BluetoothGatt gatt, BluetoothGattCharacteristic ch) {

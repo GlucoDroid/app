@@ -16,10 +16,12 @@ import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.Executors
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import tk.glucodata.Applic
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
 import tk.glucodata.Natives
+import tk.glucodata.NightscoutUploadWake
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorIdentity
@@ -28,6 +30,7 @@ import tk.glucodata.UiRefreshBus
 import tk.glucodata.drivers.ManagedBluetoothSensorDriver
 import tk.glucodata.drivers.ManagedSensorCurrentSnapshot
 import tk.glucodata.drivers.ManagedSensorMaintenanceDriver
+import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.drivers.ManagedSensorUiFamily
 import tk.glucodata.drivers.ManagedSensorUiSnapshot
 import tk.glucodata.drivers.ManagedSensorViewModeStore
@@ -72,6 +75,9 @@ class SibionicsBleManager(
 
     companion object {
         private const val RECONNECT_DELAY_MS = 8_000L
+        private const val CONNECT_CALLBACK_TIMEOUT_MS = 20_000L
+        private const val ADVERTISEMENT_RECOVERY_TIMEOUT_MS = 25_000L
+        private const val SETUP_STAGE_TIMEOUT_MS = 15_000L
         private const val CHINESE_PROBE_TIMEOUT_MS = 5_000L
         private const val CHINESE_DATA_TIMEOUT_MS = 30_000L
         private const val HANDSHAKE_TIMEOUT_MS = 15_000L
@@ -84,6 +90,7 @@ class SibionicsBleManager(
         private const val LOCAL_REBUILD_FORMAT_VERSION = 6
         private const val POST_RESET_DISCARD_TIMEOUT_MS = 15_000L
         private const val RESET_COMFORT_RECHECK_MS = 15L * 60L * 1000L
+        private const val NATIVE_STREAM_CAPACITY_MINUTES = 46 * 24 * 60
 
         private fun sampleJournalFile(context: Context, sensorId: String): File {
             val digest = MessageDigest.getInstance("SHA-256")
@@ -97,6 +104,11 @@ class SibionicsBleManager(
     @Volatile private var phase = Phase.IDLE
     private val handlerThread = HandlerThread("Sibionics-$serial").also { it.start() }
     private val handler = Handler(handlerThread.looper)
+    private val advertisementRecovery = SibionicsAdvertisementRecovery(
+        context = Applic.getContext(),
+        handler = handler,
+        onFinished = ::finishAdvertisementRecovery,
+    )
     private val notificationDispatcher = SibionicsNotificationDispatcher(
         post = { task ->
             handler.post(task)
@@ -118,6 +130,8 @@ class SibionicsBleManager(
     @Volatile private var variant: SibionicsConstants.Variant = SibionicsConstants.Variant.EU
     @Volatile private var protocolMode: SibionicsConstants.ProtocolMode = SibionicsConstants.ProtocolMode.UNKNOWN
     @Volatile private var shortCode: String = variant.fallbackShortCode
+    @Volatile private var automaticSensitivity: Float = 1.27f
+    @Volatile private var sensitivityOverride: Float? = null
     @Volatile private var sensitivity: Float = 1.27f
     @Volatile private var sessionKey: ByteArray? = null
     @Volatile private var keyGroupIndex: Int = 0
@@ -160,6 +174,34 @@ class SibionicsBleManager(
     private val authTimeoutRunnable = Runnable {
         if (phase == Phase.AUTHENTICATING) tryNextKeyGroup("auth timeout")
     }
+    private val connectCallbackTimeoutRunnable = Runnable {
+        if (SibionicsSessionPolicy.shouldRecoverSetupTimeout(
+                isPending = phase == Phase.CONNECTING,
+                isStopped = stop,
+                isPaused = uiPaused,
+            )
+        ) {
+            Log.w(SibionicsConstants.TAG, "connectGatt callback timeout serial=$SerialNumber")
+            prepareForReconnect()
+            setStatus(connectingStatus())
+            if (!beginAdvertisementRecovery("connectGatt callback timeout")) {
+                scheduleReconnect("connectGatt callback timeout")
+            }
+        }
+    }
+    private val setupStageTimeoutRunnable = Runnable {
+        if (SibionicsSessionPolicy.shouldRecoverSetupTimeout(
+                isPending = phase == Phase.DISCOVERING || phase == Phase.ENABLING_NOTIFY,
+                isStopped = stop,
+                isPaused = uiPaused,
+            )
+        ) {
+            Log.w(SibionicsConstants.TAG, "GATT setup timeout phase=$phase serial=$SerialNumber")
+            prepareForReconnect()
+            setStatus(connectingStatus())
+            scheduleReconnect("GATT setup timeout", delayMs = 500L)
+        }
+    }
     private val rebuildLaunchRunnable = Runnable {
         val generation = rebuildGeneration
         if (!rebuildExecutor.isShutdown) {
@@ -193,7 +235,9 @@ class SibionicsBleManager(
             SibionicsRegistry.loadProtocolMode(context, SerialNumber),
         )
         shortCode = SibionicsRegistry.loadShortCode(context, SerialNumber)
-        sensitivity = SibionicsSensitivity.sensitivityFor(shortCode)
+        automaticSensitivity = SibionicsSensitivity.sensitivityFor(shortCode, variant)
+        sensitivityOverride = SibionicsRegistry.loadAlgorithmSensitivityOverride(context, SerialNumber)
+        sensitivity = sensitivityOverride ?: automaticSensitivity
         val persistedAutoResetDays = SibionicsRegistry.loadAutoResetDays(context, SerialNumber)
         autoResetDays = SibionicsResetPolicy.normalizedDays(
             variant = variant,
@@ -281,6 +325,10 @@ class SibionicsBleManager(
     override fun connectDevice(delayMillis: Long): Boolean {
         if (stop) return false
         uiPaused = false
+        if (advertisementRecovery.isActive) {
+            Log.d(SibionicsConstants.TAG, "connect coalesced during advertisement recovery serial=$SerialNumber")
+            return true
+        }
         // Coalesce only a connection which owns a real GATT. During first setup the
         // scanner calls us before it has found a BluetoothDevice; that attempt must
         // not suppress the real connection after the scan result is bound.
@@ -298,7 +346,12 @@ class SibionicsBleManager(
         phase = Phase.CONNECTING
         setStatus(connectingStatus())
         val scheduled = super.connectDevice(delayMillis)
-        if (!scheduled && phase == Phase.CONNECTING) phase = Phase.IDLE
+        if (scheduled) {
+            armConnectCallbackTimeout(delayMillis)
+        } else if (phase == Phase.CONNECTING) {
+            handler.removeCallbacks(connectCallbackTimeoutRunnable)
+            phase = Phase.IDLE
+        }
         return scheduled
     }
 
@@ -307,6 +360,7 @@ class SibionicsBleManager(
         notificationDispatcher.invalidateSession()
         uiPaused = true
         stop = true
+        advertisementRecovery.stop()
         handler.removeCallbacksAndMessages(null)
         runCatching { mBluetoothGatt?.disconnect() }
         runCatching { mBluetoothGatt?.close() }
@@ -320,11 +374,13 @@ class SibionicsBleManager(
     override fun softReconnect() {
         uiPaused = false
         stop = false
+        advertisementRecovery.stop()
         phase = Phase.IDLE
         connectDevice(0)
     }
 
     override fun onBluetoothAdapterUnavailable() {
+        advertisementRecovery.stop()
         handler.removeCallbacks(reconnectRunnable)
         prepareForReconnect()
         constatstatusstr = Applic.getContext().getString(tk.glucodata.R.string.status_bluetooth_off)
@@ -364,6 +420,7 @@ class SibionicsBleManager(
 
     override fun close() {
         notificationDispatcher.invalidateSession()
+        advertisementRecovery.stop()
         handler.removeCallbacksAndMessages(null)
         rebuildGeneration++
         rebuildExecutor.shutdownNow()
@@ -474,6 +531,8 @@ class SibionicsBleManager(
         }
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
+                advertisementRecovery.stop()
+                handler.removeCallbacks(connectCallbackTimeoutRunnable)
                 mBluetoothGatt = gatt
                 mActiveBluetoothDevice = gatt.device
                 keyGroupIndex = 0
@@ -482,6 +541,7 @@ class SibionicsBleManager(
                 gatt.device?.address?.let { setDeviceAddress(it) }
                 connectTime = System.currentTimeMillis()
                 phase = Phase.DISCOVERING
+                armSetupStageTimeout()
                 setStatus(connectingStatus())
                 runCatching { gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
                 handler.postDelayed({ runCatching { gatt.discoverServices() } }, 250L)
@@ -489,6 +549,9 @@ class SibionicsBleManager(
             }
 
             BluetoothProfile.STATE_DISCONNECTED -> {
+                val failedDuringConnect = phase == Phase.CONNECTING
+                handler.removeCallbacks(connectCallbackTimeoutRunnable)
+                handler.removeCallbacks(setupStageTimeoutRunnable)
                 Log.i(SibionicsConstants.TAG, "disconnected status=$status serial=$SerialNumber")
                 finishPostResetDisconnectGuard()
                 service = null
@@ -506,10 +569,13 @@ class SibionicsBleManager(
                 handler.removeCallbacks(chineseProbeTimeoutRunnable)
                 handler.removeCallbacks(chineseDataTimeoutRunnable)
                 if (!stop && !uiPaused) {
-                    scheduleReconnect(
-                        reason = "disconnect status=$status",
-                        delayMs = SibionicsSessionPolicy.reconnectDelayMs(status, RECONNECT_DELAY_MS),
-                    )
+                    if (!beginAdvertisementRecovery(
+                            reason = "connect failed status=$status",
+                            failedDuringConnect = failedDuringConnect,
+                        )
+                    ) {
+                        scheduleReconnect("disconnect status=$status")
+                    }
                 }
                 UiRefreshBus.requestStatusRefresh()
             }
@@ -517,7 +583,9 @@ class SibionicsBleManager(
     }
 
     override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+        if (!isCurrentGattCallback(gatt, "services discovered")) return
         if (status != BluetoothGatt.GATT_SUCCESS) {
+            handler.removeCallbacks(setupStageTimeoutRunnable)
             setStatus("Discovery failed: $status")
             scheduleReconnect("discover failed")
             return
@@ -525,6 +593,7 @@ class SibionicsBleManager(
         service = gatt.getService(SibionicsConstants.SERVICE_FF30)
         val svc = service
         if (svc == null) {
+            handler.removeCallbacks(setupStageTimeoutRunnable)
             setStatus("Sibionics FF30 service missing")
             scheduleReconnect("missing service")
             return
@@ -532,17 +601,20 @@ class SibionicsBleManager(
         notifyChar = svc.getCharacteristic(SibionicsConstants.CHAR_NOTIFY_FF31)
         writeChar = svc.getCharacteristic(SibionicsConstants.CHAR_WRITE_FF32)
         if (notifyChar == null || writeChar == null) {
+            handler.removeCallbacks(setupStageTimeoutRunnable)
             setStatus("Sibionics FF31/FF32 missing")
             scheduleReconnect("missing chars")
             return
         }
         phase = Phase.ENABLING_NOTIFY
+        armSetupStageTimeout()
         enableNotify(gatt, notifyChar!!)
     }
 
     override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
         if (!isCurrentGattCallback(gatt, "descriptor write")) return
         if (descriptor.characteristic?.uuid == SibionicsConstants.CHAR_NOTIFY_FF31) {
+            handler.removeCallbacks(setupStageTimeoutRunnable)
             if (pendingResetCommand) {
                 pendingResetCommand = false
                 if (!writeResetCommand("pending")) {
@@ -594,6 +666,7 @@ class SibionicsBleManager(
     }
 
     private fun startProtocolProbe() {
+        handler.removeCallbacks(setupStageTimeoutRunnable)
         when (protocolMode) {
             SibionicsConstants.ProtocolMode.CHINESE -> {
                 sendChineseDataRequest(probing = false)
@@ -1017,10 +1090,21 @@ class SibionicsBleManager(
         }
         val wasRehydrating = algorithmRehydrating
         if (wasRehydrating && !acceptRehydrationIndex(index)) return null
+        val shouldRebaseNativeWindow =
+            SibionicsSessionPolicy.shouldRebaseNativeWindow(startTimeMs > 0L, index)
         if (startTimeMs <= 0L && index >= 0) {
             startTimeMs = eventMs - index * SibionicsConstants.READING_INTERVAL_MS
             Applic.app?.let { SibionicsRegistry.saveStartTimeMs(it, SerialNumber, startTimeMs) }
             scheduleResetMaintenanceCheck()
+            if (shouldRebaseNativeWindow) {
+                SerialNumber?.let { nativeName ->
+                    runCatching {
+                        Natives.rebaseDirectStreamWindow(nativeName, startTimeMs / 1000L)
+                    }.onFailure {
+                        Log.stack(SibionicsConstants.TAG, "rebase native stream after sensor restart", it)
+                    }
+                }
+            }
         }
         val displayMmol = synchronized(algorithmLock) {
             if (index <= 1) algorithm.reset()
@@ -1102,7 +1186,7 @@ class SibionicsBleManager(
         } else {
             0L
         }
-        return "$LOCAL_REBUILD_FORMAT_VERSION:${selection.storageId}:$calibrationFingerprint"
+        return "$LOCAL_REBUILD_FORMAT_VERSION:${selection.storageId}:${sensitivity.toRawBits()}:$calibrationFingerprint"
     }
 
     override fun onUserCalibrationRevisionChanged(revision: Long) {
@@ -1443,18 +1527,17 @@ class SibionicsBleManager(
     // .mirrorReadingIntoNative): shell + stream write keyed by SerialNumber.
     // Native scales glucose ×10 internally; callers pass mgdl/10 by
     // convention (verified against g.cpp addGlucoseStreamInternal).
-    private fun mirrorReadingIntoNative(reading: EmittedReading) {
+    private fun mirrorReadingIntoNative(reading: EmittedReading): Boolean =
         mirrorReadingsIntoNative(listOf(reading))
-    }
 
-    private fun mirrorReadingsIntoNative(readings: List<EmittedReading>) {
-        val name = SerialNumber ?: return
+    private fun mirrorReadingsIntoNative(readings: List<EmittedReading>): Boolean {
+        val name = SerialNumber ?: return false
         val validReadings = readings.filter {
             val sampleSec = it.sampleMs / 1000L
             sampleSec > 0L && it.glucoseMgdl.isFinite() && it.glucoseMgdl > 0f
         }
-        if (validReadings.isEmpty()) return
-        runCatching {
+        if (validReadings.isEmpty()) return false
+        return runCatching {
             val firstSampleSec = validReadings.first().sampleMs / 1000L
             val startSec = when {
                 startTimeMs > 0L -> startTimeMs / 1000L
@@ -1462,23 +1545,31 @@ class SibionicsBleManager(
                 else -> 1L
             }.coerceAtLeast(1L)
             Natives.ensureSensorShell(name, startSec)
+            if (!Natives.hasSensorStreamCapacity(name, NATIVE_STREAM_CAPACITY_MINUTES)) {
+                Log.e(SibionicsConstants.TAG, "native stream capacity unavailable for $name")
+                return@runCatching false
+            }
+            var stored = false
             for (reading in validReadings) {
-                if (Thread.currentThread().isInterrupted) return@runCatching
+                if (Thread.currentThread().isInterrupted) return@runCatching false
                 val temperatureC = reading.temperatureC
                     .takeIf { it.isFinite() && it > -20f && it < 80f }
                     ?: 0f
                 val rawMgdl = reading.rawMgdl
                     .takeIf { it.isFinite() && it > 0f }
                     ?: reading.glucoseMgdl
-                Natives.addGlucoseStreamWithRawTemp(
+                stored = Natives.addGlucoseStreamWithRawTemp(
                     reading.sampleMs / 1000L,
                     reading.glucoseMgdl / 10f,
                     rawMgdl,
                     temperatureC,
                     name,
-                )
+                ) || stored
             }
-        }.onFailure { Log.stack(SibionicsConstants.TAG, "mirrorReadingIntoNative", it) }
+            stored
+        }.onFailure {
+            Log.stack(SibionicsConstants.TAG, "mirrorReadingIntoNative", it)
+        }.getOrDefault(false)
     }
 
     private fun publishLiveReading(reading: EmittedReading) {
@@ -1498,7 +1589,9 @@ class SibionicsBleManager(
         Applic.app?.let {
             SibionicsRegistry.saveLastReading(it, SerialNumber, reading.sampleMs, reading.glucoseMgdl, reading.rawMgdl)
         }
-        mirrorReadingIntoNative(reading)
+        if (mirrorReadingIntoNative(reading)) {
+            NightscoutUploadWake.afterLiveNativeWrite("sibionics-managed", reading.sampleMs)
+        }
         HistorySyncAccess.storeCurrentReadingAsync(
             reading.sampleMs,
             reading.glucoseMgdl,
@@ -1553,10 +1646,10 @@ class SibionicsBleManager(
     private fun writeCommand(bytes: ByteArray, label: String): Boolean {
         val gatt = mBluetoothGatt ?: return false
         val ch = writeChar ?: return false
-        val writeType = if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
-            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-        } else {
+        val writeType = if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) {
             BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        } else {
+            BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
         }
         ch.writeType = writeType
         ch.value = bytes
@@ -1690,8 +1783,48 @@ class SibionicsBleManager(
         }
         algorithmStateDirty = true
         Applic.app?.let { SibionicsRegistry.saveAlgorithmSelection(it, SerialNumber, selection) }
+        // The selection flips integratesUserCalibration(); drop the memoized value so manual
+        // calibration isn't double-applied (or silently skipped) until the next record write.
+        ManagedSensorRuntime.clearCaches()
         tk.glucodata.CalibrationAccess.notifyExternalCalibrationPipelineChanged()
         scheduleAlgorithmRebuild("algorithm selection ${selection.name}", delayMs = 0L)
+        UiRefreshBus.requestStatusRefresh()
+        UiRefreshBus.requestDataRefresh()
+        return true
+    }
+
+    override fun supportsAlgorithmSensitivity(): Boolean = true
+
+    override fun getAlgorithmSensitivity(): Float = sensitivity
+
+    override fun getAutomaticAlgorithmSensitivity(): Float = automaticSensitivity
+
+    override fun hasAlgorithmSensitivityOverride(): Boolean = sensitivityOverride != null
+
+    override fun setAlgorithmSensitivityOverride(sensitivity: Float?): Boolean {
+        if (sensitivity != null && !SibionicsSensitivity.isSupported(sensitivity)) return false
+        val normalized = sensitivity
+            ?.let { (it * 100f).roundToInt() / 100f }
+            ?.takeIf(SibionicsSensitivity::isSupported)
+        if (normalized == sensitivityOverride) return true
+
+        sensitivityOverride = normalized
+        this.sensitivity = normalized ?: automaticSensitivity
+        Applic.app?.let {
+            SibionicsRegistry.saveAlgorithmSensitivityOverride(it, SerialNumber, normalized)
+            // A checkpoint encodes calculations made with the previous sensitivity.
+            // Clearing it makes a killed/restarted rebuild resume from source samples.
+            SibionicsRegistry.clearAlgorithmState(it, SerialNumber)
+        }
+        algorithmStateDirty = true
+        scheduleAlgorithmRebuild(
+            reason = if (normalized == null) {
+                "restore sensor sensitivity $automaticSensitivity"
+            } else {
+                "algorithm sensitivity $normalized"
+            },
+            delayMs = 0L,
+        )
         UiRefreshBus.requestStatusRefresh()
         UiRefreshBus.requestDataRefresh()
         return true
@@ -1811,6 +1944,9 @@ class SibionicsBleManager(
             autoResetDays = autoResetDays,
             customAlgorithmEnabled = algorithmSelection.customModelEnabled,
             customAlgorithmMode = algorithmSelection.storageId,
+            algorithmSensitivity = sensitivity,
+            automaticAlgorithmSensitivity = automaticSensitivity,
+            hasAlgorithmSensitivityOverride = sensitivityOverride != null,
             supportsDisplayModes = supportsDisplayModes(),
             supportsManualCalibration = supportsManualCalibration(),
             supportsHardwareReset = supportsResetAction(),
@@ -1858,7 +1994,13 @@ class SibionicsBleManager(
 //            append(lastIndex)
 
             if (shortCode.isNotBlank()) {
-                append(if (SibionicsSensitivity.tryDecode(shortCode) != null) "qrSens=" else "fallbackSens=")
+                append(
+                    when {
+                        sensitivityOverride != null -> "customSens="
+                        SibionicsSensitivity.tryDecode(shortCode) != null -> "qrSens="
+                        else -> "fallbackSens="
+                    },
+                )
                 append("%.2f".format(sensitivity))
             }
             if (latestTemperatureC.isFinite()) {
@@ -1935,11 +2077,70 @@ class SibionicsBleManager(
         return mActiveBluetoothDevice != null
     }
 
+    private fun beginAdvertisementRecovery(
+        reason: String,
+        failedDuringConnect: Boolean = true,
+    ): Boolean {
+        val address = knownBleAddress()
+        if (!SibionicsSessionPolicy.shouldUseAdvertisementRecovery(
+                failedDuringConnect = failedDuringConnect,
+                isStopped = stop,
+                isPaused = uiPaused,
+                hasKnownAddress = address != null,
+                recoveryAlreadyActive = advertisementRecovery.isActive,
+            )
+        ) {
+            return advertisementRecovery.isActive
+        }
+        handler.removeCallbacks(reconnectRunnable)
+        phase = Phase.IDLE
+        setStatus(connectingStatus())
+        Log.i(SibionicsConstants.TAG, "scan for saved sensor after $reason serial=$SerialNumber")
+        return advertisementRecovery.start(
+            address = address!!,
+            timeoutMs = ADVERTISEMENT_RECOVERY_TIMEOUT_MS,
+        )
+    }
+
+    private fun finishAdvertisementRecovery(advertisement: SibionicsAdvertisement?) {
+        if (stop || uiPaused) return
+        if (advertisement == null) {
+            Log.w(SibionicsConstants.TAG, "saved sensor advertisement not seen serial=$SerialNumber")
+            phase = Phase.IDLE
+            scheduleReconnect("advertisement recovery timeout")
+            return
+        }
+        pendingMatchedBleName = SibionicsConstants.normalizeBleName(advertisement.name)
+        setDevice(advertisement.device)
+        phase = Phase.IDLE
+        Log.i(
+            SibionicsConstants.TAG,
+            "saved sensor advertisement recovered name=${pendingMatchedBleName.ifBlank { "unknown" }} serial=$SerialNumber",
+        )
+        connectDevice(0)
+    }
+
     private fun scheduleReconnect(reason: String, delayMs: Long = RECONNECT_DELAY_MS) {
         if (stop || uiPaused) return
         Log.i(SibionicsConstants.TAG, "schedule reconnect in ${delayMs}ms: $reason")
         handler.removeCallbacks(reconnectRunnable)
         handler.postDelayed(reconnectRunnable, delayMs.coerceAtLeast(0L))
+    }
+
+    private fun armConnectCallbackTimeout(requestedDelayMs: Long) {
+        handler.removeCallbacks(connectCallbackTimeoutRunnable)
+        handler.postDelayed(
+            connectCallbackTimeoutRunnable,
+            SibionicsSessionPolicy.connectCallbackTimeoutDelayMs(
+                requestedDelayMs = requestedDelayMs,
+                callbackTimeoutMs = CONNECT_CALLBACK_TIMEOUT_MS,
+            ),
+        )
+    }
+
+    private fun armSetupStageTimeout() {
+        handler.removeCallbacks(setupStageTimeoutRunnable)
+        handler.postDelayed(setupStageTimeoutRunnable, SETUP_STAGE_TIMEOUT_MS)
     }
 
     private fun settleConnectionPriority() {
@@ -1965,16 +2166,25 @@ class SibionicsBleManager(
 
     @Synchronized
     private fun prepareForReconnect() {
+        notificationDispatcher.invalidateSession()
+        handler.removeCallbacks(connectCallbackTimeoutRunnable)
+        handler.removeCallbacks(setupStageTimeoutRunnable)
+        handler.removeCallbacks(authTimeoutRunnable)
+        handler.removeCallbacks(handshakeTimeoutRunnable)
+        handler.removeCallbacks(chineseProbeTimeoutRunnable)
+        handler.removeCallbacks(chineseDataTimeoutRunnable)
+        handler.removeCallbacks(streamingTimeoutRunnable)
+        handler.removeCallbacks(chinesePollRunnable)
         val staleGatt = mBluetoothGatt
         service = null
         notifyChar = null
         writeChar = null
-        mBluetoothGatt = null
         mActiveBluetoothDevice = null
         phase = Phase.IDLE
         retiredGatt = staleGatt
-        runCatching { staleGatt?.disconnect() }
-        runCatching { staleGatt?.close() }
+        // Also cancels a delayed SuperGattCallback connection task. Closing only
+        // the visible GATT can otherwise leave connectPending=true forever.
+        closeGattTransport()
     }
 
     private fun scheduleAuthTimeout() {

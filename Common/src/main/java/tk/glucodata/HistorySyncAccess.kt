@@ -325,24 +325,46 @@ object HistorySyncAccess {
         }.getOrDefault(0L)
     }
 
+    /**
+     * Timestamps already stored for [sensorSerial], or null when the question could not be
+     * asked at all (bridge method missing, or the query threw).
+     *
+     * The distinction matters: callers diff this against what a sensor claims to hold, and an
+     * empty array means "that sensor has nothing stored" — a conclusion that costs a full
+     * history download. Collapsing "could not ask" into the same empty array is what made the
+     * Ottai driver re-pull thousands of records on every reconnect, for months, in silence.
+     *
+     * Failures are reported at error level on purpose: proguard-rules.log strips
+     * android.util.Log.w/i/d/v via -assumenosideeffects, so a warning here does not exist in a
+     * release build — which is exactly why the original breakage left no trace.
+     */
     @JvmStatic
-    fun getHistoryTimestampsForSensor(sensorSerial: String?, startTime: Long, endTime: Long): LongArray {
+    fun getHistoryTimestampsForSensorOrNull(
+        sensorSerial: String?,
+        startTime: Long,
+        endTime: Long
+    ): LongArray? {
         if (sensorSerial.isNullOrBlank() || endTime < startTime) return LongArray(0)
         val method = getHistoryTimestampsMethod
         if (method == null) {
-            Log.w(TAG, "getHistoryTimestampsForSensor unavailable for serial=$sensorSerial")
-            return LongArray(0)
+            Log.e(TAG, "getHistoryTimestampsForSensor unavailable for serial=$sensorSerial")
+            return null
         }
         return runCatching {
-            method.invoke(null, sensorSerial, startTime, endTime) as? LongArray ?: LongArray(0)
+            method.invoke(null, sensorSerial, startTime, endTime) as? LongArray
         }.onFailure {
-            Log.w(
+            Log.e(
                 TAG,
                 "getHistoryTimestampsForSensor failed for serial=$sensorSerial range=$startTime..$endTime",
                 it
             )
-        }.getOrDefault(LongArray(0))
+        }.getOrNull()
     }
+
+    /** As [getHistoryTimestampsForSensorOrNull], but reports "could not ask" as an empty array. */
+    @JvmStatic
+    fun getHistoryTimestampsForSensor(sensorSerial: String?, startTime: Long, endTime: Long): LongArray =
+        getHistoryTimestampsForSensorOrNull(sensorSerial, startTime, endTime) ?: LongArray(0)
 
     @JvmStatic
     fun deleteReadingsForSensorAfter(sensorSerial: String?, timestampExclusive: Long): Int {

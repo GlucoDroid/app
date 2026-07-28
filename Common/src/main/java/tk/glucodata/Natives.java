@@ -728,13 +728,19 @@ public class Natives {
 
         public static native void addGlucoseInjection(long time, float glucose, String sensorId);
 
-        public static native void addGlucoseStream(long time, float glucose, String sensorId);
+        public static native boolean addGlucoseStream(long time, float glucose, String sensorId);
 
-        public static native void addGlucoseStreamWithTemp(long time, float glucose, float temperatureC, String sensorId);
+        public static native boolean addGlucoseStreamWithTemp(long time, float glucose, float temperatureC, String sensorId);
 
-        public static native void addGlucoseStreamWithRawTemp(long time, float glucose, float rawGlucose, float temperatureC, String sensorId);
+        public static native boolean addGlucoseStreamWithRawTemp(long time, float glucose, float rawGlucose, float temperatureC, String sensorId);
 
         public static native long ensureSensorShell(String sensorId, long startTimeSec);
+
+        // Set a direct-stream sensor's wear duration (days) by id -> info->wearduration2,
+        // so the main graph's sensor-end reflects the real activated lifetime (Ottai).
+        public static native void setSensorWearDays(String sensorId, int days);
+
+        public static native boolean hasSensorStreamCapacity(String sensorId, int minimumRecords);
 
         public static native void rebaseDirectStreamWindow(String sensorId, long startTimeSec);
 
@@ -1030,6 +1036,8 @@ public class Natives {
         public static native void setNightUploader(String jurl, String Secret, boolean active, boolean v3);
 
         public static native void wakeuploader();
+
+        public static native boolean wakeNightscoutForLiveReading(String source, long timestampMillis);
 
         public static native void resetuploader();
 
@@ -1538,6 +1546,9 @@ public class Natives {
         public static native int GlucoseMeterGetIndex(String deviceName);
 
         public static native boolean GlucoseMeterSave(int meterIndex, byte[] value);
+
+        /** Returns timestamp millis, mg/dL tenths, and recent-legacy flag for a newly accepted reading. */
+        public static native long[] GlucoseMeterSaveResult(int meterIndex, byte[] value);
 
         public static native boolean GlucoseMeterProcessContext(int meterIndex, byte[] value);
 

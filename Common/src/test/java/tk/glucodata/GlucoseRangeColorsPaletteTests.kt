@@ -46,6 +46,15 @@ class GlucoseRangeColorsPaletteTests {
     }
 
     @Test
+    fun auroraHasDistinctDarkVariantAndTrafficColors() {
+        GlucoseRangeColors.setPalette(Palette.AURORA)
+        assertEquals(0xFF00897B.toInt(), GlucoseRangeColors.inRange(false))
+        assertEquals(0xFF4DB6AC.toInt(), GlucoseRangeColors.inRange(true))
+        assertEquals(0xFFF9A825.toInt(), GlucoseRangeColors.valueBorderline(false))
+        assertEquals(0xFFF06292.toInt(), GlucoseRangeColors.valueOut(true))
+    }
+
+    @Test
     fun gdhLikeMapsThreeTiersToFiveBands() {
         GlucoseRangeColors.setPalette(Palette.GDH_LIKE)
         assertEquals(0xFF00FF00.toInt(), GlucoseRangeColors.inRange(false)) // colorOK
@@ -66,6 +75,34 @@ class GlucoseRangeColorsPaletteTests {
         assertEquals(
             GlucoseRangeColors.presetColor(Palette.VIBRANT, Band.HIGH, false),
             GlucoseRangeColors.high(false)
+        )
+    }
+
+    @Test
+    fun veryLowOverrideResolvesForBothThemes() {
+        val custom = 0xFF9CCC8A.toInt()
+        GlucoseRangeColors.setOverride(Band.VERY_LOW, custom)
+        assertEquals(custom, GlucoseRangeColors.veryLow(false))
+        assertEquals(custom, GlucoseRangeColors.veryLow(true))
+    }
+
+    @Test
+    fun targetBackgroundFollowsInRangeUntilOverridden() {
+        GlucoseRangeColors.setPalette(Palette.AURORA)
+        assertEquals(
+            GlucoseRangeColors.inRange(false),
+            GlucoseRangeColors.targetBackground(false)
+        )
+
+        val custom = 0xFF345678.toInt()
+        GlucoseRangeColors.setTargetBackgroundOverride(custom)
+        assertEquals(custom, GlucoseRangeColors.targetBackground(false))
+        assertTrue(GlucoseRangeColors.hasAnyOverride())
+
+        GlucoseRangeColors.clearOverrides()
+        assertEquals(
+            GlucoseRangeColors.inRange(false),
+            GlucoseRangeColors.targetBackground(false)
         )
     }
 
