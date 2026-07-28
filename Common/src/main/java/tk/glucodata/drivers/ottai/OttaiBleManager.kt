@@ -154,6 +154,9 @@ class OttaiBleManager(
         internal fun previousDataNoForHistory(previousDataNo: Int, liveDataNo: Int): Int =
             if (isPersistedDataNoAheadOfLive(previousDataNo, liveDataNo)) -1 else previousDataNo
 
+        internal fun shouldDiffStoredHistory(previousDataNo: Int, diffRetryPending: Boolean): Boolean =
+            previousDataNo < 0 || diffRetryPending
+
         /**
          * The `false` windows of [present], coalesced and capped — i.e. exactly the records the
          * local store is missing, expressed as the fewest requests that still cover all of them.
@@ -442,9 +445,11 @@ class OttaiBleManager(
     // first GATT write out, which under RF trouble is routine.
     //
     // Suppressing it there is safe: the diff ledgers every window before issuing anything, the
-    // ledger's retry driver owns recovery, and this payload has just advanced lastDataNo, so
-    // the next live sample takes the cheap incremental branch instead.
+    // ledger's retry driver owns recovery. If the diff itself cannot run yet, the separate
+    // pending flag forces a later live sample back through the diff instead of taking the cheap
+    // incremental branch and incorrectly latching history complete.
     @Volatile private var historyDiffOwnsRecovery = false
+    @Volatile private var historyDiffRetryPending = false
     private val historyHolesLock = Any()
     private val historyHoles = mutableListOf<HistoryHole>()
     // Set while we re-run service discovery AFTER auth (the sensor exposes a Service
@@ -2871,7 +2876,7 @@ class OttaiBleManager(
         // The one-shot is consumed only by an actually-issued request or a trusted "nothing
         // missing" verdict — an early-out on a no-op (stale basis, missing anchor, failed
         // issue) must leave it clear so the live path can still do the real check.
-        if (previousDataNo >= 0) {
+        if (!shouldDiffStoredHistory(previousDataNo, historyDiffRetryPending)) {
             val missingBeforeLive = liveDataNo - previousDataNo - 1
             if (missingBeforeLive <= 0) {
                 if (observedNewest) roomBackfillChecked = true
@@ -2883,7 +2888,11 @@ class OttaiBleManager(
         }
         // From here on the diff owns recovery for this payload — see historyDiffOwnsRecovery.
         historyDiffOwnsRecovery = true
-        val startMs = streamStartTimeMs.takeIf { it > 0L } ?: return false
+        val startMs = streamStartTimeMs.takeIf { it > 0L } ?: run {
+            historyDiffRetryPending = true
+            Log.w(TAG, "history diff missing stream anchor — deferring backfill live=$liveDataNo")
+            return false
+        }
         val endMs = (System.currentTimeMillis() + RECORD_INTERVAL_MS).coerceAtLeast(startMs)
         val existing = HistorySyncAccess.getHistoryTimestampsForSensorOrNull(
             id,
@@ -2893,11 +2902,13 @@ class OttaiBleManager(
         if (existing == null) {
             // The local store could not be asked. "Don't know" must not collapse into "have
             // nothing": that answer costs a full re-download of the whole sensor history, and
-            // it repeats on every reconnect because nothing about it self-heals. Leave the
-            // one-shot clear so the live path retries off a real lastDataNo once a sample lands.
+            // it repeats on every reconnect because nothing about it self-heals. Keep the diff
+            // pending so a later live sample retries this query even with a usable lastDataNo.
+            historyDiffRetryPending = true
             Log.e(TAG, "history diff unavailable — deferring backfill live=$liveDataNo")
             return false
         }
+        historyDiffRetryPending = false
         if (existing.isEmpty()) {
             return requestHistoryRange("room-backfill", 0, liveDataNo)
                 .also { if (it) roomBackfillChecked = true }

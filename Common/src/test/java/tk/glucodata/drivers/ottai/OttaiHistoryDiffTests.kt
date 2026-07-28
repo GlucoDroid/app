@@ -1,6 +1,7 @@
 package tk.glucodata.drivers.ottai
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -20,6 +21,21 @@ class OttaiHistoryDiffTests {
 
     private fun ranges(vararg pairs: Pair<Int, Int>) =
         pairs.map { OttaiBleManager.MissingRange(it.first, it.second) }
+
+    @Test
+    fun deferredDiffIsRetriedEvenAfterLiveProgressEstablishesAPreviousDataNo() {
+        assertTrue(OttaiBleManager.shouldDiffStoredHistory(previousDataNo = 500, diffRetryPending = true))
+    }
+
+    @Test
+    fun usablePreviousDataNoKeepsTheCheapIncrementalPath() {
+        assertFalse(OttaiBleManager.shouldDiffStoredHistory(previousDataNo = 500, diffRetryPending = false))
+    }
+
+    @Test
+    fun unusablePreviousDataNoRequiresAStoredHistoryDiff() {
+        assertTrue(OttaiBleManager.shouldDiffStoredHistory(previousDataNo = -1, diffRetryPending = false))
+    }
 
     @Test
     fun noGapsWhenEverythingIsStored() {
