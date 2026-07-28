@@ -39,6 +39,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -854,7 +855,9 @@ internal fun PinnedMetricChip(
  * Today and 3 days have no [StatsTimeRange] of their own, so they go through the
  * custom-range path instead; the rest map straight onto a quick range.
  */
-private enum class PinnedWindow(@get:StringRes val labelResId: Int) {
+// internal, not private: the Dashboard owns the strip's selection so that its portrait and
+// landscape call sites share one window. See PinnedStatsStrip's windowState parameter.
+internal enum class PinnedWindow(@get:StringRes val labelResId: Int) {
     TODAY(R.string.stats_window_today),
     H24(R.string.stats_window_24h),
     D3(R.string.stats_window_3d),
@@ -901,11 +904,19 @@ fun hasPinnedStats(): Boolean {
  * calibration projection, so the strip reported 54% time in range against the
  * Statistics screen's 92% for the same window. Sharing the source is the only way the
  * two can be guaranteed to agree.
+ *
+ * [windowState] is hoisted because the Dashboard composes this strip from two mutually
+ * exclusive call sites — the portrait column and the landscape left column, which asks for
+ * two rows. Owning the state here gave each call site its own copy, so rotating swapped one
+ * for the other and the user's window silently reverted to 24h. The activity is never
+ * recreated on rotation (`configChanges` covers `orientation|screenSize`), so a caller-level
+ * `rememberSaveable` outlives the swap and both call sites read the same one.
  */
 @Composable
-fun PinnedStatsStrip(
+internal fun PinnedStatsStrip(
     modifier: Modifier = Modifier,
-    rows: Int = 1
+    rows: Int = 1,
+    windowState: MutableState<PinnedWindow> = rememberSaveable { mutableStateOf(PinnedWindow.H24) },
 ) {
     val context = LocalContext.current
     LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
@@ -915,7 +926,7 @@ fun PinnedStatsStrip(
     val uiState by statsViewModel.uiState.collectAsState()
     if (pinned.isEmpty() || uiState.summary.readingCount == 0) return
 
-    var window by rememberSaveable { mutableStateOf(PinnedWindow.H24) }
+    var window by windowState
     // -1 means the picker was opened from the add slot.
     var editingSlot by remember { mutableStateOf<Int?>(null) }
     val dragState = rememberMetricDragState(
