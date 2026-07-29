@@ -576,6 +576,10 @@ fun DashboardScreen(
                                 viewModel.onHistoryImported(tk.glucodata.data.HistoryRepository.IMPORTED_SENSOR_SERIAL)
                             }
                             result.success -> toast(context.getString(R.string.import_no_glucose))
+                            // Say what was wrong with the file — a bare
+                            // "unsupported" leaves the user guessing.
+                            result.errorMessage != null ->
+                                toast(context.getString(R.string.import_failed_with_error, result.errorMessage))
                             else -> toast(context.getString(R.string.import_unsupported_file))
                         }
                     }
@@ -1196,7 +1200,15 @@ fun DashboardScreen(
                 }
             },
                 onImportHistory = {
-                    importLauncher.launch(arrayOf("application/json", "text/csv", "text/comma-separated-values", "*/*"))
+                    importLauncher.launch(
+                        arrayOf(
+                            "application/json",
+                            "text/csv",
+                            "text/comma-separated-values",
+                            "text/tab-separated-values",
+                            "*/*"
+                        )
+                    )
                 },
                 modifier = Modifier
                     .padding(padding),
