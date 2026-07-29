@@ -31,6 +31,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
 import tk.glucodata.Applic
 import tk.glucodata.MessageSender
@@ -111,8 +112,18 @@ fun CalibrationEntryScreen(
 
             // Same shape as the phone's calibration sheet: what the sensor
             // reads, and under it the value you correct it to.
+            // For a stored entry this is the sensor value recorded with it; when
+            // adding a new one it is what the sensor reads right now. Either
+            // way the screen reads "sensor value -> corrected value".
+            val currentDisplay = remember {
+                runCatching { tk.glucodata.CurrentDisplaySource.resolveCurrent() }
+                    .getOrNull()
+                    ?.primaryValue
+                    ?.takeIf { it.isFinite() && it > 0f }
+            }
             val sensorDisplay = sensorValueMgdl.takeIf { it.isFinite() && it > 0f }
                 ?.let { if (isMmol) it / MGDL_PER_MMOLL else it }
+                ?: currentDisplay
             Text(
                 text = sensorDisplay?.let { format(it) }
                     ?: stringResource(R.string.calibrate_action),
@@ -155,18 +166,24 @@ fun CalibrationEntryScreen(
                     sending = true
                     resultOk = null
                     val mgdl = if (isMmol) (value * MGDL_PER_MMOLL).roundToInt() else value.roundToInt()
-                    scope.launch(Dispatchers.IO) {
-                        val ok = when {
-                            editing -> runCatching {
-                                tk.glucodata.WearCalibrationCommand.send(
-                                    tk.glucodata.WearCalibrationCommand.EDIT,
-                                    editTimestamp,
-                                    mgdl.toFloat(),
-                                )
-                            }.isSuccess
-                            hasLocalDriver -> ManagedCalibration.applyFingerstickCalibration(mgdl)
-                            // Companion mode: the phone owns the connection.
-                            else -> runCatching { MessageSender.sendcalibrate(mgdl) }.isSuccess
+                    // The work goes to IO, but onDone() navigates and
+                    // NavController may only be touched from the main thread —
+                    // calling it from the IO dispatcher crashed right after the
+                    // confirmation appeared.
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            when {
+                                editing -> runCatching {
+                                    tk.glucodata.WearCalibrationCommand.send(
+                                        tk.glucodata.WearCalibrationCommand.EDIT,
+                                        editTimestamp,
+                                        mgdl.toFloat(),
+                                    )
+                                }.isSuccess
+                                hasLocalDriver -> ManagedCalibration.applyFingerstickCalibration(mgdl)
+                                // Companion mode: the phone owns the connection.
+                                else -> runCatching { MessageSender.sendcalibrate(mgdl) }.isSuccess
+                            }
                         }
                         resultOk = ok
                         sending = false
@@ -180,11 +197,13 @@ fun CalibrationEntryScreen(
                     enabled = !sending,
                     onClick = {
                         sending = true
-                        scope.launch(Dispatchers.IO) {
-                            tk.glucodata.WearCalibrationCommand.send(
-                                tk.glucodata.WearCalibrationCommand.DELETE,
-                                editTimestamp,
-                            )
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                tk.glucodata.WearCalibrationCommand.send(
+                                    tk.glucodata.WearCalibrationCommand.DELETE,
+                                    editTimestamp,
+                                )
+                            }
                             sending = false
                             onDone()
                         }
