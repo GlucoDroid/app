@@ -1184,23 +1184,27 @@ object CalibrationManager {
     fun addCalibrationFromWearBlocking(userValueMgdl: Float): Boolean = kotlinx.coroutines.runBlocking {
         val snapshot = tk.glucodata.CurrentDisplaySource.resolveCurrentForExchange()
             ?: return@runBlocking false
-        // Snapshot lanes are in the display unit; calibrations are stored in
-        // mg/dL. sharedMgdl is already mg/dL and is the safer primary source.
-        val toMgdl = { value: Float ->
-            if (snapshot.isMmol) value * tk.glucodata.ui.util.GlucoseFormatter.MGDL_PER_MMOL else value
-        }
-        val autoMgdl = snapshot.sharedMgdl.toFloat().takeIf { it > 0f }
-            ?: snapshot.autoValue.takeIf { it.isFinite() && it > 0f }?.let(toMgdl)
+        val autoValue = snapshot.autoValue.takeIf { it.isFinite() && it > 0f }
+            ?: snapshot.primaryValue.takeIf { it.isFinite() && it > 0f }
             ?: return@runBlocking false
-        val rawMgdl = snapshot.rawValue.takeIf { it.isFinite() && it > 0f }?.let(toMgdl) ?: autoMgdl
+        val rawValue = snapshot.rawValue.takeIf { it.isFinite() && it > 0f } ?: autoValue
         addCalibration(
             timestamp = System.currentTimeMillis(),
-            sensorValue = autoMgdl,
-            sensorValueRaw = rawMgdl,
-            userValue = userValueMgdl,
+            sensorValue = autoValue,
+            sensorValueRaw = rawValue,
+            userValue = storedValueFromMgdl(userValueMgdl),
             sensorId = snapshot.sensorId,
         )
     }
+
+    /**
+     * The watch sends canonical mg/dL — it must not depend on the phone's unit
+     * setting — but calibrations are stored in the display unit, the way the
+     * phone's own sheet writes them. Storing mg/dL directly is what turned a
+     * 5.8 mmol calibration into "104,0" in the list.
+     */
+    private fun storedValueFromMgdl(mgdl: Float): Float =
+        if (tk.glucodata.Applic.unit == 1) mgdl / tk.glucodata.ui.util.GlucoseFormatter.MGDL_PER_MMOL else mgdl
 
     /**
      * Blocking per-entry operations for the shared Wear bridge. The watch knows
@@ -1218,7 +1222,7 @@ object CalibrationManager {
         kotlinx.coroutines.runBlocking {
             val entity = _calibrations.value.firstOrNull { it.timestamp == timestamp }
                 ?: return@runBlocking false
-            updateCalibration(entity.copy(userValue = userValueMgdl))
+            updateCalibration(entity.copy(userValue = storedValueFromMgdl(userValueMgdl)))
             true
         }
 
