@@ -140,6 +140,7 @@ internal fun InteractiveWearChartPanel(
     rangeIndexOverride: Int? = null,
     showRangeOverlay: Boolean = true,
     onRangeIndexChange: ((Int) -> Unit)? = null,
+    onGestureOwnership: ((Boolean) -> Unit)? = null,
     headlineTopPadding: androidx.compose.ui.unit.Dp = 3.dp,
 ) {
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
@@ -272,7 +273,8 @@ internal fun InteractiveWearChartPanel(
                     selected = null
                 },
                 onReset = { resetViewport() },
-                modifier = Modifier.fillMaxSize().padding(top = 24.dp, bottom = 25.dp),
+                onGestureOwnership = onGestureOwnership,
+                modifier = Modifier.fillMaxSize().padding(top = 24.dp, bottom = 8.dp),
             )
             if (showRangeOverlay) WearChartRangeChip(
                 rangeIndex = rangeIndex,
@@ -280,7 +282,7 @@ internal fun InteractiveWearChartPanel(
                     rangeIndex = (rangeIndex + 1) % CHART_RANGES.size
                     onRangeIndexChange?.invoke(rangeIndex)
                 },
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
             )
             val headline = selected?.let {
                 val raw = plausibleRawValue(it, isMmol)
@@ -333,6 +335,7 @@ private fun currentWearViewMode(): Int {
 }
 
 private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectChartTransforms(
+    onOwnership: (Boolean) -> Unit = {},
     onTransform: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
 ) {
     awaitEachGesture {
@@ -342,7 +345,10 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectCh
         while (true) {
             val event = awaitPointerEvent()
             val pressedCount = event.changes.count { it.pressed }
-            if (pressedCount == 0) break
+            if (pressedCount == 0) {
+                if (chartOwnsGesture) onOwnership(false)
+                break
+            }
             if (!chartOwnsGesture && event.changes.any { it.isConsumed }) break
 
             val pan = event.calculatePan()
@@ -355,9 +361,10 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectCh
                 // drag; the list only takes over on a clearly vertical one.
                 val dx = abs(accumulatedPan.x)
                 val dy = abs(accumulatedPan.y)
-                val pastSlop = accumulatedPan.getDistance() > viewConfiguration.touchSlop
-                chartOwnsGesture = pressedCount >= 2 || (pastSlop && dx > dy * 0.6f)
-                if (!chartOwnsGesture && pastSlop && dy > dx * 1.6f) {
+                val pastSlop = accumulatedPan.getDistance() > viewConfiguration.touchSlop * 0.5f
+                chartOwnsGesture = pressedCount >= 2 || (pastSlop && dx > dy * 0.3f)
+                if (chartOwnsGesture) onOwnership(true)
+                if (!chartOwnsGesture && pastSlop && dy > dx * 2.5f) {
                     break
                 }
             }
@@ -374,6 +381,7 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectCh
 @Composable
 internal fun WearChart(
     data: WearChartData,
+    onGestureOwnership: ((Boolean) -> Unit)? = null,
     viewportStart: Long = data.start,
     viewportEnd: Long = data.end,
     lineColor: Color,
@@ -406,7 +414,7 @@ internal fun WearChart(
     } else {
         Modifier
             .pointerInput(data.historyStart, data.end, viewportStart, viewportEnd) {
-                detectChartTransforms { centroid, pan, zoom ->
+                detectChartTransforms(onOwnership = onGestureOwnership ?: {}) { centroid, pan, zoom ->
                     val width = size.width.toFloat().coerceAtLeast(1f)
                     val oldDuration = viewportEnd - viewportStart
                     val duration = (oldDuration / zoom).toLong()

@@ -99,6 +99,7 @@ fun MainScreen(
     var snapshot by remember { mutableStateOf(currentSnapshot()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var chartRangeIndex by remember { mutableIntStateOf(0) }
+    var chartOwnsDrag by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         launch { UiRefreshBus.revision.collect { snapshot = currentSnapshot(); now = System.currentTimeMillis() } }
@@ -116,7 +117,10 @@ fun MainScreen(
     val newestReading = recent.firstOrNull()
 
     ScreenScaffold(timeText = { TimeText() }) {
-        ScalingLazyColumn(contentPadding = PaddingValues(top = 34.dp, bottom = 28.dp)) {
+        ScalingLazyColumn(
+            contentPadding = PaddingValues(top = 34.dp, bottom = 28.dp),
+            userScrollEnabled = !chartOwnsDrag,
+        ) {
             item {
                 val snap = snapshot
                 val status = DisplayDataState.resolve(
@@ -127,13 +131,14 @@ fun MainScreen(
                 )
                 // The chart IS the first screen: it takes the entire viewport
                 // and the hero floats over it instead of stacking above.
-                Box(Modifier.fillParentMaxHeight(0.94f).fillMaxWidth()) {
+                Box(Modifier.fillParentMaxHeight(0.86f).fillMaxWidth()) {
                     InteractiveWearChartPanel(
                         initialRangeIndex = 0,
                         requestInitialFocus = false,
                         rangeIndexOverride = chartRangeIndex,
                         showRangeOverlay = true,
                         onRangeIndexChange = { chartRangeIndex = it },
+                        onGestureOwnership = { chartOwnsDrag = it },
                         headlineTopPadding = 58.dp,
                         modifier = Modifier.fillMaxSize(),
                     )
