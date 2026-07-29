@@ -54,6 +54,7 @@ import tk.glucodata.CalibrationAccess
 import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.GlucosePoint
 import tk.glucodata.GlucoseRangeColors
+import tk.glucodata.GlucoseValuePlausibility
 import tk.glucodata.Natives
 import tk.glucodata.NotificationHistorySource
 import tk.glucodata.R
@@ -65,6 +66,11 @@ private const val HOUR_MS = 3_600_000L
 private const val MAX_HISTORY_HOURS = 24
 private const val RIGHT_GAP_FRACTION = 0.09f
 private const val MIN_VIEWPORT_MS = 45 * 60_000L
+
+private fun plausibleRawValue(point: GlucosePoint, isMmol: Boolean): Float? =
+    point.rawValue.takeIf {
+        GlucoseValuePlausibility.isPlausibleDisplayValue(it, isMmol)
+    }
 
 internal data class ChartThresholds(val low: Float, val high: Float, val veryLow: Float, val veryHigh: Float)
 internal data class CalibrationMark(val timestamp: Long, val value: Float)
@@ -89,7 +95,7 @@ private fun thresholds(isMmol: Boolean): ChartThresholds {
     )
 }
 
-internal fun loadChart(hours: Int, isMmol: Boolean): WearChartData {
+internal fun loadChart(hours: Int, isMmol: Boolean, isRawMode: Boolean = false): WearChartData {
     val now = System.currentTimeMillis()
     val duration = hours * HOUR_MS
     val start = now - duration
@@ -98,7 +104,7 @@ internal fun loadChart(hours: Int, isMmol: Boolean): WearChartData {
     val sensor = NotificationHistorySource.resolveSensorSerial()
     val points = runCatching { NotificationHistorySource.getDisplayHistory(historyStart, isMmol, sensor) }.getOrDefault(emptyList())
         .filter { it.timestamp in historyStart..now && it.value.isFinite() && it.value > 0f }
-    val anchors = CalibrationAccess.getActiveCalibrationAnchors(sensor, false)
+    val anchors = CalibrationAccess.getActiveCalibrationAnchors(sensor, isRawMode)
     val conversion = if (isMmol) 18.0182f else 1f
     val marks = anchors.indices.step(3).mapNotNull { offset ->
         if (offset + 2 >= anchors.size) return@mapNotNull null
@@ -136,13 +142,21 @@ internal fun InteractiveWearChartPanel(
 ) {
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
     var rangeIndex by remember { mutableIntStateOf(initialRangeIndex.coerceIn(CHART_RANGES.indices)) }
-    var data by remember { mutableStateOf(loadChart(CHART_RANGES[rangeIndex], isMmol)) }
+    var viewMode by remember { mutableIntStateOf(currentWearViewMode()) }
+    var data by remember {
+        mutableStateOf(
+            loadChart(
+                CHART_RANGES[rangeIndex],
+                isMmol,
+                viewMode == 1 || viewMode == 3,
+            ),
+        )
+    }
     var viewportStart by remember { mutableLongStateOf(data.start) }
     var viewportEnd by remember { mutableLongStateOf(data.end) }
     var selected by remember { mutableStateOf<GlucosePoint?>(null) }
     val requester = remember { FocusRequester() }
     val context = LocalContext.current
-    var viewMode by remember { mutableIntStateOf(currentWearViewMode()) }
     val timeFormat = remember(context) { DateFormat.getTimeFormat(context) }
 
     fun resetViewport(nextData: WearChartData = data) {
@@ -154,7 +168,11 @@ internal fun InteractiveWearChartPanel(
     fun updateData() {
         viewMode = currentWearViewMode()
         val wasAtNow = abs(viewportEnd - data.end) < 2 * 60_000L
-        val next = loadChart(CHART_RANGES[rangeIndex], isMmol)
+        val next = loadChart(
+            CHART_RANGES[rangeIndex],
+            isMmol,
+            viewMode == 1 || viewMode == 3,
+        )
         data = next
         if (wasAtNow) {
             resetViewport(next)
@@ -180,7 +198,11 @@ internal fun InteractiveWearChartPanel(
     }
 
     LaunchedEffect(rangeIndex) {
-        val next = loadChart(CHART_RANGES[rangeIndex], isMmol)
+        val next = loadChart(
+            CHART_RANGES[rangeIndex],
+            isMmol,
+            viewMode == 1 || viewMode == 3,
+        )
         data = next
         resetViewport(next)
     }
@@ -196,7 +218,7 @@ internal fun InteractiveWearChartPanel(
     val primaryRaw = viewMode == 1 || viewMode == 3
     val showSecondary = viewMode == 2 || viewMode == 3
     val lineColor = data.points.lastOrNull()?.let {
-        rangeColor(if (primaryRaw && it.rawValue > 0f) it.rawValue else it.value, isMmol)
+        rangeColor(if (primaryRaw) plausibleRawValue(it, isMmol) ?: it.value else it.value, isMmol)
     }
         ?: Color(GlucoseRangeColors.inRange(true))
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.13f)
@@ -259,7 +281,7 @@ internal fun InteractiveWearChartPanel(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp),
             )
             val headline = selected?.let {
-                val raw = it.rawValue.takeIf { value -> value.isFinite() && value > 0f }
+                val raw = plausibleRawValue(it, isMmol)
                 val primary = if (primaryRaw && raw != null) raw else it.value
                 val secondary = if (showSecondary) {
                     if (primaryRaw) it.value else raw
@@ -323,13 +345,15 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectCh
             val zoom = event.calculateZoom()
             accumulatedPan += pan
             if (!chartOwnsGesture) {
-                chartOwnsGesture = pressedCount >= 2 ||
-                    (accumulatedPan.getDistance() > viewConfiguration.touchSlop &&
-                        abs(accumulatedPan.x) > abs(accumulatedPan.y))
-                if (!chartOwnsGesture &&
-                    accumulatedPan.getDistance() > viewConfiguration.touchSlop &&
-                    abs(accumulatedPan.y) >= abs(accumulatedPan.x)
-                ) {
+                // A thumb drag on a round screen is never purely horizontal, so
+                // demanding |x| > |y| handed almost every pan to the list and
+                // the chart felt immovable. The chart wins on a mostly sideways
+                // drag; the list only takes over on a clearly vertical one.
+                val dx = abs(accumulatedPan.x)
+                val dy = abs(accumulatedPan.y)
+                val pastSlop = accumulatedPan.getDistance() > viewConfiguration.touchSlop
+                chartOwnsGesture = pressedCount >= 2 || (pastSlop && dx > dy * 0.6f)
+                if (!chartOwnsGesture && pastSlop && dy > dx * 1.6f) {
                     break
                 }
             }
@@ -412,7 +436,7 @@ internal fun WearChart(
             // forcing veryLow..veryHigh into view squashed a flat curve into a
             // sliver. Threshold/target lines simply clip when out of range.
             fun primaryValue(point: GlucosePoint) =
-                if (primaryRaw && point.rawValue.isFinite() && point.rawValue > 0f) point.rawValue else point.value
+                if (primaryRaw) plausibleRawValue(point, data.isMmol) ?: point.value else point.value
             var minValue = viewportPoints.minOfOrNull(::primaryValue) ?: data.thresholds.low
             var maxValue = viewportPoints.maxOfOrNull(::primaryValue) ?: data.thresholds.high
             val minSpan = if (data.isMmol) 3f else 54f
@@ -423,8 +447,8 @@ internal fun WearChart(
             }
             if (showSecondary) {
                 viewportPoints.forEach { point ->
-                    val value = if (primaryRaw) point.value else point.rawValue
-                    if (value.isFinite() && value > 0f) {
+                    val value = if (primaryRaw) point.value else plausibleRawValue(point, data.isMmol)
+                    if (value != null && value.isFinite() && value > 0f) {
                         minValue = minOf(minValue, value)
                         maxValue = maxOf(maxValue, value)
                     }
@@ -445,8 +469,8 @@ internal fun WearChart(
                 val curve = Path()
                 var previous: Offset? = null
                 viewportPoints.forEach { point ->
-                    val value = if (raw) point.rawValue else point.value
-                    if (!value.isFinite() || value <= 0f) {
+                    val value = if (raw) plausibleRawValue(point, data.isMmol) else point.value
+                    if (value == null || !value.isFinite() || value <= 0f) {
                         previous = null
                     } else {
                         val current = Offset(x(point.timestamp), y(value))

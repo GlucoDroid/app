@@ -3,5 +3,8 @@
 <string name="libresetalllabels">Geef eerst (op de bijbehorende telefoon) voor elk label aan wat ermee moet gebeuren.</string>
 <string name="wear_sensor_day_label">Dag</string>
 <string name="wear_sensor_day_format">Dag %1$s</string>
+    <string name="wear_return_sensor_to_phone">Sensor teruggeven aan telefoon</string>
+    <string name="wear_claim_watch_owns">Horloge leest de sensor</string>
+    <string name="wear_claim_waiting">Wachten op verbinding met de sensor</string>
 </resources>
 

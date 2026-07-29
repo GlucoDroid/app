@@ -36,9 +36,27 @@ object NotificationHistorySource {
     }
 
     private fun loadHistory(startTimeMs: Long, isMmol: Boolean, sensorSerial: String?): List<GlucosePoint> {
-        loadRoomHistory(startTimeMs, isMmol, sensorSerial)
-            ?.takeIf { it.isNotEmpty() }
-            ?.let { return it }
+        val roomHistory = loadRoomHistory(startTimeMs, isMmol, sensorSerial)?.takeIf { it.isNotEmpty() }
+        if (roomHistory != null) {
+            // On the phone Room is authoritative. On the companion it only ever
+            // holds what arrived live while the app was running, so returning it
+            // hid the WearSync2 backfill sitting in native storage — the watch
+            // showed a few hours of a full day. Merge instead of shadowing.
+            if (!Applic.isWearable) return roomHistory
+            val nativeHistory = loadNativeHistory(startTimeMs, isMmol, sensorSerial)
+            if (nativeHistory.isEmpty()) return roomHistory
+            val merged = TreeMap<Long, GlucosePoint>()
+            nativeHistory.forEach { merged[it.timestamp] = it }
+            roomHistory.forEach { point ->
+                val existing = merged[point.timestamp]
+                if (existing == null || shouldReplace(existing, point)) merged[point.timestamp] = point
+            }
+            return merged.values.toList()
+        }
+        return loadNativeHistory(startTimeMs, isMmol, sensorSerial)
+    }
+
+    private fun loadNativeHistory(startTimeMs: Long, isMmol: Boolean, sensorSerial: String?): List<GlucosePoint> {
 
         val startSec = startTimeMs / 1000L
         val resolvedSerial = resolveSensorSerial(sensorSerial)

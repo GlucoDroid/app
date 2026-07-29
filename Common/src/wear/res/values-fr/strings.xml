@@ -2,4 +2,7 @@
 <resources>
     <string name="wear_sensor_day_label">Jour</string>
     <string name="wear_sensor_day_format">Jour %1$s</string>
+    <string name="wear_return_sensor_to_phone">Rendre le capteur au téléphone</string>
+    <string name="wear_claim_watch_owns">La montre lit le capteur</string>
+    <string name="wear_claim_waiting">En attente de connexion au capteur</string>
 </resources>

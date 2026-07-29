@@ -77,7 +77,9 @@ internal fun loadWearSensorPresentation(sensorId: String, nowMs: Long): WearSens
         lifecycleProgress = lifecycle.progress.takeIf { hasKnownTotal },
         startTimeMs = startTime,
         lastReadingMs = lastReading,
-        rssi = managed?.rssi?.takeIf { it != 0 },
+        // 9999 is SuperGattCallback's "no RSSI read yet" sentinel; only a real
+        // dBm figure may be shown ("9999 dBm" reached the watch UI).
+        rssi = managed?.rssi?.takeIf { it in -120..0 },
     )
 }
 

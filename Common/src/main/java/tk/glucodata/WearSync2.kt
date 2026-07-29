@@ -4,6 +4,7 @@ import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.roundToInt
 import tk.glucodata.Log.doLog
 
 /**
@@ -20,15 +21,23 @@ import tk.glucodata.Log.doLog
  *  chunk    (phone→watch, SYNC2_CHUNK_PATH):
  *   [u8 ver][u8 flags bit0=final][u16 count][u8 serialLen][serial utf8]
  *   [count × (i64 timeSec, i32 auto10, i32 raw10)]
+ *  calibration (phone→watch, SYNC2_CAL_PATH): see [WearCalibrationPayload].
+ *
+ * The phone calibrates each served lane through CalibrationManager before it goes on the wire.
+ * The companion therefore renders exactly the same selected algorithm and history policy without
+ * maintaining a second calibration implementation. The calibration message carries the active
+ * anchors for chart markers and tells the Wear provider not to apply them a second time.
  */
 object WearSync2 {
     private const val LOG_ID = "WearSync2"
     private const val VERSION = 1
-    private const val MAX_TRIPLES_PER_CHUNK = 600 // ~14.5KB, under MessageClient limits
+    private const val MAX_TRIPLES_PER_CHUNK = 360 // ~8.6KB; smaller messages survive better
+    private const val CHUNK_SPACING_MS = 400L
     private const val TAIL_TRIPLES = 8
     private const val PUSH_THROTTLE_MS = 45_000L
     private const val BACKFILL_HORIZON_SEC = 24L * 3600L
     private const val REMOVAL_TOMBSTONE_MS = 10L * 60L * 1000L
+    private const val MGDL_PER_MMOL = 18.0182
 
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "WearSync2").apply { isDaemon = true }
@@ -36,6 +45,7 @@ object WearSync2 {
     private val lastPushMs = AtomicLong(0L)
     private val lastServedMs = AtomicLong(0L)
     private val lastServedChunkCount = AtomicLong(0L)
+    private val calibrationWireRevision = AtomicLong(0L)
     private val removalTombstones = ConcurrentHashMap<String, Long>()
 
     // ---- phone side ----
@@ -106,6 +116,16 @@ object WearSync2 {
         executor.execute { runCatching { serveSince(sanitizeFrom(0L)) }.onFailure { Log.stack(LOG_ID, "serveAll", it) } }
     }
 
+    /** Re-send both the calibration state and the calibrated full horizon after a phone edit. */
+    @JvmStatic
+    fun onCalibrationChanged() {
+        if (Applic.isWearable) return
+        executor.execute {
+            runCatching { serveSince(sanitizeFrom(0L)) }
+                .onFailure { Log.stack(LOG_ID, "onCalibrationChanged", it) }
+        }
+    }
+
     /** Handle an incoming request from the watch. */
     @JvmStatic
     fun onRequest(data: ByteArray?) {
@@ -128,6 +148,7 @@ object WearSync2 {
         val serial = runCatching { SensorIdentity.resolveMainSensor() }.getOrNull()
             ?: runCatching { Natives.lastsensorname() }.getOrNull().takeUnless { it.isNullOrEmpty() }
             ?: return
+        sendCalibration(serial)
         val triples = runCatching { Natives.getGlucoseHistoryForSensor(serial, fromSec) }.getOrNull()
         if (triples == null || triples.size < 3) return
         val total = triples.size / 3
@@ -136,6 +157,11 @@ object WearSync2 {
         while (index < total) {
             val count = minOf(MAX_TRIPLES_PER_CHUNK, total - index)
             val final = index + count >= total
+            // MessageClient is best-effort: firing the whole backfill as a
+            // burst of ~14KB messages meant only the last one survived, so the
+            // watch showed a single chunk (10h) of a 24h history. Space them
+            // out and let the transport drain between sends.
+            if (chunks > 0) Thread.sleep(CHUNK_SPACING_MS)
             sendChunk(serial, triples, index, count, final)
             chunks++
             index += count
@@ -160,11 +186,65 @@ object WearSync2 {
         buf.put(serialBytes)
         for (i in 0 until count) {
             val base = (offset + i) * 3
-            buf.putLong(triples[base])
-            buf.putInt(triples[base + 1].toInt())
-            buf.putInt(triples[base + 2].toInt())
+            val timeSec = triples[base]
+            buf.putLong(timeSec)
+            buf.putInt(calibratedLane10(triples[base + 1].toInt(), timeSec, false, serial))
+            val raw10 = triples[base + 2].toInt()
+            buf.putInt(
+                if (GlucoseValuePlausibility.isPlausibleMgdl(raw10 / 10f)) {
+                    calibratedLane10(raw10, timeSec, true, serial)
+                } else {
+                    0
+                },
+            )
         }
         MessageSender.sendSyncMessage(MessageSender.SYNC2_CHUNK_PATH, buf.array())
+    }
+
+    private fun calibratedLane10(value10: Int, timeSec: Long, isRawMode: Boolean, serial: String): Int {
+        if (value10 <= 0 || CalibrationAccess.shouldOverwriteSensorValues()) return value10
+        if (!CalibrationAccess.hasActiveCalibration(isRawMode, serial)) return value10
+        val mgdl = value10 / 10f
+        val displayValue = if (Applic.unit == 1) mgdl / MGDL_PER_MMOL.toFloat() else mgdl
+        val calibratedDisplay = CalibrationAccess.getCalibratedValue(
+            displayValue,
+            timeSec * 1000L,
+            isRawMode,
+            false,
+            serial,
+        )
+        if (!calibratedDisplay.isFinite() || calibratedDisplay <= 0f) return value10
+        val calibratedMgdl =
+            if (Applic.unit == 1) calibratedDisplay * MGDL_PER_MMOL.toFloat() else calibratedDisplay
+        return (calibratedMgdl * 10f).roundToInt().takeIf { it > 0 } ?: value10
+    }
+
+    private fun sendCalibration(serial: String) {
+        val payload = WearCalibrationPayload(
+            sensorId = serial,
+            revision = calibrationWireRevision.updateAndGet { previous ->
+                maxOf(System.currentTimeMillis(), previous + 1L)
+            },
+            valuesPrecalibrated = true,
+            hideInitialWhenCalibrated = CalibrationAccess.shouldHideInitialWhenCalibrated(),
+            auto = WearCalibrationMode(canonicalAnchors(serial, false)),
+            raw = WearCalibrationMode(canonicalAnchors(serial, true)),
+        )
+        MessageSender.sendSyncMessage(
+            MessageSender.SYNC2_CAL_PATH,
+            WearCalibrationPayload.encode(payload),
+        )
+    }
+
+    private fun canonicalAnchors(serial: String, isRawMode: Boolean): DoubleArray {
+        val anchors = CalibrationAccess.getActiveCalibrationAnchors(serial, isRawMode)
+        if (Applic.unit != 1) return anchors
+        return anchors.copyOf().also { canonical ->
+            for (index in canonical.indices step 3) {
+                canonical[index] *= MGDL_PER_MMOL
+                canonical[index + 1] *= MGDL_PER_MMOL
+            }
+        }
     }
 
     // ---- watch side ----
@@ -237,6 +317,23 @@ object WearSync2 {
                 }
                 if (doLog) Log.i(LOG_ID, "ingested $written/$count triples for $serial final=$final")
             }.onFailure { Log.stack(LOG_ID, "onChunk", it) }
+        }
+    }
+
+    @JvmStatic
+    fun onCalibration(data: ByteArray?) {
+        if (!Applic.isWearable) return
+        val payload = WearCalibrationPayload.decode(data) ?: run {
+            Log.w(LOG_ID, "ignored malformed sync2 calibration payload")
+            return
+        }
+        SyncedWearCalibrationProvider.update(payload)
+        if (doLog) {
+            Log.i(
+                LOG_ID,
+                "received calibration for ${payload.sensorId}: " +
+                    "auto=${payload.auto.anchorsMgdl.size / 3} raw=${payload.raw.anchorsMgdl.size / 3}",
+            )
         }
     }
 

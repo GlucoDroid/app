@@ -63,6 +63,7 @@ final static private String LOG_ID="Specific";
 
 static void start(Object context) {
     TrendAccess.register(tk.glucodata.logic.TrendEngineVelocityProvider.INSTANCE);
+    CalibrationAccess.register(SyncedWearCalibrationProvider.INSTANCE);
 }
 
 static    void splash(AppCompatActivity act) {

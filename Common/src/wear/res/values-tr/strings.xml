@@ -2,4 +2,7 @@
 <resources>
     <string name="wear_sensor_day_label">Gün</string>
     <string name="wear_sensor_day_format">Gün %1$s</string>
+    <string name="wear_return_sensor_to_phone">Sensörü telefona geri ver</string>
+    <string name="wear_claim_watch_owns">Saat sensörü okuyor</string>
+    <string name="wear_claim_waiting">Sensöre bağlanmayı bekliyor</string>
 </resources>

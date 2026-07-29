@@ -2,4 +2,7 @@
 <resources>
     <string name="wear_sensor_day_label">Dzień</string>
     <string name="wear_sensor_day_format">Dzień %1$s</string>
+    <string name="wear_return_sensor_to_phone">Zwróć sensor telefonowi</string>
+    <string name="wear_claim_watch_owns">Zegarek odczytuje sensor</string>
+    <string name="wear_claim_waiting">Oczekiwanie na połączenie z sensorem</string>
 </resources>

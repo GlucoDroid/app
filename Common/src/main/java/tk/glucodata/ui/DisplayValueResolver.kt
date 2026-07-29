@@ -1,6 +1,7 @@
 package tk.glucodata.ui
 
 import java.util.Locale
+import tk.glucodata.GlucoseValuePlausibility
 
 data class DisplayValues(
     val primaryValue: Float,
@@ -48,7 +49,9 @@ object DisplayValueResolver {
         hideInitialWhenCalibrated: Boolean = false
     ): DisplayValues {
         val autoDisplayValue = autoValue.takeIf { it.isFinite() && it > 0f } ?: Float.NaN
-        val rawDisplayValue = rawValue.takeIf { it.isFinite() && it > 0f } ?: Float.NaN
+        val rawDisplayValue = rawValue.takeIf {
+            GlucoseValuePlausibility.isPlausibleDisplayValue(it, isMmol)
+        } ?: Float.NaN
         val rawStr = if (rawDisplayValue.isFinite()) format(rawDisplayValue, isMmol) else "--"
         val valStr = if (autoDisplayValue.isFinite()) format(autoDisplayValue, isMmol) else "--"
         val isRawPrimaryMode = viewMode == 1 || viewMode == 3

@@ -3,6 +3,14 @@ package tk.glucodata
 object CalibrationAccess {
     private const val CLASS_NAME = "tk.glucodata.data.calibration.CalibrationManager"
 
+    @Volatile
+    private var provider: CalibrationProvider? = null
+
+    @JvmStatic
+    fun register(provider: CalibrationProvider) {
+        this.provider = provider
+    }
+
     private val holder by lazy { runCatching { Class.forName(CLASS_NAME) }.getOrNull() }
     private val instance by lazy { runCatching { holder?.getField("INSTANCE")?.get(null) }.getOrNull() }
     private val hasActiveCalibrationMethod by lazy {
@@ -83,6 +91,7 @@ object CalibrationAccess {
 
     @JvmStatic
     fun hasActiveCalibration(isRawMode: Boolean, sensorId: String? = null): Boolean {
+        provider?.let { return it.hasActiveCalibration(isRawMode, sensorId) }
         return runCatching {
             hasActiveCalibrationMethod?.invoke(instance, isRawMode, sensorId) as? Boolean
         }.getOrNull() ?: false
@@ -97,6 +106,15 @@ object CalibrationAccess {
         emitDiagnostics: Boolean = false,
         sensorIdOverride: String? = null
     ): Float {
+        provider?.let {
+            return it.getCalibratedValue(
+                value,
+                timestamp,
+                isRawMode,
+                emitDiagnostics,
+                sensorIdOverride,
+            )
+        }
         return runCatching {
             getCalibratedValueMethod?.invoke(
                 instance,
@@ -111,6 +129,7 @@ object CalibrationAccess {
 
     @JvmStatic
     fun shouldHideInitialWhenCalibrated(): Boolean {
+        provider?.let { return it.shouldHideInitialWhenCalibrated() }
         return runCatching {
             shouldHideInitialMethod?.invoke(instance) as? Boolean
         }.getOrNull() ?: false
@@ -123,6 +142,7 @@ object CalibrationAccess {
 
     @JvmStatic
     fun getActiveCalibrationAnchors(sensorId: String?, isRawMode: Boolean = false): DoubleArray {
+        provider?.let { return it.getActiveCalibrationAnchors(sensorId, isRawMode) }
         return runCatching {
             getActiveCalibrationAnchorsMethod?.invoke(instance, sensorId, isRawMode) as? DoubleArray
         }.getOrNull() ?: DoubleArray(0)
@@ -130,6 +150,7 @@ object CalibrationAccess {
 
     @JvmStatic
     fun shouldOverwriteSensorValues(): Boolean {
+        provider?.let { return it.shouldOverwriteSensorValues() }
         return runCatching {
             shouldOverwriteSensorValuesMethod?.invoke(instance) as? Boolean
         }.getOrNull() ?: false
@@ -137,6 +158,7 @@ object CalibrationAccess {
 
     @JvmStatic
     fun getRevision(): Long {
+        provider?.let { return it.getRevision() }
         return runCatching {
             when (val value = getRevisionMethod?.invoke(instance)) {
                 is Long -> value

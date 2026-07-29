@@ -15,6 +15,7 @@ import tk.glucodata.Applic
 import tk.glucodata.Natives
 import tk.glucodata.SensorIdentity
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.WearSync2
 import tk.glucodata.alerts.AlertRuntimeManager
 import tk.glucodata.data.HistoryDatabase
 import java.util.LinkedHashMap
@@ -712,6 +713,7 @@ object CalibrationManager {
     private fun requestUiRefreshAfterCalibrationChange() {
         UiRefreshBus.requestDataRefresh()
         UiRefreshBus.requestStatusRefresh()
+        tk.glucodata.WearSync2.onCalibrationChanged()
     }
 
     private fun deferGlucoseAlertsUntilNextReading() {

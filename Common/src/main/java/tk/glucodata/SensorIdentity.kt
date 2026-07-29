@@ -165,6 +165,13 @@ object SensorIdentity {
     @JvmStatic
     fun shouldUseNativeHistorySync(sensorId: String?): Boolean {
         val raw = normalized(sensorId) ?: return true
+        // On the companion, readings arrive over WearSync2 into native storage.
+        // A handoff copies the phone's managed record to the watch, which made
+        // the watch treat the sensor as "driver-owned Room storage" and skip
+        // native entirely — the screen showed "No data" while sync2 kept
+        // filling the store. Only a sensor this watch actually holds over BLE
+        // may claim to own its Room storage here.
+        if (Applic.isWearable && !hasLocalBleOwnership(raw)) return true
         managedDriverHistorySync(raw)?.let { return it }
         val canonical = canonicalOrRaw(raw) ?: raw
         if (!canonical.equals(raw, ignoreCase = true)) {
@@ -173,6 +180,19 @@ object SensorIdentity {
         return ManagedSensorIdentityRegistry.shouldUseNativeHistorySync(canonical)
             ?: ManagedSensorIdentityRegistry.shouldUseNativeHistorySync(raw)
             ?: true
+    }
+
+    /**
+     * True only when this process holds a live Android GATT connection for the
+     * sensor. Persisted or handoff-synced driver records cannot satisfy it.
+     */
+    private fun hasLocalBleOwnership(sensorId: String?): Boolean {
+        val raw = normalized(sensorId) ?: return false
+        return runCatching {
+            SensorBluetooth.mygatts().any { callback ->
+                callback.hasLocallyConnectedGatt() && matches(callback.SerialNumber, raw)
+            }
+        }.getOrDefault(false)
     }
 
     private fun managedDriverHistorySync(sensorId: String?): Boolean? {

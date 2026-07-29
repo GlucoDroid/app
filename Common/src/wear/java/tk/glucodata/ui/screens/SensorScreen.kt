@@ -49,7 +49,26 @@ private fun loadSensors(): List<SensorRow> = runCatching {
     val current = ManagedCurrentSensor.get() ?: Natives.lastsensorname()
     val active = Natives.activeSensors()?.toList().orEmpty()
     val connected = SensorBluetooth.mygatts()?.mapNotNull { it.SerialNumber }.orEmpty()
-    (active + connected).distinct().map { SensorRow(it, it == current, it in connected) }
+    // One physical sensor can appear under several ids at once (native alias
+    // plus the managed record synced by a handoff), which listed it twice.
+    // Collapse by canonical identity, keeping the connected/managed form.
+    val visible = active + connected
+    val managed = runCatching {
+        tk.glucodata.drivers.ManagedSensorIdentityRegistry
+            .persistedSensorIds(tk.glucodata.Applic.app)
+    }.getOrDefault(emptyList())
+        .filter { managedId ->
+            visible.any { candidate -> tk.glucodata.SensorIdentity.matches(managedId, candidate) }
+        }
+    val ordered = managed + connected + active
+    val kept = tk.glucodata.SensorIdentity.distinctLogicalSensorIds(ordered)
+    kept.map { id ->
+        SensorRow(
+            serial = id,
+            isCurrent = tk.glucodata.SensorIdentity.matches(id, current),
+            isConnected = connected.any { tk.glucodata.SensorIdentity.matches(it, id) },
+        )
+    }
 }.getOrDefault(emptyList())
 
 @Composable
@@ -71,6 +90,7 @@ fun SensorScreen(onCalibrate: () -> Unit) {
 
     LaunchedEffect(Unit) {
         launch { UiRefreshBus.revision.collect { revision = it; now = System.currentTimeMillis() } }
+        launch { tk.glucodata.WearSensorClaim.revision.collect { revision += 1L } }
         while (true) { delay(SENSOR_TICK_MS); now = System.currentTimeMillis() }
     }
 
@@ -184,6 +204,32 @@ fun SensorScreen(onCalibrate: () -> Unit) {
             }
             if (canCalibrate) {
                 item { WearNavigationRow(stringResource(R.string.calibrate_action), onClick = onCalibrate) }
+            }
+            item {
+                val claim = tk.glucodata.WearSensorClaim.currentState()
+                Text(
+                    text = stringResource(
+                        when (claim) {
+                            tk.glucodata.WearSensorClaimState.CONNECTED -> R.string.wear_claim_watch_owns
+                            tk.glucodata.WearSensorClaimState.REQUESTING -> R.string.wear_claim_waiting
+                            tk.glucodata.WearSensorClaimState.PHONE_OWNS -> R.string.wear_claim_state_phone_owns
+                        },
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            }
+            if (tk.glucodata.WearSensorClaim.currentState() != tk.glucodata.WearSensorClaimState.PHONE_OWNS) {
+                item {
+                    WearNavigationRow(
+                        stringResource(R.string.wear_return_sensor_to_phone),
+                        onClick = {
+                            tk.glucodata.WearSensorClaim.setDirectRequested(false)
+                            // setDirectRequested publishes both the claim state and netinfo.
+                        },
+                    )
+                }
             }
         }
     }

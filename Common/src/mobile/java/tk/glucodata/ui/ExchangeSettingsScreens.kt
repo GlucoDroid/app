@@ -63,6 +63,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,6 +98,7 @@ import tk.glucodata.R
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.WatchInterop
 import tk.glucodata.WearSensorClaimState
+import tk.glucodata.WearSensorClaimStatus
 import tk.glucodata.watchdrip
 import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.MasterSwitchCard
@@ -313,6 +315,7 @@ fun WearOsConfigScreen(navController: NavController) {
     var enterOnWatch by rememberSaveable { mutableStateOf(false) }
     var refreshingNodes by remember { mutableStateOf(false) }
     var syncStatus by remember { mutableStateOf(WatchInterop.getWearSyncStatus()) }
+    val claimRevision by WearSensorClaimStatus.revision.collectAsState()
 
     fun applyNodes(latest: List<WatchInterop.WearNodeInfo>) {
         nodes = latest
@@ -341,7 +344,7 @@ fun WearOsConfigScreen(navController: NavController) {
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(claimRevision) {
         refreshNodesNow()
     }
 
@@ -359,8 +362,29 @@ fun WearOsConfigScreen(navController: NavController) {
 
     val selected = nodes.firstOrNull { it.id == selectedNodeId }
     val selectedAppInstalled = selected?.appInstalled == true
-    val canSetDirect = selectedAppInstalled && (selected?.directSensorMode?.let { it >= 0 } == true)
+    val canSetDirect = selectedAppInstalled && (
+        selected?.claimState != null || selected?.directSensorMode?.let { it >= 0 } == true
+    )
     val canSetNums = selectedAppInstalled && (selected?.watchNumsMode?.let { it >= 0 } == true)
+    fun updateDirectRouting(enabled: Boolean) {
+        directOnWatch = enabled
+        if (!enabled && selected != null) {
+            scope.launch {
+                val ended = withContext(Dispatchers.IO) {
+                    WatchInterop.applyWearNodeRouting(
+                        selected.id,
+                        selected.isGalaxy,
+                        directOnWatch = false,
+                        enterOnWatch = enterOnWatch,
+                    )
+                }
+                if (!ended) {
+                    Toast.makeText(context, context.getString(R.string.wentwrong), Toast.LENGTH_SHORT).show()
+                }
+                refreshNodesNow()
+            }
+        }
+    }
     fun timeStatus(timeMs: Long): String = if (timeMs <= 0L) {
         "Never"
     } else {
@@ -473,7 +497,7 @@ fun WearOsConfigScreen(navController: NavController) {
                         iconTint = MaterialTheme.colorScheme.primary,
                         position = CardPosition.TOP,
                         onClick = if (selected != null && canSetDirect) {
-                            { directOnWatch = !directOnWatch }
+                            { updateDirectRouting(!directOnWatch) }
                         } else {
                             null
                         },
@@ -481,7 +505,7 @@ fun WearOsConfigScreen(navController: NavController) {
                             StyledSwitch(
                                 checked = directOnWatch,
                                 onCheckedChange = if (selected != null && canSetDirect) {
-                                    { directOnWatch = it }
+                                    { updateDirectRouting(it) }
                                 } else {
                                     null
                                 },

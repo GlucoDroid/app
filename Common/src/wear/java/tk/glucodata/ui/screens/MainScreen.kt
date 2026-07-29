@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,12 +42,10 @@ import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.TimeText
 import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import tk.glucodata.Applic
 import tk.glucodata.CurrentDisplaySource
-import tk.glucodata.CalibrationAccess
 import tk.glucodata.DisplayDataState
 import tk.glucodata.GlucosePoint
 import tk.glucodata.GlucoseRangeColors
@@ -90,34 +89,6 @@ internal fun trendArrow(rate: Float): String = runCatching {
     }
 }.getOrDefault("")
 
-private fun displayValue(value: Float, isMmol: Boolean): String =
-    if (isMmol) String.format(Locale.getDefault(), "%.1f", value) else String.format(Locale.getDefault(), "%.0f", value)
-
-private data class HeroVariant(val label: String, val value: String, val primary: Boolean)
-
-private fun heroVariants(
-    snapshot: CurrentDisplaySource.Snapshot,
-    autoLabel: String,
-    rawLabel: String,
-    calibratedLabel: String,
-    glucoseLabel: String,
-): List<HeroVariant> {
-    val values = ArrayList<HeroVariant>(3)
-    val auto = snapshot.autoValue.takeIf { it.isFinite() && it > 0f }
-    val raw = snapshot.rawValue.takeIf { it.isFinite() && it > 0f }
-    val rawMode = snapshot.viewMode == 1 || snapshot.viewMode == 3
-    val calibrated = snapshot.primaryValue.takeIf {
-        it.isFinite() && it > 0f && CalibrationAccess.hasActiveCalibration(rawMode, snapshot.sensorId)
-    }
-    calibrated?.let { values += HeroVariant(calibratedLabel, displayValue(it, snapshot.isMmol), true) }
-    auto?.let { values += HeroVariant(autoLabel, displayValue(it, snapshot.isMmol), calibrated == null && !rawMode) }
-    raw?.let { values += HeroVariant(rawLabel, displayValue(it, snapshot.isMmol), calibrated == null && rawMode) }
-    if (values.none { it.primary }) {
-        values.add(0, HeroVariant(glucoseLabel, snapshot.primaryStr, true))
-    }
-    return values.distinctBy { it.label }
-}
-
 @Composable
 fun MainScreen(
     onOpenSettings: () -> Unit,
@@ -142,14 +113,15 @@ fun MainScreen(
                 .asReversed().take(6)
         }.getOrDefault(emptyList())
     }
+    val newestReading = recent.firstOrNull()
 
     ScreenScaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(contentPadding = PaddingValues(top = 34.dp, bottom = 28.dp)) {
             item {
                 val snap = snapshot
                 val status = DisplayDataState.resolve(
-                    sensorPresent = sensorPresent() || snap != null,
-                    currentTimestampMillis = snap?.timeMillis ?: 0L,
+                    sensorPresent = sensorPresent() || snap != null || newestReading != null,
+                    currentTimestampMillis = newestReading?.timestamp ?: 0L,
                     latestHistoryTimestampMillis = 0L,
                     nowMillis = now,
                 )
@@ -165,10 +137,17 @@ fun MainScreen(
                         headlineTopPadding = 58.dp,
                         modifier = Modifier.fillMaxSize(),
                     )
-                    if (snap != null && status.hasData) {
+                    if (newestReading != null && status.hasData) {
                         HeroCard(
-                            snap, status.isStale, now,
-                            modifier = Modifier.align(Alignment.TopCenter),
+                            point = newestReading,
+                            isMmol = isMmol,
+                            stale = status.isStale,
+                            sensorId = snap?.sensorId,
+                            // Sits as high as the clock allows so the big value
+                            // overlaps as little of the curve as possible.
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .offset(y = (-18).dp),
                         )
                     } else {
                         Column(
@@ -311,29 +290,28 @@ private fun ReadingRow(
 
 @Composable
 private fun HeroCard(
-    snapshot: CurrentDisplaySource.Snapshot,
+    point: GlucosePoint,
+    isMmol: Boolean,
     stale: Boolean,
-    now: Long,
+    sensorId: String?,
     modifier: Modifier = Modifier,
 ) {
-    val rangeColor = glucoseColor(snapshot)
-    val points = remember(snapshot.timeMillis) {
-        NotificationHistorySource.getDisplayHistory(snapshot.timeMillis - 35 * 60_000L, snapshot.isMmol, snapshot.sensorId)
+    // The big number must be the same value the readings row below shows: the
+    // hero used to resolve its own snapshot through CurrentDisplaySource while
+    // the list came from NotificationHistorySource, so the two disagreed and
+    // the hero looked stale against its own list.
+    val rangeColor = rangeColor(point.value, isMmol)
+    val points = remember(point.timestamp, isMmol, sensorId) {
+        NotificationHistorySource.getDisplayHistory(
+            point.timestamp - 35 * 60_000L,
+            isMmol,
+            sensorId,
+        )
     }
-    val velocity = remember(points, snapshot.viewMode, snapshot.isMmol) {
-        TrendAccess.calculateVelocity(points, snapshot.viewMode == 1 || snapshot.viewMode == 3, snapshot.isMmol)
-            .takeIf { points.size >= 2 && it.isFinite() } ?: snapshot.rate
+    val velocity = remember(points, isMmol) {
+        TrendAccess.calculateVelocity(points, false, isMmol)
+            .takeIf { points.size >= 2 && it.isFinite() } ?: 0f
     }
-    val autoLabel = stringResource(R.string.auto)
-    val rawLabel = stringResource(R.string.raw)
-    val calibratedLabel = stringResource(R.string.calibrated)
-    val glucoseLabel = stringResource(R.string.glucose)
-    val variants = remember(snapshot, autoLabel, rawLabel, calibratedLabel, glucoseLabel) {
-        heroVariants(snapshot, autoLabel, rawLabel, calibratedLabel, glucoseLabel)
-    }
-    val primary = variants.first { it.primary }
-    val secondary = variants.firstOrNull { !it.primary }
-    val ageMin = ((now - snapshot.timeMillis) / 60_000L).coerceAtLeast(0L)
     // Floating pill over the chart: wraps content, translucent scrim so the
     // curve stays visible behind it.
     Row(
@@ -344,29 +322,15 @@ private fun HeroCard(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            primary.value,
-            style = MaterialTheme.typography.displayLarge.copy(fontSize = 40.sp, fontWeight = FontWeight.SemiBold),
+            formatWearGlucose(point.value, isMmol),
+            style = MaterialTheme.typography.displayLarge.copy(fontSize = 44.sp, fontWeight = FontWeight.SemiBold),
             color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant else rangeColor,
         )
-        secondary?.let { variant ->
-            Text(
-                variant.value,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 6.dp),
-            )
-        }
         TrendArrowCanvas(
             velocity = velocity,
-            pulseKey = snapshot.timeMillis,
+            pulseKey = point.timestamp,
             modifier = Modifier.size(28.dp).padding(start = 4.dp),
             color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant else rangeColor,
-        )
-        Text(
-            "${ageMin}m",
-            style = MaterialTheme.typography.labelSmall,
-            color = if (stale) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp),
         )
     }
 }

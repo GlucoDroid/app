@@ -4,6 +4,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import tk.glucodata.drivers.ManagedBluetoothSensorDriver
 
 enum class WearSensorClaimState(val wireValue: Int) {
@@ -24,6 +26,8 @@ object WearSensorClaimStatus {
     private data class RemoteStatus(val state: WearSensorClaimState, val receivedAtMs: Long)
 
     private val remoteByNode = ConcurrentHashMap<String, RemoteStatus>()
+    private val _revision = MutableStateFlow(0L)
+    val revision = _revision.asStateFlow()
 
     @JvmStatic
     fun onRemoteStatus(nodeId: String?, data: ByteArray?) {
@@ -35,6 +39,7 @@ object WearSensorClaimStatus {
         val previous = remoteByNode.put(nodeId, RemoteStatus(state, System.currentTimeMillis()))?.state
         if (previous != state) {
             Log.i(LOG_ID, "watch claim state node=$nodeId ${previous ?: "unknown"} -> $state")
+            _revision.value = _revision.value + 1L
         }
     }
 
@@ -90,6 +95,8 @@ object WearSensorClaim {
     @Volatile private var requestedAtMs = 0L
     @Volatile private var localReadingSerial: String? = null
     @Volatile private var localReadingAcceptedAtMs = 0L
+    private val _revision = MutableStateFlow(0L)
+    val revision = _revision.asStateFlow()
     private var lastWaitingReason = ""
     private var monitor: ScheduledFuture<*>? = null
 
@@ -278,6 +285,7 @@ object WearSensorClaim {
             Log.i(LOG_ID, "watch sensor claim remains $next: $reason")
         } else {
             Log.i(LOG_ID, "watch sensor claim $previous -> $next: $reason")
+            _revision.value = _revision.value + 1L
         }
     }
 

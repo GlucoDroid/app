@@ -27,6 +27,7 @@
     <string name="talkhelp" />
     <string name="wear_sensor_day_label">Day</string>
     <string name="wear_sensor_day_format">Day %1$s</string>
-
-
+    <string name="wear_return_sensor_to_phone">Return sensor to phone</string>
+    <string name="wear_claim_watch_owns">Watch is reading the sensor</string>
+    <string name="wear_claim_waiting">Waiting to connect to the sensor</string>
 </resources>

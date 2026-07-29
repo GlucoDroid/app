@@ -3,5 +3,8 @@
 <string name="libresetalllabels">Geben Sie zunächst (auf dem Begleittelefon) für jedes Etikett an, was damit geschehen soll.</string>
 <string name="wear_sensor_day_label">Tag</string>
 <string name="wear_sensor_day_format">Tag %1$s</string>
+    <string name="wear_return_sensor_to_phone">Sensor an Telefon zurückgeben</string>
+    <string name="wear_claim_watch_owns">Uhr liest den Sensor</string>
+    <string name="wear_claim_waiting">Warte auf Verbindung zum Sensor</string>
 </resources>
 

@@ -67,6 +67,9 @@ class MessageReceiver: WearableListenerService() {
             MessageSender.SYNC2_CHUNK_PATH -> {
                 if (isWearable) WearSync2.onChunk(data)
             }
+            MessageSender.SYNC2_CAL_PATH -> {
+                if (isWearable) WearSync2.onCalibration(data)
+            }
             MessageSender.SYNC2_REMOVE_PATH -> {
                 if (isWearable) WearSync2.onRemove(data)
             }
