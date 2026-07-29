@@ -294,7 +294,7 @@ private fun ReadingRow(
 }
 
 @Composable
-private fun HeroCard(
+internal fun HeroCard(
     point: GlucosePoint,
     isMmol: Boolean,
     stale: Boolean,

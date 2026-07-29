@@ -5,4 +5,7 @@
     <string name="wear_return_sensor_to_phone">Rendre le capteur au téléphone</string>
     <string name="wear_claim_watch_owns">La montre lit le capteur</string>
     <string name="wear_claim_waiting">En attente de connexion au capteur</string>
+    <string name="wear_calibration_on">Calibration activée</string>
+    <string name="wear_calibration_off">Calibration désactivée</string>
+    <string name="wear_calibration_clear">Effacer les calibrations</string>
 </resources>

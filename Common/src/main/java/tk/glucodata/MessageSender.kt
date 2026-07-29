@@ -300,6 +300,7 @@ companion object {
     const val SYNC2_REQ_PATH = "/sync2/req"
     const val SYNC2_CHUNK_PATH = "/sync2/chunk"
     const val SYNC2_CAL_PATH = "/sync2/cal"
+    const val CALIBRATION_CMD_PATH = "/sync2/calcmd"
     const val SYNC2_REMOVE_PATH = "/sync2/remove"
     val scope = CoroutineScope(Dispatchers.IO+SupervisorJob()  )
     private var messagesender: MessageSender? = null

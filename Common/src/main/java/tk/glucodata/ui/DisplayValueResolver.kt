@@ -1,7 +1,8 @@
 package tk.glucodata.ui
 
-import java.util.Locale
 import tk.glucodata.GlucoseValuePlausibility
+
+import java.util.Locale
 
 data class DisplayValues(
     val primaryValue: Float,

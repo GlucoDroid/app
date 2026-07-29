@@ -30,4 +30,7 @@
     <string name="wear_return_sensor_to_phone">Return sensor to phone</string>
     <string name="wear_claim_watch_owns">Watch is reading the sensor</string>
     <string name="wear_claim_waiting">Waiting to connect to the sensor</string>
+    <string name="wear_calibration_on">Calibration on</string>
+    <string name="wear_calibration_off">Calibration off</string>
+    <string name="wear_calibration_clear">Clear calibrations</string>
 </resources>

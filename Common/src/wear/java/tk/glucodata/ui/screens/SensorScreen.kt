@@ -72,7 +72,7 @@ private fun loadSensors(): List<SensorRow> = runCatching {
 }.getOrDefault(emptyList())
 
 @Composable
-fun SensorScreen(onCalibrate: () -> Unit) {
+fun SensorScreen(onCalibrate: () -> Unit, onOpenSettings: (() -> Unit)? = null) {
     var revision by remember { mutableLongStateOf(0L) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val sensors = remember(revision) { loadSensors() }
@@ -204,6 +204,9 @@ fun SensorScreen(onCalibrate: () -> Unit) {
             }
             if (canCalibrate) {
                 item { WearNavigationRow(stringResource(R.string.calibrate_action), onClick = onCalibrate) }
+            }
+            onOpenSettings?.let { open ->
+                item { WearNavigationRow(stringResource(R.string.settings), onClick = open) }
             }
             item {
                 val claim = tk.glucodata.WearSensorClaim.currentState()

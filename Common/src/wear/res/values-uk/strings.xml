@@ -5,4 +5,7 @@
     <string name="wear_return_sensor_to_phone">Повернути сенсор телефону</string>
     <string name="wear_claim_watch_owns">Годинник читає сенсор</string>
     <string name="wear_claim_waiting">Очікування підключення до сенсора</string>
+    <string name="wear_calibration_on">Калібрування увімкнено</string>
+    <string name="wear_calibration_off">Калібрування вимкнено</string>
+    <string name="wear_calibration_clear">Очистити калібрування</string>
 </resources>

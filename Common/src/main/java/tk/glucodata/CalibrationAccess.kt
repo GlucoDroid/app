@@ -89,6 +89,36 @@ object CalibrationAccess {
         }.getOrNull()
     }
 
+    private val setEnabledForModeMethod by lazy {
+        runCatching {
+            holder?.getMethod(
+                "setEnabledForMode",
+                Boolean::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                String::class.java,
+            )
+        }.getOrNull()
+    }
+    private val clearAllMethod by lazy {
+        runCatching { holder?.getMethod("clearAllBlocking") }.getOrNull()
+    }
+
+    /** Enable or disable calibration for both lanes of the current sensor. */
+    @JvmStatic
+    fun setEnabled(enabled: Boolean): Boolean = runCatching {
+        val method = setEnabledForModeMethod ?: return false
+        method.invoke(instance, false, enabled, null)
+        method.invoke(instance, true, enabled, null)
+        true
+    }.getOrDefault(false)
+
+    /** Delete every stored calibration. */
+    @JvmStatic
+    fun clearAll(): Boolean = runCatching {
+        clearAllMethod?.invoke(instance) ?: return false
+        true
+    }.getOrDefault(false)
+
     @JvmStatic
     fun hasActiveCalibration(isRawMode: Boolean, sensorId: String? = null): Boolean {
         provider?.let { return it.hasActiveCalibration(isRawMode, sensorId) }

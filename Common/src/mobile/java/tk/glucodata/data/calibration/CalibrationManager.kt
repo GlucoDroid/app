@@ -1176,6 +1176,11 @@ object CalibrationManager {
         requestMirrorCalibrationSync(entity.sensorId)
     }
     
+    /** Blocking entry point for the shared Wear bridge (see WearCalibrationCommand). */
+    fun clearAllBlocking() {
+        kotlinx.coroutines.runBlocking { clearAll() }
+    }
+
     suspend fun clearAll() {
         val affectedSensors = _calibrations.value.map { it.sensorId }
         withContext(Dispatchers.IO) { dao.deleteAll() }

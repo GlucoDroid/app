@@ -70,6 +70,9 @@ class MessageReceiver: WearableListenerService() {
             MessageSender.SYNC2_CAL_PATH -> {
                 if (isWearable) WearSync2.onCalibration(data)
             }
+            MessageSender.CALIBRATION_CMD_PATH -> {
+                if (!isWearable) WearCalibrationCommand.onCommand(data)
+            }
             MessageSender.SYNC2_REMOVE_PATH -> {
                 if (isWearable) WearSync2.onRemove(data)
             }

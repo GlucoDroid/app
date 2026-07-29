@@ -6,5 +6,8 @@
     <string name="wear_return_sensor_to_phone">Sensor an Telefon zurückgeben</string>
     <string name="wear_claim_watch_owns">Uhr liest den Sensor</string>
     <string name="wear_claim_waiting">Warte auf Verbindung zum Sensor</string>
+    <string name="wear_calibration_on">Kalibrierung ein</string>
+    <string name="wear_calibration_off">Kalibrierung aus</string>
+    <string name="wear_calibration_clear">Kalibrierungen löschen</string>
 </resources>
 

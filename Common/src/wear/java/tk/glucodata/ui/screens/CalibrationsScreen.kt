@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -43,9 +46,13 @@ private fun calibrations(): List<WearCalibration> {
 
 @Composable
 fun CalibrationScreen(onCalibrate: () -> Unit) {
+    var revision by remember { mutableIntStateOf(0) }
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
     val conversion = if (isMmol) 18.0182f else 1f
-    val entries = remember { calibrations() }
+    val entries = remember(revision) { calibrations() }
+    val enabled = remember(revision) {
+        runCatching { tk.glucodata.CalibrationAccess.hasActiveCalibration(false, null) }.getOrDefault(false)
+    }
     val context = LocalContext.current
     val formatter = remember(context) { DateFormat.getDateFormat(context) }
     val timeFormatter = remember(context) { DateFormat.getTimeFormat(context) }
@@ -60,6 +67,31 @@ fun CalibrationScreen(onCalibrate: () -> Unit) {
             if (canCalibrate) {
                 item { WearNavigationRow(stringResource(R.string.calibrate_action), stringResource(R.string.glucose_value), onClick = onCalibrate) }
             }
+            // CalibrationManager lives on the phone, so these relay a command
+            // and let the resulting calibration state sync back.
+            item {
+                WearNavigationRow(
+                    stringResource(if (enabled) R.string.wear_calibration_on else R.string.wear_calibration_off),
+                    onClick = {
+                        tk.glucodata.WearCalibrationCommand.send(
+                            if (enabled) tk.glucodata.WearCalibrationCommand.DISABLE
+                            else tk.glucodata.WearCalibrationCommand.ENABLE,
+                        )
+                        revision++
+                    },
+                )
+            }
+            if (entries.isNotEmpty()) {
+                item {
+                    WearNavigationRow(
+                        stringResource(R.string.wear_calibration_clear),
+                        onClick = {
+                            tk.glucodata.WearCalibrationCommand.send(tk.glucodata.WearCalibrationCommand.CLEAR)
+                            revision++
+                        },
+                    )
+                }
+            }
             if (entries.isEmpty()) {
                 item { Text(stringResource(R.string.nodata), color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
@@ -71,14 +103,12 @@ fun CalibrationScreen(onCalibrate: () -> Unit) {
                         Text(timeFormatter.format(Date(entry.timestamp)), style = MaterialTheme.typography.labelLarge)
                         Text(formatter.format(Date(entry.timestamp)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Column {
-                        Text(formatWearGlucose(entry.userValue / conversion, isMmol), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                        Text(
-                            "${stringResource(R.string.sensor)} ${formatWearGlucose(entry.sourceValue / conversion, isMmol)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Text(
+                        "${formatWearGlucose(entry.sourceValue / conversion, isMmol)} \u2192 " +
+                            formatWearGlucose(entry.userValue / conversion, isMmol),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
         }

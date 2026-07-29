@@ -5,4 +5,7 @@
     <string name="wear_return_sensor_to_phone">Вярнуць датчык тэлефону</string>
     <string name="wear_claim_watch_owns">Гадзіннік чытае датчык</string>
     <string name="wear_claim_waiting">Чаканне падключэння да датчыка</string>
+    <string name="wear_calibration_on">Каліброўка ўключана</string>
+    <string name="wear_calibration_off">Каліброўка выключана</string>
+    <string name="wear_calibration_clear">Ачысціць каліброўкі</string>
 </resources>

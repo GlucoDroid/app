@@ -57,12 +57,25 @@ class WearCalibrationPayloadTests {
     }
 
     @Test
-    fun physiologicalGate_usesEquivalentMgdlAndMmolLimits() {
+    fun displayGate_rejectsOnlyValuesTooLargeToBeGlucose() {
+        // A driver diagnostic (Ottai's electrode current) must never render as
+        // a reading, but a genuinely low reading still has to be shown — some
+        // drivers' raw lanes sit far below the physiological floor.
         assertTrue(GlucoseValuePlausibility.isPlausibleDisplayValue(20f, isMmol = false))
         assertTrue(GlucoseValuePlausibility.isPlausibleDisplayValue(600f, isMmol = false))
-        assertFalse(GlucoseValuePlausibility.isPlausibleDisplayValue(19.9f, isMmol = false))
+        assertTrue(GlucoseValuePlausibility.isPlausibleDisplayValue(10.8f, isMmol = false))
+        assertFalse(GlucoseValuePlausibility.isPlausibleDisplayValue(0f, isMmol = false))
         assertFalse(GlucoseValuePlausibility.isPlausibleDisplayValue(11_557f, isMmol = false))
-        assertTrue(GlucoseValuePlausibility.isPlausibleDisplayValue(20f / 18.0182f, isMmol = true))
+        assertTrue(GlucoseValuePlausibility.isPlausibleDisplayValue(0.6f, isMmol = true))
         assertFalse(GlucoseValuePlausibility.isPlausibleDisplayValue(34f, isMmol = true))
+    }
+
+    @Test
+    fun storageGate_keepsBothPhysiologicalBounds() {
+        // What gets stored or synced is held to the tighter range.
+        assertTrue(GlucoseValuePlausibility.isPlausibleMgdl(20f))
+        assertTrue(GlucoseValuePlausibility.isPlausibleMgdl(600f))
+        assertFalse(GlucoseValuePlausibility.isPlausibleMgdl(19.9f))
+        assertFalse(GlucoseValuePlausibility.isPlausibleMgdl(11_557f))
     }
 }

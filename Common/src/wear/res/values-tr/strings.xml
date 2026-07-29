@@ -5,4 +5,7 @@
     <string name="wear_return_sensor_to_phone">Sensörü telefona geri ver</string>
     <string name="wear_claim_watch_owns">Saat sensörü okuyor</string>
     <string name="wear_claim_waiting">Sensöre bağlanmayı bekliyor</string>
+    <string name="wear_calibration_on">Kalibrasyon açık</string>
+    <string name="wear_calibration_off">Kalibrasyon kapalı</string>
+    <string name="wear_calibration_clear">Kalibrasyonları temizle</string>
 </resources>
