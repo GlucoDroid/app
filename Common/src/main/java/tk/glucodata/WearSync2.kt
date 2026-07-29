@@ -152,9 +152,27 @@ object WearSync2 {
             ?: runCatching { Natives.lastsensorname() }.getOrNull().takeUnless { it.isNullOrEmpty() }
             ?: return
         sendCalibration(serial)
-        val triples = runCatching { Natives.getGlucoseHistoryForSensor(serial, fromSec) }.getOrNull()
-        if (triples == null || triples.size < 3) return
-        val total = triples.size / 3
+        // Serve what the phone itself displays, not the native stream. For a
+        // managed driver the native store only goes back to the moment native
+        // mirroring started, while Room holds the sensor's whole life — that,
+        // not the horizon, is why the watch never got more than a few hours of
+        // a five-day sensor. These values are already calibrated (they come
+        // from the display path), so no further calibration is applied below.
+        val points = runCatching {
+            NotificationHistorySource.getRawHistory(fromSec * 1000L, serial)
+        }.getOrDefault(emptyList())
+            .filter { it.timestamp > 0L && GlucoseValuePlausibility.isPlausibleMgdl(it.value) }
+            .sortedBy { it.timestamp }
+        if (points.isEmpty()) return
+        val triples = LongArray(points.size * 3)
+        points.forEachIndexed { i, point ->
+            triples[i * 3] = point.timestamp / 1000L
+            triples[i * 3 + 1] = (point.value * 10f).roundToInt().toLong()
+            triples[i * 3 + 2] = point.rawValue
+                .takeIf { GlucoseValuePlausibility.isPlausibleMgdl(it) }
+                ?.let { (it * 10f).roundToInt().toLong() } ?: 0L
+        }
+        val total = points.size
         var index = 0
         var chunks = 0L
         while (index < total) {
@@ -191,11 +209,12 @@ object WearSync2 {
             val base = (offset + i) * 3
             val timeSec = triples[base]
             buf.putLong(timeSec)
-            buf.putInt(calibratedLane10(triples[base + 1].toInt(), timeSec, false, serial))
+            // Already calibrated by the phone's display path in serveSince.
+            buf.putInt(triples[base + 1].toInt())
             val raw10 = triples[base + 2].toInt()
             buf.putInt(
                 if (GlucoseValuePlausibility.isPlausibleMgdl(raw10 / 10f)) {
-                    calibratedLane10(raw10, timeSec, true, serial)
+                    raw10
                 } else {
                     0
                 },

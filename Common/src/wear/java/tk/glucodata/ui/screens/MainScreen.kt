@@ -127,7 +127,7 @@ fun MainScreen(
                 )
                 // The chart IS the first screen: it takes the entire viewport
                 // and the hero floats over it instead of stacking above.
-                Box(Modifier.fillParentMaxHeight(0.82f).fillMaxWidth()) {
+                Box(Modifier.fillParentMaxHeight(0.94f).fillMaxWidth()) {
                     InteractiveWearChartPanel(
                         initialRangeIndex = 0,
                         requestInitialFocus = false,
