@@ -2,6 +2,8 @@ package tk.glucodata.ui.screens
 
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -45,7 +47,10 @@ private fun calibrations(): List<WearCalibration> {
 }
 
 @Composable
-fun CalibrationScreen(onCalibrate: () -> Unit) {
+fun CalibrationScreen(
+    onCalibrate: () -> Unit,
+    onEditCalibration: ((timestamp: Long, userValueMgdl: Float, sensorValueMgdl: Float) -> Unit)? = null,
+) {
     var revision by remember { mutableIntStateOf(0) }
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
     val conversion = if (isMmol) 18.0182f else 1f
@@ -97,7 +102,17 @@ fun CalibrationScreen(onCalibrate: () -> Unit) {
             }
             items(entries, key = { it.timestamp }) { entry ->
                 Row(
-                    Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(20.dp)).padding(horizontal = 13.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .then(
+                            onEditCalibration?.let { edit ->
+                                Modifier.clickable {
+                                    edit(entry.timestamp, entry.userValue, entry.sourceValue)
+                                }
+                            } ?: Modifier,
+                        )
+                        .padding(horizontal = 13.dp, vertical = 10.dp),
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(timeFormatter.format(Date(entry.timestamp)), style = MaterialTheme.typography.labelLarge)

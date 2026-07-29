@@ -112,6 +112,33 @@ object CalibrationAccess {
         true
     }.getOrDefault(false)
 
+    private val deleteCalibrationAtMethod by lazy {
+        runCatching {
+            holder?.getMethod("deleteCalibrationAtBlocking", Long::class.javaPrimitiveType)
+        }.getOrNull()
+    }
+    private val updateCalibrationValueMethod by lazy {
+        runCatching {
+            holder?.getMethod(
+                "updateCalibrationUserValueBlocking",
+                Long::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType,
+            )
+        }.getOrNull()
+    }
+
+    /** Delete the calibration recorded at [timestamp]. */
+    @JvmStatic
+    fun deleteCalibrationAt(timestamp: Long): Boolean = runCatching {
+        deleteCalibrationAtMethod?.invoke(instance, timestamp) as? Boolean ?: false
+    }.getOrDefault(false)
+
+    /** Change the fingerstick value of the calibration recorded at [timestamp]. */
+    @JvmStatic
+    fun updateCalibrationUserValue(timestamp: Long, userValueMgdl: Float): Boolean = runCatching {
+        updateCalibrationValueMethod?.invoke(instance, timestamp, userValueMgdl) as? Boolean ?: false
+    }.getOrDefault(false)
+
     /** Delete every stored calibration. */
     @JvmStatic
     fun clearAll(): Boolean = runCatching {

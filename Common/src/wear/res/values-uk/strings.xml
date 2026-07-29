@@ -8,4 +8,5 @@
     <string name="wear_calibration_on">Калібрування увімкнено</string>
     <string name="wear_calibration_off">Калібрування вимкнено</string>
     <string name="wear_calibration_clear">Очистити калібрування</string>
+    <string name="wear_calibration_delete">Видалити калібрування</string>
 </resources>

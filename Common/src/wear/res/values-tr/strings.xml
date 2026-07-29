@@ -8,4 +8,5 @@
     <string name="wear_calibration_on">Kalibrasyon açık</string>
     <string name="wear_calibration_off">Kalibrasyon kapalı</string>
     <string name="wear_calibration_clear">Kalibrasyonları temizle</string>
+    <string name="wear_calibration_delete">Kalibrasyonu sil</string>
 </resources>

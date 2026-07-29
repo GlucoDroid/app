@@ -57,7 +57,14 @@ fun WearApp() {
             composable(WearRoutes.CHART) { ChartScreen() }
             composable(WearRoutes.READINGS) { RecentReadingsScreen() }
             composable(WearRoutes.CALIBRATIONS) {
-                CalibrationScreen(onCalibrate = { navController.navigate(WearRoutes.CALIBRATE) })
+                CalibrationScreen(
+                    onCalibrate = { navController.navigate(WearRoutes.CALIBRATE) },
+                    onEditCalibration = { timestamp, userValue, sensorValue ->
+                        navController.navigate(
+                            "${WearRoutes.CALIBRATE}?ts=$timestamp&user=$userValue&sensor=$sensorValue",
+                        )
+                    },
+                )
             }
             composable(WearRoutes.ALERTS) { AlertsScreen() }
             composable(WearRoutes.SENSOR) {
@@ -65,6 +72,21 @@ fun WearApp() {
             }
             composable(WearRoutes.CALIBRATE) {
                 tk.glucodata.ui.screens.CalibrationEntryScreen(onDone = { navController.popBackStack() })
+            }
+            composable(
+                route = "${WearRoutes.CALIBRATE}?ts={ts}&user={user}&sensor={sensor}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("ts") { defaultValue = "0" },
+                    androidx.navigation.navArgument("user") { defaultValue = "NaN" },
+                    androidx.navigation.navArgument("sensor") { defaultValue = "NaN" },
+                ),
+            ) { entry ->
+                tk.glucodata.ui.screens.CalibrationEntryScreen(
+                    onDone = { navController.popBackStack() },
+                    editTimestamp = entry.arguments?.getString("ts")?.toLongOrNull() ?: 0L,
+                    editUserValueMgdl = entry.arguments?.getString("user")?.toFloatOrNull() ?: Float.NaN,
+                    sensorValueMgdl = entry.arguments?.getString("sensor")?.toFloatOrNull() ?: Float.NaN,
+                )
             }
             composable(WearRoutes.SETTINGS) {
                 SettingsScreen(

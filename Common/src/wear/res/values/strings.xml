@@ -33,4 +33,5 @@
     <string name="wear_calibration_on">Calibration on</string>
     <string name="wear_calibration_off">Calibration off</string>
     <string name="wear_calibration_clear">Clear calibrations</string>
+    <string name="wear_calibration_delete">Delete calibration</string>
 </resources>

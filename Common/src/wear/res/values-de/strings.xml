@@ -9,5 +9,6 @@
     <string name="wear_calibration_on">Kalibrierung ein</string>
     <string name="wear_calibration_off">Kalibrierung aus</string>
     <string name="wear_calibration_clear">Kalibrierungen löschen</string>
+    <string name="wear_calibration_delete">Kalibrierung löschen</string>
 </resources>
 

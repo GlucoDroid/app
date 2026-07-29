@@ -9,5 +9,6 @@
     <string name="wear_calibration_on">Kalibratie aan</string>
     <string name="wear_calibration_off">Kalibratie uit</string>
     <string name="wear_calibration_clear">Kalibraties wissen</string>
+    <string name="wear_calibration_delete">Kalibratie verwijderen</string>
 </resources>
 

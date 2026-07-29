@@ -46,7 +46,13 @@ internal fun findCalibratableDriver() = ManagedCalibration.findCalibratableDrive
 // applied locally in standalone mode, relayed to the phone over /calibrate
 // in companion mode.
 @Composable
-fun CalibrationEntryScreen(onDone: () -> Unit) {
+fun CalibrationEntryScreen(
+    onDone: () -> Unit,
+    editTimestamp: Long = 0L,
+    editUserValueMgdl: Float = Float.NaN,
+    sensorValueMgdl: Float = Float.NaN,
+) {
+    val editing = editTimestamp > 0L
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
     val hasLocalDriver = remember { findCalibratableDriver() != null }
     val canRelay = remember { MessageSender.isWearTransportAvailable() && MessageSender.getMessageSender() != null }
@@ -56,7 +62,15 @@ fun CalibrationEntryScreen(onDone: () -> Unit) {
     val step = if (isMmol) 0.1f else 1f
     val min = if (isMmol) 2.2f else 40f
     val max = if (isMmol) 27.7f else 500f
-    var value by remember { mutableFloatStateOf(if (isMmol) 5.5f else 100f) }
+    var value by remember {
+        val seedMgdl = editUserValueMgdl.takeIf { it.isFinite() && it > 0f }
+        val seed = when {
+            seedMgdl == null -> if (isMmol) 5.5f else 100f
+            isMmol -> seedMgdl / MGDL_PER_MMOLL
+            else -> seedMgdl
+        }
+        mutableFloatStateOf(seed)
+    }
     var rotaryAccum by remember { mutableStateOf(0f) }
     var sending by remember { mutableStateOf(false) }
     var resultOk by remember { mutableStateOf<Boolean?>(null) }
@@ -84,7 +98,7 @@ fun CalibrationEntryScreen(onDone: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            if (!hasLocalDriver && !canRelay) {
+            if (!editing && !hasLocalDriver && !canRelay) {
                 // No locally connected calibratable sensor and no phone link.
                 Text(
                     text = stringResource(R.string.no_sensor_title),
@@ -95,10 +109,25 @@ fun CalibrationEntryScreen(onDone: () -> Unit) {
                 return@Column
             }
 
+            // Same shape as the phone's calibration sheet: what the sensor
+            // reads, and under it the value you correct it to.
+            val sensorDisplay = sensorValueMgdl.takeIf { it.isFinite() && it > 0f }
+                ?.let { if (isMmol) it / MGDL_PER_MMOLL else it }
             Text(
-                text = stringResource(R.string.calibrate_action),
-                style = MaterialTheme.typography.titleMedium,
+                text = sensorDisplay?.let { format(it) }
+                    ?: stringResource(R.string.calibrate_action),
+                style = if (sensorDisplay != null) MaterialTheme.typography.titleLarge
+                    else MaterialTheme.typography.titleMedium,
+                color = if (sensorDisplay != null) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSurface,
             )
+            if (sensorDisplay != null) {
+                Text(
+                    text = "\u2193",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -127,19 +156,43 @@ fun CalibrationEntryScreen(onDone: () -> Unit) {
                     resultOk = null
                     val mgdl = if (isMmol) (value * MGDL_PER_MMOLL).roundToInt() else value.roundToInt()
                     scope.launch(Dispatchers.IO) {
-                        val ok = if (hasLocalDriver) {
-                            ManagedCalibration.applyFingerstickCalibration(mgdl)
-                        } else {
+                        val ok = when {
+                            editing -> runCatching {
+                                tk.glucodata.WearCalibrationCommand.send(
+                                    tk.glucodata.WearCalibrationCommand.EDIT,
+                                    editTimestamp,
+                                    mgdl.toFloat(),
+                                )
+                            }.isSuccess
+                            hasLocalDriver -> ManagedCalibration.applyFingerstickCalibration(mgdl)
                             // Companion mode: the phone owns the connection.
-                            runCatching { MessageSender.sendcalibrate(mgdl) }.isSuccess
+                            else -> runCatching { MessageSender.sendcalibrate(mgdl) }.isSuccess
                         }
                         resultOk = ok
                         sending = false
                         if (ok) onDone()
                     }
                 },
-                label = { Text(stringResource(R.string.calibrate_action)) },
+                label = { Text(stringResource(if (editing) R.string.save else R.string.calibrate_action)) },
             )
+            if (editing) {
+                Button(
+                    enabled = !sending,
+                    onClick = {
+                        sending = true
+                        scope.launch(Dispatchers.IO) {
+                            tk.glucodata.WearCalibrationCommand.send(
+                                tk.glucodata.WearCalibrationCommand.DELETE,
+                                editTimestamp,
+                            )
+                            sending = false
+                            onDone()
+                        }
+                    },
+                    label = { Text(stringResource(R.string.wear_calibration_delete)) },
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
             resultOk?.let { ok ->
                 Text(
                     text = if (ok) stringResource(R.string.calibrated) else stringResource(R.string.error),

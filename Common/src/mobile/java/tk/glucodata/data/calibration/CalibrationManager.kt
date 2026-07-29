@@ -1176,6 +1176,26 @@ object CalibrationManager {
         requestMirrorCalibrationSync(entity.sensorId)
     }
     
+    /**
+     * Blocking per-entry operations for the shared Wear bridge. The watch knows
+     * a calibration by its timestamp — it never sees the Room id — so entries
+     * are looked up that way.
+     */
+    fun deleteCalibrationAtBlocking(timestamp: Long): Boolean = kotlinx.coroutines.runBlocking {
+        val entity = _calibrations.value.firstOrNull { it.timestamp == timestamp }
+            ?: return@runBlocking false
+        deleteCalibration(entity)
+        true
+    }
+
+    fun updateCalibrationUserValueBlocking(timestamp: Long, userValueMgdl: Float): Boolean =
+        kotlinx.coroutines.runBlocking {
+            val entity = _calibrations.value.firstOrNull { it.timestamp == timestamp }
+                ?: return@runBlocking false
+            updateCalibration(entity.copy(userValue = userValueMgdl))
+            true
+        }
+
     /** Blocking entry point for the shared Wear bridge (see WearCalibrationCommand). */
     fun clearAllBlocking() {
         kotlinx.coroutines.runBlocking { clearAll() }

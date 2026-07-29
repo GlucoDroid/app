@@ -8,4 +8,5 @@
     <string name="wear_calibration_on">Calibration activée</string>
     <string name="wear_calibration_off">Calibration désactivée</string>
     <string name="wear_calibration_clear">Effacer les calibrations</string>
+    <string name="wear_calibration_delete">Supprimer la calibration</string>
 </resources>
