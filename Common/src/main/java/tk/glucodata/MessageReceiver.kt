@@ -59,7 +59,16 @@ class MessageReceiver: WearableListenerService() {
                 Natives.wakestreamhereonly()
                 }
             MessageSender.DATA_PATH   -> {
-                Natives.message(data);
+                // Phone-to-phone mirroring only. On the watch this legacy
+                // stream wrote the sensor's uncalibrated values into the same
+                // minute slots WearSync2 fills with calibrated ones, so the
+                // displayed value flipped between the two depending on which
+                // arrived last.
+                if (isWearable) {
+                    if (doLog) Log.i(LOG_ID, "ignoring legacy /data on wear; WearSync2 owns the store")
+                } else {
+                    Natives.message(data);
+                }
             }
             MessageSender.SYNC2_REQ_PATH -> {
                 if (!isWearable) WearSync2.onRequest(data)
