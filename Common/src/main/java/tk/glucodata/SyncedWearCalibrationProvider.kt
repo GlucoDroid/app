@@ -1,7 +1,6 @@
 package tk.glucodata
 
 object SyncedWearCalibrationProvider : CalibrationProvider {
-    private const val MGDL_PER_MMOL = 18.0182
     private const val PREFS = "tk.glucodata_preferences"
     private const val KEY = "wear_synced_calibration_v1"
 
@@ -68,14 +67,11 @@ object SyncedWearCalibrationProvider : CalibrationProvider {
 
     override fun getActiveCalibrationAnchors(sensorId: String?, isRawMode: Boolean): DoubleArray {
         val current = matchingPayload(sensorId) ?: return DoubleArray(0)
-        val divisor = if (Applic.unit == 1) MGDL_PER_MMOL else 1.0
-        val canonical = mode(current, isRawMode).anchorsMgdl
-        return canonical.copyOf().also { display ->
-            for (index in display.indices step 3) {
-                display[index] /= divisor
-                display[index + 1] /= divisor
-            }
-        }
+        // Canonical mg/dL, exactly like CalibrationManager on the phone: the
+        // callers convert to the display unit themselves. Converting here too
+        // divided every anchor twice, so a 3.0 mmol calibration was listed as
+        // "0,2".
+        return mode(current, isRawMode).anchorsMgdl.copyOf()
     }
 
     override fun getRevision(): Long = payload?.revision ?: 0L
