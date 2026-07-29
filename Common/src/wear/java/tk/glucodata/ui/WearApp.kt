@@ -9,15 +9,21 @@ import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import tk.glucodata.ui.screens.AlertsScreen
-import tk.glucodata.ui.screens.GlucosePages
+import tk.glucodata.ui.screens.CalibrationScreen
+import tk.glucodata.ui.screens.ChartScreen
+import tk.glucodata.ui.screens.MainScreen
+import tk.glucodata.ui.screens.RecentReadingsScreen
 import tk.glucodata.ui.screens.SensorScreen
 import tk.glucodata.ui.screens.SettingsScreen
 
 object WearRoutes {
     const val MAIN = "main"
+    const val CHART = "chart"
     const val ALERTS = "alerts"
     const val SENSOR = "sensor"
     const val CALIBRATE = "calibrate"
+    const val CALIBRATIONS = "calibrations"
+    const val READINGS = "readings"
     const val SETTINGS = "settings"
 }
 
@@ -40,12 +46,18 @@ fun WearApp() {
             navController = navController,
             startDestination = WearRoutes.MAIN,
         ) {
-            // Home is a vertical pager: chart, readings, calibrations, sensor.
             composable(WearRoutes.MAIN) {
-                GlucosePages(
+                MainScreen(
                     onOpenSettings = { navController.navigate(WearRoutes.SETTINGS) },
-                    onOpenCalibrate = { navController.navigate(WearRoutes.CALIBRATE) },
+                    onOpenSensor = { navController.navigate(WearRoutes.SENSOR) },
+                    onOpenReadings = { navController.navigate(WearRoutes.READINGS) },
+                    onOpenCalibrations = { navController.navigate(WearRoutes.CALIBRATIONS) },
                 )
+            }
+            composable(WearRoutes.CHART) { ChartScreen() }
+            composable(WearRoutes.READINGS) { RecentReadingsScreen() }
+            composable(WearRoutes.CALIBRATIONS) {
+                CalibrationScreen(onCalibrate = { navController.navigate(WearRoutes.CALIBRATE) })
             }
             composable(WearRoutes.ALERTS) { AlertsScreen() }
             composable(WearRoutes.SENSOR) {

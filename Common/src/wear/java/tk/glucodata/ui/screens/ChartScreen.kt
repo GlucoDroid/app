@@ -379,6 +379,18 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectCh
     }
 }
 
+private fun pointAtLive(
+    x: Float,
+    width: Int,
+    start: Long,
+    end: Long,
+    points: List<GlucosePoint>,
+): GlucosePoint? {
+    if (width <= 0) return null
+    val timestamp = start + ((x / width) * (end - start)).toLong()
+    return points.minByOrNull { abs(it.timestamp - timestamp) }
+}
+
 @Composable
 internal fun WearChart(
     data: WearChartData,
@@ -410,32 +422,41 @@ internal fun WearChart(
         val timestamp = viewportStart + ((x / width) * (viewportEnd - viewportStart)).toLong()
         return viewportPoints.minByOrNull { abs(it.timestamp - timestamp) }
     }
+    // The pointerInput keys must not contain the viewport: it changes on every
+    // frame of a pan, which tore down and restarted the gesture detector
+    // mid-drag. Each touch then moved the chart once and waited for a fresh
+    // touch slop, which is why panning crawled. The handlers read the live
+    // viewport through state instead, so the detector survives the gesture.
+    val liveStart = rememberUpdatedState(viewportStart)
+    val liveEnd = rememberUpdatedState(viewportEnd)
+    val livePoints = rememberUpdatedState(viewportPoints)
     val gestures = if (onViewportChange == null) {
         Modifier
     } else {
         Modifier
-            .pointerInput(data.historyStart, data.end, viewportStart, viewportEnd) {
+            .pointerInput(Unit) {
                 detectChartTransforms(onOwnership = onGestureOwnership ?: {}) { centroid, pan, zoom ->
                     val width = size.width.toFloat().coerceAtLeast(1f)
-                    val oldDuration = viewportEnd - viewportStart
-                    val duration = (oldDuration / zoom).toLong()
+                    val start = liveStart.value
+                    val oldDuration = (liveEnd.value - start).coerceAtLeast(1L)
+                    val duration = (oldDuration / zoom).toLong().coerceAtLeast(1L)
                     val focusFraction = (centroid.x / width).coerceIn(0f, 1f)
-                    val focus = viewportStart + (oldDuration * focusFraction).toLong()
+                    val focus = start + (oldDuration * focusFraction).toLong()
                     val zoomedStart = focus - (duration * focusFraction).toLong()
                     val panMillis = (-(pan.x / width) * duration).toLong()
                     onViewportChange(zoomedStart + panMillis, zoomedStart + panMillis + duration)
                 }
             }
-            .pointerInput(viewportPoints, viewportStart, viewportEnd) {
+            .pointerInput(Unit) {
                 detectDragGesturesAfterLongPress(
-                    onDragStart = { onSelect(pointAt(it.x, size.width)) },
+                    onDragStart = { onSelect(pointAtLive(it.x, size.width, liveStart.value, liveEnd.value, livePoints.value)) },
                     onDrag = { change, _ ->
                         change.consume()
-                        onSelect(pointAt(change.position.x, size.width))
+                        onSelect(pointAtLive(change.position.x, size.width, liveStart.value, liveEnd.value, livePoints.value))
                     },
                 )
             }
-            .pointerInput(viewportPoints, viewportStart, viewportEnd) {
+            .pointerInput(Unit) {
                 detectTapGestures(
                     onDoubleTap = { onReset?.invoke() },
                     onTap = { onSelect(pointAt(it.x, size.width)) },
