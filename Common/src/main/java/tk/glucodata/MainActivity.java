@@ -808,7 +808,9 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             try {
                 MessageSender.sendwakestream();
                 Natives.wakestreamsender();
-                WearSync2.requestSync();
+                // Opening the app is the moment to fill in whatever the tail
+                // syncs missed; the alarm path stays incremental.
+                WearSync2.requestSync(true);
                 UiRefreshBus.requestDataRefresh();
             } catch (Throwable th) {
                 Log.stack(LOG_ID, "onResume wakestream", th);

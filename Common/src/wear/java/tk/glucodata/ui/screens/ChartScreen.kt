@@ -60,10 +60,12 @@ import tk.glucodata.NotificationHistorySource
 import tk.glucodata.R
 import tk.glucodata.UiRefreshBus
 
-internal val CHART_RANGES = intArrayOf(3, 6, 12, 24)
+internal val CHART_RANGES = intArrayOf(3, 6, 12, 24, 72)
 
 private const val HOUR_MS = 3_600_000L
-private const val MAX_HISTORY_HOURS = 24
+// Matches the WearSync2 backfill horizon so panning can reach the
+// oldest synced reading instead of stopping a day back.
+private const val MAX_HISTORY_HOURS = 14 * 24
 private const val RIGHT_GAP_FRACTION = 0.09f
 private const val MIN_VIEWPORT_MS = 45 * 60_000L
 
@@ -314,7 +316,9 @@ internal fun WearChartRangeChip(
     modifier: Modifier = Modifier,
 ) {
     Text(
-        "${CHART_RANGES[rangeIndex.coerceIn(CHART_RANGES.indices)]}h",
+        CHART_RANGES[rangeIndex.coerceIn(CHART_RANGES.indices)].let { h ->
+            if (h >= 48) "${h / 24}d" else "${h}h"
+        },
         style = MaterialTheme.typography.labelLarge,
         modifier = modifier
             .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f), CircleShape)

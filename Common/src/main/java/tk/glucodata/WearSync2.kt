@@ -35,7 +35,10 @@ object WearSync2 {
     private const val CHUNK_SPACING_MS = 400L
     private const val TAIL_TRIPLES = 8
     private const val PUSH_THROTTLE_MS = 45_000L
-    private const val BACKFILL_HORIZON_SEC = 24L * 3600L
+    // A sensor runs for weeks; a 24h horizon meant the watch could never show
+    // more than the last day no matter how often it synced.
+    private const val BACKFILL_HORIZON_SEC = 14L * 24L * 3600L
+    private const val INCREMENTAL_OVERLAP_SEC = 15L * 60L
     private const val REMOVAL_TOMBSTONE_MS = 10L * 60L * 1000L
     private const val MGDL_PER_MMOL = 18.0182
 
@@ -249,15 +252,25 @@ object WearSync2 {
 
     // ---- watch side ----
 
-    /** Ask the phone for everything we don't have yet. */
+    /**
+     * Ask the phone for what we are missing. [deep] asks for the whole horizon
+     * (app open, empty store); the routine path only asks for the tail, so a
+     * fortnight of readings is not re-sent — and re-decoded — every few
+     * minutes on a watch battery.
+     */
     @JvmStatic
-    fun requestSync() {
+    @JvmOverloads
+    fun requestSync(deep: Boolean = false) {
         executor.execute {
             runCatching {
-                // Always ask for the full horizon: writes are idempotent and
-                // the whole day is ≤3 chunks, while "since last reading" left
-                // permanent holes behind any gap or wipe.
-                val fromSec = System.currentTimeMillis() / 1000L - BACKFILL_HORIZON_SEC
+                val nowSec = System.currentTimeMillis() / 1000L
+                val horizonStart = nowSec - BACKFILL_HORIZON_SEC
+                val lastSec = runCatching { Natives.lastglucosetime() }.getOrDefault(0L)
+                val fromSec = if (deep || lastSec <= 0L) {
+                    horizonStart
+                } else {
+                    (lastSec - INCREMENTAL_OVERLAP_SEC).coerceIn(horizonStart, nowSec)
+                }
                 val buf = ByteBuffer.allocate(9)
                 buf.put(VERSION.toByte())
                 buf.putLong(fromSec)
