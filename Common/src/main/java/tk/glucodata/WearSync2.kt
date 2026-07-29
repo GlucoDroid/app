@@ -209,12 +209,11 @@ object WearSync2 {
             val base = (offset + i) * 3
             val timeSec = triples[base]
             buf.putLong(timeSec)
-            // Already calibrated by the phone's display path in serveSince.
-            buf.putInt(triples[base + 1].toInt())
+            buf.putInt(calibratedLane10(triples[base + 1].toInt(), timeSec, false, serial))
             val raw10 = triples[base + 2].toInt()
             buf.putInt(
                 if (GlucoseValuePlausibility.isPlausibleMgdl(raw10 / 10f)) {
-                    raw10
+                    calibratedLane10(raw10, timeSec, true, serial)
                 } else {
                     0
                 },

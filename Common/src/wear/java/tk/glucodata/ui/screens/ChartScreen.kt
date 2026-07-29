@@ -342,38 +342,39 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectCh
         awaitFirstDown(requireUnconsumed = false)
         var accumulatedPan = Offset.Zero
         var chartOwnsGesture = false
-        while (true) {
-            val event = awaitPointerEvent()
-            val pressedCount = event.changes.count { it.pressed }
-            if (pressedCount == 0) {
-                if (chartOwnsGesture) onOwnership(false)
-                break
-            }
-            if (!chartOwnsGesture && event.changes.any { it.isConsumed }) break
+        // Ownership pauses the parent list's scrolling, so it must be released
+        // on every exit from this loop: a missed release left the whole screen
+        // unscrollable until the app was restarted.
+        try {
+            while (true) {
+                val event = awaitPointerEvent()
+                val pressedCount = event.changes.count { it.pressed }
+                if (pressedCount == 0) break
+                if (!chartOwnsGesture && event.changes.any { it.isConsumed }) break
 
-            val pan = event.calculatePan()
-            val zoom = event.calculateZoom()
-            accumulatedPan += pan
-            if (!chartOwnsGesture) {
-                // A thumb drag on a round screen is never purely horizontal, so
-                // demanding |x| > |y| handed almost every pan to the list and
-                // the chart felt immovable. The chart wins on a mostly sideways
-                // drag; the list only takes over on a clearly vertical one.
-                val dx = abs(accumulatedPan.x)
-                val dy = abs(accumulatedPan.y)
-                val pastSlop = accumulatedPan.getDistance() > viewConfiguration.touchSlop * 0.5f
-                chartOwnsGesture = pressedCount >= 2 || (pastSlop && dx > dy * 0.3f)
-                if (chartOwnsGesture) onOwnership(true)
-                if (!chartOwnsGesture && pastSlop && dy > dx * 2.5f) {
-                    break
+                val pan = event.calculatePan()
+                val zoom = event.calculateZoom()
+                accumulatedPan += pan
+                if (!chartOwnsGesture) {
+                    // A thumb drag on a round screen is never purely horizontal,
+                    // so the chart takes a mostly sideways drag; a clearly
+                    // vertical one is left to the list.
+                    val dx = abs(accumulatedPan.x)
+                    val dy = abs(accumulatedPan.y)
+                    val pastSlop = accumulatedPan.getDistance() > viewConfiguration.touchSlop * 0.5f
+                    if (pastSlop && dy > dx * 1.2f) break
+                    chartOwnsGesture = pressedCount >= 2 || (pastSlop && dx >= dy)
+                    if (chartOwnsGesture) onOwnership(true)
+                }
+                if (chartOwnsGesture) {
+                    onTransform(event.calculateCentroid(), pan, zoom)
+                    event.changes.forEach { change ->
+                        if (change.positionChanged()) change.consume()
+                    }
                 }
             }
-            if (chartOwnsGesture) {
-                onTransform(event.calculateCentroid(), pan, zoom)
-                event.changes.forEach { change ->
-                    if (change.positionChanged()) change.consume()
-                }
-            }
+        } finally {
+            if (chartOwnsGesture) onOwnership(false)
         }
     }
 }
