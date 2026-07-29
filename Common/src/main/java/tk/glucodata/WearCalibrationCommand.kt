@@ -21,20 +21,29 @@ object WearCalibrationCommand {
     const val CLEAR = 3
     const val DELETE = 4
     const val EDIT = 5
+    const val ADD = 6
 
-    /** Watch side: ask the phone to perform [command]. */
+    /**
+     * Watch side: ask the phone to perform [command].
+     *
+     * @return whether the message reached the transport. Reporting this matters:
+     * the screens used to treat "attempted" as "saved" and closed on a command
+     * that was never sent.
+     */
     @JvmStatic
     @JvmOverloads
-    fun send(command: Int, timestamp: Long = 0L, userValueMgdl: Float = Float.NaN) {
-        if (!Applic.isWearable) return
-        runCatching {
+    fun send(command: Int, timestamp: Long = 0L, userValueMgdl: Float = Float.NaN): Boolean {
+        if (!Applic.isWearable) return false
+        return runCatching {
             val buf = ByteBuffer.allocate(13)
             buf.put(command.toByte())
             buf.putLong(timestamp)
             buf.putFloat(userValueMgdl)
-            MessageSender.sendSyncMessage(MessageSender.CALIBRATION_CMD_PATH, buf.array())
-            if (doLog) Log.i(LOG_ID, "sent calibration command $command ts=$timestamp value=$userValueMgdl")
-        }.onFailure { Log.stack(LOG_ID, "send($command)", it) }
+            val sent = MessageSender.sendSyncMessage(MessageSender.CALIBRATION_CMD_PATH, buf.array())
+            if (doLog) Log.i(LOG_ID, "calibration command $command ts=$timestamp value=$userValueMgdl sent=$sent")
+            if (!sent) Log.w(LOG_ID, "no wear transport for calibration command $command")
+            sent
+        }.onFailure { Log.stack(LOG_ID, "send($command)", it) }.getOrDefault(false)
     }
 
     /** Phone side: execute a command relayed from the watch. */
@@ -52,6 +61,8 @@ object WearCalibrationCommand {
                 DISABLE -> CalibrationAccess.setEnabled(false)
                 CLEAR -> CalibrationAccess.clearAll()
                 DELETE -> timestamp > 0L && CalibrationAccess.deleteCalibrationAt(timestamp)
+                ADD -> GlucoseValuePlausibility.isPlausibleMgdl(userValue) &&
+                    CalibrationAccess.addCalibration(userValue)
                 EDIT -> timestamp > 0L &&
                     GlucoseValuePlausibility.isPlausibleMgdl(userValue) &&
                     CalibrationAccess.updateCalibrationUserValue(timestamp, userValue)

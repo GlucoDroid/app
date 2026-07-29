@@ -127,6 +127,18 @@ object CalibrationAccess {
         }.getOrNull()
     }
 
+    private val addCalibrationMethod by lazy {
+        runCatching {
+            holder?.getMethod("addCalibrationFromWearBlocking", Float::class.javaPrimitiveType)
+        }.getOrNull()
+    }
+
+    /** Record a fingerstick calibration against the sensor's current reading. */
+    @JvmStatic
+    fun addCalibration(userValueMgdl: Float): Boolean = runCatching {
+        addCalibrationMethod?.invoke(instance, userValueMgdl) as? Boolean ?: false
+    }.getOrDefault(false)
+
     /** Delete the calibration recorded at [timestamp]. */
     @JvmStatic
     fun deleteCalibrationAt(timestamp: Long): Boolean = runCatching {

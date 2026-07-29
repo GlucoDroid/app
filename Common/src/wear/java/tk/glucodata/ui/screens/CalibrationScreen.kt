@@ -173,16 +173,21 @@ fun CalibrationEntryScreen(
                     scope.launch {
                         val ok = withContext(Dispatchers.IO) {
                             when {
-                                editing -> runCatching {
-                                    tk.glucodata.WearCalibrationCommand.send(
-                                        tk.glucodata.WearCalibrationCommand.EDIT,
-                                        editTimestamp,
-                                        mgdl.toFloat(),
-                                    )
-                                }.isSuccess
+                                editing -> tk.glucodata.WearCalibrationCommand.send(
+                                    tk.glucodata.WearCalibrationCommand.EDIT,
+                                    editTimestamp,
+                                    mgdl.toFloat(),
+                                )
                                 hasLocalDriver -> ManagedCalibration.applyFingerstickCalibration(mgdl)
-                                // Companion mode: the phone owns the connection.
-                                else -> runCatching { MessageSender.sendcalibrate(mgdl) }.isSuccess
+                                // Companion mode: record it on the phone, where
+                                // the calibrations live, so it appears in the
+                                // list on both devices instead of only nudging
+                                // the driver.
+                                else -> tk.glucodata.WearCalibrationCommand.send(
+                                    tk.glucodata.WearCalibrationCommand.ADD,
+                                    0L,
+                                    mgdl.toFloat(),
+                                )
                             }
                         }
                         resultOk = ok
@@ -198,14 +203,15 @@ fun CalibrationEntryScreen(
                     onClick = {
                         sending = true
                         scope.launch {
-                            withContext(Dispatchers.IO) {
+                            val ok = withContext(Dispatchers.IO) {
                                 tk.glucodata.WearCalibrationCommand.send(
                                     tk.glucodata.WearCalibrationCommand.DELETE,
                                     editTimestamp,
                                 )
                             }
+                            resultOk = ok
                             sending = false
-                            onDone()
+                            if (ok) onDone()
                         }
                     },
                     label = { Text(stringResource(R.string.wear_calibration_delete)) },

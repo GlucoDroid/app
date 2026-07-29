@@ -1177,6 +1177,32 @@ object CalibrationManager {
     }
     
     /**
+     * Records a fingerstick calibration entered on the watch. The watch cannot
+     * see the sensor's current lanes, so the values are taken here — the same
+     * ones the phone's own calibration sheet would use.
+     */
+    fun addCalibrationFromWearBlocking(userValueMgdl: Float): Boolean = kotlinx.coroutines.runBlocking {
+        val snapshot = tk.glucodata.CurrentDisplaySource.resolveCurrentForExchange()
+            ?: return@runBlocking false
+        // Snapshot lanes are in the display unit; calibrations are stored in
+        // mg/dL. sharedMgdl is already mg/dL and is the safer primary source.
+        val toMgdl = { value: Float ->
+            if (snapshot.isMmol) value * tk.glucodata.ui.util.GlucoseFormatter.MGDL_PER_MMOL else value
+        }
+        val autoMgdl = snapshot.sharedMgdl.toFloat().takeIf { it > 0f }
+            ?: snapshot.autoValue.takeIf { it.isFinite() && it > 0f }?.let(toMgdl)
+            ?: return@runBlocking false
+        val rawMgdl = snapshot.rawValue.takeIf { it.isFinite() && it > 0f }?.let(toMgdl) ?: autoMgdl
+        addCalibration(
+            timestamp = System.currentTimeMillis(),
+            sensorValue = autoMgdl,
+            sensorValueRaw = rawMgdl,
+            userValue = userValueMgdl,
+            sensorId = snapshot.sensorId,
+        )
+    }
+
+    /**
      * Blocking per-entry operations for the shared Wear bridge. The watch knows
      * a calibration by its timestamp — it never sees the Room id — so entries
      * are looked up that way.

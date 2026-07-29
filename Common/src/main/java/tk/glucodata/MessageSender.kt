@@ -389,9 +389,11 @@ companion object {
     }
 
     @JvmStatic
-    public fun sendSyncMessage(path: String, data: ByteArray) {
-        val sender = messagesender ?: return
+    /** @return false when there is no wear transport to send through. */
+    public fun sendSyncMessage(path: String, data: ByteArray): Boolean {
+        val sender = messagesender ?: return false
         sender.sendmessage(path, data)
+        return true
     }
 
     @Keep
