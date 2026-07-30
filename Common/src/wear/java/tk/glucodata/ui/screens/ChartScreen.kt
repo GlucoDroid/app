@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -59,6 +60,7 @@ import tk.glucodata.Natives
 import tk.glucodata.NotificationHistorySource
 import tk.glucodata.R
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.ui.WearGlucoseStore
 
 internal val CHART_RANGES = intArrayOf(3, 6, 12, 24, 72)
 
@@ -97,23 +99,26 @@ private fun thresholds(isMmol: Boolean): ChartThresholds {
     )
 }
 
-internal fun loadChart(hours: Int, isMmol: Boolean, isRawMode: Boolean = false): WearChartData {
+/**
+ * Projects the shared snapshot onto a viewport. Pure: the reading of native and
+ * Room happens once in [WearGlucoseStore], off the main thread, instead of here
+ * on every range change, refresh and minute tick.
+ */
+internal fun chartDataFrom(snapshot: WearGlucoseStore.Snapshot, hours: Int): WearChartData {
     val now = System.currentTimeMillis()
     val duration = hours * HOUR_MS
     val start = now - duration
     val end = now + (duration * RIGHT_GAP_FRACTION).toLong()
-    val historyStart = now - MAX_HISTORY_HOURS * HOUR_MS
-    val sensor = NotificationHistorySource.resolveSensorSerial()
-    val points = runCatching { NotificationHistorySource.getDisplayHistory(historyStart, isMmol, sensor) }.getOrDefault(emptyList())
-        .filter { it.timestamp in historyStart..now && it.value.isFinite() && it.value > 0f }
-    val anchors = CalibrationAccess.getActiveCalibrationAnchors(sensor, isRawMode)
+    val historyStart = if (snapshot.isLoaded) snapshot.horizonStartMs else start
+    val isMmol = snapshot.isMmol
     val conversion = if (isMmol) 18.0182f else 1f
+    val anchors = snapshot.anchors
     val marks = anchors.indices.step(3).mapNotNull { offset ->
         if (offset + 2 >= anchors.size) return@mapNotNull null
         CalibrationMark(anchors[offset + 2].toLong(), anchors[offset + 1].toFloat() / conversion)
             .takeIf { it.timestamp in historyStart..now && it.value.isFinite() && it.value > 0f }
     }
-    return WearChartData(points, marks, thresholds(isMmol), start, end, historyStart, isMmol)
+    return WearChartData(snapshot.points, marks, thresholds(isMmol), start, end, historyStart, isMmol)
 }
 
 private fun clampedViewport(data: WearChartData, start: Long, end: Long): Pair<Long, Long> {
@@ -143,20 +148,19 @@ internal fun InteractiveWearChartPanel(
     onGestureOwnership: ((Boolean) -> Unit)? = null,
     headlineTopPadding: androidx.compose.ui.unit.Dp = 3.dp,
 ) {
-    val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
     var rangeIndex by remember { mutableIntStateOf(initialRangeIndex.coerceIn(CHART_RANGES.indices)) }
-    var viewMode by remember { mutableIntStateOf(currentWearViewMode()) }
-    var data by remember {
-        mutableStateOf(
-            loadChart(
-                CHART_RANGES[rangeIndex],
-                isMmol,
-                viewMode == 1 || viewMode == 3,
-            ),
-        )
+    LaunchedEffect(Unit) { WearGlucoseStore.start() }
+    val storeSnapshot by WearGlucoseStore.snapshot.collectAsState()
+    val isMmol = storeSnapshot.isMmol
+    val viewMode = if (storeSnapshot.isRawMode) 1 else 0
+    val data = remember(storeSnapshot, rangeIndex) {
+        chartDataFrom(storeSnapshot, CHART_RANGES[rangeIndex])
     }
     var viewportStart by remember { mutableLongStateOf(data.start) }
     var viewportEnd by remember { mutableLongStateOf(data.end) }
+    // Whether the viewport is parked at "now" and should follow new readings, or
+    // the user has panned back and should be left where they put it.
+    var followNow by remember { mutableStateOf(true) }
     var selected by remember { mutableStateOf<GlucosePoint?>(null) }
     val requester = remember { FocusRequester() }
     val context = LocalContext.current
@@ -165,26 +169,8 @@ internal fun InteractiveWearChartPanel(
     fun resetViewport(nextData: WearChartData = data) {
         viewportStart = nextData.start
         viewportEnd = nextData.end
+        followNow = true
         selected = null
-    }
-
-    fun updateData() {
-        viewMode = currentWearViewMode()
-        val wasAtNow = abs(viewportEnd - data.end) < 2 * 60_000L
-        val next = loadChart(
-            CHART_RANGES[rangeIndex],
-            isMmol,
-            viewMode == 1 || viewMode == 3,
-        )
-        data = next
-        if (wasAtNow) {
-            resetViewport(next)
-        } else {
-            clampedViewport(next, viewportStart, viewportEnd).let {
-                viewportStart = it.first
-                viewportEnd = it.second
-            }
-        }
     }
 
     fun zoomViewport(zoomFactor: Float, focusFraction: Float = 0.5f) {
@@ -197,24 +183,33 @@ internal fun InteractiveWearChartPanel(
             viewportStart = it.first
             viewportEnd = it.second
         }
+        followNow = abs(viewportEnd - data.end) < 2 * 60_000L
         selected = null
     }
 
+    // Picking a wider range needs history that deep; anything shorter draws from
+    // what is already loaded.
     LaunchedEffect(rangeIndex) {
-        val next = loadChart(
-            CHART_RANGES[rangeIndex],
-            isMmol,
-            viewMode == 1 || viewMode == 3,
-        )
-        data = next
-        resetViewport(next)
+        WearGlucoseStore.ensureHorizon(CHART_RANGES[rangeIndex] * HOUR_MS * 2)
+        resetViewport(chartDataFrom(storeSnapshot, CHART_RANGES[rangeIndex]))
     }
     LaunchedEffect(rangeIndexOverride) {
         rangeIndexOverride?.let { rangeIndex = it.coerceIn(CHART_RANGES.indices) }
     }
+    // New data shifts "now": follow it while parked at the right edge, otherwise
+    // just keep the panned viewport inside the available range.
+    LaunchedEffect(data.start, data.end) {
+        if (followNow) {
+            viewportStart = data.start
+            viewportEnd = data.end
+        } else {
+            clampedViewport(data, viewportStart, viewportEnd).let {
+                viewportStart = it.first
+                viewportEnd = it.second
+            }
+        }
+    }
     LaunchedEffect(Unit) {
-        launch { UiRefreshBus.revision.collect { updateData() } }
-        launch { while (true) { kotlinx.coroutines.delay(60_000L); updateData() } }
         if (requestInitialFocus) requester.requestFocus()
     }
 
@@ -269,6 +264,14 @@ internal fun InteractiveWearChartPanel(
                     clampedViewport(data, start, end).let {
                         viewportStart = it.first
                         viewportEnd = it.second
+                    }
+                    // Panning to the loaded edge pulls in more history, so the
+                    // deep horizon is read only when someone goes looking for it.
+                    followNow = abs(viewportEnd - data.end) < 2 * 60_000L
+                    if (viewportStart <= data.historyStart + HOUR_MS) {
+                        WearGlucoseStore.ensureHorizon(
+                            (System.currentTimeMillis() - viewportStart) * 2,
+                        )
                     }
                     selected = null
                 },

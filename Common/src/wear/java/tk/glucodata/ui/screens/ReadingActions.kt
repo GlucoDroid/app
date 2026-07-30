@@ -3,6 +3,7 @@ package tk.glucodata.ui.screens
 import tk.glucodata.CalibrationAccess
 import tk.glucodata.NotificationHistorySource
 import tk.glucodata.SensorIdentity
+import tk.glucodata.ui.WearGlucoseStore
 
 /**
  * What tapping a reading offers, mirroring the phone: a reading already carrying
@@ -29,10 +30,17 @@ object ReadingActions {
     @JvmStatic
     fun resolve(timestampMs: Long, isRawMode: Boolean = false): ReadingAction {
         if (timestampMs <= 0L) return ReadingAction()
-        val sensor = runCatching { SensorIdentity.resolveMainSensor() }.getOrNull()
-        val anchors = runCatching {
-            CalibrationAccess.getActiveCalibrationAnchors(sensor, isRawMode)
-        }.getOrDefault(DoubleArray(0))
+        // Anchors come from the shared snapshot when it has them: one row per
+        // reading meant one native call per row, repeated on every scroll.
+        val snapshot = WearGlucoseStore.snapshot.value
+        val anchors = if (snapshot.isLoaded && snapshot.isRawMode == isRawMode) {
+            snapshot.anchors
+        } else {
+            val sensor = runCatching { SensorIdentity.resolveMainSensor() }.getOrNull()
+            runCatching {
+                CalibrationAccess.getActiveCalibrationAnchors(sensor, isRawMode)
+            }.getOrDefault(DoubleArray(0))
+        }
         var bestDelta = Long.MAX_VALUE
         var best = ReadingAction()
         for (offset in anchors.indices step 3) {

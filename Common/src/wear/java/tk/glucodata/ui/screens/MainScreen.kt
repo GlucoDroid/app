@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -54,6 +55,7 @@ import tk.glucodata.NotificationHistorySource
 import tk.glucodata.R
 import tk.glucodata.TrendAccess
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.ui.WearGlucoseStore
 import tk.glucodata.ui.WearNavigationRow
 import tk.glucodata.ui.components.TrendArrowCanvas
 
@@ -103,18 +105,16 @@ fun MainScreen(
     var chartOwnsDrag by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        WearGlucoseStore.start()
         launch { UiRefreshBus.revision.collect { snapshot = currentSnapshot(); now = System.currentTimeMillis() } }
         while (true) { delay(TICK_MS); snapshot = currentSnapshot(); now = System.currentTimeMillis() }
     }
 
-    val isMmol = snapshot?.isMmol
-        ?: remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
-    val recent = remember(snapshot, now / 60_000L) {
-        runCatching {
-            NotificationHistorySource.getDisplayHistory(now - 6 * 3_600_000L, isMmol, snapshot?.sensorId)
-                .asReversed().take(6)
-        }.getOrDefault(emptyList())
-    }
+    // Readings come from the shared snapshot: the home list used to run its own
+    // main-thread history read on every refresh, on top of the chart's.
+    val storeSnapshot by WearGlucoseStore.snapshot.collectAsState()
+    val isMmol = snapshot?.isMmol ?: storeSnapshot.isMmol
+    val recent = remember(storeSnapshot) { WearGlucoseStore.recent(count = 6) }
     val newestReading = recent.firstOrNull()
 
     ScreenScaffold(timeText = { TimeText() }) {
@@ -331,12 +331,12 @@ internal fun HeroCard(
     // the list came from NotificationHistorySource, so the two disagreed and
     // the hero looked stale against its own list.
     val rangeColor = rangeColor(point.value, isMmol)
-    val points = remember(point.timestamp, isMmol, sensorId) {
-        NotificationHistorySource.getDisplayHistory(
-            point.timestamp - 35 * 60_000L,
-            isMmol,
-            sensorId,
-        )
+    // The arrow needs about half an hour of context; take it from the shared
+    // snapshot rather than reading the store again on the main thread.
+    val storeSnapshot by WearGlucoseStore.snapshot.collectAsState()
+    val points = remember(storeSnapshot, point.timestamp) {
+        val from = point.timestamp - 35 * 60_000L
+        storeSnapshot.points.filter { it.timestamp in from..point.timestamp }
     }
     val velocity = remember(points, isMmol) {
         TrendAccess.calculateVelocity(points, false, isMmol)
