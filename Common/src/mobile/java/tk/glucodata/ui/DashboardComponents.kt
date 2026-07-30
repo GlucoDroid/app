@@ -322,7 +322,6 @@ fun DashboardCombinedHeader(
             history.lastOrNull()?.let { newest ->
                 readingDeltaTexts(listOf(newest.timestamp), history, isMmol, deltaIntervalMinutes)
                     .first()
-                    ?.let { "Δ $it" }
             }
         }
     } else {
