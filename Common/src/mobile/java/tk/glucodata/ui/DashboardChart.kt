@@ -2504,6 +2504,7 @@ fun InteractiveGlucoseChart(
                         var first = true
                         var hasPath = false
                         var lastTimestamp = 0L
+                        val peerRun = ChartLineRun()
                         for (i in peerStartIdx until peerEndIdx) {
                             val point = points[i]
                             val value = if (useRaw) point.rawValue else point.value
@@ -2522,14 +2523,22 @@ fun InteractiveGlucoseChart(
                             }
                             if (first) {
                                 reusablePeerPath.moveTo(px, py)
+                                peerRun.begin(px, py)
                                 first = false
                             } else {
                                 reusablePeerPath.lineTo(px, py)
+                                peerRun.extend()
                             }
                             hasPath = true
                             lastTimestamp = point.timestamp
                         }
                         if (!hasPath) return
+                        peerRun.flush()
+                        val peerDotColor = androidx.compose.ui.graphics.lerp(series.color, peerNeutralBase, 0.46f)
+                            .copy(alpha = 0.5f * alpha)
+                        peerRun.isolatedPoints.forEach { dot ->
+                            drawCircle(color = peerDotColor, radius = strokeWidth / 2f, center = dot)
+                        }
                         val brush = peerBrushes[series.sensorId]
                         if (brush != null) {
                             drawPath(
