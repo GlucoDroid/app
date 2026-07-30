@@ -1593,6 +1593,11 @@ class SibionicsBleManager(
         if (mirrorReadingIntoNative(reading)) {
             NightscoutUploadWake.afterLiveNativeWrite("sibionics-managed", reading.sampleMs)
         }
+        // Notification only — no timestamp or value is derived from this. It tells
+        // the watch's ownership claim that this process decoded a live reading
+        // over its own connection, which is what lets the phone stand down after
+        // a handoff instead of holding the sensor as well.
+        markLocalReadingAccepted(reading.sampleMs)
         HistorySyncAccess.storeCurrentReadingAsync(
             reading.sampleMs,
             reading.glucoseMgdl,

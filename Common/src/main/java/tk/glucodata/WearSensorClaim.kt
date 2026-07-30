@@ -41,6 +41,9 @@ object WearSensorClaimStatus {
             Log.i(LOG_ID, "watch claim state node=$nodeId ${previous ?: "unknown"} -> $state")
             _revision.value = _revision.value + 1L
         }
+        // Every report, not only transitions: the heartbeat is what keeps the
+        // phone off a sensor the watch is reading.
+        WearPhoneBleRelease.onWatchClaim(state)
     }
 
     @JvmStatic
@@ -86,6 +89,14 @@ object WearSensorClaim {
     private const val CLAIM_TIMEOUT_MS = 3L * 60L * 1000L
     private const val POLL_MS = 2_000L
 
+    /**
+     * While the watch owns the sensor it re-publishes that fact this often. The
+     * phone gives up its own Bluetooth only for as long as these keep arriving,
+     * so a watch that goes out of range or loses power lets the phone take the
+     * sensor back instead of leaving nobody reading it.
+     */
+    const val OWNERSHIP_HEARTBEAT_MS = 60_000L
+
     private val executor = Executors.newSingleThreadScheduledExecutor { runnable ->
         Thread(runnable, "WearSensorClaim").apply { isDaemon = true }
     }
@@ -99,10 +110,12 @@ object WearSensorClaim {
     val revision = _revision.asStateFlow()
     private var lastWaitingReason = ""
     private var monitor: ScheduledFuture<*>? = null
+    private var heartbeat: ScheduledFuture<*>? = null
 
     @JvmStatic
     fun setDirectRequested(enabled: Boolean) {
         if (!Applic.isWearable) return
+        storeDirectRequested(enabled)
         synchronized(this) {
             directRequested = enabled
             requestedAtMs = if (enabled) System.currentTimeMillis() else 0L
@@ -289,8 +302,74 @@ object WearSensorClaim {
         }
     }
 
+    private const val PREFS = "wear_sensor_claim"
+    private const val KEY_DIRECT_REQUESTED = "direct_requested"
+
+    private fun storeDirectRequested(enabled: Boolean) {
+        runCatching {
+            Applic.app?.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+                ?.edit()
+                ?.putBoolean(KEY_DIRECT_REQUESTED, enabled)
+                ?.apply()
+        }
+    }
+
+    /**
+     * Re-arms direct mode after the watch app restarts.
+     *
+     * The request used to live only in this process, and Bluetooth was only
+     * turned on by the phone's /bluetooth message. So a handoff worked until the
+     * watch app was restarted — or the watch rebooted — and then the watch
+     * quietly stopped scanning for the sensor it was supposed to own, with
+     * nothing on either screen saying so.
+     */
+    @JvmStatic
+    fun restoreOnStart() {
+        if (!Applic.isWearable) return
+        val wanted = runCatching {
+            Applic.app?.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+                ?.getBoolean(KEY_DIRECT_REQUESTED, false)
+        }.getOrNull() ?: false
+        if (!wanted) return
+        Log.i(LOG_ID, "restoring direct sensor mode after restart")
+        setDirectRequested(true)
+        val context = MainActivity.thisone ?: Applic.app ?: return
+        runCatching { Applic.setbluetooth(context, true) }
+            .onFailure { Log.stack(LOG_ID, "restoreOnStart setbluetooth", it) }
+    }
+
     private fun publishState() {
         MessageSender.sendSensorClaimStatus()
         MessageSender.sendnetinfo()
+        syncHeartbeat()
+    }
+
+    /** Runs only while this watch holds the sensor. */
+    private fun syncHeartbeat() {
+        synchronized(this) {
+            val wanted = state == WearSensorClaimState.CONNECTED
+            if (!wanted) {
+                heartbeat?.cancel(false)
+                heartbeat = null
+                return
+            }
+            if (heartbeat != null) return
+            heartbeat = runCatching {
+                executor.scheduleWithFixedDelay(
+                    ::publishOwnershipHeartbeat,
+                    OWNERSHIP_HEARTBEAT_MS,
+                    OWNERSHIP_HEARTBEAT_MS,
+                    TimeUnit.MILLISECONDS,
+                )
+            }.getOrNull()
+        }
+    }
+
+    private fun publishOwnershipHeartbeat() {
+        if (state != WearSensorClaimState.CONNECTED) {
+            syncHeartbeat()
+            return
+        }
+        runCatching { MessageSender.sendSensorClaimStatus() }
     }
 }
