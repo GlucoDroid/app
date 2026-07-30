@@ -736,6 +736,8 @@ public class Natives {
 
         public static native long ensureSensorShell(String sensorId, long startTimeSec);
 
+        public static native long ensureSensorShellWithCapacity(String sensorId, long startTimeSec, int minimumRecords);
+
         // Set a direct-stream sensor's wear duration (days) by id -> info->wearduration2,
         // so the main graph's sensor-end reflects the real activated lifetime (Ottai).
         public static native void setSensorWearDays(String sensorId, int days);
