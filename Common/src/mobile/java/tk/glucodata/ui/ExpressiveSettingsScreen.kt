@@ -67,7 +67,9 @@ import tk.glucodata.Natives
 import tk.glucodata.OutboundApiSettings
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
+import tk.glucodata.SensorSourceResolver
 import tk.glucodata.data.calibration.CalibrationManager
+import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.ui.components.StyledSwitch
 import tk.glucodata.ui.theme.labelLargeExpressive
 import tk.glucodata.ui.viewmodel.DashboardViewModel
@@ -105,7 +107,7 @@ fun ExpressiveSettingsScreen(
     val showLibreView = remember {
         runCatching { Natives.getuselibreview() }.getOrDefault(false) ||
             runCatching { Natives.getlibreAccountIDnumber() }.getOrDefault(0L) > 0L ||
-            hasActiveLibreSensor()
+            hasActiveLibreSensorForLibreView()
     }
     val showOttaiSettings = remember {
         SensorBluetooth.mygatts().any { callback ->
@@ -1947,3 +1949,26 @@ private fun ConfirmActionDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
+
+/**
+ * True when a currently active sensor is genuinely a Libre 2 / Libre 3.
+ *
+ * Deliberately does NOT reuse the native Libre check used for NFC readiness:
+ * native `isLibre2()`/`isLibre3()` are defined by *exclusion* (anything that is
+ * not AccuChek/Sibionics/Dexcom is reported as Libre), so Kotlin-driver sensors
+ * such as Ottai — which have no native family flag but are mirrored into the
+ * native glucose stream — come back as "Libre". Here we require a positive
+ * LIBRE2/LIBRE3 kind and additionally drop any sensor claimed by a managed
+ * Kotlin BLE driver.
+ */
+private fun hasActiveLibreSensorForLibreView(): Boolean = runCatching {
+    Natives.activeSensors()?.filterNotNull().orEmpty().any { sensorId ->
+        // Owned by a Kotlin BLE driver (Ottai, MQ, iCan, AiDex, Anytime, Sibionics) -> not Libre.
+        val managed = runCatching { ManagedSensorRuntime.resolveDriver(sensorId) }.getOrNull()
+        if (managed != null) return@any false
+        val kind = runCatching {
+            SensorSourceResolver.resolveSensorKind(sensorId, SensorSourceResolver.SENSOR_KIND_UNKNOWN)
+        }.getOrDefault(SensorSourceResolver.SENSOR_KIND_UNKNOWN)
+        kind == SensorSourceResolver.SENSOR_KIND_LIBRE2 || kind == SensorSourceResolver.SENSOR_KIND_LIBRE3
+    }
+}.getOrDefault(false)
