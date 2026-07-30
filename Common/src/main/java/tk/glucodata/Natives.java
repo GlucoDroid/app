@@ -744,6 +744,8 @@ public class Natives {
 
         public static native boolean hasSensorStreamCapacity(String sensorId, int minimumRecords);
 
+        public static native boolean ensureSensorStreamCapacity(String sensorId, int minimumRecords);
+
         public static native void rebaseDirectStreamWindow(String sensorId, long startTimeSec);
 
         public static native void addRawGlucoseStream(long time, float rawGlucose, String sensorId);

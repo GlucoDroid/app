@@ -40,10 +40,4 @@ bool ensurePollStorageCapacity(
   return true;
 }
 
-inline int nightSensorAfterRewind(int currentSensor, int targetSensor) {
-  if (currentSensor <= 0)
-    return currentSensor;
-  return std::min(currentSensor, targetSensor);
-}
-
 } // namespace directstream

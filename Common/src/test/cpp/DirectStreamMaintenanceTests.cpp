@@ -42,10 +42,6 @@ int main() {
     assert(polls.data()[120].value == 99);
   }
 
-  assert(directstream::nightSensorAfterRewind(7, 3) == 3);
-  assert(directstream::nightSensorAfterRewind(2, 3) == 2);
-  assert(directstream::nightSensorAfterRewind(0, 3) == 0);
-
   std::filesystem::remove_all(dir);
   return 0;
 }

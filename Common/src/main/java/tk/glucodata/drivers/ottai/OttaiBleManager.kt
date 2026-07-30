@@ -353,6 +353,7 @@ class OttaiBleManager(
             NightscoutUploadWake.afterLiveNativeWrite(source, timestampMs)
         },
     )
+    @Volatile private var nativeMirrorCapacityReady = false
 
     // Recent abnormal-disconnect timestamps (status!=0), pruned to UNSTABLE_LINK_WINDOW_MS;
     // feeds the fast-params hold and is only touched under its own lock (binder threads).
@@ -2345,39 +2346,43 @@ class OttaiBleManager(
         if (live && toPersist.size == 1) {
             val reading = toPersist.single()
             HistorySyncAccess.storeCurrentReadingAsync(reading.sampleMs, reading.mgdl, 0f, 0f, id)
-            mirrorDecodedReadingsIntoNative(id, toPersist, live = true)
-            return
+        } else {
+            val timestamps = LongArray(toPersist.size) { index -> toPersist[index].sampleMs }
+            val values = FloatArray(toPersist.size) { index -> toPersist[index].mgdl }
+            // Ottai rawCurrent is an electrode/current diagnostic, not raw glucose mg/dL.
+            val rawValues = FloatArray(toPersist.size) { 0f }
+            HistorySyncAccess.storeSensorHistoryBatchAsync(id, timestamps, values, rawValues)
         }
-        val timestamps = LongArray(toPersist.size) { index -> toPersist[index].sampleMs }
-        val values = FloatArray(toPersist.size) { index -> toPersist[index].mgdl }
-        // Ottai rawCurrent is an electrode/current diagnostic, not raw glucose mg/dL.
-        val rawValues = FloatArray(toPersist.size) { 0f }
-        HistorySyncAccess.storeSensorHistoryBatchAsync(id, timestamps, values, rawValues)
-        mirrorDecodedReadingsIntoNative(id, toPersist, live)
+        if (live) readings.lastOrNull { it.publishCurrent }?.let {
+            mirrorLiveReadingIntoNative(id, it)
+        }
     }
 
-    private fun mirrorDecodedReadingsIntoNative(
+    private fun mirrorLiveReadingIntoNative(
         id: String,
-        readings: List<EmittedReading>,
-        live: Boolean,
+        reading: EmittedReading,
     ) {
         runCatching {
             ensureNativePresenceShell("glucose-mirror")
-            val timestampsMs = LongArray(readings.size) { readings[it].sampleMs }
-            val glucoseMgdl = FloatArray(readings.size) { readings[it].mgdl }
-            val temperaturesC = FloatArray(readings.size) { readings[it].temperatureC }
-            val storedCount = nativeGlucoseMirror.mirror(
+            val minimumRecords = OttaiConstants.EXTENDED_LIFETIME_DAYS * 24 * 60
+            if (!nativeMirrorCapacityReady) {
+                nativeMirrorCapacityReady = Natives.ensureSensorStreamCapacity(id, minimumRecords)
+                if (!nativeMirrorCapacityReady) {
+                    Log.e(TAG, "native glucose mirror capacity failed id=$id records=$minimumRecords")
+                    return@runCatching
+                }
+            }
+            val stored = nativeGlucoseMirror.mirrorLive(
                 id,
-                timestampsMs,
-                glucoseMgdl,
-                temperaturesC,
-                live,
+                reading.sampleMs,
+                reading.mgdl,
+                reading.temperatureC,
             )
-            if (storedCount > 0) {
+            if (stored) {
                 applyActivatedWearToNative(id)
                 Natives.wakebackup()
             }
-        }.onFailure { Log.stack(TAG, "mirrorDecodedReadingsIntoNative", it) }
+        }.onFailure { Log.stack(TAG, "mirrorLiveReadingIntoNative", it) }
     }
 
     /** Keeps the per-sample skin temperature so the stats screen can chart it. */
