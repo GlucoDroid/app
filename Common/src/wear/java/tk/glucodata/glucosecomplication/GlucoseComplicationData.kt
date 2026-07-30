@@ -27,6 +27,8 @@ internal object GlucoseComplicationData {
         val timeMillis: Long,
         val rate: Float,
         val index: Int,
+        /** Drawn by the watch face under the value. */
+        val sensorId: String? = null,
     )
 
     private data class Thresholds(
@@ -41,13 +43,13 @@ internal object GlucoseComplicationData {
     fun currentReading(): Reading? {
         val snapshot = runCatching {
             CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)
-        }.getOrNull() ?: return null
+        }.getOrNull() ?: return syncedReading()
         val now = System.currentTimeMillis()
         if (snapshot.timeMillis <= 0L || now - snapshot.timeMillis >= Notify.glucosetimeout) {
-            return null
+            return syncedReading()
         }
         if (!snapshot.primaryValue.isFinite() || snapshot.primaryValue <= 0.0f || snapshot.primaryStr.isBlank()) {
-            return null
+            return syncedReading()
         }
         return Reading(
             value = snapshot.primaryValue,
@@ -56,6 +58,47 @@ internal object GlucoseComplicationData {
             timeMillis = snapshot.timeMillis,
             rate = snapshot.rate,
             index = snapshot.index,
+            sensorId = snapshot.sensorId,
+        )
+    }
+
+    /**
+     * On a companion watch readings arrive over the Data Layer and land in the
+     * native store, which the live resolver may not have picked up — the app's own
+     * screens read the merged history for the same reason. Without this the watch
+     * face and every complication sat blank on a watch that had current data.
+     */
+    private fun syncedReading(): Reading? {
+        val isMmol = runCatching { Applic.unit == 1 }.getOrDefault(false)
+        val newest = runCatching {
+            val sensor = tk.glucodata.NotificationHistorySource.resolveSensorSerial()
+            tk.glucodata.NotificationHistorySource
+                .getDisplayHistory(System.currentTimeMillis() - Notify.glucosetimeout, isMmol, sensor)
+                .lastOrNull()
+        }.getOrNull() ?: return null
+        if (!newest.value.isFinite() || newest.value <= 0f) return null
+        if (System.currentTimeMillis() - newest.timestamp >= Notify.glucosetimeout) return null
+        val rate = runCatching {
+            tk.glucodata.TrendAccess.calculateVelocity(
+                tk.glucodata.NotificationHistorySource.getDisplayHistory(
+                    newest.timestamp - 35 * 60_000L,
+                    isMmol,
+                    tk.glucodata.NotificationHistorySource.resolveSensorSerial(),
+                ),
+                false,
+                isMmol,
+            )
+        }.getOrNull()?.takeIf { it.isFinite() } ?: 0f
+        return Reading(
+            value = newest.value,
+            text = tk.glucodata.ui.util.GlucoseFormatter.format(newest.value, isMmol),
+            isMmol = isMmol,
+            timeMillis = newest.timestamp,
+            rate = rate,
+            index = 0,
+            sensorId = runCatching {
+                tk.glucodata.NotificationHistorySource.resolveSensorSerial()
+            }.getOrNull(),
         )
     }
 

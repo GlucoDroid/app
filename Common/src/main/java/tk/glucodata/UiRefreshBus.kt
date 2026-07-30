@@ -32,6 +32,27 @@ object UiRefreshBus {
         _events.tryEmit(Event.DataChanged)
         Notify.scheduleDataChangedRefresh()
         GlucoseUpdateBroadcaster.send(Applic.app)
+        refreshWatchFaceSurfaces()
+    }
+
+    /** Complication updates arriving faster than this are dropped. */
+    private const val COMPLICATION_MIN_INTERVAL_MS = 20_000L
+    @Volatile private var lastComplicationUpdateMs = 0L
+
+    /**
+     * Watch face and complications only refreshed when the watch itself took a
+     * BLE reading, so on a companion watch — where readings arrive over the Data
+     * Layer instead — the face sat frozen at whatever it last saw.
+     *
+     * Throttled: a backfill delivers dozens of chunks, and each would otherwise
+     * ask six data sources to redraw.
+     */
+    private fun refreshWatchFaceSurfaces() {
+        if (!Applic.isWearable) return
+        val now = System.currentTimeMillis()
+        if (now - lastComplicationUpdateMs < COMPLICATION_MIN_INTERVAL_MS) return
+        lastComplicationUpdateMs = now
+        runCatching { tk.glucodata.glucosecomplication.GlucoseValue.updateall() }
     }
 
     @JvmStatic
