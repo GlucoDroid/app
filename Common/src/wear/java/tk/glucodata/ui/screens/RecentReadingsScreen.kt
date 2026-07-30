@@ -2,6 +2,8 @@ package tk.glucodata.ui.screens
 
 import android.text.format.DateFormat
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -55,7 +57,7 @@ internal fun rangeColor(value: Float, isMmol: Boolean): Color {
 }
 
 @Composable
-fun RecentReadingsScreen() {
+fun RecentReadingsScreen(onCalibrateReading: ((GlucosePoint) -> Unit)? = null) {
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
     var readings by remember { mutableStateOf(recentReadings(isMmol)) }
     val context = LocalContext.current
@@ -70,11 +72,34 @@ fun RecentReadingsScreen() {
             }
             items(readings, key = { it.timestamp }) { point ->
                 val color = rangeColor(point.value, isMmol)
+                val action = remember(point.timestamp) { ReadingActions.resolve(point.timestamp) }
                 Row(
-                    Modifier.fillMaxWidth().background(color.copy(alpha = 0.14f), RoundedCornerShape(20.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(color.copy(alpha = 0.14f))
+                        .then(
+                            onCalibrateReading?.let { calibrate ->
+                                Modifier.clickable { calibrate(point) }
+                            } ?: Modifier,
+                        )
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(formatter.format(Date(point.timestamp)), style = MaterialTheme.typography.labelLarge)
+                        // Marks a reading that already carries a calibration, so
+                        // tapping it edits instead of adding a second one.
+                        if (action.hasCalibration) {
+                            Text(
+                                formatWearGlucose(
+                                    if (isMmol) action.calibrationUserValueMgdl / 18.0182f
+                                    else action.calibrationUserValueMgdl,
+                                    isMmol,
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                     Text(formatWearGlucose(point.value, isMmol), style = MaterialTheme.typography.titleLarge, color = color)
                 }

@@ -52,6 +52,7 @@ fun CalibrationEntryScreen(
     editTimestamp: Long = 0L,
     editUserValueMgdl: Float = Float.NaN,
     sensorValueMgdl: Float = Float.NaN,
+    readingTimestamp: Long = 0L,
 ) {
     val editing = editTimestamp > 0L
     val isMmol = remember { runCatching { Applic.unit == 1 }.getOrDefault(false) }
@@ -183,9 +184,11 @@ fun CalibrationEntryScreen(
                                 // the calibrations live, so it appears in the
                                 // list on both devices instead of only nudging
                                 // the driver.
+                                // A reading tapped in a list calibrates against
+                                // that reading, like the phone's sheet does.
                                 else -> tk.glucodata.WearCalibrationCommand.send(
                                     tk.glucodata.WearCalibrationCommand.ADD,
-                                    0L,
+                                    readingTimestamp,
                                     mgdl.toFloat(),
                                 )
                             }

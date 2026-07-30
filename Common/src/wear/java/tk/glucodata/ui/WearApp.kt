@@ -27,6 +27,19 @@ object WearRoutes {
     const val SETTINGS = "settings"
 }
 
+/**
+ * Tapping a reading calibrates against it, or edits the calibration it already
+ * carries — the phone behaves the same way.
+ */
+private fun calibrateRouteFor(point: tk.glucodata.GlucosePoint): String {
+    val action = tk.glucodata.ui.screens.ReadingActions.resolve(point.timestamp)
+    val sensorMgdl = if (tk.glucodata.Applic.unit == 1) point.value * 18.0182f else point.value
+    return "${WearRoutes.CALIBRATE}?ts=${action.calibrationTimestamp}" +
+        "&user=${action.calibrationUserValueMgdl}" +
+        "&sensor=$sensorMgdl" +
+        "&reading=${point.timestamp}"
+}
+
 @Composable
 fun WearApp() {
     val navController = rememberSwipeDismissableNavController()
@@ -52,10 +65,15 @@ fun WearApp() {
                     onOpenSensor = { navController.navigate(WearRoutes.SENSOR) },
                     onOpenReadings = { navController.navigate(WearRoutes.READINGS) },
                     onOpenCalibrations = { navController.navigate(WearRoutes.CALIBRATIONS) },
+                    onCalibrateReading = { point -> navController.navigate(calibrateRouteFor(point)) },
                 )
             }
             composable(WearRoutes.CHART) { ChartScreen() }
-            composable(WearRoutes.READINGS) { RecentReadingsScreen() }
+            composable(WearRoutes.READINGS) {
+                RecentReadingsScreen(
+                    onCalibrateReading = { point -> navController.navigate(calibrateRouteFor(point)) },
+                )
+            }
             composable(WearRoutes.CALIBRATIONS) {
                 CalibrationScreen(
                     onCalibrate = { navController.navigate(WearRoutes.CALIBRATE) },
@@ -74,11 +92,12 @@ fun WearApp() {
                 tk.glucodata.ui.screens.CalibrationEntryScreen(onDone = { navController.popBackStack() })
             }
             composable(
-                route = "${WearRoutes.CALIBRATE}?ts={ts}&user={user}&sensor={sensor}",
+                route = "${WearRoutes.CALIBRATE}?ts={ts}&user={user}&sensor={sensor}&reading={reading}",
                 arguments = listOf(
                     androidx.navigation.navArgument("ts") { defaultValue = "0" },
                     androidx.navigation.navArgument("user") { defaultValue = "NaN" },
                     androidx.navigation.navArgument("sensor") { defaultValue = "NaN" },
+                    androidx.navigation.navArgument("reading") { defaultValue = "0" },
                 ),
             ) { entry ->
                 tk.glucodata.ui.screens.CalibrationEntryScreen(
@@ -86,6 +105,7 @@ fun WearApp() {
                     editTimestamp = entry.arguments?.getString("ts")?.toLongOrNull() ?: 0L,
                     editUserValueMgdl = entry.arguments?.getString("user")?.toFloatOrNull() ?: Float.NaN,
                     sensorValueMgdl = entry.arguments?.getString("sensor")?.toFloatOrNull() ?: Float.NaN,
+                    readingTimestamp = entry.arguments?.getString("reading")?.toLongOrNull() ?: 0L,
                 )
             }
             composable(WearRoutes.SETTINGS) {

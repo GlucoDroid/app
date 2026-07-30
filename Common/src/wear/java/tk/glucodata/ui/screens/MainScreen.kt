@@ -95,6 +95,7 @@ fun MainScreen(
     onOpenSensor: () -> Unit,
     onOpenReadings: () -> Unit,
     onOpenCalibrations: () -> Unit,
+    onCalibrateReading: (GlucosePoint) -> Unit = {},
 ) {
     var snapshot by remember { mutableStateOf(currentSnapshot()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -178,9 +179,18 @@ fun MainScreen(
                     ReadingRow(
                         point,
                         isMmol,
-                        onClick = onOpenReadings,
+                        // Tapping a reading acts on that reading, as on the
+                        // phone: it calibrates against it, or edits the
+                        // calibration it already carries.
+                        onClick = { onCalibrateReading(point) },
                         modifier = Modifier.padding(horizontal = 18.dp),
                     )
+                }
+                // The phone puts History under the readings; same here.
+                item {
+                    Box(Modifier.padding(horizontal = 18.dp)) {
+                        WearNavigationRow(stringResource(R.string.historyname), onClick = onOpenReadings)
+                    }
                 }
             }
             item {
@@ -274,6 +284,7 @@ private fun ReadingRow(
     val color = rangeColor(point.value, isMmol)
     val context = LocalContext.current
     val formatter = remember(context) { DateFormat.getTimeFormat(context) }
+    val action = remember(point.timestamp) { ReadingActions.resolve(point.timestamp) }
     Row(
         modifier
             .fillMaxWidth()
@@ -283,12 +294,26 @@ private fun ReadingRow(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            formatter.format(Date(point.timestamp)),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                formatter.format(Date(point.timestamp)),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // A reading that already carries a calibration shows it, so tapping
+            // is understood as editing rather than adding another.
+            if (action.hasCalibration) {
+                Text(
+                    formatWearGlucose(
+                        if (isMmol) action.calibrationUserValueMgdl / 18.0182f
+                        else action.calibrationUserValueMgdl,
+                        isMmol,
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
         Text(formatWearGlucose(point.value, isMmol), style = MaterialTheme.typography.titleMedium, color = color)
     }
 }

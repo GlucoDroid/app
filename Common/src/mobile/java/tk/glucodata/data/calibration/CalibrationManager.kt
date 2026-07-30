@@ -1198,6 +1198,38 @@ object CalibrationManager {
     }
 
     /**
+     * Records a watch calibration against a chosen reading rather than the
+     * current one, the way the phone's sheet uses the row you tapped: the lanes
+     * come from the history point nearest that time.
+     */
+    fun addCalibrationFromWearAtBlocking(timestampMs: Long, userValueMgdl: Float): Boolean =
+        kotlinx.coroutines.runBlocking {
+            if (timestampMs <= 0L) return@runBlocking addCalibrationFromWearBlocking(userValueMgdl)
+            val sensorId = tk.glucodata.SensorIdentity.resolveMainSensor() ?: return@runBlocking false
+            val isMmol = tk.glucodata.Applic.unit == 1
+            val window = 15L * 60L * 1000L
+            val nearest = runCatching {
+                tk.glucodata.NotificationHistorySource.getDisplayHistory(
+                    timestampMs - window,
+                    isMmol,
+                    sensorId,
+                )
+            }.getOrDefault(emptyList())
+                .filter { kotlin.math.abs(it.timestamp - timestampMs) <= window }
+                .minByOrNull { kotlin.math.abs(it.timestamp - timestampMs) }
+                ?: return@runBlocking false
+            val autoValue = nearest.value.takeIf { it.isFinite() && it > 0f } ?: return@runBlocking false
+            val rawValue = nearest.rawValue.takeIf { it.isFinite() && it > 0f } ?: autoValue
+            addCalibration(
+                timestamp = nearest.timestamp,
+                sensorValue = autoValue,
+                sensorValueRaw = rawValue,
+                userValue = storedValueFromMgdl(userValueMgdl),
+                sensorId = sensorId,
+            )
+        }
+
+    /**
      * The watch sends canonical mg/dL — it must not depend on the phone's unit
      * setting — but calibrations are stored in the display unit, the way the
      * phone's own sheet writes them. Storing mg/dL directly is what turned a

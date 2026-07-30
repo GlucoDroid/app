@@ -62,7 +62,7 @@ object WearCalibrationCommand {
                 CLEAR -> CalibrationAccess.clearAll()
                 DELETE -> timestamp > 0L && CalibrationAccess.deleteCalibrationAt(timestamp)
                 ADD -> GlucoseValuePlausibility.isPlausibleMgdl(userValue) &&
-                    CalibrationAccess.addCalibration(userValue)
+                    CalibrationAccess.addCalibration(userValue, timestamp)
                 EDIT -> timestamp > 0L &&
                     GlucoseValuePlausibility.isPlausibleMgdl(userValue) &&
                     CalibrationAccess.updateCalibrationUserValue(timestamp, userValue)
