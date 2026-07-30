@@ -255,45 +255,36 @@ object WearSync2 {
             val base = (offset + i) * 3
             val timeSec = triples[base]
             buf.putLong(timeSec)
-            buf.putInt(calibratedLane10(triples[base + 1].toInt(), timeSec, false, serial))
+            // Both lanes travel uncalibrated. The phone used to correct them on
+            // the way out, which meant the watch could not calibrate anything it
+            // read itself — so a handoff dropped straight back to raw values.
+            // Now native holds raw on both devices and each corrects at display
+            // time with the same shared maths.
+            buf.putInt(triples[base + 1].toInt())
             val raw10 = triples[base + 2].toInt()
-            buf.putInt(
-                if (GlucoseValuePlausibility.isPlausibleMgdl(raw10 / 10f)) {
-                    calibratedLane10(raw10, timeSec, true, serial)
-                } else {
-                    0
-                },
-            )
+            buf.putInt(if (GlucoseValuePlausibility.isPlausibleMgdl(raw10 / 10f)) raw10 else 0)
         }
         MessageSender.sendSyncMessage(MessageSender.SYNC2_CHUNK_PATH, buf.array())
     }
 
-    private fun calibratedLane10(value10: Int, timeSec: Long, isRawMode: Boolean, serial: String): Int {
-        if (value10 <= 0 || CalibrationAccess.shouldOverwriteSensorValues()) return value10
-        if (!CalibrationAccess.hasActiveCalibration(isRawMode, serial)) return value10
-        val mgdl = value10 / 10f
-        val displayValue = if (Applic.unit == 1) mgdl / MGDL_PER_MMOL.toFloat() else mgdl
-        val calibratedDisplay = CalibrationAccess.getCalibratedValue(
-            displayValue,
-            timeSec * 1000L,
-            isRawMode,
-            false,
-            serial,
-        )
-        if (!calibratedDisplay.isFinite() || calibratedDisplay <= 0f) return value10
-        val calibratedMgdl =
-            if (Applic.unit == 1) calibratedDisplay * MGDL_PER_MMOL.toFloat() else calibratedDisplay
-        return (calibratedMgdl * 10f).roundToInt().takeIf { it > 0 } ?: value10
-    }
 
     private fun sendCalibration(serial: String) {
+        // Never publish "no calibration" off the back of a failed load: the watch
+        // corrects its own readings from these anchors now, so an empty set it
+        // persists would show raw values until something changed.
+        if (!CalibrationAccess.isCalibrationStateLoaded()) {
+            Log.w(LOG_ID, "skipping calibration serve for $serial: calibrations not loaded yet")
+            return
+        }
         val payload = WearCalibrationPayload(
             sensorId = serial,
             revision = calibrationWireRevision.updateAndGet { previous ->
                 maxOf(System.currentTimeMillis(), previous + 1L)
             },
-            valuesPrecalibrated = true,
+            valuesPrecalibrated = false,
             hideInitialWhenCalibrated = CalibrationAccess.shouldHideInitialWhenCalibrated(),
+            overwriteSensorValues = CalibrationAccess.shouldOverwriteSensorValues(),
+            tuning = CalibrationAccess.tuningForMode(false),
             auto = WearCalibrationMode(canonicalAnchors(serial, false)),
             raw = WearCalibrationMode(canonicalAnchors(serial, true)),
         )

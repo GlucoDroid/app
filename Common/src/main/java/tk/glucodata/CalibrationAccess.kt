@@ -45,6 +45,14 @@ object CalibrationAccess {
             )
         }.getOrNull()
     }
+    private val isCalibrationStateLoadedMethod by lazy {
+        runCatching { holder?.getMethod("isCalibrationStateLoaded") }.getOrNull()
+    }
+    private val tuningForModeMethod by lazy {
+        runCatching {
+            holder?.getMethod("tuningForMode", Boolean::class.javaPrimitiveType)
+        }.getOrNull()
+    }
     private val shouldOverwriteSensorValuesMethod by lazy {
         runCatching { holder?.getMethod("shouldOverwriteSensorValues") }.getOrNull()
     }
@@ -224,6 +232,30 @@ object CalibrationAccess {
             getActiveCalibrationAnchorsMethod?.invoke(instance, sensorId, isRawMode) as? DoubleArray
         }.getOrNull() ?: DoubleArray(0)
     }
+
+    /**
+     * False when the phone's calibrations are not in memory, so callers do not
+     * mistake a failed load for "this sensor has no calibration". True where
+     * there is no CalibrationManager at all (the watch), which has nothing to
+     * load.
+     */
+    @JvmStatic
+    fun isCalibrationStateLoaded(): Boolean {
+        if (holder == null) return true
+        return runCatching { isCalibrationStateLoadedMethod?.invoke(instance) as? Boolean }
+            .getOrNull() ?: false
+    }
+
+    /**
+     * The settings behind the phone's fit, so the watch can reproduce the same
+     * numbers with the shared computation.
+     */
+    @JvmStatic
+    fun tuningForMode(isRawMode: Boolean): tk.glucodata.data.calibration.CalibrationTuning =
+        runCatching {
+            tuningForModeMethod?.invoke(instance, isRawMode)
+                as? tk.glucodata.data.calibration.CalibrationTuning
+        }.getOrNull() ?: tk.glucodata.data.calibration.CalibrationTuning.DEFAULT
 
     @JvmStatic
     fun shouldOverwriteSensorValues(): Boolean {

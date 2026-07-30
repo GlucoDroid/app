@@ -87,6 +87,8 @@
     public final long getRevision();
     public static void notifyExternalCalibrationPipelineChanged();
     public static double[] getActiveCalibrationAnchors(java.lang.String,boolean);
+    public final tk.glucodata.data.calibration.CalibrationTuning tuningForMode(boolean);
+    public static boolean isCalibrationStateLoaded();
     public static float[] getIntegratedCalibratedSeries(float[],long[],boolean,java.lang.String);
     public static long getIntegratedCalibrationFingerprint(java.lang.String,boolean);
     public static void seedIntegratedCalibrationBaseline(float[],long[],boolean,java.lang.String);

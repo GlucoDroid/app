@@ -1,6 +1,7 @@
 package tk.glucodata
 
 object SyncedWearCalibrationProvider : CalibrationProvider {
+    private const val MGDL_PER_MMOL = 18.0182f
     private const val PREFS = "tk.glucodata_preferences"
     private const val KEY = "wear_synced_calibration_v1"
 
@@ -30,7 +31,7 @@ object SyncedWearCalibrationProvider : CalibrationProvider {
 
     @Synchronized
     fun update(next: WearCalibrationPayload) {
-        if (!next.valuesPrecalibrated || next.sensorId.isBlank()) return
+        if (next.sensorId.isBlank()) return
         restoreLocked()
         val current = payload
         if (current != null && next.revision < current.revision) return
@@ -50,6 +51,15 @@ object SyncedWearCalibrationProvider : CalibrationProvider {
         return mode(current, isRawMode).anchorsMgdl.isNotEmpty()
     }
 
+    /**
+     * Corrects a reading with the phone's anchors and settings, using the same
+     * computation the phone runs.
+     *
+     * This used to return the value untouched, because sync2 corrected values
+     * before sending them. That left the watch unable to correct anything it read
+     * itself, so taking the sensor over dropped the display straight back to raw
+     * numbers. Both devices now store raw and correct here.
+     */
     override fun getCalibratedValue(
         value: Float,
         timestamp: Long,
@@ -57,9 +67,61 @@ object SyncedWearCalibrationProvider : CalibrationProvider {
         emitDiagnostics: Boolean,
         sensorId: String?,
     ): Float {
-        // sync2 values were calibrated by CalibrationManager on the phone. Applying the
-        // anchors again here would double-calibrate them.
-        return value
+        val current = matchingPayload(sensorId) ?: return value
+        // Older phones corrected on the way out; correcting again would double it.
+        if (current.valuesPrecalibrated || current.overwriteSensorValues) return value
+        if (!value.isFinite() || value <= 0f) return value
+        val anchors = mode(current, isRawMode).anchorsMgdl
+        if (anchors.isEmpty()) return value
+        val isMmol = runCatching { Applic.unit == 1 }.getOrDefault(false)
+        // The anchors are canonical mg/dL while the value passed in is in display
+        // units, so convert into mg/dL, correct, and convert back.
+        val toMgdl = if (isMmol) MGDL_PER_MMOL else 1f
+        val points = ArrayList<tk.glucodata.data.calibration.CalPoint>(anchors.size / 3)
+        var offset = 0
+        while (offset + 2 < anchors.size) {
+            points.add(
+                tk.glucodata.data.calibration.CalPoint(
+                    x = anchors[offset],
+                    y = anchors[offset + 1],
+                    timestamp = anchors[offset + 2].toLong(),
+                ),
+            )
+            offset += 3
+        }
+        if (points.isEmpty()) return value
+        val sorted = points.sortedBy { it.timestamp }
+        val resolved = tk.glucodata.data.calibration.CalibrationMath.resolvePointsForTimestamp(
+            allPoints = sorted,
+            targetTimestamp = timestamp,
+            earliestPoint = sorted.firstOrNull(),
+            tuning = current.tuning,
+        )
+        if (resolved.isEmpty()) return value
+        val mgdl = value * toMgdl
+        val computation = tk.glucodata.data.calibration.CalibrationMath.computeAlgorithm(
+            algorithm = current.tuning.algorithm,
+            targetValue = mgdl.toDouble(),
+            targetTimestamp = timestamp,
+            points = resolved,
+            tuning = current.tuning,
+        )
+        val correctedMgdl = tk.glucodata.data.calibration.CalibrationMath.sanitizeCalibratedValue(
+            computation.prediction,
+            mgdl,
+        )
+        val finalMgdl = if (current.tuning.applyToPast) {
+            correctedMgdl
+        } else {
+            tk.glucodata.data.calibration.CalibrationMath.applyPastPolicy(
+                originalValue = mgdl,
+                calibratedValue = correctedMgdl,
+                targetTimestamp = timestamp,
+                points = resolved,
+            )
+        }
+        if (!finalMgdl.isFinite() || finalMgdl <= 0f) return value
+        return finalMgdl / toMgdl
     }
 
     override fun shouldHideInitialWhenCalibrated(): Boolean =
