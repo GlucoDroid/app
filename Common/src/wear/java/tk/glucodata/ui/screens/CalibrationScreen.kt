@@ -64,15 +64,18 @@ fun CalibrationEntryScreen(
     val step = if (isMmol) 0.1f else 1f
     val min = if (isMmol) 2.2f else 40f
     val max = if (isMmol) 27.7f else 500f
-    var value by remember {
-        val seedMgdl = editUserValueMgdl.takeIf { it.isFinite() && it > 0f }
-        val seed = when {
-            seedMgdl == null -> if (isMmol) 5.5f else 100f
-            isMmol -> seedMgdl / MGDL_PER_MMOLL
-            else -> seedMgdl
-        }
-        mutableFloatStateOf(seed)
+    // Opens on the value being corrected — the stored fingerstick when editing,
+    // otherwise the sensor's own reading — so the screen starts by showing what
+    // is there rather than an arbitrary 5.5.
+    val seedDisplay = remember {
+        val editSeed = editUserValueMgdl.takeIf { it.isFinite() && it > 0f }
+            ?.let { if (isMmol) it / MGDL_PER_MMOLL else it }
+        val sensorSeed = sensorValueMgdl.takeIf { it.isFinite() && it > 0f }
+            ?.let { if (isMmol) it / MGDL_PER_MMOLL else it }
+        editSeed ?: sensorSeed ?: (if (isMmol) 5.5f else 100f)
     }
+    var value by remember { mutableFloatStateOf(seedDisplay) }
+    val changed = kotlin.math.abs(value - seedDisplay) > 0.001f
     var rotaryAccum by remember { mutableStateOf(0f) }
     var sending by remember { mutableStateOf(false) }
     var resultOk by remember { mutableStateOf<Boolean?>(null) }
@@ -80,7 +83,7 @@ fun CalibrationEntryScreen(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     fun format(v: Float) =
-        if (isMmol) String.format(java.util.Locale.US, "%.1f", v) else v.roundToInt().toString()
+        if (isMmol) String.format(java.util.Locale.getDefault(), "%.1f", v) else v.roundToInt().toString()
 
     ScreenScaffold(timeText = { TimeText() }) {
         Column(
@@ -126,14 +129,14 @@ fun CalibrationEntryScreen(
                 ?.let { if (isMmol) it / MGDL_PER_MMOLL else it }
                 ?: currentDisplay
             Text(
-                text = sensorDisplay?.let { format(it) }
-                    ?: stringResource(R.string.calibrate_action),
-                style = if (sensorDisplay != null) MaterialTheme.typography.titleLarge
+                text = if (changed && sensorDisplay != null) format(sensorDisplay)
+                    else stringResource(R.string.calibrate_action),
+                style = if (changed && sensorDisplay != null) MaterialTheme.typography.titleLarge
                     else MaterialTheme.typography.titleMedium,
-                color = if (sensorDisplay != null) MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (changed && sensorDisplay != null) MaterialTheme.colorScheme.onSurfaceVariant
                     else MaterialTheme.colorScheme.onSurface,
             )
-            if (sensorDisplay != null) {
+            if (changed && sensorDisplay != null) {
                 Text(
                     text = "\u2193",
                     style = MaterialTheme.typography.labelLarge,

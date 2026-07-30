@@ -9,4 +9,7 @@
     <string name="wear_calibration_off">Kalibrasyon kapalı</string>
     <string name="wear_calibration_clear">Kalibrasyonları temizle</string>
     <string name="wear_calibration_delete">Kalibrasyonu sil</string>
+    <string name="wear_color_in_range">Hedefteki değerleri renklendir</string>
+    <string name="wear_color_in_range_on">Tüm değerler renkli</string>
+    <string name="wear_color_in_range_off">Sadece yüksek ve düşük renkli</string>
 </resources>

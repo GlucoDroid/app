@@ -47,7 +47,7 @@ internal fun formatWearGlucose(value: Float, isMmol: Boolean): String =
     if (isMmol) String.format(Locale.getDefault(), "%.1f", value) else String.format(Locale.getDefault(), "%.0f", value)
 
 internal fun rangeColor(value: Float, isMmol: Boolean): Color {
-    val fallback = GlucoseRangeColors.inRange(true)
+    val fallback = tk.glucodata.ui.WearColorPrefs.inRangeColor()
     return Color(runCatching {
         GlucoseRangeColors.colorForValue(
             value, Natives.targetlow(), Natives.targethigh(), Natives.alarmverylow(),

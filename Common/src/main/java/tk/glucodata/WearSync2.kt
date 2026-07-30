@@ -40,6 +40,10 @@ object WearSync2 {
     private const val BACKFILL_HORIZON_SEC = 14L * 24L * 3600L
     private const val INCREMENTAL_OVERLAP_SEC = 15L * 60L
     private const val REMOVAL_TOMBSTONE_MS = 10L * 60L * 1000L
+    // A full horizon is ~9000 readings in 26 messages. It is worth sending when
+    // the watch may be missing history, and pure waste otherwise — it was being
+    // re-sent on every app open and every calibration edit.
+    private const val DEEP_SERVE_MIN_INTERVAL_MS = 30L * 60L * 1000L
     private const val MGDL_PER_MMOL = 18.0182
 
     private val executor = Executors.newSingleThreadExecutor { r ->
@@ -49,6 +53,7 @@ object WearSync2 {
     private val lastServedMs = AtomicLong(0L)
     private val lastServedChunkCount = AtomicLong(0L)
     private val calibrationWireRevision = AtomicLong(0L)
+    private val lastDeepServeMs = AtomicLong(0L)
     private val removalTombstones = ConcurrentHashMap<String, Long>()
 
     // ---- phone side ----
@@ -116,7 +121,13 @@ object WearSync2 {
     /** Serve the full backfill horizon (fresh-watch bootstrap). */
     @JvmStatic
     fun serveAll() {
-        executor.execute { runCatching { serveSince(sanitizeFrom(0L)) }.onFailure { Log.stack(LOG_ID, "serveAll", it) } }
+        // Fresh-watch bootstrap: always worth it.
+        executor.execute {
+            runCatching {
+                allowDeepServe(force = true)
+                serveSince(sanitizeFrom(0L))
+            }.onFailure { Log.stack(LOG_ID, "serveAll", it) }
+        }
     }
 
     /** Re-send both the calibration state and the calibrated full horizon after a phone edit. */
@@ -124,8 +135,12 @@ object WearSync2 {
     fun onCalibrationChanged() {
         if (Applic.isWearable) return
         executor.execute {
-            runCatching { serveSince(sanitizeFrom(0L)) }
-                .onFailure { Log.stack(LOG_ID, "onCalibrationChanged", it) }
+            runCatching {
+                // Calibration changes every stored value, so the horizon does
+                // have to go again — but not once per keystroke of an edit.
+                if (allowDeepServe(force = false)) serveSince(sanitizeFrom(0L))
+                else serveSince(tailStartSec())
+            }.onFailure { Log.stack(LOG_ID, "onCalibrationChanged", it) }
         }
     }
 
@@ -137,7 +152,16 @@ object WearSync2 {
             if (buf.get().toInt() != VERSION) return
             buf.long
         }.getOrNull() ?: return
-        executor.execute { runCatching { serveSince(sanitizeFrom(fromSec)) }.onFailure { Log.stack(LOG_ID, "onRequest", it) } }
+        executor.execute {
+            runCatching {
+                val requestedHorizon = fromSec <= System.currentTimeMillis() / 1000L - BACKFILL_HORIZON_SEC + 60L
+                if (!requestedHorizon || allowDeepServe(force = false)) {
+                    serveSince(sanitizeFrom(fromSec))
+                } else {
+                    serveSince(tailStartSec())
+                }
+            }.onFailure { Log.stack(LOG_ID, "onRequest", it) }
+        }
     }
 
     private fun tailStartSec(): Long = System.currentTimeMillis() / 1000L - TAIL_TRIPLES * 60L
@@ -145,6 +169,18 @@ object WearSync2 {
     private fun sanitizeFrom(fromSec: Long): Long {
         val floor = System.currentTimeMillis() / 1000L - BACKFILL_HORIZON_SEC
         return fromSec.coerceAtLeast(floor)
+    }
+
+    /** True when a full-horizon serve is worth the traffic right now. */
+    private fun allowDeepServe(force: Boolean): Boolean {
+        val now = System.currentTimeMillis()
+        val last = lastDeepServeMs.get()
+        if (!force && now - last < DEEP_SERVE_MIN_INTERVAL_MS) {
+            if (doLog) Log.i(LOG_ID, "skipping deep serve, last one ${(now - last) / 1000}s ago")
+            return false
+        }
+        lastDeepServeMs.set(now)
+        return true
     }
 
     private fun serveSince(fromSec: Long) {
@@ -164,13 +200,23 @@ object WearSync2 {
             .filter { it.timestamp > 0L && GlucoseValuePlausibility.isPlausibleMgdl(it.value) }
             .sortedBy { it.timestamp }
         if (points.isEmpty()) return
+        // Native storage keeps whole mg/dL and 0.1 mmol/L is 1.8 mg/dL, so a
+        // value the phone rounds up could round back down on the watch and the
+        // two disagreed by 0.1. Quantising here to the value the phone actually
+        // displays survives that round trip, because 1.8 mg/dL steps stay
+        // distinct at mg/dL resolution.
+        val displayQuantum = if (Applic.unit == 1) MGDL_PER_MMOL / 10.0 else 1.0
+        fun wireValue(mgdl: Float): Long {
+            val quantised = Math.round(mgdl / displayQuantum) * displayQuantum
+            return Math.round(quantised * 10.0)
+        }
         val triples = LongArray(points.size * 3)
         points.forEachIndexed { i, point ->
             triples[i * 3] = point.timestamp / 1000L
-            triples[i * 3 + 1] = (point.value * 10f).roundToInt().toLong()
+            triples[i * 3 + 1] = wireValue(point.value)
             triples[i * 3 + 2] = point.rawValue
                 .takeIf { GlucoseValuePlausibility.isPlausibleMgdl(it) }
-                ?.let { (it * 10f).roundToInt().toLong() } ?: 0L
+                ?.let { wireValue(it) } ?: 0L
         }
         val total = points.size
         var index = 0

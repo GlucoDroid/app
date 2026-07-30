@@ -9,4 +9,7 @@
     <string name="wear_calibration_off">Kalibracja wyłączona</string>
     <string name="wear_calibration_clear">Wyczyść kalibracje</string>
     <string name="wear_calibration_delete">Usuń kalibrację</string>
+    <string name="wear_color_in_range">Koloruj wartości w zakresie</string>
+    <string name="wear_color_in_range_on">Wszystkie wartości kolorowe</string>
+    <string name="wear_color_in_range_off">Kolor tylko dla wysokich i niskich</string>
 </resources>

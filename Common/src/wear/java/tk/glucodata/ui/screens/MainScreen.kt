@@ -67,7 +67,7 @@ private fun sensorPresent(): Boolean = runCatching {
 }.getOrDefault(false)
 
 internal fun glucoseColor(snapshot: CurrentDisplaySource.Snapshot): Color {
-    val fallback = GlucoseRangeColors.inRange(true)
+    val fallback = tk.glucodata.ui.WearColorPrefs.inRangeColor()
     return Color(runCatching {
         GlucoseRangeColors.colorForValue(
             snapshot.primaryValue, Natives.targetlow(), Natives.targethigh(),

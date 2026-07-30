@@ -9,4 +9,7 @@
     <string name="wear_calibration_off">Калібрування вимкнено</string>
     <string name="wear_calibration_clear">Очистити калібрування</string>
     <string name="wear_calibration_delete">Видалити калібрування</string>
+    <string name="wear_color_in_range">Кольор значень у нормі</string>
+    <string name="wear_color_in_range_on">Усі значення в кольорі</string>
+    <string name="wear_color_in_range_off">У кольорі лише високі та низькі</string>
 </resources>

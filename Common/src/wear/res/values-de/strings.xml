@@ -10,5 +10,8 @@
     <string name="wear_calibration_off">Kalibrierung aus</string>
     <string name="wear_calibration_clear">Kalibrierungen löschen</string>
     <string name="wear_calibration_delete">Kalibrierung löschen</string>
+    <string name="wear_color_in_range">Werte im Zielbereich färben</string>
+    <string name="wear_color_in_range_on">Alle Werte farbig</string>
+    <string name="wear_color_in_range_off">Nur Hoch- und Tiefwerte farbig</string>
 </resources>
 

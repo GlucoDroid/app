@@ -45,13 +45,18 @@ object NotificationHistorySource {
             if (!Applic.isWearable) return roomHistory
             val nativeHistory = loadNativeHistory(startTimeMs, isMmol, sensorSerial)
             if (nativeHistory.isEmpty()) return roomHistory
+            // Key by minute: the two sources timestamp the same reading
+            // differently (native is minute-aligned, Room keeps the arrival
+            // millisecond), which listed one reading two or three times.
             val merged = TreeMap<Long, GlucosePoint>()
-            nativeHistory.forEach { merged[it.timestamp] = it }
+            fun minuteOf(timestamp: Long) = timestamp / 60_000L
+            nativeHistory.forEach { merged[minuteOf(it.timestamp)] = it }
             roomHistory.forEach { point ->
-                val existing = merged[point.timestamp]
-                if (existing == null || shouldReplace(existing, point)) merged[point.timestamp] = point
+                val key = minuteOf(point.timestamp)
+                val existing = merged[key]
+                if (existing == null || shouldReplace(existing, point)) merged[key] = point
             }
-            return merged.values.toList()
+            return merged.values.sortedBy { it.timestamp }
         }
         return loadNativeHistory(startTimeMs, isMmol, sensorSerial)
     }

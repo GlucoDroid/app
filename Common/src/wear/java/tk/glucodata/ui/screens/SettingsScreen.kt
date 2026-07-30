@@ -3,6 +3,10 @@ package tk.glucodata.ui.screens
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -34,6 +38,18 @@ fun SettingsScreen(
             }
             item {
                 WearNavigationRow(stringResource(R.string.sensor), onClick = onOpenSensor)
+            }
+            item {
+                var colorInRange by remember { mutableStateOf(tk.glucodata.ui.WearColorPrefs.colorInRange()) }
+                WearNavigationRow(
+                    stringResource(R.string.wear_color_in_range),
+                    subtitle = if (colorInRange) stringResource(R.string.wear_color_in_range_on) else stringResource(R.string.wear_color_in_range_off),
+                    onClick = {
+                        colorInRange = !colorInRange
+                        tk.glucodata.ui.WearColorPrefs.setColorInRange(colorInRange)
+                        tk.glucodata.UiRefreshBus.requestDataRefresh()
+                    },
+                )
             }
             item {
                 Text(

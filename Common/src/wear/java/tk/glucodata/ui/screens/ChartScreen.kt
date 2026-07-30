@@ -223,7 +223,7 @@ internal fun InteractiveWearChartPanel(
     val lineColor = data.points.lastOrNull()?.let {
         rangeColor(if (primaryRaw) plausibleRawValue(it, isMmol) ?: it.value else it.value, isMmol)
     }
-        ?: Color(GlucoseRangeColors.inRange(true))
+        ?: Color(tk.glucodata.ui.WearColorPrefs.inRangeColor())
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.13f)
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val targetColor = Color(GlucoseRangeColors.inRange(true))

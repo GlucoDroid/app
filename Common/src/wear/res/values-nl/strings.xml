@@ -10,5 +10,8 @@
     <string name="wear_calibration_off">Kalibratie uit</string>
     <string name="wear_calibration_clear">Kalibraties wissen</string>
     <string name="wear_calibration_delete">Kalibratie verwijderen</string>
+    <string name="wear_color_in_range">Waarden binnen bereik inkleuren</string>
+    <string name="wear_color_in_range_on">Alle waarden gekleurd</string>
+    <string name="wear_color_in_range_off">Alleen hoog en laag gekleurd</string>
 </resources>
 
