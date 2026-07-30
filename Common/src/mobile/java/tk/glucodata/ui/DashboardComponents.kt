@@ -49,11 +49,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp as lerpColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.key
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import tk.glucodata.ui.theme.displayLargeExpressive
@@ -1009,8 +1013,21 @@ private fun HeroTrendWithDelta(
             color = arrowColor
         )
         if (!deltaText.isNullOrEmpty()) {
+            val deltaReadout = buildAnnotatedString {
+                withStyle(
+                    SpanStyle(
+                        color = contentColor.copy(alpha = 0.45f),
+                        fontSize = 8.sp,
+                        baselineShift = BaselineShift.Superscript
+                    )
+                ) {
+                    append("Δ")
+                }
+                append("\u2009")
+                append(deltaText)
+            }
             Text(
-                text = deltaText,
+                text = deltaReadout,
                 style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                 color = contentColor.copy(alpha = 0.75f),
                 softWrap = false,

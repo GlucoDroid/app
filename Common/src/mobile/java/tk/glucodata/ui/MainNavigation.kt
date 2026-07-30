@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -52,7 +53,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -605,6 +609,35 @@ private fun CalibrationSheetHost(
 }
 
 @Composable
+private fun AdaptiveNavigationLabel(text: String) {
+    BoxWithConstraints {
+        val density = LocalDensity.current
+        val textMeasurer = rememberTextMeasurer()
+        val regularStyle = MaterialTheme.typography.labelMedium
+        val tightStyle = regularStyle.copy(letterSpacing = 0.sp)
+        val compactStyle = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp)
+        val availableWidthPx = with(density) { maxWidth.toPx() }
+        val labelStyle = remember(text, availableWidthPx, regularStyle, tightStyle, compactStyle) {
+            listOf(regularStyle, tightStyle, compactStyle).firstOrNull { style ->
+                textMeasurer.measure(
+                    text = AnnotatedString(text),
+                    style = style,
+                    maxLines = 1
+                ).size.width <= availableWidthPx
+            } ?: compactStyle
+        }
+
+        Text(
+            text = text,
+            style = labelStyle,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     val navController = rememberNavController()
     val dashboardViewModel: DashboardViewModel = viewModel()
@@ -877,13 +910,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                                 )
                             },
                             label = {
-                                Text(
-                                    text = item.label,
-                                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                AdaptiveNavigationLabel(item.label)
                             },
                             selected = isSelected,
                             onClick = { onNavigate(item.route) }
