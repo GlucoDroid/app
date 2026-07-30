@@ -353,8 +353,6 @@ class OttaiBleManager(
             NightscoutUploadWake.afterLiveNativeWrite(source, timestampMs)
         },
     )
-    @Volatile private var nativeMirrorCapacityReady = false
-
     // Recent abnormal-disconnect timestamps (status!=0), pruned to UNSTABLE_LINK_WINDOW_MS;
     // feeds the fast-params hold and is only touched under its own lock (binder threads).
     private val abnormalDropAtMs = ArrayDeque<Long>()
@@ -2364,14 +2362,6 @@ class OttaiBleManager(
     ) {
         runCatching {
             ensureNativePresenceShell("glucose-mirror")
-            val minimumRecords = OttaiConstants.EXTENDED_LIFETIME_DAYS * 24 * 60
-            if (!nativeMirrorCapacityReady) {
-                nativeMirrorCapacityReady = Natives.ensureSensorStreamCapacity(id, minimumRecords)
-                if (!nativeMirrorCapacityReady) {
-                    Log.e(TAG, "native glucose mirror capacity failed id=$id records=$minimumRecords")
-                    return@runCatching
-                }
-            }
             val stored = nativeGlucoseMirror.mirrorLive(
                 id,
                 reading.sampleMs,
