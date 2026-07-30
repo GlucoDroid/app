@@ -12,4 +12,11 @@
     <string name="wear_color_in_range">Hedefteki değerleri renklendir</string>
     <string name="wear_color_in_range_on">Tüm değerler renkli</string>
     <string name="wear_color_in_range_off">Sadece yüksek ve düşük renkli</string>
+    <string name="wear_journal_disabled">Burada kullanmak için günlüğü telefonda etkinleştirin.</string>
+    <string name="wear_journal_insulin">İnsülin</string>
+    <string name="wear_journal_carbs">Karbonhidrat</string>
+    <string name="wear_journal_add">Günlük kaydı ekle</string>
+    <string name="wear_reading_actions_title">Ölçüm</string>
+    <string name="wear_calibration_edit">Kalibrasyonu düzenle</string>
+    <string name="wear_journal_delete">Sil</string>
 </resources>

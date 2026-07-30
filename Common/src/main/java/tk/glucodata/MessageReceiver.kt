@@ -85,6 +85,21 @@ class MessageReceiver: WearableListenerService() {
             MessageSender.SYNC2_REMOVE_PATH -> {
                 if (isWearable) WearSync2.onRemove(data)
             }
+            MessageSender.JOURNAL_REQ_PATH -> {
+                if (!isWearable) WearJournalSync.onRequest(
+                    if (data != null && data.size >= 9) {
+                        java.nio.ByteBuffer.wrap(data, 1, 8).long
+                    } else {
+                        0L
+                    }
+                )
+            }
+            MessageSender.JOURNAL_DATA_PATH -> {
+                if (isWearable) WearJournalSync.onServed(data)
+            }
+            MessageSender.JOURNAL_CMD_PATH -> {
+                if (!isWearable) WearJournalSync.onCommand(data)
+            }
             MessageSender.SENSOR_HANDOFF_PATH -> {
                 if (isWearable) {
                     // Persist the identity only. Do NOT flip the watch into

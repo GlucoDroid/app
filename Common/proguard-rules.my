@@ -66,6 +66,16 @@
 }
 
 # Keep CalibrationManager names and reflected members stable.
+# JournalAccess in src/main resolves this mobile-only facade by name. Without
+# these the watch journal silently does nothing in minified builds.
+-keepnames class tk.glucodata.data.journal.WearJournalBridge
+-keepclassmembers class tk.glucodata.data.journal.WearJournalBridge {
+    public static final tk.glucodata.data.journal.WearJournalBridge INSTANCE;
+    public final byte[] serveEntries(long);
+    public final boolean applyCommand(byte[]);
+    public final boolean isJournalEnabled();
+}
+
 # CalibrationAccess in src/main resolves these mobile-only methods by name.
 -keepnames class tk.glucodata.data.calibration.CalibrationManager
 -keepclassmembers class tk.glucodata.data.calibration.CalibrationManager {

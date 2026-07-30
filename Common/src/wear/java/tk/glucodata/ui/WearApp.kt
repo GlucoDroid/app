@@ -25,6 +25,9 @@ object WearRoutes {
     const val CALIBRATIONS = "calibrations"
     const val READINGS = "readings"
     const val SETTINGS = "settings"
+    const val JOURNAL = "journal"
+    const val JOURNAL_ENTRY = "journalentry"
+    const val READING_ACTIONS = "readingactions"
 }
 
 /**
@@ -35,6 +38,22 @@ private fun calibrateRouteFor(point: tk.glucodata.GlucosePoint): String {
     val action = tk.glucodata.ui.screens.ReadingActions.resolve(point.timestamp)
     val sensorMgdl = if (tk.glucodata.Applic.unit == 1) point.value * 18.0182f else point.value
     return "${WearRoutes.CALIBRATE}?ts=${action.calibrationTimestamp}" +
+        "&user=${action.calibrationUserValueMgdl}" +
+        "&sensor=$sensorMgdl" +
+        "&reading=${point.timestamp}"
+}
+
+/**
+ * With the journal enabled a reading tap offers the same two choices the phone
+ * does; with it off it calibrates directly, against that reading's timeframe.
+ */
+private fun readingTapRouteFor(point: tk.glucodata.GlucosePoint): String {
+    if (!tk.glucodata.ui.screens.ReadingActions.journalAvailable()) {
+        return calibrateRouteFor(point)
+    }
+    val action = tk.glucodata.ui.screens.ReadingActions.resolve(point.timestamp)
+    val sensorMgdl = if (tk.glucodata.Applic.unit == 1) point.value * 18.0182f else point.value
+    return "${WearRoutes.READING_ACTIONS}?ts=${action.calibrationTimestamp}" +
         "&user=${action.calibrationUserValueMgdl}" +
         "&sensor=$sensorMgdl" +
         "&reading=${point.timestamp}"
@@ -65,13 +84,14 @@ fun WearApp() {
                     onOpenSensor = { navController.navigate(WearRoutes.SENSOR) },
                     onOpenReadings = { navController.navigate(WearRoutes.READINGS) },
                     onOpenCalibrations = { navController.navigate(WearRoutes.CALIBRATIONS) },
-                    onCalibrateReading = { point -> navController.navigate(calibrateRouteFor(point)) },
+                    onOpenJournal = { navController.navigate(WearRoutes.JOURNAL) },
+                    onCalibrateReading = { point -> navController.navigate(readingTapRouteFor(point)) },
                 )
             }
             composable(WearRoutes.CHART) { ChartScreen() }
             composable(WearRoutes.READINGS) {
                 RecentReadingsScreen(
-                    onCalibrateReading = { point -> navController.navigate(calibrateRouteFor(point)) },
+                    onCalibrateReading = { point -> navController.navigate(readingTapRouteFor(point)) },
                 )
             }
             composable(WearRoutes.CALIBRATIONS) {
@@ -106,6 +126,50 @@ fun WearApp() {
                     editUserValueMgdl = entry.arguments?.getString("user")?.toFloatOrNull() ?: Float.NaN,
                     sensorValueMgdl = entry.arguments?.getString("sensor")?.toFloatOrNull() ?: Float.NaN,
                     readingTimestamp = entry.arguments?.getString("reading")?.toLongOrNull() ?: 0L,
+                )
+            }
+            composable(WearRoutes.JOURNAL) {
+                tk.glucodata.ui.screens.JournalScreen(
+                    onAddInsulin = { navController.navigate("${WearRoutes.JOURNAL_ENTRY}?insulin=1&reading=0") },
+                    onAddCarbs = { navController.navigate("${WearRoutes.JOURNAL_ENTRY}?insulin=0&reading=0") },
+                )
+            }
+            composable(
+                route = "${WearRoutes.JOURNAL_ENTRY}?insulin={insulin}&reading={reading}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("insulin") { defaultValue = "1" },
+                    androidx.navigation.navArgument("reading") { defaultValue = "0" },
+                ),
+            ) { entry ->
+                tk.glucodata.ui.screens.JournalEntryScreen(
+                    isInsulin = entry.arguments?.getString("insulin") != "0",
+                    timestampMs = entry.arguments?.getString("reading")?.toLongOrNull() ?: 0L,
+                    onDone = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = "${WearRoutes.READING_ACTIONS}?ts={ts}&user={user}&sensor={sensor}&reading={reading}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("ts") { defaultValue = "0" },
+                    androidx.navigation.navArgument("user") { defaultValue = "NaN" },
+                    androidx.navigation.navArgument("sensor") { defaultValue = "NaN" },
+                    androidx.navigation.navArgument("reading") { defaultValue = "0" },
+                ),
+            ) { entry ->
+                val ts = entry.arguments?.getString("ts") ?: "0"
+                val user = entry.arguments?.getString("user") ?: "NaN"
+                val sensor = entry.arguments?.getString("sensor") ?: "NaN"
+                val reading = entry.arguments?.getString("reading") ?: "0"
+                tk.glucodata.ui.screens.ReadingActionChooser(
+                    hasCalibration = (ts.toLongOrNull() ?: 0L) > 0L,
+                    onAddJournal = {
+                        navController.navigate("${WearRoutes.JOURNAL_ENTRY}?insulin=1&reading=$reading")
+                    },
+                    onCalibrate = {
+                        navController.navigate(
+                            "${WearRoutes.CALIBRATE}?ts=$ts&user=$user&sensor=$sensor&reading=$reading",
+                        )
+                    },
                 )
             }
             composable(WearRoutes.SETTINGS) {

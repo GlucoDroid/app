@@ -56,11 +56,12 @@ object ReadingActions {
     }
 
     /**
-     * The journal is a phone feature; until its entries sync to the watch there
-     * is nothing to add here, and offering the choice would be a dead end.
+     * True when the phone has told the watch its journal is enabled. The watch
+     * caches the last serve, so this answers correctly before a fresh sync lands.
      */
     @JvmStatic
-    fun journalAvailable(): Boolean = false
+    fun journalAvailable(): Boolean =
+        runCatching { tk.glucodata.WearJournalSync.cached().enabled }.getOrDefault(false)
 
     /** Readings for the History screen: a longer window than the home list. */
     @JvmStatic

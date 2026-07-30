@@ -13,5 +13,12 @@
     <string name="wear_color_in_range">Waarden binnen bereik inkleuren</string>
     <string name="wear_color_in_range_on">Alle waarden gekleurd</string>
     <string name="wear_color_in_range_off">Alleen hoog en laag gekleurd</string>
+    <string name="wear_journal_disabled">Schakel het journaal in op de telefoon om het hier te gebruiken.</string>
+    <string name="wear_journal_insulin">Insuline</string>
+    <string name="wear_journal_carbs">Koolhydraten</string>
+    <string name="wear_journal_add">Journaalitem toevoegen</string>
+    <string name="wear_reading_actions_title">Meting</string>
+    <string name="wear_calibration_edit">Kalibratie wijzigen</string>
+    <string name="wear_journal_delete">Verwijderen</string>
 </resources>
 

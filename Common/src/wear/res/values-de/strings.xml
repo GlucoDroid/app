@@ -13,5 +13,12 @@
     <string name="wear_color_in_range">Werte im Zielbereich färben</string>
     <string name="wear_color_in_range_on">Alle Werte farbig</string>
     <string name="wear_color_in_range_off">Nur Hoch- und Tiefwerte farbig</string>
+    <string name="wear_journal_disabled">Aktiviere das Journal auf dem Telefon, um es hier zu nutzen.</string>
+    <string name="wear_journal_insulin">Insulin</string>
+    <string name="wear_journal_carbs">Kohlenhydrate</string>
+    <string name="wear_journal_add">Journaleintrag hinzufügen</string>
+    <string name="wear_reading_actions_title">Messwert</string>
+    <string name="wear_calibration_edit">Kalibrierung bearbeiten</string>
+    <string name="wear_journal_delete">Löschen</string>
 </resources>
 

@@ -12,4 +12,11 @@
     <string name="wear_color_in_range">Koloruj wartości w zakresie</string>
     <string name="wear_color_in_range_on">Wszystkie wartości kolorowe</string>
     <string name="wear_color_in_range_off">Kolor tylko dla wysokich i niskich</string>
+    <string name="wear_journal_disabled">Włącz dziennik w telefonie, aby korzystać z niego tutaj.</string>
+    <string name="wear_journal_insulin">Insulina</string>
+    <string name="wear_journal_carbs">Węglowodany</string>
+    <string name="wear_journal_add">Dodaj wpis do dziennika</string>
+    <string name="wear_reading_actions_title">Pomiar</string>
+    <string name="wear_calibration_edit">Edytuj kalibrację</string>
+    <string name="wear_journal_delete">Usuń</string>
 </resources>

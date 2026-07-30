@@ -12,4 +12,11 @@
     <string name="wear_color_in_range">Colorer les valeurs dans la cible</string>
     <string name="wear_color_in_range_on">Toutes les valeurs colorées</string>
     <string name="wear_color_in_range_off">Seuls les hauts et bas colorés</string>
+    <string name="wear_journal_disabled">Activez le journal sur le téléphone pour l\'utiliser ici.</string>
+    <string name="wear_journal_insulin">Insuline</string>
+    <string name="wear_journal_carbs">Glucides</string>
+    <string name="wear_journal_add">Ajouter au journal</string>
+    <string name="wear_reading_actions_title">Mesure</string>
+    <string name="wear_calibration_edit">Modifier la calibration</string>
+    <string name="wear_journal_delete">Supprimer</string>
 </resources>

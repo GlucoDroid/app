@@ -12,4 +12,11 @@
     <string name="wear_color_in_range">Кольор значень у нормі</string>
     <string name="wear_color_in_range_on">Усі значення в кольорі</string>
     <string name="wear_color_in_range_off">У кольорі лише високі та низькі</string>
+    <string name="wear_journal_disabled">Увімкніть журнал на телефоні, щоб користуватися ним тут.</string>
+    <string name="wear_journal_insulin">Інсулін</string>
+    <string name="wear_journal_carbs">Вуглеводи</string>
+    <string name="wear_journal_add">Додати запис у журнал</string>
+    <string name="wear_reading_actions_title">Показник</string>
+    <string name="wear_calibration_edit">Змінити калібрування</string>
+    <string name="wear_journal_delete">Видалити</string>
 </resources>

@@ -15,6 +15,7 @@ import tk.glucodata.Log
 import tk.glucodata.NotificationHistorySource
 import tk.glucodata.SensorIdentity
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.WearJournalSync
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -45,6 +46,9 @@ object WearGlucoseStore {
     /** Refreshes arriving faster than this are folded into one reload. */
     private const val MIN_RELOAD_INTERVAL_MS = 4_000L
     private const val TICK_MS = 60_000L
+
+    /** How often the journal is re-requested; it changes far slower than glucose. */
+    private const val JOURNAL_REFRESH_TICKS = 5
 
     data class Snapshot(
         /** Ascending, oldest first, covering [horizonStartMs] to now. */
@@ -92,13 +96,23 @@ object WearGlucoseStore {
         scope.launch {
             launch { UiRefreshBus.revision.collect { refresh() } }
             launch {
+                var tick = 0
                 while (true) {
                     delay(TICK_MS)
                     refresh()
+                    if (++tick % JOURNAL_REFRESH_TICKS == 0) requestJournal()
                 }
             }
         }
         refresh(force = true)
+        // Ask for the journal without waiting for its screen to be opened: the
+        // Journal row only shows once the phone has said the journal is enabled,
+        // so a screen-triggered request could never arrive.
+        requestJournal()
+    }
+
+    private fun requestJournal() {
+        runCatching { WearJournalSync.requestSync() }
     }
 
     /**

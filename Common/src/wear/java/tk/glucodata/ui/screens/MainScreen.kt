@@ -97,6 +97,7 @@ fun MainScreen(
     onOpenSensor: () -> Unit,
     onOpenReadings: () -> Unit,
     onOpenCalibrations: () -> Unit,
+    onOpenJournal: () -> Unit = {},
     onCalibrateReading: (GlucosePoint) -> Unit = {},
 ) {
     var snapshot by remember { mutableStateOf(currentSnapshot()) }
@@ -204,6 +205,15 @@ fun MainScreen(
             item {
                 Box(Modifier.padding(horizontal = 18.dp)) {
                     WearNavigationRow(stringResource(R.string.calibration), onClick = onOpenCalibrations)
+                }
+            }
+            // Only offered when the phone reports the journal as enabled, so the
+            // row never leads to a screen that can do nothing.
+            if (ReadingActions.journalAvailable()) {
+                item {
+                    Box(Modifier.padding(horizontal = 18.dp)) {
+                        WearNavigationRow(stringResource(R.string.journal_title), onClick = onOpenJournal)
+                    }
                 }
             }
             item {

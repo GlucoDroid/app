@@ -313,6 +313,9 @@ companion object {
     const val SYNC2_CAL_PATH = "/sync2/cal"
     const val CALIBRATION_CMD_PATH = "/sync2/calcmd"
     const val SYNC2_REMOVE_PATH = "/sync2/remove"
+    const val JOURNAL_REQ_PATH = "/sync2/journal/req"
+    const val JOURNAL_DATA_PATH = "/sync2/journal"
+    const val JOURNAL_CMD_PATH = "/sync2/journal/cmd"
     val scope = CoroutineScope(Dispatchers.IO+SupervisorJob()  )
     private var messagesender: MessageSender? = null
     @Volatile private var wearableApiUnavailable = false
