@@ -316,6 +316,23 @@ static bool isRecentNightUploadCovered(const int sensorid,const uint32_t tim) {
     return range->start && tim>=range->start && tim<=range->end;
     }
 
+static uint16_t loadNightiter(const SensorGlucoseData *sens) {
+    const auto *info=sens?sens->getinfo():nullptr;
+    return info?__atomic_load_n(&info->nightiter,__ATOMIC_RELAXED):0;
+    }
+
+static void advanceNightiter(SensorGlucoseData *sens,const int target) {
+    auto *info=sens?sens->getinfo():nullptr;
+    if(!info)
+        return;
+    const auto bounded=static_cast<uint16_t>(
+        std::clamp(target,0,static_cast<int>(std::numeric_limits<uint16_t>::max())));
+    uint16_t current=__atomic_load_n(&info->nightiter,__ATOMIC_RELAXED);
+    while(current<bounded&&!__atomic_compare_exchange_n(
+              &info->nightiter,&current,bounded,false,__ATOMIC_RELAXED,__ATOMIC_RELAXED)) {
+        }
+    }
+
 
 //static boolean upload(String httpurl,byte[] postdata,String secret) ;
 extern vector<Numdata*> numdatas;
@@ -327,7 +344,7 @@ static void reset() {
         range={};
     for(int sensorid=0;sensorid<=last;sensorid++) {
         if(SensorGlucoseData *sens=sensors->getSensorData(sensorid)) {
-            sens->getinfo()->nightiter=0;
+            __atomic_store_n(&sens->getinfo()->nightiter,0,__ATOMIC_RELAXED);
             }
         }
     for(auto *numdata:numdatas)
@@ -659,7 +676,7 @@ static bool uploadCGM3(const bool prioritizeRecent=false) {
             std::span<const ScanData> gdata=sens->getPolldata();
             const sensorname_t *sensorname=sens->shortsensorname();
             int len=gdata.size();
-            int positer=sens->getinfo()->nightiter;
+            int positer=loadNightiter(sens);
             LOGGER("%d: positer=%d\n",sensorid,positer);
             int left=len-positer;
             bool send=false;
@@ -671,11 +688,16 @@ static bool uploadCGM3(const bool prioritizeRecent=false) {
                         }
                     }
                 for(;positer<len;positer++) { //Geen overlappende data?
+                    const int persisted=loadNightiter(sens);
+                    if(persisted>positer) {
+                        positer=persisted-1;
+                        continue;
+                        }
                     const ScanData *el= &gdata[positer];
                     if(el->valid(positer)&&el->gettime()>mintime) {
                         pruneRecentNightUpload(sensorid,el->gettime());
                         if(isRecentNightUploadCovered(sensorid,el->gettime())) {
-                            sens->getinfo()->nightiter=positer+1;
+                            advanceNightiter(sens,positer+1);
                             continue;
                             }
                         constexpr const int max3entry=320;
@@ -685,7 +707,7 @@ static bool uploadCGM3(const bool prioritizeRecent=false) {
                         logwriter(buf,buflen);
                         auto res=nightuploadEntries3(buf,buflen);
                         if(isNightUploadAccepted(res)) {
-                            sens->getinfo()->nightiter=positer+1;
+                            advanceNightiter(sens,positer+1);
                             send=true;
                             }
                         else {
@@ -735,7 +757,7 @@ static bool uploadCGM(const bool prioritizeRecent=false) {
             std::span<const ScanData> gdata=sens->getPolldata();
             const sensorname_t *sensorname=sens->shortsensorname();
             const int totallen=gdata.size();
-            int positer=sens->getinfo()->nightiter;
+            int positer=loadNightiter(sens);
             LOGGER("%d: positer=%d\n",sensorid,positer);
             int left=totallen-positer;
             if(left>=0) {
@@ -746,6 +768,9 @@ static bool uploadCGM(const bool prioritizeRecent=false) {
                         }
                     }
                 while(positer<totallen) {
+                    positer=std::max(positer,static_cast<int>(loadNightiter(sens)));
+                    if(positer>=totallen)
+                        break;
                     const int chunklimit=positer<120?40:maxuploaditems;
                     const int chunkend=std::min(totallen,positer+chunklimit);
                     const int chunkitems=chunkend-positer;
@@ -778,7 +803,7 @@ static bool uploadCGM(const bool prioritizeRecent=false) {
                         LOGGERN(start,datalen);
                         const int res = nightuploadEntries(start,datalen);
                         if(isNightUploadSuccess(res)) {
-                            sens->getinfo()->nightiter=chunkend;
+                            advanceNightiter(sens,chunkend);
                             positer=chunkend;
                             LOGGER("%d nightupload Success\n",sensorid);
                             LOGGER("%d saved nightiter=%d\n", sensorid,chunkend);
@@ -787,7 +812,7 @@ static bool uploadCGM(const bool prioritizeRecent=false) {
                             continue;
                             }
                         if(res==HTTP_CONFLICT && uploadV1ChunkIndividually(sensorid,sens,sensorname,gdata,positer,chunkend,mintime)) {
-                            sens->getinfo()->nightiter=chunkend;
+                            advanceNightiter(sens,chunkend);
                             positer=chunkend;
                             LOGGER("%d nightupload conflict resolved individually\n",sensorid);
                             LOGGER("%d saved nightiter=%d\n", sensorid,chunkend);
@@ -803,7 +828,7 @@ static bool uploadCGM(const bool prioritizeRecent=false) {
                         }
                     else  {
                         LOGGER("ADDED nothing %d new positer=%d\n",sensorid,chunkend);
-                        sens->getinfo()->nightiter=chunkend;
+                        advanceNightiter(sens,chunkend);
                         positer=chunkend;
                         }
                     }

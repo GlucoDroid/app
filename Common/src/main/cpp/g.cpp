@@ -1564,6 +1564,36 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(hasSensorStreamCapacity)(
   return ready ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+fromjava(advanceDirectStreamNightscoutCursorToEnd)(
+    JNIEnv *env, jclass cl, jstring sensorId) {
+  if (!sensors || !sensorId)
+    return JNI_FALSE;
+  const char *str = env->GetStringUTFChars(sensorId, nullptr);
+  if (!str)
+    return JNI_FALSE;
+
+  SensorGlucoseData *hist = ensureDirectStreamShellForId(str, 0);
+  if (!hist || hist->error() || !hist->getinfo()) {
+    env->ReleaseStringUTFChars(sensorId, str);
+    return JNI_FALSE;
+  }
+
+  auto *info = hist->getinfo();
+  const auto target = static_cast<uint16_t>(std::min<size_t>(
+      hist->pollcount(), std::numeric_limits<uint16_t>::max()));
+  uint16_t current = __atomic_load_n(&info->nightiter, __ATOMIC_RELAXED);
+  const uint16_t previous = current;
+  while (current < target &&
+         !__atomic_compare_exchange_n(&info->nightiter, &current, target, false,
+                                      __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {
+  }
+  LOGGER("advanceDirectStreamNightscoutCursorToEnd: %s old=%u target=%u\n",
+         str, previous, target);
+  env->ReleaseStringUTFChars(sensorId, str);
+  return JNI_TRUE;
+}
+
 extern "C" JNIEXPORT void JNICALL fromjava(rebaseDirectStreamWindow)(
     JNIEnv *env, jclass cl, jstring sensorId, jlong startTimeSec) {
   if (!sensors || !sensorId || startTimeSec <= 0)
