@@ -348,41 +348,81 @@ fun WearOsConfigScreen(navController: NavController) {
         refreshNodesNow()
     }
 
+    // Seed the switches from what the user asked for, not from what the watch
+    // has confirmed. Direct routing is a two-phase handoff — the watch only
+    // claims the sensor after a connected driver accepts a reading — so binding
+    // to the confirmed state made every toggle spring straight back to off.
     LaunchedEffect(selectedNodeId, nodes) {
         val selected = nodes.firstOrNull { it.id == selectedNodeId } ?: return@LaunchedEffect
-        if (selected.claimState != null) {
-            directOnWatch = selected.claimState != WearSensorClaimState.PHONE_OWNS
-        } else if (selected.directSensorMode >= 0) {
-            directOnWatch = selected.directSensorMode > 0
+        directOnWatch = when {
+            selected.directRequested -> true
+            selected.claimState != null -> selected.claimState != WearSensorClaimState.PHONE_OWNS
+            selected.directSensorMode >= 0 -> selected.directSensorMode > 0
+            else -> false
         }
-        if (selected.watchNumsMode >= 0) {
-            enterOnWatch = selected.watchNumsMode > 0
+        enterOnWatch = when {
+            selected.enterRequested -> true
+            selected.watchNumsMode >= 0 -> selected.watchNumsMode > 0
+            else -> false
         }
     }
 
     val selected = nodes.firstOrNull { it.id == selectedNodeId }
     val selectedAppInstalled = selected?.appInstalled == true
-    val canSetDirect = selectedAppInstalled && (
-        selected?.claimState != null || selected?.directSensorMode?.let { it >= 0 } == true
-    )
-    val canSetNums = selectedAppInstalled && (selected?.watchNumsMode?.let { it >= 0 } == true)
+    // Having the app on the watch is the only real precondition. Requiring a
+    // known native host first was circular: applying the routing is what creates
+    // that host, so both switches sat greyed out forever on a fresh pairing.
+    val canSetDirect = selectedAppInstalled
+    val canSetNums = selectedAppInstalled
+    // Both directions apply immediately. Turning direct mode on used to change
+    // nothing until "Sync now" was pressed, and the state was overwritten by the
+    // next refresh before the user got there.
     fun updateDirectRouting(enabled: Boolean) {
         directOnWatch = enabled
-        if (!enabled && selected != null) {
-            scope.launch {
-                val ended = withContext(Dispatchers.IO) {
+        val node = selected ?: return
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                if (enabled) {
+                    WatchInterop.applyStandaloneSensorMode(
+                        node.id,
+                        node.isGalaxy,
+                        directOnWatch = true,
+                        enterOnWatch = enterOnWatch,
+                    )
+                } else {
                     WatchInterop.applyWearNodeRouting(
-                        selected.id,
-                        selected.isGalaxy,
+                        node.id,
+                        node.isGalaxy,
                         directOnWatch = false,
                         enterOnWatch = enterOnWatch,
                     )
                 }
-                if (!ended) {
-                    Toast.makeText(context, context.getString(R.string.wentwrong), Toast.LENGTH_SHORT).show()
-                }
-                refreshNodesNow()
             }
+            if (!ok) {
+                directOnWatch = !enabled
+                Toast.makeText(context, context.getString(R.string.wentwrong), Toast.LENGTH_SHORT).show()
+            }
+            refreshNodesNow()
+        }
+    }
+
+    fun updateEnterOnWatch(enabled: Boolean) {
+        enterOnWatch = enabled
+        val node = selected ?: return
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                WatchInterop.applyWearNodeRouting(
+                    node.id,
+                    node.isGalaxy,
+                    directOnWatch = directOnWatch,
+                    enterOnWatch = enabled,
+                )
+            }
+            if (!ok) {
+                enterOnWatch = !enabled
+                Toast.makeText(context, context.getString(R.string.wentwrong), Toast.LENGTH_SHORT).show()
+            }
+            refreshNodesNow()
         }
     }
     fun timeStatus(timeMs: Long): String = if (timeMs <= 0L) {
@@ -486,13 +526,23 @@ fun WearOsConfigScreen(navController: NavController) {
             item("wear_routing") {
                 SectionLabel("Routing", topPadding = 0.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    // Say which phase the handoff is in, so a switch that is on
+                    // while the phone still owns Bluetooth reads as "waiting",
+                    // not as "broken".
+                    val handoffPhase = when {
+                        selected?.claimState == WearSensorClaimState.CONNECTED ->
+                            stringResource(R.string.wear_claim_state_connected)
+                        directOnWatch && selected?.directPending == true ->
+                            stringResource(R.string.wear_claim_state_requesting)
+                        else -> stringResource(R.string.wear_claim_state_phone_owns)
+                    }
                     SettingsItem(
                         title = stringResource(R.string.wear_direct_sensor_on_watch),
-                        subtitle = if (directOnWatch) {
+                        subtitle = (if (directOnWatch) {
                             stringResource(R.string.wear_direct_sensor_watch_desc)
                         } else {
                             stringResource(R.string.wear_direct_sensor_phone_desc)
-                        },
+                        }) + "\n" + handoffPhase,
                         icon = if (directOnWatch) Icons.Filled.Watch else Icons.Filled.PhoneAndroid,
                         iconTint = MaterialTheme.colorScheme.primary,
                         position = CardPosition.TOP,
@@ -524,7 +574,7 @@ fun WearOsConfigScreen(navController: NavController) {
                         iconTint = MaterialTheme.colorScheme.primary,
                         position = CardPosition.BOTTOM,
                         onClick = if (selected != null && canSetNums) {
-                            { enterOnWatch = !enterOnWatch }
+                            { updateEnterOnWatch(!enterOnWatch) }
                         } else {
                             null
                         },
@@ -532,7 +582,7 @@ fun WearOsConfigScreen(navController: NavController) {
                             StyledSwitch(
                                 checked = enterOnWatch,
                                 onCheckedChange = if (selected != null && canSetNums) {
-                                    { enterOnWatch = it }
+                                    { updateEnterOnWatch(it) }
                                 } else {
                                     null
                                 },

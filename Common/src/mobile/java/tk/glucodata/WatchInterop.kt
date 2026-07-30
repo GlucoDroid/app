@@ -27,8 +27,15 @@ object WatchInterop {
         val directSensorMode: Int,
         val claimState: WearSensorClaimState?,
         val watchNumsMode: Int,
-        val appInstalled: Boolean
-    )
+        val appInstalled: Boolean,
+        /** What the user asked for, which the watch may not have honoured yet. */
+        val directRequested: Boolean = false,
+        val enterRequested: Boolean = false
+    ) {
+        /** True while the request is outstanding: asked for, not yet claimed. */
+        val directPending: Boolean
+            get() = directRequested && claimState != WearSensorClaimState.CONNECTED
+    }
 
     data class GarminSnapshot(
         val sdkReady: Boolean,
@@ -66,6 +73,10 @@ object WatchInterop {
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED
             }
             pm.setComponentEnabledSetting(receiver, targetState, PackageManager.DONT_KILL_APP)
+            // Tell the transport straight away: the component state it would
+            // otherwise read back is cached, and until this call the phone kept
+            // streaming after the user switched the companion off.
+            MessageSender.onCompanionEnabledChanged(enabled)
             if (enabled) {
                 MessageSender.initwearos(app)
                 MessageSender.getMessageSender()?.finddevices()
@@ -119,7 +130,9 @@ object WatchInterop {
                 directSensorMode = if (appInstalled) try { Natives.directsensorwatch(id) } catch (_: Throwable) { -1 } else -1,
                 claimState = WearSensorClaimStatus.remoteState(id),
                 watchNumsMode = if (appInstalled) try { Natives.hasWatchNums(id) } catch (_: Throwable) { -1 } else -1,
-                appInstalled = appInstalled
+                appInstalled = appInstalled,
+                directRequested = WearRoutingRequest.directRequested(id),
+                enterRequested = WearRoutingRequest.enterRequested(id)
             )
         }
     }
@@ -176,6 +189,7 @@ object WatchInterop {
         return try {
             sender.sendnetinfo(nodeId, netInfo)
             sender.sendbluetooth(nodeId, directOnWatch)
+            WearRoutingRequest.record(nodeId, directOnWatch, enterOnWatch)
             // Keep phone BLE alive during handoff. The watch will claim ownership
             // in its own netinfo only after a connected driver accepts a reading;
             // that existing protocol response then disables phone BLE. Turning
@@ -213,6 +227,7 @@ object WatchInterop {
         return try {
             sender.toDefaults(node)
             Natives.setWearosdefaults(nodeId, isGalaxy)
+            WearRoutingRequest.clear(nodeId)
             val context = MainActivity.thisone ?: Applic.app ?: return false
             Applic.setbluetooth(context, true)
             true

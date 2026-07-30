@@ -155,7 +155,10 @@ override fun onCapabilityChanged(cap: CapabilityInfo) {
         }
     }
     private fun sendmessage(path:String,data:ByteArray) {
-
+            if (!outgoingAllowed()) {
+                if (doLog) { Log.i(LOG_ID, "sendmessage($path) skipped: companion disabled") }
+                return
+            }
             try {
         when {
             nodes == null -> {
@@ -186,6 +189,10 @@ override fun onCapabilityChanged(cap: CapabilityInfo) {
         }
     }
 private fun nameSendMessage(name:String, path:String, data:ByteArray) {
+    if (!outgoingAllowed()) {
+        if (doLog) { Log.i(LOG_ID, "nameSendMessage($path) skipped: companion disabled") }
+        return
+    }
     scope.launch {
         Log.i(LOG_ID, "start sendNameMessage($name $path,... )")
         try {
@@ -198,6 +205,10 @@ private fun nameSendMessage(name:String, path:String, data:ByteArray) {
         }
     }
 private fun nameSendMessageResult(name:String, path:String, data:ByteArray):Boolean {
+        if (!outgoingAllowed()) {
+            if (doLog) { Log.i(LOG_ID, "nameSendMessageResult($path) skipped: companion disabled") }
+            return false
+        }
         try {
 //            val len=data.size
 //            val timeout:Long= (len / 20L).coerceAtMost(1L)
@@ -340,6 +351,50 @@ companion object {
 
     @JvmStatic
     fun isWearTransportAvailable(): Boolean = !wearableApiUnavailable
+
+    @Volatile private var companionEnabled: Boolean? = null
+    @Volatile private var companionEnabledAt = 0L
+    private const val COMPANION_STATE_TTL_MS = 10_000L
+
+    /**
+     * Outgoing wear traffic is only allowed while the user has the companion
+     * switched on. Disabling it used to turn off the receiver component alone,
+     * so the phone kept streaming into a channel the user had closed.
+     *
+     * The answer is cached: this sits on every send, and the underlying
+     * component lookup is a binder round trip.
+     */
+    @JvmStatic
+    fun outgoingAllowed(): Boolean {
+        if (isWearable) return true
+        val now = System.currentTimeMillis()
+        val cached = companionEnabled
+        if (cached != null && now - companionEnabledAt < COMPANION_STATE_TTL_MS) return cached
+        val fresh = try { Applic.useWearos() } catch (_: Throwable) { false }
+        companionEnabled = fresh
+        companionEnabledAt = now
+        return fresh
+    }
+
+    /** Called when the user flips the companion switch, so the gate is instant. */
+    @JvmStatic
+    fun onCompanionEnabledChanged(enabled: Boolean) {
+        companionEnabled = enabled
+        companionEnabledAt = System.currentTimeMillis()
+        if (!enabled) shutdownwearos()
+    }
+
+    /** Drops the transport so nothing is left holding nodes or streaming. */
+    @JvmStatic
+    fun shutdownwearos() {
+        val sender = messagesender ?: return
+        messagesender = null
+        runCatching {
+            sender.nodes = emptySet()
+            sender.nexttimes = LongArray(0)
+        }
+        Log.i(LOG_ID, "wear transport shut down: companion switched off")
+    }
     @JvmStatic
     public fun getMessageSender(): MessageSender? {
         return messagesender
