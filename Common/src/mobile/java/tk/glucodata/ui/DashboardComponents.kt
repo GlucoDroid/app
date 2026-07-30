@@ -54,7 +54,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -1017,13 +1016,12 @@ private fun HeroTrendWithDelta(
                 withStyle(
                     SpanStyle(
                         color = contentColor.copy(alpha = 0.45f),
-                        fontSize = 8.sp,
-                        baselineShift = BaselineShift.Superscript
+                        fontWeight = FontWeight.Normal
                     )
                 ) {
                     append("Δ")
                 }
-                append("\u2009")
+                append(" ")
                 append(deltaText)
             }
             Text(
