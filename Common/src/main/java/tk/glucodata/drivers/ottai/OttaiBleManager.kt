@@ -362,8 +362,6 @@ class OttaiBleManager(
     @Volatile private var connectStallStreak = 0
     @Volatile private var liveReadRetryCount = 0
     @Volatile private var lastUserReconnectAtMs = 0L
-    @Volatile private var nativeNightscoutCursorMigrated = false
-
     private var svcDeviceInfo: BluetoothGattService? = null
     private var svcCgm: BluetoothGattService? = null
     private var svcAuth: BluetoothGattService? = null
@@ -2365,7 +2363,6 @@ class OttaiBleManager(
     ) {
         runCatching {
             ensureNativePresenceShell("glucose-mirror")
-            migrateLegacyNativeNightscoutCursor(id)
             val stored = nativeGlucoseMirror.mirrorLive(
                 id,
                 reading.sampleMs,
@@ -2377,19 +2374,6 @@ class OttaiBleManager(
                 Natives.wakebackup()
             }
         }.onFailure { Log.stack(TAG, "mirrorLiveReadingIntoNative", it) }
-    }
-
-    private fun migrateLegacyNativeNightscoutCursor(id: String) {
-        if (nativeNightscoutCursorMigrated) return
-        val context = Applic.app ?: return
-        if (OttaiRegistry.hasMigratedNativeNightscoutCursor(context, id)) {
-            nativeNightscoutCursorMigrated = true
-            return
-        }
-        if (!Natives.advanceDirectStreamNightscoutCursorToEnd(id)) return
-        OttaiRegistry.markNativeNightscoutCursorMigrated(context, id)
-        nativeNightscoutCursorMigrated = true
-        Log.i(TAG, "migrated legacy native Nightscout cursor id=$id")
     }
 
     /** Keeps the per-sample skin temperature so the stats screen can chart it. */

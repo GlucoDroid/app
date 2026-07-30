@@ -268,7 +268,6 @@ object OttaiRegistry {
                 OttaiConstants.PREF_PREHEAT_PERIOD_PREFIX,
                 OttaiConstants.PREF_DEVICE_VERSION_PREFIX, OttaiConstants.PREF_LAST_DATA_NO_PREFIX,
                 OttaiConstants.PREF_DEVICE_ID_PREFIX, OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX,
-                OttaiConstants.PREF_NATIVE_NIGHTSCOUT_CURSOR_V1_PREFIX,
                 OttaiConstants.PREF_CONTINUITY_BASELINE_PREFIX,
                 OttaiConstants.PREF_HISTORY_HOLES_PREFIX,
                 LEGACY_ACTIVATED_MAXACTIVE_PREFIX,
@@ -388,23 +387,6 @@ object OttaiRegistry {
         prefs(c).getBoolean(OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX + OttaiConstants.canonicalSensorId(id), false)
     @JvmStatic fun setActivationAttempted(c: Context, id: String, v: Boolean) {
         prefs(c).edit().putBoolean(OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX + OttaiConstants.canonicalSensorId(id), v).apply()
-    }
-
-    @JvmStatic
-    fun hasMigratedNativeNightscoutCursor(c: Context, id: String): Boolean =
-        prefs(c).getBoolean(
-            OttaiConstants.PREF_NATIVE_NIGHTSCOUT_CURSOR_V1_PREFIX +
-                OttaiConstants.canonicalSensorId(id),
-            false,
-        )
-
-    @JvmStatic
-    fun markNativeNightscoutCursorMigrated(c: Context, id: String) {
-        prefs(c).edit().putBoolean(
-            OttaiConstants.PREF_NATIVE_NIGHTSCOUT_CURSOR_V1_PREFIX +
-                OttaiConstants.canonicalSensorId(id),
-            true,
-        ).apply()
     }
 
     @JvmStatic fun loadLastDataNo(c: Context, id: String): Int =
