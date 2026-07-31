@@ -16,6 +16,7 @@ object NightscoutFollowerRegistry {
     private const val PREF_ENABLED = "nightscout_follower_enabled"
     private const val PREF_URL = "nightscout_follower_url"
     private const val PREF_SECRET = "nightscout_follower_secret"
+    private const val PREF_COMPLETE_HISTORY_PREFIX = "nightscout_follower_complete_history_v1_"
     const val SENSOR_PREFIX = "NSF-"
 
     data class Config(
@@ -73,6 +74,17 @@ object NightscoutFollowerRegistry {
 
     fun persistedSensorIds(context: Context): List<String> =
         loadConfig(context).takeIf { it.isUsable }?.let { listOf(it.sensorId) }.orEmpty()
+
+    fun hasCompleteHistoryImport(context: Context?, sensorId: String): Boolean =
+        context != null &&
+            prefs(context).getBoolean(PREF_COMPLETE_HISTORY_PREFIX + sensorId.uppercase(Locale.US), false)
+
+    fun markCompleteHistoryImport(context: Context?, sensorId: String) {
+        if (context == null || sensorId.isBlank()) return
+        prefs(context).edit()
+            .putBoolean(PREF_COMPLETE_HISTORY_PREFIX + sensorId.uppercase(Locale.US), true)
+            .apply()
+    }
 
     fun createRestoredCallback(context: Context, sensorId: String, dataptr: Long): SuperGattCallback? {
         val config = loadConfig(context)
