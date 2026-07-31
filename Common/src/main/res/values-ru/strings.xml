@@ -1948,6 +1948,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved">Подключить</string>
     <string name="ottai_login_fail">Вход не выполнен - проверьте телефон/код</string>
     <string name="ottai_connect_saved_fail">Нет материалов в аккаунте или сохраненных материалов для этого облачного ID</string>
+    <string name="ottai_cloud_already_binding">К аккаунту Ottai всё ещё привязан другой датчик. Отвяжите его в приложении Ottai или удалите тот датчик здесь, чтобы освободить привязку, затем повторите.</string>
+    <string name="ottai_cloud_offline_routes">Импортируйте файл учётных данных, чтобы продолжить без облака — QR только заполняет код датчика, а NFC только будит его.</string>
     <string name="ottai_status_needs_ble_address">Нужен BLE-адрес</string>
     <string name="ottai_status_warmup_provisional">Предварительный прогрев • осталось %1$d мин</string>
     <string name="ottai_status_loading_history">Загрузка истории • %1$d%%</string>

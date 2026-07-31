@@ -1014,6 +1014,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_connect_saved">Connect</string>
     <string name="ottai_login_fail">Sign-in failed — check phone/code</string>
     <string name="ottai_connect_saved_fail">No account or saved materials for this cloud ID</string>
+    <string name="ottai_cloud_already_binding">The Ottai account still has another sensor bound. Unbind it in the Ottai app, or remove that sensor here to release it, then try again.</string>
+    <string name="ottai_cloud_offline_routes">Import a credentials file to continue without the cloud — a QR scan only fills the sensor code, and NFC only wakes the sensor.</string>
     <string name="ottai_status_needs_ble_address">Needs BLE address</string>
     <string name="ottai_status_warmup_provisional">Provisional warmup • %1$dm left</string>
     <string name="ottai_status_loading_history">Loading history • %1$d%%</string>
