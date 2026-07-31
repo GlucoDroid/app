@@ -22,6 +22,13 @@ class OttaiOutputFilterTests {
         assertNull(OttaiOutputFilter.hardRejectReason(record(raw = 12_000, temp = 32.0), 7.4f))
         assertTrue(OttaiOutputFilter.hardRejectReason(record(raw = 999), 7.4f)!!.startsWith("raw="))
         assertTrue(OttaiOutputFilter.hardRejectReason(record(temp = 45.1), 7.4f)!!.startsWith("temp="))
+        // Observed corruption decoded high (185.07, 360.93, 421.01 C); nothing stopped the same
+        // garbage decoding cold, so the gate is bounded at both ends now.
+        assertTrue(OttaiOutputFilter.hardRejectReason(record(temp = 14.9), 7.4f)!!.startsWith("temp="))
+        assertTrue(OttaiOutputFilter.hardRejectReason(record(temp = -40.0), 7.4f)!!.startsWith("temp="))
+        // The whole range the sensor actually reported over 16 days (25.0-41.1 C) still passes.
+        assertNull(OttaiOutputFilter.hardRejectReason(record(temp = 25.0), 7.4f))
+        assertNull(OttaiOutputFilter.hardRejectReason(record(temp = 41.1), 7.4f))
         assertTrue(OttaiOutputFilter.hardRejectReason(record(), 40.1f)!!.startsWith("glucose="))
         assertTrue(OttaiOutputFilter.hardRejectReason(record(), 0f)!!.startsWith("glucose="))
     }

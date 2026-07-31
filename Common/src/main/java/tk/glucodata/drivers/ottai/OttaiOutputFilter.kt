@@ -11,6 +11,12 @@ import kotlin.math.abs
 object OttaiOutputFilter {
     const val MIN_RAW_CURRENT = 1_000
     const val MAX_TEMPERATURE_C = 45.0
+
+    // A body-worn sensor never reports this cold. The gate had no lower bound at all, so a
+    // corrupt frame only got caught when its temperature happened to decode HIGH — the
+    // 2026-07-14 corruption produced 185.07, 360.93, 421.01, 325.39 and 388.72 C, all refused,
+    // while nothing would have stopped the same garbage decoding to a negative value.
+    const val MIN_TEMPERATURE_C = 15.0
     const val MAX_GLUCOSE_MMOL = 40.0f
 
     // A one-minute CGM point moving this far while the electrode current jumps this much
@@ -23,7 +29,10 @@ object OttaiOutputFilter {
         if (!mmol.isFinite() || mmol <= 0f) return "glucose=$mmol"
         if (mmol > MAX_GLUCOSE_MMOL) return "glucose=$mmol"
         if (record.rawCurrent < MIN_RAW_CURRENT) return "raw=${record.rawCurrent}"
-        if (!record.temperatureC.isFinite() || record.temperatureC > MAX_TEMPERATURE_C) {
+        if (!record.temperatureC.isFinite() ||
+            record.temperatureC > MAX_TEMPERATURE_C ||
+            record.temperatureC < MIN_TEMPERATURE_C
+        ) {
             return "temp=${record.temperatureC}"
         }
         return null
