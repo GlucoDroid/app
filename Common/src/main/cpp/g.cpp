@@ -1529,10 +1529,14 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShellWithCapacity)(
 // Set the wear duration (days) for a direct-stream sensor (e.g. Ottai) by id. The
 // AiDex helper aidexSetWearDays takes an aidexstream* and cannot be reused here —
 // direct-stream sensors are plain SensorGlucoseData*. Writes info->wearduration2
-// (minutes) so officialendtime()/expectedEndTime() reflect the real activated life.
+// (minutes) so officialendtime()/expectedEndTime() and getmaxtime() reflect the
+// real activated life.
 extern "C" JNIEXPORT void JNICALL fromjava(setSensorWearDays)(
     JNIEnv *env, jclass cl, jstring sensorId, jint days) {
-  if (!sensors || !sensorId || days <= 0)
+  // wearduration2 is uint16_t minutes, so past 45 days the product wraps into a
+  // lifetime shorter than the sensor's; a garbage value must not land at all.
+  constexpr const jint maxweardays = 0xFFFF / (24 * 60);
+  if (!sensors || !sensorId || days <= 0 || days > maxweardays)
     return;
   const char *str = env->GetStringUTFChars(sensorId, NULL);
   if (!str)
@@ -1541,6 +1545,14 @@ extern "C" JNIEXPORT void JNICALL fromjava(setSensorWearDays)(
     if (!hist->error()) {
       if (auto *info = hist->getinfo()) {
         info->wearduration2 = static_cast<uint16_t>(days * 24 * 60);
+        // Deliberately NOT raising info->days here. It is the shell's storage
+        // geometry, and data.dat/polls.dat/current.dat are all sized from it in
+        // the SensorGlucoseData constructor's initializer list, while maxpos()
+        // and maxstreampos() recompute from it on every call. Raising it
+        // mid-session would leave those bounds describing twice the region that
+        // is actually mapped. getmaxtime() consults wearduration2 instead, so
+        // the lifetime the sensor negotiated is honoured without touching the
+        // geometry of files that are already open.
         LOGGER("setSensorWearDays: %s days=%d wear=%u\n", str, days,
                info->wearduration2);
       }
