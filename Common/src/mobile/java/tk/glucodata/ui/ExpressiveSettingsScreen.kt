@@ -607,7 +607,15 @@ fun ExpressiveSettingsScreen(
                     iconTint = dataColor,
                     position = CardPosition.BOTTOM,
                     onClick = { 
-                        importLauncher.launch(arrayOf("application/json", "text/*", "text/csv", "*/*"))
+                        importLauncher.launch(
+                            arrayOf(
+                                "application/json",
+                                "text/*",
+                                "text/csv",
+                                "text/tab-separated-values",
+                                "*/*"
+                            )
+                        )
                     }
                 )
             }
