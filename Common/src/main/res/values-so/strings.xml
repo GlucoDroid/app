@@ -1777,6 +1777,15 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="predictive_notification_chart_summary">Ku muuji khadka saadaasha ogeysiisyada iyo jaantusyada shaashadda qufulka</string>
     <string name="predictive_trend_momentum">Dhaqdhaqaaqa isbeddelka</string>
     <string name="predictive_model_tuning">Qaabka astaanta</string>
+    <string name="predictive_model_profile_summary_single">Hal qaab oo maalinta oo dhan ah</string>
+    <string name="predictive_model_profile_summary_count">%1$d waqtiyo</string>
+    <string name="predictive_model_profile_explanation">Saamiga karbohaydraytka iyo dareenka insulintu waxay raacaan waqtiga gelinta joornaalka. Waqtiyadu maalinta oo dhan ayay daboolaan iyada oo aan farqi jirin.</string>
+    <string name="predictive_add_time_period">Ku dar waqti</string>
+    <string name="predictive_add_time_period_title">Waqtiga cusub wuxuu bilaabmaa</string>
+    <string name="predictive_edit_time_period_title">Beddel bilowga waqtiga</string>
+    <string name="predictive_edit_period_start">Wax ka beddel waqtiga bilowga</string>
+    <string name="predictive_delete_time_period_title">Ma tirtirtaa waqtigan?</string>
+    <string name="predictive_delete_time_period_message">Waqtigii hore ayaa dabooli doona waqtigan.</string>
     <string name="predictive_carb_ratio">Saamiga kaarboon</string>
     <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
     <string name="predictive_insulin_sensitivity">Dareenka insulinta</string>

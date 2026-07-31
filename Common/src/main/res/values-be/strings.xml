@@ -1556,6 +1556,15 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_notification_chart_summary">Паказваць лінію прагнозу на графіках апавяшчэння і экрана блакіроўкі</string>
     <string name="predictive_trend_momentum">Імпульс трэнду</string>
     <string name="predictive_model_tuning">Профіль мадэлі</string>
+    <string name="predictive_model_profile_summary_single">Адзін профіль на ўвесь дзень</string>
+    <string name="predictive_model_profile_summary_count">Перыядаў: %1$d</string>
+    <string name="predictive_model_profile_explanation">Вугляводны каэфіцыент і адчувальнасць да інсуліну выбіраюцца паводле часу запісу ў журнале. Перыяды без разрываў ахопліваюць увесь дзень.</string>
+    <string name="predictive_add_time_period">Дадаць перыяд</string>
+    <string name="predictive_add_time_period_title">Пачатак новага перыяду</string>
+    <string name="predictive_edit_time_period_title">Змяніць пачатак перыяду</string>
+    <string name="predictive_edit_period_start">Змяніць час пачатку</string>
+    <string name="predictive_delete_time_period_title">Выдаліць гэты перыяд?</string>
+    <string name="predictive_delete_time_period_message">Гэты час пяройдзе да папярэдняга перыяду.</string>
     <string name="predictive_carb_ratio">Вугляводны каэфіцыент</string>
     <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
     <string name="predictive_insulin_sensitivity">Адчувальнасць да інсуліну</string>

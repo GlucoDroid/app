@@ -1084,25 +1084,13 @@ fun PredictiveSimulationSettingsScreen(
     navController: NavController,
     viewModel: DashboardViewModel
 ) {
-    val unit by viewModel.unit.collectAsState()
-    val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val notificationChartPredictionEnabled by viewModel.predictiveSimulationNotificationChartEnabled.collectAsState()
     val trendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
-    val carbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
-    val insulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
+    val modelProfile by viewModel.predictionModelProfile.collectAsState()
     val carbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
     val horizonMinutes by viewModel.predictionHorizonMinutes.collectAsState()
-    val insulinSensitivityDisplay = remember(insulinSensitivityMgDlPerUnit, isMmol) {
-        tk.glucodata.ui.util.GlucoseFormatter.displayFromMgDl(insulinSensitivityMgDlPerUnit, isMmol)
-    }
-    val sensitivityValue = if (isMmol) {
-        stringResource(R.string.predictive_sensitivity_value_mmol, insulinSensitivityDisplay)
-    } else {
-        stringResource(R.string.predictive_sensitivity_value_mgdl, insulinSensitivityMgDlPerUnit)
-    }
-    val sensitivityRange = if (isMmol) 0.6f..10f else 10f..180f
 
     Scaffold(
         contentWindowInsets = WindowInsets(0.dp),
@@ -1173,36 +1161,27 @@ fun PredictiveSimulationSettingsScreen(
             }
 
             if (journalEnabled) {
-                item(key = "model_label") {
-                    SectionLabel(
-                        stringResource(R.string.predictive_model_tuning),
-                        topPadding = 4.dp
+                item(key = "model") {
+                    SettingsItem(
+                        title = stringResource(R.string.predictive_model_tuning),
+                        subtitle = if (modelProfile.blocks.size == 1) {
+                            stringResource(R.string.predictive_model_profile_summary_single)
+                        } else {
+                            stringResource(
+                                R.string.predictive_model_profile_summary_count,
+                                modelProfile.blocks.size
+                            )
+                        },
+                        showArrow = true,
+                        onClick = {
+                            navController.navigate("settings/predictive-simulation/model-profile")
+                        },
+                        icon = Icons.Default.Schedule,
+                        iconTint = MaterialTheme.colorScheme.secondary
                     )
                 }
-                item(key = "model") {
+                item(key = "absorption") {
                     PredictiveSimulationSettingsCard(enabled = predictiveSimulationEnabled) {
-                        PredictiveSimulationParameterRow(
-                            title = stringResource(R.string.predictive_carb_ratio),
-                            valueLabel = stringResource(R.string.predictive_carb_ratio_value, carbRatioGramsPerUnit),
-                            value = carbRatioGramsPerUnit,
-                            valueRange = 3f..30f,
-                            enabled = predictiveSimulationEnabled,
-                            onValueChange = { viewModel.setPredictionCarbRatioGramsPerUnit(it) }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
-                        PredictiveSimulationParameterRow(
-                            title = stringResource(R.string.predictive_insulin_sensitivity),
-                            valueLabel = sensitivityValue,
-                            value = insulinSensitivityDisplay,
-                            valueRange = sensitivityRange,
-                            enabled = predictiveSimulationEnabled,
-                            onValueChange = { displayValue ->
-                                viewModel.setPredictionInsulinSensitivityMgDlPerUnit(
-                                    if (isMmol) tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(displayValue) else displayValue
-                                )
-                            }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
                         PredictiveSimulationParameterRow(
                             title = stringResource(R.string.predictive_carb_absorption),
                             valueLabel = stringResource(R.string.predictive_absorption_value, carbAbsorptionGramsPerHour),
@@ -1238,7 +1217,7 @@ private fun PredictiveSimulationSettingsCard(
 }
 
 @Composable
-private fun PredictiveSimulationParameterRow(
+internal fun PredictiveSimulationParameterRow(
     title: String,
     valueLabel: String,
     value: Float,

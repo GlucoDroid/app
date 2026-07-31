@@ -99,11 +99,15 @@ public class JournalIobAccess {
         // actually delivering soon counts, with matching carb credit —
         // total IOB with hours of tail must not scream red.
         final float toMgdl = isMmol ? MGDL_PER_MMOLL : 1.0f;
+        final tk.glucodata.data.prediction.PredictionModelParameters profile =
+                tk.glucodata.data.prediction.PredictionModelProfileStore.parametersAt(
+                        prefs,
+                        System.currentTimeMillis());
         final int risk = IobCobRisk.classify(
                 values[3],
                 values[4],
-                prefs.getFloat("dashboard_prediction_carb_ratio_g_per_u", 10f),
-                prefs.getFloat("dashboard_prediction_insulin_sensitivity_mgdl_per_u", 54f),
+                profile.getCarbRatioGramsPerUnit(),
+                profile.getInsulinSensitivityMgDlPerUnit(),
                 displayGlucose * toMgdl,
                 Natives.targetlow() * toMgdl,
                 Natives.alarmverylow() * toMgdl);

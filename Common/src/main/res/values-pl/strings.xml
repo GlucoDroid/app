@@ -1522,6 +1522,15 @@
     <string name="predictive_notification_chart_summary">Pokazuj linię prognozy na wykresach powiadomienia i ekranu blokady</string>
     <string name="predictive_trend_momentum">Momentum trendu</string>
     <string name="predictive_model_tuning">Profil modelu</string>
+    <string name="predictive_model_profile_summary_single">Jeden profil na cały dzień</string>
+    <string name="predictive_model_profile_summary_count">%1$d przedziałów czasu</string>
+    <string name="predictive_model_profile_explanation">Współczynnik węglowodanów i wrażliwość na insulinę są dobierane według czasu każdego wpisu w dzienniku. Przedziały obejmują całą dobę bez przerw.</string>
+    <string name="predictive_add_time_period">Dodaj przedział czasu</string>
+    <string name="predictive_add_time_period_title">Nowy przedział zaczyna się o</string>
+    <string name="predictive_edit_time_period_title">Zmień początek przedziału</string>
+    <string name="predictive_edit_period_start">Edytuj czas rozpoczęcia</string>
+    <string name="predictive_delete_time_period_title">Usunąć ten przedział?</string>
+    <string name="predictive_delete_time_period_message">Poprzedni przedział obejmie ten czas.</string>
     <string name="predictive_carb_ratio">Współczynnik węglowodanów</string>
     <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
     <string name="predictive_insulin_sensitivity">Wrażliwość na insulinę</string>

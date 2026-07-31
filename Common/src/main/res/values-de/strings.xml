@@ -1559,6 +1559,15 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="predictive_notification_chart_summary">Prognoselinie in Benachrichtigungs- und Sperrbildschirmdiagrammen anzeigen</string>
     <string name="predictive_trend_momentum">Trenddynamik</string>
     <string name="predictive_model_tuning">Modellprofil</string>
+    <string name="predictive_model_profile_summary_single">Ein Profil für den ganzen Tag</string>
+    <string name="predictive_model_profile_summary_count">%1$d Zeiträume</string>
+    <string name="predictive_model_profile_explanation">Kohlenhydratfaktor und Insulinsensitivität richten sich nach der Uhrzeit des Journaleintrags. Die Zeiträume decken den ganzen Tag lückenlos ab.</string>
+    <string name="predictive_add_time_period">Zeitraum hinzufügen</string>
+    <string name="predictive_add_time_period_title">Neuer Zeitraum beginnt um</string>
+    <string name="predictive_edit_time_period_title">Beginn des Zeitraums ändern</string>
+    <string name="predictive_edit_period_start">Startzeit bearbeiten</string>
+    <string name="predictive_delete_time_period_title">Diesen Zeitraum löschen?</string>
+    <string name="predictive_delete_time_period_message">Der vorherige Zeitraum deckt diese Zeit künftig ab.</string>
     <string name="predictive_carb_ratio">Kohlenhydratfaktor</string>
     <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
     <string name="predictive_insulin_sensitivity">Insulinsensitivität</string>

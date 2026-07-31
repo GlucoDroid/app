@@ -1515,6 +1515,15 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="predictive_notification_chart_summary">Tahmin çizgisini bildirim ve kilit ekranı grafiklerinde göster</string>
     <string name="predictive_trend_momentum">Trend momentumu</string>
     <string name="predictive_model_tuning">Model profili</string>
+    <string name="predictive_model_profile_summary_single">Tüm gün için tek profil</string>
+    <string name="predictive_model_profile_summary_count">%1$d zaman aralığı</string>
+    <string name="predictive_model_profile_explanation">Karbonhidrat oranı ve insülin duyarlılığı, her günlük kaydının saatine göre seçilir. Zaman aralıkları tüm günü boşluksuz kapsar.</string>
+    <string name="predictive_add_time_period">Zaman aralığı ekle</string>
+    <string name="predictive_add_time_period_title">Yeni aralık şu saatte başlar</string>
+    <string name="predictive_edit_time_period_title">Aralık başlangıcını değiştir</string>
+    <string name="predictive_edit_period_start">Başlangıç saatini düzenle</string>
+    <string name="predictive_delete_time_period_title">Bu zaman aralığı silinsin mi?</string>
+    <string name="predictive_delete_time_period_message">Önceki aralık bu zamanı kapsayacak.</string>
     <string name="predictive_carb_ratio">Karbonhidrat oranı</string>
     <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
     <string name="predictive_insulin_sensitivity">İnsülin duyarlılığı</string>

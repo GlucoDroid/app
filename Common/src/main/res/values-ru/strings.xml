@@ -1529,6 +1529,15 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_notification_chart_summary">Показывать линию прогноза на графиках уведомления и экрана блокировки</string>
     <string name="predictive_trend_momentum">Инерция тренда</string>
     <string name="predictive_model_tuning">Профиль модели</string>
+    <string name="predictive_model_profile_summary_single">Один профиль на весь день</string>
+    <string name="predictive_model_profile_summary_count">Периодов: %1$d</string>
+    <string name="predictive_model_profile_explanation">Углеводный коэффициент и чувствительность к инсулину выбираются по времени записи в журнале. Периоды без разрывов покрывают весь день.</string>
+    <string name="predictive_add_time_period">Добавить период</string>
+    <string name="predictive_add_time_period_title">Начало нового периода</string>
+    <string name="predictive_edit_time_period_title">Изменить начало периода</string>
+    <string name="predictive_edit_period_start">Изменить время начала</string>
+    <string name="predictive_delete_time_period_title">Удалить этот период?</string>
+    <string name="predictive_delete_time_period_message">Это время перейдёт к предыдущему периоду.</string>
     <string name="predictive_carb_ratio">Углеводный коэффициент</string>
     <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
     <string name="predictive_insulin_sensitivity">Чувствительность к инсулину</string>

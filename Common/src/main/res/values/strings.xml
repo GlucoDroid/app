@@ -1967,6 +1967,15 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_notification_chart_summary">Show the forecast line in notification and lock-screen charts</string>
     <string name="predictive_trend_momentum">Trend momentum</string>
     <string name="predictive_model_tuning">Model profile</string>
+    <string name="predictive_model_profile_summary_single">One profile for the full day</string>
+    <string name="predictive_model_profile_summary_count">%1$d time periods</string>
+    <string name="predictive_model_profile_explanation">Carb ratio and insulin sensitivity follow the time of each journal entry. Periods cover the full day without gaps.</string>
+    <string name="predictive_add_time_period">Add time period</string>
+    <string name="predictive_add_time_period_title">New period starts at</string>
+    <string name="predictive_edit_time_period_title">Change period start</string>
+    <string name="predictive_edit_period_start">Edit start time</string>
+    <string name="predictive_delete_time_period_title">Delete this time period?</string>
+    <string name="predictive_delete_time_period_message">The previous period will cover this time.</string>
     <string name="predictive_carb_ratio">Carb ratio</string>
     <string name="predictive_carb_ratio_value">%1$.0f g/U</string>
     <string name="predictive_insulin_sensitivity">Insulin sensitivity</string>

@@ -160,6 +160,7 @@ private fun HistoryRoute(
     val appChartRangeColorsEnabled by dashboardViewModel.glucoseAppChartRangeColorsEnabled.collectAsStateWithLifecycle()
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
+    val predictionModelProfile by dashboardViewModel.predictionModelProfile.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
     var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
     var lastJournalType by rememberSaveable { mutableStateOf(JournalEntryType.INSULIN) }
@@ -246,6 +247,7 @@ private fun HistoryRoute(
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                 foodMacrosEnabled = journalFoodMacrosEnabled,
+                modelProfile = predictionModelProfile,
                 targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
                     tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
                 } else {
@@ -311,6 +313,7 @@ private fun JournalRoute(
     val appChartRangeColorsEnabled by dashboardViewModel.glucoseAppChartRangeColorsEnabled.collectAsStateWithLifecycle()
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
+    val predictionModelProfile by dashboardViewModel.predictionModelProfile.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
     var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
     var lastJournalType by rememberSaveable { mutableStateOf(JournalEntryType.INSULIN) }
@@ -400,6 +403,7 @@ private fun JournalRoute(
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                 foodMacrosEnabled = journalFoodMacrosEnabled,
+                modelProfile = predictionModelProfile,
                 targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
                     tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
                 } else {
@@ -839,6 +843,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/predictive-simulation") {
                         PredictiveSimulationSettingsScreen(navController, dashboardViewModel)
                     }
+                    composable("settings/predictive-simulation/model-profile") {
+                        PredictionModelProfileScreen(navController, dashboardViewModel)
+                    }
                     composable("settings/floating-display") {
                         FloatingGlucoseSettingsScreen(navController, dashboardViewModel)
                     }
@@ -987,6 +994,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 }
                 composable("settings/predictive-simulation") {
                     PredictiveSimulationSettingsScreen(navController, dashboardViewModel)
+                }
+                composable("settings/predictive-simulation/model-profile") {
+                    PredictionModelProfileScreen(navController, dashboardViewModel)
                 }
                 composable("settings/floating-display") {
                     FloatingGlucoseSettingsScreen(navController, dashboardViewModel)

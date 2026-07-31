@@ -10,6 +10,7 @@ import tk.glucodata.data.journal.journalFoodTailDurationMinutes
 import tk.glucodata.data.journal.journalFoodTailEquivalentCarbs
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.util.GlucoseFormatter
+import java.util.TimeZone
 import kotlin.math.exp
 import kotlin.math.sqrt
 
@@ -38,8 +39,18 @@ data class PredictiveSimulationSettings(
     val carbRatioGramsPerUnit: Float = 10f,
     val insulinSensitivityMgDlPerUnit: Float = 54f,
     val carbAbsorptionGramsPerHour: Float = 35f,
-    val foodMacrosEnabled: Boolean = false
-)
+    val foodMacrosEnabled: Boolean = false,
+    val modelProfile: PredictionModelProfile? = null,
+    val profileTimeZone: TimeZone = TimeZone.getDefault()
+) {
+    fun modelParametersAt(timestamp: Long): PredictionModelParameters {
+        return modelProfile?.parametersAt(timestamp, profileTimeZone)
+            ?: PredictionModelParameters(
+                carbRatioGramsPerUnit = carbRatioGramsPerUnit,
+                insulinSensitivityMgDlPerUnit = insulinSensitivityMgDlPerUnit
+            )
+    }
+}
 
 fun buildGlucosePrediction(
     history: List<GlucosePoint>,
@@ -57,8 +68,6 @@ fun buildGlucosePrediction(
     if (baselineTime <= 0L) return emptyList()
 
     val isMmol = GlucoseFormatter.isMmol(unit)
-    val sensitivity = GlucoseFormatter.displayFromMgDl(settings.insulinSensitivityMgDlPerUnit, isMmol)
-    val safeCarbRatio = settings.carbRatioGramsPerUnit.coerceAtLeast(1f)
     val safeAbsorption = settings.carbAbsorptionGramsPerHour.coerceAtLeast(5f)
     val stepMinutes = settings.stepMinutes.coerceIn(3, 15)
     val horizonMinutes = settings.horizonMinutes.coerceIn(30, 360)
@@ -69,11 +78,15 @@ fun buildGlucosePrediction(
     }
 
     fun journalDeltaAt(timestamp: Long): Float = relevantEntries.sumOf { entry ->
+        val profile = settings.modelParametersAt(entry.timestamp)
         entry.projectedDisplayDelta(
             atMillis = timestamp,
             baselineMillis = baselineTime,
-            sensitivityDisplay = sensitivity,
-            carbRatioGramsPerUnit = safeCarbRatio,
+            sensitivityDisplay = GlucoseFormatter.displayFromMgDl(
+                profile.insulinSensitivityMgDlPerUnit,
+                isMmol
+            ),
+            carbRatioGramsPerUnit = profile.carbRatioGramsPerUnit.coerceAtLeast(1f),
             carbAbsorptionGramsPerHour = safeAbsorption,
             foodMacrosEnabled = settings.foodMacrosEnabled,
             insulinPresetsById = insulinPresetsById

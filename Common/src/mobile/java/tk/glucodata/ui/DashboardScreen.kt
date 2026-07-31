@@ -339,6 +339,7 @@ fun DashboardScreen(
     val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
     val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
     val predictionInsulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
+    val predictionModelProfile by viewModel.predictionModelProfile.collectAsState()
     val predictionCarbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
     val predictionHorizonMinutes by viewModel.predictionHorizonMinutes.collectAsState()
     val journalEntries by viewModel.journalEntries.collectAsState()
@@ -408,6 +409,7 @@ fun DashboardScreen(
         predictionTrendMomentumEnabled,
         predictionCarbRatioGramsPerUnit,
         predictionInsulinSensitivityMgDlPerUnit,
+        predictionModelProfile,
         predictionCarbAbsorptionGramsPerHour,
         predictionHorizonMinutes,
         journalEnabled,
@@ -420,7 +422,8 @@ fun DashboardScreen(
             carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
             insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
             carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour,
-            foodMacrosEnabled = journalEnabled && journalFoodMacrosEnabled
+            foodMacrosEnabled = journalEnabled && journalFoodMacrosEnabled,
+            modelProfile = predictionModelProfile
         )
     }
     val consumerHistory = remember(
@@ -733,6 +736,7 @@ fun DashboardScreen(
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                 foodMacrosEnabled = journalFoodMacrosEnabled,
+                modelProfile = predictionModelProfile,
                 targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
                     tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
                 } else {

@@ -2,6 +2,7 @@ package tk.glucodata.data.prediction
 
 import kotlin.math.abs
 import kotlin.math.exp
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -180,5 +181,49 @@ class GlucosePredictionResidualTests {
         val off = predictAt(30, mixed, listOf(activity), momentum = false)
         val expectedResidualTrend = -0.5f * 30f * exp(-30f / 70f)
         assertEquals(expectedResidualTrend, on - off, 1f)
+    }
+
+    @Test
+    fun journalEffectUsesProfileActiveAtEntryTime() {
+        val flatHistory = history { 140f }
+        val carbs = entry(
+            type = JournalEntryType.CARBS,
+            timestamp = baselineTime,
+            amount = 20f,
+            durationMinutes = 60
+        )
+        val timedProfile = PredictionModelProfile.single(10f, 54f)
+            .addBlock(12 * 60)
+            .updateBlock(
+                startMinuteOfDay = 12 * 60,
+                carbRatioGramsPerUnit = 20f,
+                insulinSensitivityMgDlPerUnit = 40f
+            )
+        val common = settings(momentum = false).copy(horizonMinutes = 60)
+        val legacy = buildGlucosePrediction(
+            history = flatHistory,
+            journalEntries = listOf(carbs),
+            insulinPresetsById = emptyMap(),
+            unit = "mg/dl",
+            targetLow = 70f,
+            targetHigh = 180f,
+            settings = common
+        ).last().value
+        val profiled = buildGlucosePrediction(
+            history = flatHistory,
+            journalEntries = listOf(carbs),
+            insulinPresetsById = emptyMap(),
+            unit = "mg/dl",
+            targetLow = 70f,
+            targetHigh = 180f,
+            settings = common.copy(
+                modelProfile = timedProfile,
+                profileTimeZone = TimeZone.getTimeZone("UTC")
+            )
+        ).last().value
+
+        // At 22:13 UTC, the second block applies. The modeled meal rise changes
+        // from 20/10*54 = 108 mg/dL to 20/20*40 = 40 mg/dL.
+        assertEquals(68f, legacy - profiled, 0.6f)
     }
 }
