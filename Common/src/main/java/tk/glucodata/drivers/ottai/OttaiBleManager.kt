@@ -75,6 +75,19 @@ class OttaiBleManager(
         private const val INITIAL_HISTORY_DELAY_MS = 4_000L
         private const val INITIAL_HISTORY_RETRY_MS = 5_000L
         private const val INITIAL_HISTORY_MAX_ATTEMPTS = 4
+        // A sensor this young has nothing behind its live frame — dataNo counts minutes since
+        // activation and estimatedNewestDataNo() stays two records short of now, so the backstop
+        // cannot possibly find a basis. Defer instead of burning attempts: on 2026-07-29 it
+        // probed a sensor activated four seconds earlier five times and closed with a "gave up"
+        // warning that reads like a failure after every successful activation.
+        private const val INITIAL_HISTORY_MIN_SENSOR_AGE_MS = 3L * 60_000L
+        // Confirming that activation took is the only read worth issuing straight after the
+        // command; see markActivationCommandSent. Retried a few times because a read that cannot
+        // start (another operation still in flight) otherwise leaves status=3 unseen until some
+        // later poll happens to pick it up.
+        private const val POST_ACTIVATION_CONFIRM_DELAY_MS = 1_000L
+        private const val POST_ACTIVATION_CONFIRM_RETRY_MS = 1_500L
+        private const val POST_ACTIVATION_CONFIRM_MAX_ATTEMPTS = 4
         // History chunk-chain watchdog: an in-flight chunk whose response never lands (dropped
         // notify or short/empty frame) silently stalls the whole download. If no progress within
         // the timeout, retry the same window a bounded number of times, then skip it after
@@ -141,11 +154,36 @@ class OttaiBleManager(
         private const val CURRENT_SAMPLE_FLOOR_GRACE_MS = RECORD_INTERVAL_MS
         private const val MAX_REASONABLE_DATA_NO_AHEAD = 120
         private const val MGDL_PER_MMOLL = 18.0f
+        // Consecutive continuity rejections after which the gate yields and re-baselines onto the
+        // next sample. Sustained >=1.5 mmol/min steps are not physiology, but latching forever
+        // would blind the driver to a genuine electrode restart, so the gate gives way rather
+        // than holding a baseline the sensor has clearly left behind.
+        internal const val MAX_CONSECUTIVE_CONTINUITY_REJECTS = 3
 
         internal fun isFreshLiveSample(receivedAtMs: Long, sampleMs: Long): Boolean =
             receivedAtMs > 0L &&
                 sampleMs > 0L &&
                 abs(receivedAtMs - sampleMs) <= CURRENT_SAMPLE_FRESH_MS + CURRENT_SAMPLE_FLOOR_GRACE_MS
+
+        /**
+         * Adjacency window for the continuity gate: is [dataNo]/[sampleMs] close enough behind
+         * the previously evaluated sample for a one-minute excursion comparison to mean anything?
+         *
+         * Two records or 135 s, whichever the caller can establish. The dataNo test comes first
+         * because it survives a missing/derived timestamp; the time test covers a replay whose
+         * counter has been reset.
+         */
+        internal fun isAdjacentSample(
+            previousDataNo: Int,
+            previousSampleMs: Long,
+            dataNo: Int,
+            sampleMs: Long,
+        ): Boolean {
+            if (previousDataNo < 0) return false
+            if (dataNo - previousDataNo in 1..2) return true
+            if (previousSampleMs <= 0L || sampleMs <= previousSampleMs) return false
+            return (sampleMs - previousSampleMs) in 1..(2 * RECORD_INTERVAL_MS + 15_000L)
+        }
 
         internal fun isPersistedDataNoAheadOfLive(previousDataNo: Int, liveDataNo: Int): Boolean =
             previousDataNo >= 0 &&
@@ -392,6 +430,9 @@ class OttaiBleManager(
     @Volatile private var activationRetryPending = false
     @Volatile private var activationRetryAddress: String? = null
     @Volatile private var activationCandidateDiscoveryPending = false
+    // When the current candidate scan was armed. For the first few seconds only this sensor's own
+    // address is admitted; see OttaiConstants.isActivationExactOnlyWindowOpen.
+    @Volatile private var activationDiscoveryStartedAtMs = 0L
     @Volatile private var activationCandidateProbeActive = false
     // This sensor's own record-backed BLE address, captured when candidate discovery is
     // armed. selectActivationCandidate retargets activationRetryAddress/mActiveDeviceAddress
@@ -491,6 +532,20 @@ class OttaiBleManager(
     @Volatile private var lastAcceptedSampleMs = 0L
     @Volatile private var lastAcceptedMmol = Float.NaN
     @Volatile private var lastAcceptedRawCurrent = 0
+    // Adjacency anchor for the continuity gate. Unlike lastAccepted* this also advances on a
+    // sample the gate itself rejected. Anchoring adjacency on the last ACCEPTED sample meant two
+    // consecutive rejections pushed the next sample outside the 2-record / 135 s window, so the
+    // adjacency test went false, the excursion test was skipped entirely, and the third sample
+    // went out unchecked — then became the baseline the rest of the ramp inherited. Observed on the
+    // 2026-07-29 activation: dataNo 1 and 2 rejected at 2.40 mmol, dataNo 3 published at
+    // 2.80 mmol (50 mg/dL) in the middle of a warmup ramp that ran on to 6.10 mmol.
+    @Volatile private var lastEvaluatedDataNo = -1
+    @Volatile private var lastEvaluatedSampleMs = 0L
+    // Safety valve for the anchor above: the comparison baseline only moves on an ACCEPTED
+    // sample, so a genuine step change (or a real electrode restart) would otherwise be refused
+    // for the rest of the session. After this many consecutive continuity rejections the next
+    // sample is admitted and re-baselines the gate.
+    @Volatile private var consecutiveContinuityRejects = 0
     @Volatile private var lastDataNo = -1
     @Volatile private var consecutiveCeilingFullDrops = 0
     @Volatile private var ceilingDistrusted = false
@@ -511,6 +566,9 @@ class OttaiBleManager(
     // First reliable activation start seen this session, held until a second one corroborates it.
     @Volatile private var pendingConfirmedStartMs = 0L
     @Volatile private var lastBleActivityAtMs = 0L
+    // When the sensor last pushed a live frame on its own. The poll below is a safety net for
+    // notifications stopping, not a second data path, so it stands down while they are flowing.
+    @Volatile private var lastLiveNotifyAtMs = 0L
     private val recentlyRejectedSamples = object : LinkedHashMap<Int, RejectedSample>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, RejectedSample>?): Boolean = size > 64
     }
@@ -520,6 +578,16 @@ class OttaiBleManager(
     private val livePollRunnable = Runnable {
         if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank() || commandStatus >= 4) return@Runnable
         val gatt = mBluetoothGatt ?: return@Runnable
+        // Stand down while notifications are arriving on schedule. The poll timer is restarted by
+        // every accepted live sample, so it comes due at the same instant as the next notify and
+        // then re-reads what has just been delivered: over the 8 h after the 2026-07-29
+        // activation, 216 of 219 polled reads returned records a notify had already brought in
+        // milliseconds earlier — roughly 650 redundant encrypted ATT reads a day.
+        val sinceNotifyMs = System.currentTimeMillis() - lastLiveNotifyAtMs
+        if (lastLiveNotifyAtMs > 0L && sinceNotifyMs < livePollIntervalMs) {
+            scheduleLivePoll()
+            return@Runnable
+        }
         readLiveGlucose(gatt, "poll")
         scheduleLivePoll()
     }
@@ -529,6 +597,28 @@ class OttaiBleManager(
         val gatt = mBluetoothGatt ?: return@Runnable
         readLiveGlucose(gatt, "post-history")
         scheduleLivePoll()
+    }
+
+    @Volatile private var activationConfirmAttempt = 0
+
+    /**
+     * Read the command byte back after the activation writes until it reports 3, or the attempts
+     * run out. Self-rescheduling rather than a fixed delay, because a read that could not start
+     * produces no callback to hang the next step off.
+     */
+    private val activationConfirmRunnable = object : Runnable {
+        override fun run() {
+            if (stop || commandStatus == 3) return
+            val gatt = mBluetoothGatt ?: return
+            if (activationConfirmAttempt >= POST_ACTIVATION_CONFIRM_MAX_ATTEMPTS) {
+                Log.w(TAG, "activation confirmation read never landed after " +
+                    "$activationConfirmAttempt attempts; awaiting the next poll or reconnect")
+                return
+            }
+            activationConfirmAttempt++
+            runCatching { readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND) }
+            handler.postDelayed(this, POST_ACTIVATION_CONFIRM_RETRY_MS)
+        }
     }
 
     private val pendingHistoryChunkRunnable = Runnable {
@@ -612,6 +702,11 @@ class OttaiBleManager(
             lastAcceptedSampleMs = it.sampleMs
             lastAcceptedMmol = it.mmol
             lastAcceptedRawCurrent = it.rawCurrent
+            // Seed the adjacency anchor from the same record. Leaving it at -1 would disable the
+            // gate for the first sample after every restart, which is exactly when the restored
+            // baseline is there to be used.
+            lastEvaluatedDataNo = it.dataNo
+            lastEvaluatedSampleMs = it.sampleMs
         }
         // Auth V2 signs the cloud id bytes, not necessarily the Android BLE address.
         macBytes = runCatching { OttaiCrypto.hexToBytes(OttaiConstants.canonicalSensorId(id)) }.getOrDefault(ByteArray(0))
@@ -949,6 +1044,7 @@ class OttaiBleManager(
         // user-driven retry working while connectDevice()'s automatic branch stays suppressed.
         freshActivationAdvertisementAbandoned = false
         activationCandidateDiscoveryPending = true
+        activationDiscoveryStartedAtMs = System.currentTimeMillis()
         activationCandidateProbeActive = false
         clearDeferredActivationCandidateCgmInfo()
         mActiveDeviceAddress = address
@@ -1058,10 +1154,18 @@ class OttaiBleManager(
             advertisedName = advertisedName,
             rejectedAddresses = rejectedActivationCandidateAddresses,
             allowNameMatch = allowActivationCandidateNameMatch(),
+            exactOnlyWindowOpen = OttaiConstants.isActivationExactOnlyWindowOpen(
+                activationDiscoveryStartedAtMs,
+                System.currentTimeMillis(),
+            ),
         )
         if (!selected) return false
         if (!scannedAddress.equals(expectedAddress, ignoreCase = true)) {
-            Log.i(TAG, "probing NFC-woken Ottai address=$scannedAddress previous=$expectedAddress")
+            // Not necessarily NFC: this branch is reached by the name-only fallback too, which
+            // admits ANY advertisement containing "ottai". Saying "NFC-woken" invented a user
+            // action that had not happened and hid the real reason a stranger was being probed.
+            Log.i(TAG, "probing Ottai activation candidate address=$scannedAddress " +
+                "expected=$expectedAddress (name-only match)")
         }
         activationRetryAddress = scannedAddress
         mActiveDeviceAddress = scannedAddress
@@ -1466,6 +1570,7 @@ class OttaiBleManager(
                 Applic.app?.let { OttaiNfcWakeReminder.cancel(it, sensorId) }
             }
             handler.removeCallbacks(endedHistoryBackfillRunnable)
+            handler.removeCallbacks(activationConfirmRunnable)
             needsActivationAttempted = false
             resetActivationNegotiation()
             if (previous >= 4) {
@@ -1651,11 +1756,25 @@ class OttaiBleManager(
             authStep == AuthStep.WRITE_APP_SIGN && ch.uuid == OttaiConstants.CHAR_AUTH_SIGN -> {
                 deriveSession()
                 authStep = AuthStep.DONE
-                phase = Phase.STREAMING
                 lastBleActivityAtMs = System.currentTimeMillis()
-                val sessionOk = sessionKeyHex.isNotBlank()
-                Log.i(TAG, "auth complete; session=${if (sessionOk) "ok" else "FAILED"}")
-                if (sessionOk) {
+                if (sessionKeyHex.isBlank()) {
+                    // Derivation produced no usable key (a shared X whose top byte is zero and
+                    // whose next byte is below 0x80 — 1 handshake in 512). Everything downstream
+                    // is gated on this, so the old fall-through left the link in STREAMING with
+                    // nothing to do — and STREAMING selects the 180 s stale threshold instead of
+                    // the 90 s setup one, so the watchdog would not have intervened for another
+                    // three minutes. On 2026-07-29 the app sat silent for 59 s until the SENSOR
+                    // gave up (status=19), which cost 73 s of a six-minute activation. Drop the
+                    // link ourselves and re-authenticate: the failure is per-handshake, so the
+                    // retry succeeds immediately.
+                    Log.w(TAG, "auth complete; session=FAILED — no session key derived, reconnecting")
+                    UiRefreshBus.requestStatusRefresh()
+                    recoverGattAndReconnect("session key derivation failed")
+                    return
+                }
+                phase = Phase.STREAMING
+                Log.i(TAG, "auth complete; session=ok")
+                run {
                     val address = OttaiConstants.normalizeBleAddress(gatt.device?.address, allowPlain = false)
                     val context = Applic.app
                     val id = SerialNumber
@@ -1679,7 +1798,7 @@ class OttaiBleManager(
                 // activation). Reads on this post-CCCD char may work even though writes hit
                 // Invalid Handle — and this tells us whether the empty glucose is because
                 // the sensor was never started vs. a dead element.
-                if (sessionOk) readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND)
+                readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND)
                 // Do not infer activation from cloud or provisional timestamps. The command
                 // byte read above is the sensor's authoritative state: 0..2 activates, 3
                 // streams, and 4+ follows the ended-sensor path.
@@ -1704,11 +1823,12 @@ class OttaiBleManager(
             OttaiCrypto.bytesToHex(devicePubY),
             priv,
         ).orEmpty()
-        // DEBUG (remove): dump the session key so a captured live/history cipher can be
-        // decrypted offline in every mode — to settle whether records are genuinely empty
-        // or our AES-ECB path is wrong (different ciphers → identical empty payload is
-        // impossible for correct ECB). Local single-sensor RE only; not a normal secret log.
-        Log.i(TAG, "DEBUG sessionKey=$sessionKeyHex")
+        // Length only — never the key itself. trace.log is user-exportable and gets attached to
+        // bug reports, and this AES session key decrypts every live/history frame in the capture.
+        // The length is what actually matters diagnostically: a derivation that drops a leading
+        // zero byte yields a short (or empty) key, which is how the 1-in-512 auth failure was
+        // found in the first place.
+        Log.i(TAG, "session key derived len=${sessionKeyHex.length}")
     }
 
     // ---- streaming ----
@@ -1718,7 +1838,10 @@ class OttaiBleManager(
         val value = ch.value ?: return
         noteGattActivity()
         when (ch.uuid) {
-            OttaiConstants.CHAR_GLUCOSE_LIVE -> handleGlucosePayload(value, live = true, source = "notify")
+            OttaiConstants.CHAR_GLUCOSE_LIVE -> {
+                lastLiveNotifyAtMs = System.currentTimeMillis()
+                handleGlucosePayload(value, live = true, source = "notify")
+            }
             OttaiConstants.CHAR_GLUCOSE_HISTORY -> handleGlucosePayload(value, live = false, source = "notify")
             OttaiConstants.CHAR_CGM_INFO_NOTIFY -> handleCgmInfo(value, source = "notify")
         }
@@ -1760,14 +1883,25 @@ class OttaiBleManager(
             Log.w(TAG, "maxActive read out of plausible range — ignoring")
             return
         }
-        val ms = secs * 1000L
-        if (ms == activatedMaxActiveMs) return
+        adoptActivatedMaxActive(secs * 1000L, "sensor-readback")
+    }
+
+    /**
+     * Adopt [ms] as this sensor's provisioned lifetime — in memory, in prefs and in the native
+     * shell — and report whether anything changed. Idempotent.
+     *
+     * Every path that learns the real lifetime funnels through here so none of them can persist
+     * a value the others do not see.
+     */
+    private fun adoptActivatedMaxActive(ms: Long, source: String): Boolean {
+        if (ms <= 0L || ms == activatedMaxActiveMs) return false
         activatedMaxActiveMs = ms
         val id = SerialNumber.orEmpty()
         Applic.app?.let { ctx -> if (id.isNotBlank()) OttaiRegistry.saveAcceptedMaxActive(ctx, id, ms) }
         applyActivatedWearToNative(id)
         UiRefreshBus.requestStatusRefresh()
-        Log.i(TAG, "activated lifetime recovered from sensor = ${days}d")
+        Log.i(TAG, "activated lifetime = ${ms / 86_400_000L}d source=$source")
+        return true
     }
 
     // b8fd9848 holds the activated maxActive duration. The write format is
@@ -1864,14 +1998,29 @@ class OttaiBleManager(
             ?: provisionalActiveTimeMs.takeIf { it > 0L }
             ?: 0L
 
-    private fun preheatPeriodMs(): Long =
-        materials.preheatPeriodMs.takeIf { it > 0L } ?: OttaiConstants.DEFAULT_PREHEAT_PERIOD_MS
-
     private fun warmupRemainingMs(now: Long = System.currentTimeMillis()): Long {
-        val start = effectiveActiveTimeMs()
+        val start = warmupAnchorMs()
         if (start <= 0L) return -1L
-        return (start + preheatPeriodMs() - now).coerceAtLeast(0L)
+        return (start + OttaiConstants.WARMUP_SUPPRESS_MS - now).coerceAtLeast(0L)
     }
+
+    /**
+     * Start instant the warmup gate is allowed to trust — deliberately narrower than
+     * [effectiveActiveTimeMs].
+     *
+     * It refuses provisionalActiveTimeMs and streamStartTimeMs because both can be derived from
+     * the cgm-info 0x0477 sliding window, which for a sensor the vendor app activated days ago
+     * always reads "just now"; warming up on those would blank ten minutes of good readings on
+     * every fresh connect. The fallback is the instant this session itself wrote the activation
+     * command, which is the only trustworthy start available in the first ~80 s after our own
+     * activation — materials.activeTimeMs is not confirmed until the live anchor corroborates it
+     * (on the 2026-07-29 run the command went out at 17:18:15 and the start was confirmed at
+     * 17:19:00, by which point four readings had already been published).
+     */
+    private fun warmupAnchorMs(): Long =
+        materials.activeTimeMs.takeIf { it > 0L }
+            ?: activationCommandSentAtMs.takeIf { it > 0L }
+            ?: 0L
 
     private fun setProvisionalActiveTime(activeTimeMs: Long, reason: String) {
         if (activeTimeMs <= 0L || materials.activeTimeMs > 0L) return
@@ -2107,7 +2256,16 @@ class OttaiBleManager(
             Log.w(TAG, "no active-time anchor — skipping emit dataNo=${r.record.dataNo}")
             return null
         }
+        // Post-activation settling. The sensor streams from dataNo 0 but the electrode has not
+        // equilibrated, so these records are decoded and logged and then dropped — they must not
+        // reach current publishing, Room, the native journal or any exchange consumer. Gated on
+        // the sample rather than on the clock so a later history replay of the same records
+        // reaches the same verdict instead of re-admitting what the live path refused.
+        if (OttaiConstants.isWithinWarmup(warmupAnchorMs(), sampleMs)) {
+            return rejectReading(r, mmol, live, "warmup")
+        }
         continuityRejectReason(r, mmol, sampleMs, live, batch, batchIndex)?.let { reason ->
+            noteContinuityRejection(r.record.dataNo, sampleMs)
             return rejectReading(r, mmol, live, reason)
         }
         val previousGlucoseAtMs = lastGlucoseAtMs
@@ -2230,9 +2388,34 @@ class OttaiBleManager(
         lastAcceptedSampleMs = sampleMs
         lastAcceptedMmol = mmol
         lastAcceptedRawCurrent = r.record.rawCurrent
+        noteContinuityEvaluated(r.record.dataNo, sampleMs)
+        consecutiveContinuityRejects = 0
         Applic.app?.let {
             OttaiRegistry.saveContinuityBaseline(it, SerialNumber.orEmpty(), r.record.dataNo, sampleMs, mmol, r.record.rawCurrent)
         }
+    }
+
+    /**
+     * Move the continuity gate's adjacency anchor onto a sample it just refused, and count the
+     * refusal towards [MAX_CONSECUTIVE_CONTINUITY_REJECTS].
+     *
+     * Only continuity refusals land here. Hard rejects (corrupt temperature, impossible glucose)
+     * must NOT move the anchor: those frames carry garbage dataNos — 34044 and 47902 appear in
+     * the 2026-07-29 trace between legitimate readings in the twenty-thousands — and adopting one
+     * would push every following sample out of the adjacency window, which is the very failure
+     * this anchor exists to prevent.
+     */
+    private fun noteContinuityRejection(dataNo: Int, sampleMs: Long) {
+        consecutiveContinuityRejects++
+        noteContinuityEvaluated(dataNo, sampleMs)
+    }
+
+    private fun noteContinuityEvaluated(dataNo: Int, sampleMs: Long) {
+        // History replay walks backwards through records the live path already passed; letting it
+        // drag the anchor back would re-open the same skip-the-gate hole from the other side.
+        if (dataNo < lastEvaluatedDataNo) return
+        lastEvaluatedDataNo = dataNo
+        lastEvaluatedSampleMs = sampleMs
     }
 
     private data class NeighborSample(
@@ -2249,7 +2432,18 @@ class OttaiBleManager(
         batch: List<OttaiReading>,
         batchIndex: Int,
     ): String? {
-        if (isAdjacentToLastAccepted(r.record.dataNo, sampleMs) &&
+        // The comparison baseline only advances on an ACCEPTED sample, so once the sensor
+        // genuinely steps to a new level — an electrode restart, a real discontinuity — the gate
+        // would refuse every sample for the rest of the session. Yield after a bounded run and
+        // let the next one re-baseline. Sustained >=1.5 mmol/min steps are not physiology, so
+        // reaching this is already a sign the baseline is the thing that is wrong.
+        if (consecutiveContinuityRejects >= MAX_CONSECUTIVE_CONTINUITY_REJECTS) {
+            Log.w(TAG, "continuity gate yielding after $consecutiveContinuityRejects consecutive " +
+                "rejections; re-baselining on dataNo=${r.record.dataNo} mmol=%.2f raw=%d".format(
+                    mmol, r.record.rawCurrent))
+            return null
+        }
+        if (isAdjacentToLastEvaluated(r.record.dataNo, sampleMs) &&
             OttaiOutputFilter.isOneMinuteRawExcursion(
                 candidateMmol = mmol,
                 candidateRaw = r.record.rawCurrent,
@@ -2278,16 +2472,17 @@ class OttaiBleManager(
         return null
     }
 
-    private fun isAdjacentToLastAccepted(dataNo: Int, sampleMs: Long): Boolean {
-        val previousDataNo = lastAcceptedDataNo
-        if (previousDataNo < 0) return false
-        val dataNoGap = dataNo - previousDataNo
-        if (dataNoGap in 1..2) return true
-        val previousMs = lastAcceptedSampleMs
-        if (previousMs <= 0L || sampleMs <= previousMs) return false
-        val timeGap = sampleMs - previousMs
-        return timeGap in 1..(2 * RECORD_INTERVAL_MS + 15_000L)
-    }
+    /**
+     * Whether this sample sits close enough behind the last sample the gate looked at for a
+     * one-minute excursion test to be meaningful.
+     *
+     * Anchored on the last EVALUATED sample, not the last accepted one. Anchoring on the accepted
+     * sample let two consecutive rejections carry the anchor out of range — dataNo gap 3 and a
+     * 180 s time gap after refusing two records — so the gate silently stopped testing and passed
+     * the third bad sample straight through.
+     */
+    private fun isAdjacentToLastEvaluated(dataNo: Int, sampleMs: Long): Boolean =
+        isAdjacentSample(lastEvaluatedDataNo, lastEvaluatedSampleMs, dataNo, sampleMs)
 
     private fun isImmediatelyBeforeLastAccepted(dataNo: Int, sampleMs: Long): Boolean {
         val nextDataNo = lastAcceptedDataNo
@@ -2651,18 +2846,18 @@ class OttaiBleManager(
             }
         }
         Log.i(TAG, "activation command sent; sensor accepted activation writes")
-        mBluetoothGatt?.let { gatt ->
-            handler.postDelayed({ runCatching { readCgmInfo(gatt) } }, 1_000)
-            handler.postDelayed({
-                runCatching {
-                    readLiveGlucose(gatt, "post-activation")
-                    scheduleLivePoll()
-                }
-            }, 2_000)
-            // Re-read the cmd/activation byte: if our writes took, an expired (cmd>3) unit
-            // should drop back to 3 (activated). Logs "cmd/activation status=N".
-            handler.postDelayed({ runCatching { readChar(gatt, OttaiConstants.SERVICE_CGM, OttaiConstants.CHAR_COMMAND) } }, 3_000)
-        }
+        // Confirm the activation took, and issue nothing else. Android allows one outstanding
+        // GATT operation per connection, and the old fixed-delay chain (cgm-info at +1 s, a live
+        // read at +2 s, the confirmation at +3 s) raced itself: on 2026-07-29 the confirmation
+        // came back started=false while the live read was still in flight, and status=3 was only
+        // seen after that read died with status=133 and forced a reconnect. The live read was
+        // worthless anyway — two seconds after activation the sensor has nothing to give
+        // ("live read no records payloadLen=8"). Once status=3 lands, handleCommandStatus ->
+        // startStreamingAfterCommandStatus() does the cgm-info read, the first live read and the
+        // poll schedule, in an order that does not collide.
+        activationConfirmAttempt = 0
+        handler.removeCallbacks(activationConfirmRunnable)
+        handler.postDelayed(activationConfirmRunnable, POST_ACTIVATION_CONFIRM_DELAY_MS)
         UiRefreshBus.requestStatusRefresh()
     }
 
@@ -2753,6 +2948,7 @@ class OttaiBleManager(
     private fun beginActivationCandidateDiscovery(reason: String) {
         if (!activationNegotiationActive || !activationRetryPending) return
         activationCandidateDiscoveryPending = true
+        activationDiscoveryStartedAtMs = System.currentTimeMillis()
         activationCandidateProbeActive = false
         // This is the second way into candidate discovery, and it used to leave the home address
         // at the null beginActivationNegotiation() writes — which made rejectActivationCandidate's
@@ -2779,6 +2975,15 @@ class OttaiBleManager(
         activationRetryPending = false
         pendingAcceptedMaxActiveMs = acceptedMs
         Log.i(TAG, "maxActive accepted duration=${acceptedMs / 1000L}s; staged until status=3")
+        // Write through now rather than only at status=3. The firmware has already ACKed the
+        // value, so it is a fact about the sensor whether or not the activate command that
+        // follows lands. Deferring it lost the negotiated lifetime on 2026-07-29: a status=133
+        // read error between the activate write and the confirmation tore the link down,
+        // clearGattTransport cleared the staged state, and commitStagedActivationLifetime then
+        // committed nothing — the 28 days survived only because an optional display-only readback
+        // probe happened to succeed one second later. If activation ultimately fails the value is
+        // still what the sensor holds, and the next negotiation overwrites it.
+        adoptActivatedMaxActive(acceptedMs, "activation-accept")
         UiRefreshBus.requestStatusRefresh()
     }
 
@@ -2789,12 +2994,7 @@ class OttaiBleManager(
             pendingAcceptedMaxActiveMs,
         )
         if (acceptedMs <= 0L) return
-        activatedMaxActiveMs = acceptedMs
-        val id = SerialNumber.orEmpty()
-        Applic.app?.takeIf { id.isNotBlank() }?.let { context ->
-            OttaiRegistry.saveAcceptedMaxActive(context, id, acceptedMs)
-        }
-        applyActivatedWearToNative(id)
+        adoptActivatedMaxActive(acceptedMs, "activation-commit")
         clearStagedActivationLifetime()
         Log.i(TAG, "activation confirmed status=3; committed maxActive=${acceptedMs / 1000L}s")
     }
@@ -2860,6 +3060,16 @@ class OttaiBleManager(
         if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank() || commandStatus != 3) return
         if (roomBackfillChecked) return // the live path already issued the backfill
         SerialNumber ?: return
+        // Nothing to fetch yet on a sensor we have only just started. Come back when it is old
+        // enough to have history rather than spending the bounded attempts on empty live reads.
+        val sensorAgeMs = warmupAnchorMs().takeIf { it > 0L }?.let { System.currentTimeMillis() - it } ?: -1L
+        if (sensorAgeMs in 0 until INITIAL_HISTORY_MIN_SENSOR_AGE_MS) {
+            val waitMs = INITIAL_HISTORY_MIN_SENSOR_AGE_MS - sensorAgeMs
+            Log.i(TAG, "initial history backfill deferred ${waitMs / 1000L}s — sensor is ${sensorAgeMs / 1000L}s old")
+            handler.removeCallbacks(initialHistoryRunnable)
+            handler.postDelayed(initialHistoryRunnable, waitMs)
+            return
+        }
         val estimate = estimatedNewestDataNo()
         val newest = maxOf(lastDataNo, estimate)
         if (newest <= 0) {
@@ -3403,11 +3613,28 @@ class OttaiBleManager(
     // ~14d for these units), falling back to the local default. Uses the effective activation so a
     // sensor started in the vendor app (no cloud activeTime, start recovered over BLE) still shows
     // a rated end instead of a blank.
+    /**
+     * Official end of this sensor's life.
+     *
+     * Once the firmware has accepted a maxActive at activation, THAT is the official end: the
+     * cloud's activeExpireTime is only what the account plan rates the sensor at, and this fork
+     * deliberately rewrites the firmware value above it. Reporting the cloud figure here made the
+     * sensor card disagree with its own countdown ring by two weeks and, worse, aimed every
+     * sensor-expiry warning at 2026-08-12 for a sensor provisioned to 2026-08-26 — two weeks of
+     * false alarms ending in silence, because an end already in the past is treated as expired.
+     *
+     * Deliberately fixed here rather than in the shared alert path: other managed drivers use
+     * expectedEndMs for an ADVISORY horizon that is longer than their rated life (iCan defaults
+     * it to 28 days for every profile, including 7- and 8-day units), so preferring the longer of
+     * the two there would have suppressed their genuine warnings.
+     */
     override fun getOfficialEndMs(): Long {
         val start = effectiveActiveTimeMs()
         if (start <= 0L) return 0L
-        val ratedMs = materials.activeExpireTimeMs.takeIf { it > 0L } ?: OttaiConstants.DEFAULT_ACTIVE_EXPIRE_MS
-        return start + ratedMs
+        val acceptedMs = activatedMaxActiveMs.takeIf { it > 0L }
+            ?: Applic.app?.let { OttaiRegistry.loadAcceptedMaxActive(it, SerialNumber.orEmpty()) }
+            ?: 0L
+        return start + OttaiConstants.expectedLifetimeMs(materials.activeExpireTimeMs, acceptedMs)
     }
     // Expected end follows the maxActive value this sensor accepted. Before activation (or
     // for installations upgraded from older builds), fall back to the cloud-rated lifetime.
