@@ -698,7 +698,7 @@ public:
       days = 15;
     return days * 24 * streamperhour();
   }
-  int32_t pollStorageSize() const {
+  int32_t pollStorageSize(size_t minimumRecords = 0) const {
     const auto *info = getinfo();
     const std::string_view path(sensordir.data(), sensordir.size());
     const size_t leafOffset = path.find_last_of('/') == std::string_view::npos
@@ -709,9 +709,13 @@ public:
     // Legacy Sibionics reset cycles keep appending to the same poll store.
     // Managed Sibionics shells also need to reach their day-22 reset without
     // changing the native shell's lifecycle metadata.
-    if ((info && info->sibionics) || managedSibionics)
-      return maxminutes;
-    return maxstreampos();
+    const size_t defaultRecords =
+        ((info && info->sibionics) || managedSibionics)
+            ? static_cast<size_t>(maxminutes)
+            : static_cast<size_t>(std::max(maxstreampos(), 0));
+    return static_cast<int32_t>(
+        std::min(std::max(defaultRecords, minimumRecords),
+                 static_cast<size_t>(std::numeric_limits<int32_t>::max())));
   }
   size_t pollStorageCapacity() const {
     if (!polls.data() || !rawpolls.data() || !temppolls.data())
@@ -1594,14 +1598,16 @@ private:
 
   static constexpr const char trendsdat[] = "trends.dat";
   SensorGlucoseData(string_view sensordir, int spec, string_view baseuit,
-                    int sensorindex)
+                    int sensorindex, size_t minimumPollRecords = 0)
       : sensordir(sensordir), meminfo(sensordir, infopdat, sizeof(struct Info)),
         historydata(sensordir, "data.dat",
                     getinfo() ? historybytes(perhour()) : (haserror = true, 0)),
         scansize(maxscansize()), scans(sensordir, "current.dat", scansize),
-        polls(sensordir, "polls.dat", pollStorageSize()),
-        rawpolls(sensordir, "rawpolls.dat", pollStorageSize()),
-        temppolls(sensordir, "temppolls.dat", pollStorageSize()),
+        polls(sensordir, "polls.dat", pollStorageSize(minimumPollRecords)),
+        rawpolls(sensordir, "rawpolls.dat",
+                 pollStorageSize(minimumPollRecords)),
+        temppolls(sensordir, "temppolls.dat",
+                  pollStorageSize(minimumPollRecords)),
         trends(sensordir, trendsdat, scansize), specstart(spec),
         polluit(baseuit, "polls.dat"), rawpolluit(baseuit, "rawpolls.dat"),
         temppolluit(baseuit, "temppolls.dat"), infopath(baseuit, infopdat),
@@ -1719,10 +1725,24 @@ const char * relstatefile() {
             sensin, specin,
             std::string_view(sensin.data() + specin, sensin.size() - specin),
             sensorindex) {}
+  SensorGlucoseData(string_view sensin, int specin, int sensorindex,
+                    size_t minimumPollRecords)
+      : SensorGlucoseData(
+            sensin, specin,
+            std::string_view(sensin.data() + specin, sensin.size() - specin),
+            sensorindex, minimumPollRecords) {}
 
 public:
+  struct DirectStreamCapacity {
+    size_t minimumRecords;
+  };
+
   SensorGlucoseData(string_view sensin, int sensorindex)
       : SensorGlucoseData(sensin, globalbasedir.size() + 1, sensorindex) {}
+  SensorGlucoseData(string_view sensin, int sensorindex,
+                    DirectStreamCapacity capacity)
+      : SensorGlucoseData(sensin, globalbasedir.size() + 1, sensorindex,
+                          capacity.minimumRecords) {}
   void setMirrorRemoteBase(std::string_view baseuit) {
     if (baseuit.empty())
       return;

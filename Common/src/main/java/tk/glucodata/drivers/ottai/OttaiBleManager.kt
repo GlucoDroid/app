@@ -34,6 +34,7 @@ import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
 import tk.glucodata.logd
 import tk.glucodata.logi
+import tk.glucodata.NightscoutUploadWake
 import tk.glucodata.Natives
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
@@ -64,6 +65,7 @@ class OttaiBleManager(
         @Volatile @JvmStatic var activateRequestedFor: String? = null
 
         private const val MAX_HISTORY_REQUEST_RECORDS = 0xFFFF
+        private const val OTTAI_NATIVE_STREAM_RECORDS = 30 * 24 * 60
         private const val HISTORY_REQUEST_CHUNK_RECORDS = 270
         private const val HISTORY_CHUNK_DELAY_MS = 750L
         private const val RECENT_HISTORY_RECORDS = 60
@@ -344,6 +346,14 @@ class OttaiBleManager(
 
     private val handlerThread = HandlerThread("Ottai-$serial").also { it.start() }
     private val handler = Handler(handlerThread.looper)
+    private val nativeGlucoseMirror = OttaiNativeGlucoseMirror(
+        writeNative = { timestampSec, glucose, temperatureC, sensorId ->
+            Natives.addGlucoseStreamWithTemp(timestampSec, glucose, temperatureC, sensorId)
+        },
+        wakeNightscout = { source, timestampMs ->
+            NightscoutUploadWake.afterLiveNativeWrite(source, timestampMs)
+        },
+    )
 
     // Recent abnormal-disconnect timestamps (status!=0), pruned to UNSTABLE_LINK_WINDOW_MS;
     // feeds the fast-params hold and is only touched under its own lock (binder threads).
@@ -352,7 +362,6 @@ class OttaiBleManager(
     @Volatile private var connectStallStreak = 0
     @Volatile private var liveReadRetryCount = 0
     @Volatile private var lastUserReconnectAtMs = 0L
-
     private var svcDeviceInfo: BluetoothGattService? = null
     private var svcCgm: BluetoothGattService? = null
     private var svcAuth: BluetoothGattService? = null
@@ -2336,13 +2345,35 @@ class OttaiBleManager(
         if (live && toPersist.size == 1) {
             val reading = toPersist.single()
             HistorySyncAccess.storeCurrentReadingAsync(reading.sampleMs, reading.mgdl, 0f, 0f, id)
-            return
+        } else {
+            val timestamps = LongArray(toPersist.size) { index -> toPersist[index].sampleMs }
+            val values = FloatArray(toPersist.size) { index -> toPersist[index].mgdl }
+            // Ottai rawCurrent is an electrode/current diagnostic, not raw glucose mg/dL.
+            val rawValues = FloatArray(toPersist.size) { 0f }
+            HistorySyncAccess.storeSensorHistoryBatchAsync(id, timestamps, values, rawValues)
         }
-        val timestamps = LongArray(toPersist.size) { index -> toPersist[index].sampleMs }
-        val values = FloatArray(toPersist.size) { index -> toPersist[index].mgdl }
-        // Ottai rawCurrent is an electrode/current diagnostic, not raw glucose mg/dL.
-        val rawValues = FloatArray(toPersist.size) { 0f }
-        HistorySyncAccess.storeSensorHistoryBatchAsync(id, timestamps, values, rawValues)
+        if (live) readings.lastOrNull { it.publishCurrent }?.let {
+            mirrorLiveReadingIntoNative(id, it)
+        }
+    }
+
+    private fun mirrorLiveReadingIntoNative(
+        id: String,
+        reading: EmittedReading,
+    ) {
+        runCatching {
+            ensureNativePresenceShell("glucose-mirror")
+            val stored = nativeGlucoseMirror.mirrorLive(
+                id,
+                reading.sampleMs,
+                reading.mgdl,
+                reading.temperatureC,
+            )
+            if (stored) {
+                applyActivatedWearToNative(id)
+                Natives.wakebackup()
+            }
+        }.onFailure { Log.stack(TAG, "mirrorLiveReadingIntoNative", it) }
     }
 
     /** Keeps the per-sample skin temperature so the stats screen can chart it. */
@@ -2448,7 +2479,16 @@ class OttaiBleManager(
         val startMs = nativePresenceStartTimeMs()
         if (id.isBlank() || startMs <= 0L) return
         runCatching {
-            Natives.ensureSensorShell(id, (startMs / 1000L).coerceAtLeast(1L))
+            val startSec = (startMs / 1000L).coerceAtLeast(1L)
+            val provisioned = Natives.ensureSensorShellWithCapacity(
+                id,
+                startSec,
+                OTTAI_NATIVE_STREAM_RECORDS,
+            )
+            if (provisioned == 0L) {
+                Log.w(TAG, "native shell capacity unavailable reason=$reason; using existing shell")
+                Natives.ensureSensorShell(id, startSec)
+            }
             applyActivatedWearToNative(id)
         }.onFailure { Log.stack(TAG, "ensureNativePresenceShell($reason)", it) }
     }
