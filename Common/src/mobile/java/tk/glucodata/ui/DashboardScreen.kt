@@ -257,13 +257,13 @@ private data class SnapInput(
     val boost: Float
 )
 
-enum class TimeRange(val label: String, val hours: Int) {
-    H1("1H", 1),
-    H3("3H", 3),
-    H6("6H", 6),
-    H12("12H", 12),
-    H24("24H", 24),
-    D3("3D", 72);
+enum class TimeRange(val labelResId: Int, val hours: Int, val labelAmount: Int = hours) {
+    H1(R.string.dashboard_range_hours, 1),
+    H3(R.string.dashboard_range_hours, 3),
+    H6(R.string.dashboard_range_hours, 6),
+    H12(R.string.dashboard_range_hours, 12),
+    H24(R.string.dashboard_range_hours, 24),
+    D3(R.string.dashboard_range_days, 72, 3);
 
     companion object {
         fun fromPreference(value: String?): TimeRange =

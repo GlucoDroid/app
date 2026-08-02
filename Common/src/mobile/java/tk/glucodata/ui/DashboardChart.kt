@@ -4278,8 +4278,7 @@ fun InteractiveGlucoseChart(
                 contentAlignment = Alignment.Center
             ) {
             // Estimate intrinsic width of all elements at their base (unscaled) sizes.
-            // Estimate intrinsic width. Use a realistic text width for short labels: "1H", "24H", etc.
-            val avgTextWidth = 18.dp 
+            val avgTextWidth = 18.dp
             val rangesWidth = (baseRangeHorizontalPadding * 2 + avgTextWidth) * items.size +
                 (baseRangeClockSize + baseRangeClockGap) // selected item's icon
             val rangeGapsWidth = baseInterItemSpacing * (items.size - 1)
@@ -4447,7 +4446,7 @@ fun InteractiveGlucoseChart(
                             }
 
                             Text(
-                                text = range.label,
+                                text = stringResource(range.labelResId, range.labelAmount),
                                 style = scaledLabelStyle,
                                 color = contentColor,
                                 softWrap = false,

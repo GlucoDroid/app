@@ -98,12 +98,25 @@ fun InfoRow(label: String, value: String) {
     }
 }
 
-private fun formatSensorReadingAge(nowMillis: Long, readingMillis: Long): String {
+private enum class SensorReadingAgeUnit {
+    SECONDS,
+    MINUTES
+}
+
+private data class SensorReadingAge(
+    val amount: Int,
+    val unit: SensorReadingAgeUnit
+)
+
+private fun sensorReadingAge(nowMillis: Long, readingMillis: Long): SensorReadingAge {
     val ageSeconds = ((nowMillis - readingMillis).coerceAtLeast(0L) / 1000L)
     return if (ageSeconds < 60L) {
-        "${ageSeconds}s"
+        SensorReadingAge(ageSeconds.toInt(), SensorReadingAgeUnit.SECONDS)
     } else {
-        "${(ageSeconds / 60L).coerceAtLeast(1L)}m"
+        SensorReadingAge(
+            (ageSeconds / 60L).coerceAtLeast(1L).toInt(),
+            SensorReadingAgeUnit.MINUTES
+        )
     }
 }
 
@@ -132,8 +145,18 @@ private fun SensorCurrentValueChip(
             delay(nextSensorReadingAgeDelay(nowMillis, snapshot.timeMillis))
         }
     }
-    val ageText = remember(nowMillis, snapshot.timeMillis) {
-        formatSensorReadingAge(nowMillis, snapshot.timeMillis)
+    val readingAge = remember(nowMillis, snapshot.timeMillis) {
+        sensorReadingAge(nowMillis, snapshot.timeMillis)
+    }
+    val ageText = when (readingAge.unit) {
+        SensorReadingAgeUnit.SECONDS -> stringResource(
+            R.string.sensor_reading_age_seconds,
+            readingAge.amount
+        )
+        SensorReadingAgeUnit.MINUTES -> stringResource(
+            R.string.sensor_reading_age_minutes,
+            readingAge.amount
+        )
     }
 
     Surface(
@@ -1531,8 +1554,14 @@ fun SensorCard(
                     }
 
                     if (sensor.sensorAgeHours >= 0) {
-                        val ageText = if (sensor.sensorAgeHours < 24) "${sensor.sensorAgeHours}h"
-                                      else "${sensor.sensorAgeHours / 24}d ${sensor.sensorAgeHours % 24}h"
+                        val ageText = if (sensor.sensorAgeHours < 24) {
+                            stringResource(R.string.sensor_age_hours_compact, sensor.sensorAgeHours)
+                        } else {
+                            val days = sensor.sensorAgeHours / 24
+                            val hours = sensor.sensorAgeHours % 24
+                            "${stringResource(R.string.sensor_age_days_compact, days)} " +
+                                stringResource(R.string.sensor_age_hours_compact, hours)
+                        }
                         DataRow(stringResource(R.string.sensor_age), ageText)
                     }
 

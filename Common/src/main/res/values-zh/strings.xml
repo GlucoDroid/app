@@ -355,6 +355,12 @@
     <string name="chart_short_title">图表</string>
     <string name="target_range_title">目标范围</string>
     <string name="chart_limits_title">图表范围</string>
+    <string name="dashboard_range_hours">%1$dH</string>
+    <string name="dashboard_range_days">%1$dD</string>
+    <string name="sensor_age_hours_compact">%1$dh</string>
+    <string name="sensor_age_days_compact">%1$dd</string>
+    <string name="sensor_reading_age_seconds">%1$d秒</string>
+    <string name="sensor_reading_age_minutes">%1$d分</string>
     <string name="select_unit">选择单位</string>
     <string name="select_theme">选择主题</string>
     <string name="select_language">选择语言</string>
@@ -847,11 +853,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="psg_stable">稳定的基线</string>
     <string name="psg_unstable">不稳定的模式</string>
     <string name="range_14d">14D</string>
-    <string name="range_1d">一维</string>
+    <string name="range_1d">1D</string>
     <string name="range_30d">30D</string>
     <string name="range_7d">7D</string>
     <string name="range_90d">90D</string>
-    <string name="range_all">ALL</string>
+    <string name="range_all">全部</string>
     <string name="raw">Raw</string>
     <string name="raw_auto">Raw+Auto</string>
     <string name="reconnect">Reconnect</string>

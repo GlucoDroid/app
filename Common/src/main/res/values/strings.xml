@@ -494,6 +494,12 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="chart_short_title">Chart</string>
     <string name="target_range_title">Target range</string>
     <string name="chart_limits_title">Chart range</string>
+    <string name="dashboard_range_hours">%1$dH</string>
+    <string name="dashboard_range_days">%1$dD</string>
+    <string name="sensor_age_hours_compact">%1$dh</string>
+    <string name="sensor_age_days_compact">%1$dd</string>
+    <string name="sensor_reading_age_seconds">%1$ds</string>
+    <string name="sensor_reading_age_minutes">%1$dm</string>
     <string name="select_unit">Select Unit</string>
     <string name="select_theme">Select Theme</string>
     <string name="select_language">Select Language</string>

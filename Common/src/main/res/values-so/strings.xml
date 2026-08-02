@@ -491,6 +491,12 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="chart_short_title">Shaxda</string>
     <string name="target_range_title">Kala duwanaanshaha bartilmaameedka</string>
     <string name="chart_limits_title">Jaantuska kala duwan</string>
+    <string name="dashboard_range_hours">%1$dH</string>
+    <string name="dashboard_range_days">%1$dD</string>
+    <string name="sensor_age_hours_compact">%1$dh</string>
+    <string name="sensor_age_days_compact">%1$dd</string>
+    <string name="sensor_reading_age_seconds">%1$ds</string>
+    <string name="sensor_reading_age_minutes">%1$dm</string>
     <string name="select_unit">Xulo Unug</string>
     <string name="select_theme">Dooro Mawduuca</string>
     <string name="select_language">Dooro Luuqad</string>
