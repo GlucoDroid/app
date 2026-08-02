@@ -113,6 +113,7 @@ object AlertRuntimeManager {
         }
         synchronized(lock) {
             lastReadingTimeMs = maxOf(lastReadingTimeMs, readingTimeMs)
+            SensorHandoverRuntime.onReading(sensorId)
             if (snapshot != null && snapshot.primaryValue.isFinite()) {
                 lastGlucoseValue = snapshot.primaryValue
                 lastRate = snapshot.rate
@@ -162,6 +163,7 @@ object AlertRuntimeManager {
             evaluateDeltaAlarmsLocked()
         }
         evaluateSensorExpiryLocked(nowMs)
+        SensorHandoverRuntime.evaluate(nowMs)
         return standardAlertEvaluation
     }
 
@@ -311,6 +313,12 @@ object AlertRuntimeManager {
         if (SnoozeManager.isSnoozed(type)) {
             return
         }
+        if (SensorHandoverRuntime.missedReadingSuppressed(nowMs)) {
+            // Post-handover window: the successor is still warming up; a short
+            // data gap during the switch must not alarm as an outage.
+            clearRuntimeAlert(type, "sensor-handover-window")
+            return
+        }
 
         val missed = nowMs - lastReadingTimeMs >= durationMs
         if (!missed) {
@@ -417,7 +425,7 @@ object AlertRuntimeManager {
         }
 
         val glucoseValue = currentGlucoseValueLocked() ?: return
-        val message = sensorExpiryMessage(triggered.first())
+        val message = SensorHandoverRuntime.decorateExpiryMessage(sensorExpiryMessage(triggered.first()), nowMs)
 
         triggerAlert(type, glucoseValue, currentRateLocked(), message)
     }

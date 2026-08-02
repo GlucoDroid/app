@@ -2277,4 +2277,14 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_pinned_remove">Van Dashboard verwijderen</string>
     <string name="stats_pinned_already">vastgezet</string>
     <string name="stats_pinned_remove_short">Verwijderen</string>
+    <string name="sensor_handover_title">Automatische sensoroverdracht</string>
+    <string name="sensor_handover_desc">Activeer de opvolgende sensor ruim van tevoren; wanneer de oude sensor verloopt, schakelt de app automatisch over naar de opvolger</string>
+    <string name="sensor_handover_old_action_title">Verlopen sensor na de overdracht</string>
+    <string name="sensor_handover_old_action_desc">Deactiveren: de verlopen sensor blijft in de lijst totdat je hem verwijdert. Verwijderen: zoals het verwijdervenster, koppelingssleutels worden gewist. Meetgeschiedenis blijft in beide gevallen bewaard.</string>
+    <string name="sensor_handover_action_deactivate">Deactiveren</string>
+    <string name="sensor_handover_action_remove">Verwijderen</string>
+    <string name="sensor_handover_switched_text">Overgeschakeld van %1$s naar %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s is nu de gegevensbron maar is nog aan het opwarmen (ongeveer %2$d min). Metingen hervatten zodra het opwarmen klaar is.</string>
+    <string name="sensor_handover_multiple_text">De sensor is verlopen, maar er zijn meerdere opvolgende sensoren actief. Automatische overdracht overgeslagen; schakel handmatig over.</string>
+    <string name="sensor_handover_successor_ready">Opvolgende sensor is klaar; de automatische overdracht neemt het over bij verlopen</string>
 </resources>

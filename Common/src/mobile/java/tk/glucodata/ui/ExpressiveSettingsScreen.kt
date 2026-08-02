@@ -68,6 +68,7 @@ import tk.glucodata.OutboundApiSettings
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
 import tk.glucodata.SensorSourceResolver
+import tk.glucodata.alerts.SensorHandoverRuntime
 import tk.glucodata.data.calibration.CalibrationManager
 import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.ui.components.StyledSwitch
@@ -174,6 +175,21 @@ fun ExpressiveSettingsScreen(
     // Advanced settings
     var turbo by remember { mutableStateOf(Natives.getpriority()) }
     var autoConnect by remember { mutableStateOf(Natives.getAndroid13()) }
+    val handoverPrefs = remember {
+        context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+    }
+    var sensorHandoverEnabled by remember {
+        mutableStateOf(handoverPrefs.getBoolean(SensorHandoverRuntime.PREF_ENABLED, false))
+    }
+    var sensorHandoverAction by remember {
+        mutableStateOf(
+            handoverPrefs.getInt(
+                SensorHandoverRuntime.PREF_OLD_ACTION,
+                SensorHandoverRuntime.OLD_ACTION_DEACTIVATE
+            )
+        )
+    }
+    var showSensorHandoverActionDialog by remember { mutableStateOf(false) }
 
     val currentLocale = AppCompatDelegate.getApplicationLocales().get(0) ?: Locale.getDefault()
     val currentLangName = currentLocale.displayLanguage.replaceFirstChar { it.uppercase() }
@@ -516,6 +532,33 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.MIDDLE,
                     onCheckedChange = { SensorBluetooth.setAutoconnect(it); autoConnect = it }
                 )
+                SettingsSwitchItem(
+                    title = stringResource(R.string.sensor_handover_title),
+                    subtitle = stringResource(R.string.sensor_handover_desc),
+                    checked = sensorHandoverEnabled,
+                    icon = Icons.Default.SwapHoriz,
+                    iconTint = advColor,
+                    position = CardPosition.MIDDLE,
+                    onCheckedChange = {
+                        handoverPrefs.edit().putBoolean(SensorHandoverRuntime.PREF_ENABLED, it).apply()
+                        sensorHandoverEnabled = it
+                    }
+                )
+                if (sensorHandoverEnabled) {
+                    SettingsItem(
+                        title = stringResource(R.string.sensor_handover_old_action_title),
+                        subtitle = if (sensorHandoverAction == SensorHandoverRuntime.OLD_ACTION_REMOVE) {
+                            stringResource(R.string.sensor_handover_action_remove)
+                        } else {
+                            stringResource(R.string.sensor_handover_action_deactivate)
+                        },
+                        showArrow = true,
+                        icon = Icons.Default.DeleteSweep,
+                        iconTint = advColor,
+                        position = CardPosition.MIDDLE,
+                        onClick = { showSensorHandoverActionDialog = true }
+                    )
+                }
                 SettingsItem(
                     title = stringResource(R.string.graph_smoothing_title),
                     subtitle = graphSmoothingLabel,
@@ -698,6 +741,15 @@ fun ExpressiveSettingsScreen(
             showPreviewWindowDialog = false
         },
         onDismiss = { showPreviewWindowDialog = false }
+    )
+    if (showSensorHandoverActionDialog) SensorHandoverActionPickerDialog(
+        currentAction = sensorHandoverAction,
+        onSelect = {
+            handoverPrefs.edit().putInt(SensorHandoverRuntime.PREF_OLD_ACTION, it).apply()
+            sensorHandoverAction = it
+            showSensorHandoverActionDialog = false
+        },
+        onDismiss = { showSensorHandoverActionDialog = false }
     )
     if (showLanguageDialog) LanguagePickerDialog { showLanguageDialog = false }
     if (showClearHistoryDialog) ConfirmActionDialog(stringResource(R.string.clean_history_confirm), stringResource(R.string.clear_history_desc_long), Icons.Filled.History, { scope.launch { tk.glucodata.data.DataManagement.clearHistory() }; showClearHistoryDialog = false }, { showClearHistoryDialog = false })
@@ -1771,6 +1823,61 @@ private fun ThemePickerDialog(current: ThemeMode, onSelect: (ThemeMode) -> Unit,
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SensorHandoverActionPickerDialog(
+    currentAction: Int,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val options = listOf(
+        stringResource(R.string.sensor_handover_action_deactivate) to SensorHandoverRuntime.OLD_ACTION_DEACTIVATE,
+        stringResource(R.string.sensor_handover_action_remove) to SensorHandoverRuntime.OLD_ACTION_REMOVE
+    )
+    BasicAlertDialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 6.dp,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
+                Text(
+                    text = stringResource(R.string.sensor_handover_old_action_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                )
+                Text(
+                    text = stringResource(R.string.sensor_handover_old_action_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+                )
+                options.forEach { (label, value) ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .clickable { onSelect(value) }
+                            .padding(horizontal = 24.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = currentAction == value, onClick = null)
+                        Spacer(Modifier.width(16.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }

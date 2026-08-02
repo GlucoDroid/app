@@ -2235,4 +2235,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_remove">Remover do Painel</string>
     <string name="stats_pinned_already">fixado</string>
     <string name="stats_pinned_remove_short">Remover</string>
+    <string name="sensor_handover_title">Transferência automática de sensor</string>
+    <string name="sensor_handover_desc">Ative o sensor sucessor com antecedência; quando o sensor antigo expirar, o aplicativo muda automaticamente para o sucessor</string>
+    <string name="sensor_handover_old_action_title">Sensor expirado após a transferência</string>
+    <string name="sensor_handover_old_action_desc">Desativar: o sensor expirado permanece na lista até você removê-lo. Remover: como a caixa de remoção, as chaves de pareamento são apagadas. O histórico de medições é mantido em ambos os casos.</string>
+    <string name="sensor_handover_action_deactivate">Desativar</string>
+    <string name="sensor_handover_action_remove">Remover</string>
+    <string name="sensor_handover_switched_text">Mudou de %1$s para %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s agora é a fonte de dados, mas ainda está aquecendo (cerca de %2$d min). As leituras retomam quando o aquecimento terminar.</string>
+    <string name="sensor_handover_multiple_text">O sensor expirou, mas há vários sensores sucessores ativos. Transferência automática ignorada; mude manualmente.</string>
+    <string name="sensor_handover_successor_ready">O sensor sucessor está pronto; a transferência automática assume na expiração</string>
 </resources>

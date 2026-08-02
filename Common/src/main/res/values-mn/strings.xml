@@ -2349,4 +2349,14 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_pinned_remove">Хяналтын самбараас хасах</string>
     <string name="stats_pinned_already">бэхлэгдсэн</string>
     <string name="stats_pinned_remove_short">Хасах</string>
+    <string name="sensor_handover_title">Мэдрэгчийн автомат шилжүүлэг</string>
+    <string name="sensor_handover_desc">Дараагийн мэдрэгчийг урьдчилан идэвхжүүлнэ үү; хуучин мэдрэгчийн хугацаа дуусахад апп автоматаар залгамжлагч руу шилжинэ</string>
+    <string name="sensor_handover_old_action_title">Шилжүүлгийн дараах хугацаа дууссан мэдрэгч</string>
+    <string name="sensor_handover_old_action_desc">Идэвхгүй болгох: хугацаа дууссан мэдрэгч устгах хүртэл жагсаалтад үлдэнэ. Устгах: устгах цонхтой адил, хослуулах түлхүүрүүд устана. Хэмжилтийн түүх хоёр тохиолдолд хадгалагдана.</string>
+    <string name="sensor_handover_action_deactivate">Идэвхгүй болгох</string>
+    <string name="sensor_handover_action_remove">Устгах</string>
+    <string name="sensor_handover_switched_text">%1$s-ээс %2$s руу шилжлээ</string>
+    <string name="sensor_handover_warming_text">%1$s одоо өгөгдлийн эх үүсвэр боловч халаалт үргэлжилж байна (ойролцоогоор %2$d мин). Халаалт дуусмагц хэмжилт үргэлжилнэ.</string>
+    <string name="sensor_handover_multiple_text">Мэдрэгчийн хугацаа дууссан ч хэд хэдэн залгамжлагч мэдрэгч идэвхтэй байна. Автомат шилжүүлгийг алгаслаа; гараар шилжүүлнэ үү.</string>
+    <string name="sensor_handover_successor_ready">Залгамжлагч мэдрэгч бэлэн; хугацаа дуусахад автомат шилжүүлэг ажиллана</string>
 </resources>

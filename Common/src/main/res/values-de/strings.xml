@@ -2273,4 +2273,14 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="stats_pinned_remove">Vom Dashboard entfernen</string>
     <string name="stats_pinned_already">angeheftet</string>
     <string name="stats_pinned_remove_short">Entfernen</string>
+    <string name="sensor_handover_title">Automatische Sensor-Übergabe</string>
+    <string name="sensor_handover_desc">Nachfolge-Sensor rechtzeitig vorher aktivieren; läuft der alte Sensor ab, wechselt die App automatisch auf den Nachfolger</string>
+    <string name="sensor_handover_old_action_title">Abgelaufener Sensor nach der Übergabe</string>
+    <string name="sensor_handover_old_action_desc">Deaktivieren: der abgelaufene Sensor bleibt in der Liste, bis Sie ihn entfernen. Entfernen: wie die Entfernen-Maske, Kopplungsschlüssel werden gelöscht. Messdaten bleiben in beiden Fällen erhalten.</string>
+    <string name="sensor_handover_action_deactivate">Deaktivieren</string>
+    <string name="sensor_handover_action_remove">Entfernen</string>
+    <string name="sensor_handover_switched_text">Von %1$s auf %2$s gewechselt</string>
+    <string name="sensor_handover_warming_text">%1$s ist jetzt die Datenquelle, wärmt aber noch auf (ca. %2$d Min.). Werte kommen wieder, sobald die Aufwärmphase abgeschlossen ist.</string>
+    <string name="sensor_handover_multiple_text">Der Sensor ist abgelaufen, aber mehrere Nachfolge-Sensoren sind aktiv. Automatische Übergabe übersprungen; bitte manuell wechseln.</string>
+    <string name="sensor_handover_successor_ready">Nachfolge-Sensor ist bereit; die automatische Übergabe übernimmt beim Ablauf</string>
 </resources>

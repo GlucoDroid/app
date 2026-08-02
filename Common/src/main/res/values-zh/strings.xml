@@ -2250,4 +2250,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_remove">从主页移除</string>
     <string name="stats_pinned_already">已固定</string>
     <string name="stats_pinned_remove_short">移除</string>
+    <string name="sensor_handover_title">自动传感器交接</string>
+    <string name="sensor_handover_desc">提前激活后续传感器;旧传感器到期后,应用会自动切换到后续传感器</string>
+    <string name="sensor_handover_old_action_title">交接后的过期传感器</string>
+    <string name="sensor_handover_old_action_desc">停用:过期传感器保留在列表中,直到您将其移除。移除:与移除对话框相同,配对密钥将被删除。两种情况下测量历史均会保留。</string>
+    <string name="sensor_handover_action_deactivate">停用</string>
+    <string name="sensor_handover_action_remove">移除</string>
+    <string name="sensor_handover_switched_text">已从 %1$s 切换到 %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s 现在是数据来源,但仍在预热(约 %2$d 分钟)。预热完成后将恢复读数。</string>
+    <string name="sensor_handover_multiple_text">传感器已到期,但有多个后续传感器处于活动状态。已跳过自动交接;请手动切换。</string>
+    <string name="sensor_handover_successor_ready">后续传感器已就绪;到期时自动交接将接管</string>
 </resources>

@@ -2224,4 +2224,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_remove">Rimuovi dalla Dashboard</string>
     <string name="stats_pinned_already">fissato</string>
     <string name="stats_pinned_remove_short">Rimuovi</string>
+    <string name="sensor_handover_title">Passaggio automatico del sensore</string>
+    <string name="sensor_handover_desc">Attiva il sensore successore in anticipo; alla scadenza del vecchio sensore l\'app passa automaticamente al successore</string>
+    <string name="sensor_handover_old_action_title">Sensore scaduto dopo il passaggio</string>
+    <string name="sensor_handover_old_action_desc">Disattiva: il sensore scaduto resta nell\'elenco finché non lo rimuovi. Rimuovi: come la finestra di rimozione, le chiavi di associazione vengono eliminate. Lo storico delle misurazioni viene comunque conservato.</string>
+    <string name="sensor_handover_action_deactivate">Disattiva</string>
+    <string name="sensor_handover_action_remove">Rimuovi</string>
+    <string name="sensor_handover_switched_text">Passato da %1$s a %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s è ora la sorgente dati ma è ancora in riscaldamento (circa %2$d min). Le letture riprendono al termine del riscaldamento.</string>
+    <string name="sensor_handover_multiple_text">Il sensore è scaduto, ma sono attivi più sensori successori. Passaggio automatico saltato; cambia manualmente.</string>
+    <string name="sensor_handover_successor_ready">Il sensore successore è pronto; il passaggio automatico interverrà alla scadenza</string>
 </resources>

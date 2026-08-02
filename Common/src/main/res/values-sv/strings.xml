@@ -2234,4 +2234,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_remove">Ta bort från Översikt</string>
     <string name="stats_pinned_already">fäst</string>
     <string name="stats_pinned_remove_short">Ta bort</string>
+    <string name="sensor_handover_title">Automatiskt sensorbyte</string>
+    <string name="sensor_handover_desc">Aktivera efterföljande sensor i god tid; när den gamla sensorn löper ut byter appen automatiskt till efterträdaren</string>
+    <string name="sensor_handover_old_action_title">Utgången sensor efter bytet</string>
+    <string name="sensor_handover_old_action_desc">Avaktivera: den utgångna sensorn ligger kvar i listan tills du tar bort den. Ta bort: som borttagningsdialogen, parningsnycklar raderas. Mäthistoriken behålls i båda fallen.</string>
+    <string name="sensor_handover_action_deactivate">Avaktivera</string>
+    <string name="sensor_handover_action_remove">Ta bort</string>
+    <string name="sensor_handover_switched_text">Bytte från %1$s till %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s är nu datakällan men värmer fortfarande upp (cirka %2$d min). Avläsningarna återupptas när uppvärmningen är klar.</string>
+    <string name="sensor_handover_multiple_text">Sensorn har löpt ut, men flera efterföljande sensorer är aktiva. Automatiskt byte hoppades över; byt manuellt.</string>
+    <string name="sensor_handover_successor_ready">Efterföljande sensor är redo; det automatiska bytet tar över vid utgång</string>
 </resources>
