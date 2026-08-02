@@ -160,7 +160,7 @@
   <string name="failedbyexception">Durch Ausnahme fehlgeschlagen</string>
   <string name="nodata">Keine Daten</string>
   <string name="addsensorenddate">Enddatum des Sensors zur Kalender-App hinzufügen</string>
-  <string name="enddatesensor">"Enddatumssensor "</string>
+  <string name="enddatesensor">"Sensor-Enddatum "</string>
   <string name="open">Öffnen</string>
   <string name="share">Teilen</string>
   <string name="withoutsensor">Ohne Sensor</string>
@@ -318,7 +318,7 @@
   <string name="nohttpport">Die Portnummer sollte sich vom http-Port unterscheiden</string>
 <string name="ready_in">" bereit in "</string>
 <string name="ready_for_use">Sensor einsatzbereit</string>
-<string name="endstime">" endet um diese Zeit"</string>
+<string name="endstime">" läuft zu diesem Zeitpunkt ab"</string>
 <string name="triednothing">Nichts versucht</string>
 <string name="success">Erfolg</string>
 <string name="resendwarning">Alle Daten werden erneut gesendet, was einige Zeit in Anspruch nimmt und Konsequenzen für Libreview und Kefstok haben kann</string>
