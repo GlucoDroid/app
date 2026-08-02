@@ -140,6 +140,7 @@ private PendingIntent onalarm=null;
 	@SuppressLint("MissingPermission")
 	@Override
 	public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
+		noteFirstGattCallback("onConnectionStateChange", bluetoothGatt);
 		endBLEHandler();
 		if(stop) {
 			{if(doLog) {Log.i(LOG_ID,"onConnectionStateChange stop==true");};};

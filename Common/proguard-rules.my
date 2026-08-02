@@ -65,6 +65,20 @@
     public final void markSensorReset(java.lang.String);
 }
 
+# Keep the hidden-framework connection-parameter callback.
+# BluetoothGattCallback#onConnectionUpdated exists since Android O but is absent from the SDK
+# stubs, so SuperGattCallback declares it without @Override and nothing in the compiled code
+# ever calls it -- the platform binds it at runtime by name+descriptor. R8 sees an unreachable
+# method and does not rename it but DELETES it: no shipped mapping.txt has ever contained
+# onConnectionUpdated, and in the 2026-08-01 jamming storm the framework invoked it 210/207
+# times into the two running apps while the app logged zero "conn params" lines. Same failure
+# class as the HistoryRepository note above -- dispatch by name that R8 cannot see -- and the
+# same silence: with the method gone the link-parameter history of an outage exists nowhere.
+# The declaration also carries @Keep, which cannot drift; keep both in sync.
+-keepclassmembers class * extends android.bluetooth.BluetoothGattCallback {
+    public void onConnectionUpdated(android.bluetooth.BluetoothGatt, int, int, int, int);
+}
+
 # Keep CalibrationManager names and reflected members stable.
 # CalibrationAccess in src/main resolves these mobile-only methods by name.
 -keepnames class tk.glucodata.data.calibration.CalibrationManager

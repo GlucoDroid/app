@@ -51,6 +51,15 @@ class OttaiBleManager(
         private const val TAG = OttaiConstants.TAG
         const val SENSOR_GEN = 0
         private const val RECONNECT_DELAY_MS = 3_000L
+        // Link supervision timeout — the peer stopped answering rather than closing the link.
+        // Android exports no constant for the BTA GATT_CONN_* codes, and this was the status on
+        // all 88 drops of the 2026-08-01 jamming storm. See reconnectDelayAfterDisconnectMs.
+        private const val GATT_CONN_TIMEOUT = 8
+        private const val SUPERVISION_TIMEOUT_RECONNECT_DELAY_MS = 1_500L
+        // The generic stack error a connectGatt() issued before registerApp() has settled comes
+        // back as; see fastReArmBounced.
+        private const val GATT_ERROR_STATUS = 133
+        private const val FAST_REARM_BOUNCE_WINDOW_MS = 2_000L
         private const val MTU = 247
         private const val MTU_SETTLE_BEFORE_DISCOVERY_MS = 1_250L
         private const val MTU_CALLBACK_FALLBACK_MS = 2_500L
@@ -127,6 +136,20 @@ class OttaiBleManager(
         internal const val SLOW_CONN_INTERVAL_UNITS = 100 // 1.25ms units -> 125ms
         internal const val SLOW_CONN_LATENCY = 2
         internal const val PRIORITY_REASSERT_MIN_GAP_MS = 20_000L
+        // ...and only twice per link. The grip above was written blind because its own callback
+        // was being deleted by R8; the 2026-08-01 storm logs, taken after the keep rule landed,
+        // say the sensor takes the fast params back every single time: 46/46 reclaims, median
+        // 5.8s (min 5.2, max 18.8), always returning to interval=308 latency=4 timeout=600. It
+        // also buys nothing measurable -- 1 drop per 564s of fast params against 82 per 23963s of
+        // slow ones, Poisson p~0.42. And linkUnstable (2 abnormal drops in 15min) is permanently
+        // true in that RF environment, so an unbounded grip is ~133 reasserts per sensor per 4h,
+        // each cutting the sensor's effective listen period from 1925ms to 15ms for ~5.8s --
+        // ~128x the connection events, on firmware budgeted for a 15-day battery.
+        // Counting the reclaims themselves and giving up after two was tried and dropped: every
+        // STATE_CONNECTED asks for CONNECTION_PRIORITY_HIGH, so the fast-param update answering
+        // that request clears any "the sensor already said no" memory on each of the ~44
+        // reconnects per sensor, and a reclaim cap could never be reached.
+        internal const val MAX_PRIORITY_REASSERTS_PER_CONNECTION = 2
         // A pending autoconnect only fires when the sensor's advertisement gets through;
         // tearing it down every 90s in a jamming storm kept destroying the one object
         // that could end the outage. Back the CONNECTING stale threshold off per
@@ -160,10 +183,94 @@ class OttaiBleManager(
         // than holding a baseline the sensor has clearly left behind.
         internal const val MAX_CONSECUTIVE_CONTINUITY_REJECTS = 3
 
+        // ---- outage instrumentation ----
+        // None of the three measurements below changes what the driver does; they exist because
+        // the 2026-08-01 analysis could not answer three questions from an 8995-line trace, and
+        // no further reconnect work can be justified without them.
+
+        // How long the outage probe listens for the sensor's advertisement. Long enough to cover
+        // the median connectGatt->connected of that storm (22s and 33s for the two sensors), short
+        // enough that a link dropping every ~2.7min on average is not scanning continuously.
+        private const val OUTAGE_PROBE_TIMEOUT_MS = 30_000L
+        // Android throttles an app to 5 scan starts per 30s and parks the offender for half an
+        // hour. One probe per outage already bounds this, but a burst of drops can end and restart
+        // an outage several times a minute, so hold a floor between probes as well — and hold it
+        // per process, not per sensor: the throttle is per uid, the 2026-08-01 storm had two Ottai
+        // sensors dropping together, and the startScan the platform refuses can just as easily be
+        // SensorBluetooth's managed scan, which is the recovery path for every other sensor.
+        internal const val OUTAGE_PROBE_MIN_GAP_MS = 60_000L
+        @Volatile private var lastOutageProbeAtMsShared = 0L
+        // RSSI cadence. Every few minutes, not every reading: the question it answers ("was the
+        // sensor far away or was the band busy?") does not move in seconds, and the sensor screens
+        // read one value.
+        internal const val RSSI_POLL_INTERVAL_MS = 300_000L
+        // The first sample must land early: 88 drops in 4h means the median session is minutes
+        // long, and an RSSI series that only starts after five of them would be empty exactly
+        // during a storm.
+        private const val RSSI_FIRST_POLL_DELAY_MS = 20_000L
+
+        /**
+         * Whether an outage may be probed for the sensor's advertisement now.
+         *
+         * [activationScanActive] is the hard exclusion: the activation/candidate scan owns the
+         * radio and the transport during setup, and a second scan racing it is exactly the
+         * interference this probe must never introduce. [managedScanActive] is the same argument
+         * one level up — SensorBluetooth's scan finds every sensor family, and losing its
+         * startScan to this app's own throttle would cost far more than the measurement is worth.
+         */
+        internal fun shouldProbeOutageAdvertisement(
+            alreadyProbedThisOutage: Boolean,
+            activationScanActive: Boolean,
+            managedScanActive: Boolean,
+            nowMs: Long,
+            lastProbeAtMs: Long,
+        ): Boolean {
+            if (alreadyProbedThisOutage || activationScanActive || managedScanActive) return false
+            if (lastProbeAtMs <= 0L) return true
+            val sinceMs = nowMs - lastProbeAtMs
+            // A clock step backwards must not latch the probe off for good — same rule as
+            // shouldReadLiveAfterHistory, and this one would otherwise be silent forever.
+            return sinceMs < 0L || sinceMs >= OUTAGE_PROBE_MIN_GAP_MS
+        }
+
+        /** Whether the RSSI poll is due. Off outside STREAMING: there is no link to measure. */
+        internal fun shouldPollRssi(streaming: Boolean, nowMs: Long, lastRssiReadAtMs: Long): Boolean {
+            if (!streaming) return false
+            if (lastRssiReadAtMs <= 0L) return true
+            val sinceMs = nowMs - lastRssiReadAtMs
+            return sinceMs < 0L || sinceMs >= RSSI_POLL_INTERVAL_MS
+        }
+
+        /**
+         * Stale-activity threshold while streaming. The poll interval is what the sensor is
+         * expected to speak on, so a slow poll must widen the window it is judged against.
+         */
+        internal fun streamingStaleThresholdMs(livePollIntervalMs: Long): Long =
+            maxOf(STREAM_ACTIVITY_STALE_MS, livePollIntervalMs * 3L + 15_000L)
+
         internal fun isFreshLiveSample(receivedAtMs: Long, sampleMs: Long): Boolean =
             receivedAtMs > 0L &&
                 sampleMs > 0L &&
                 abs(receivedAtMs - sampleMs) <= CURRENT_SAMPLE_FRESH_MS + CURRENT_SAMPLE_FLOOR_GRACE_MS
+
+        /**
+         * Whether the one-shot live read after a history payload is worth its round-trip.
+         *
+         * The one-shot exists for a history burst that ends several minutes behind wall time, but
+         * that is not how history is normally asked for: requestRoomBackfillAfterLive issues it
+         * about a second after a live frame, which in the 2026-08-01 logs was 100% of the requests.
+         * All 26 re-reads returned records the app already held — 24 a byte-identical ciphertext,
+         * the other 2 a fresh ciphertext carrying a dataNo a live notify had brought in 0-1 s
+         * earlier — for an ATT round-trip, an AES-CBC decrypt and a ~200 KB appendTemperatureHistory
+         * rebuild each. Below a record interval the sensor has nothing newer to give.
+         */
+        internal fun shouldReadLiveAfterHistory(receivedAtMs: Long, lastLiveFrameAtMs: Long): Boolean {
+            if (lastLiveFrameAtMs <= 0L) return true
+            val sinceLiveMs = receivedAtMs - lastLiveFrameAtMs
+            // A clock step backwards must not latch the one-shot off: this is the only read that
+            // catches up a history burst which ended behind wall time.
+            return sinceLiveMs < 0L || sinceLiveMs >= RECORD_INTERVAL_MS
+        }
 
         /**
          * Adjacency window for the continuity gate: is [dataNo]/[sampleMs] close enough behind
@@ -343,13 +450,69 @@ class OttaiBleManager(
             unstable: Boolean,
             nowMs: Long,
             lastReassertMs: Long,
+            reassertsThisConnection: Int,
         ): Boolean =
             unstable &&
+                reassertsThisConnection < MAX_PRIORITY_REASSERTS_PER_CONNECTION &&
                 (intervalUnits >= SLOW_CONN_INTERVAL_UNITS || latency >= SLOW_CONN_LATENCY) &&
                 nowMs - lastReassertMs >= PRIORITY_REASSERT_MIN_GAP_MS
 
         internal fun connectingStaleThresholdMs(stallStreak: Int): Long =
             SETUP_ACTIVITY_STALE_MS shl stallStreak.coerceIn(0, MAX_CONNECT_STALL_BACKOFF_SHIFTS)
+
+        /**
+         * How long the ordinary disconnect path waits before re-arming the connect.
+         *
+         * A supervision timeout says the peer stopped answering, not that it went away. In the
+         * 2026-08-01 storm all 88 drops were status=8, and 15 of those outages ended within 10s
+         * of close() — the sensor was there and catchable while the driver sat out its 3s
+         * default. Worth ~38s across both sensors over the window even if the re-arm were instant
+         * (0.7% of the downtime) and zero recovered readings — this takes half of that, no more:
+         * the pre-teardown hold is only 129s/2520s and 120s/2799s of
+         * the two downtime budgets, the other ~95% being spent after the connect is armed,
+         * waiting for an advertisement to get through (connectGatt->connected p50 22s/33s, max
+         * 374s/387s). Cheap, so worth taking; not a fix for the outages.
+         *
+         * 1500ms and not the 250ms recoverGattAndReconnect uses: that path fires from the
+         * watchdog with no callback in flight, whereas this one has just run gatt.close() on the
+         * BT callback thread with the disconnect event still being delivered, and a connectGatt()
+         * issued before unregisterApp()/registerApp() has settled is the classic way to earn a
+         * status=133 that costs a whole extra outage. On MIUI that cycle churned clientIf
+         * 163,167,171,179,183,191...243 in 4h. Nothing measures where the floor actually is, so
+         * take the half of the 3s that the evidence justifies and leave the rest — and if a 133
+         * does arrive right after one of these re-arms, [fastReArmBounced] gives the whole idea up
+         * for the rest of the outage.
+         *
+         * Note for anyone reading the CONNECTING backoff ladder: this also moves that ladder's
+         * origin 1.5s earlier per status=8 outage, because connectDevice() stamps
+         * lastBleActivityAtMs and arms the watchdog. The rungs (90/180/360s) are unchanged.
+         *
+         * Every other status deliberately keeps the 3s default:
+         *  - 19 (GATT_CONN_TERMINATE_PEER_USER) is a live peer closing the link itself, and a
+         *    fast re-arm against that is how a connect/terminate loop gets built. 3s works —
+         *    drop at 1785606352, reconnected 1785606359.
+         *  - 22 (GATT_CONN_TERMINATE_LOCAL_HOST) is our own teardown, likewise.
+         *  - 133 never occurred on this path: all five in the logs were ATT reads
+         *    ("read err 00002aa7 ... phase=STREAMING").
+         */
+        internal fun reconnectDelayAfterDisconnectMs(status: Int, fastReArmAllowed: Boolean): Long =
+            if (status == GATT_CONN_TIMEOUT && fastReArmAllowed) SUPERVISION_TIMEOUT_RECONNECT_DELAY_MS
+            else RECONNECT_DELAY_MS
+
+        /**
+         * Whether this disconnect looks like the shortened re-arm above bouncing off the stack's
+         * own client registration rather than off the sensor.
+         *
+         * A 133 landing within a couple of seconds of a re-armed connect is the documented shape
+         * of connecting inside the post-close() clientIf window; it has never been seen on this
+         * driver's disconnect path, but it has also never been asked for a connect this soon after
+         * close(). One is enough — the shortened delay is worth 0.7% of the downtime, so it is not
+         * worth a single extra bounce, let alone a loop of them.
+         */
+        internal fun fastReArmBounced(status: Int, nowMs: Long, fastReArmAtMs: Long): Boolean =
+            status == GATT_ERROR_STATUS &&
+                fastReArmAtMs > 0L &&
+                (nowMs - fastReArmAtMs) in 0L..FAST_REARM_BOUNCE_WINDOW_MS
 
         internal fun acceptedMaxActiveToCommit(
             commandStatus: Int,
@@ -395,9 +558,28 @@ class OttaiBleManager(
     // feeds the fast-params hold and is only touched under its own lock (binder threads).
     private val abnormalDropAtMs = ArrayDeque<Long>()
     @Volatile private var lastPriorityReassertAtMs = 0L
+    // Read-modify-written only from onConnectionParamsUpdated and reset only from
+    // STATE_CONNECTED, both of which the stack delivers on the one binder thread that owns this
+    // GATT — unlike abnormalDropAtMs above, which several threads reach.
+    @Volatile private var priorityReassertCount = 0
     @Volatile private var connectStallStreak = 0
     @Volatile private var liveReadRetryCount = 0
     @Volatile private var lastUserReconnectAtMs = 0L
+    // When the connect a shortened post-supervision-timeout re-arm scheduled is due to fire (not
+    // when it was scheduled — the bounce this watches for happens at the connect), and whether
+    // the shortened delay has been withdrawn for this outage. See reconnectDelayAfterDisconnectMs.
+    @Volatile private var fastReArmAtMs = 0L
+    @Volatile private var fastReArmWithdrawn = false
+
+    // ---- outage instrumentation (measurement only; never drives the state machine) ----
+    private val advertisementProbe = OttaiAdvertisementProbe(
+        context = Applic.getContext(),
+        handler = handler,
+        onFinished = ::finishOutageAdvertisementProbe,
+    )
+    @Volatile private var outageStartedAtMs = 0L
+    @Volatile private var probedThisOutage = false
+    @Volatile private var lastRssiReadAtMs = 0L
 
     private var svcDeviceInfo: BluetoothGattService? = null
     private var svcCgm: BluetoothGattService? = null
@@ -569,6 +751,12 @@ class OttaiBleManager(
     // When the sensor last pushed a live frame on its own. The poll below is a safety net for
     // notifications stopping, not a second data path, so it stands down while they are flowing.
     @Volatile private var lastLiveNotifyAtMs = 0L
+    // When a live frame last decoded, from EITHER source. The post-history one-shot consults this,
+    // and lastLiveNotifyAtMs cannot serve it: that one is written only from onCharacteristicChanged,
+    // and in the 2026-08-01 logs the driver was on the polled read path — at 1785605688 the last
+    // notify was 389 s old, so a notify-based guard would have been inert on exactly the path it is
+    // meant to close.
+    @Volatile private var lastLiveFrameAtMs = 0L
     private val recentlyRejectedSamples = object : LinkedHashMap<Int, RejectedSample>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, RejectedSample>?): Boolean = size > 64
     }
@@ -597,6 +785,25 @@ class OttaiBleManager(
         val gatt = mBluetoothGatt ?: return@Runnable
         readLiveGlucose(gatt, "post-history")
         scheduleLivePoll()
+    }
+
+    // Whether the sensor was out of range or the band was busy is not decidable from anything the
+    // app records today: there is no RSSI anywhere in the 2026-08-01 trace. Reads are only issued
+    // while streaming, and a read that cannot start is not retried — this is instrumentation, and
+    // a missing sample costs nothing.
+    private val rssiPollRunnable = Runnable {
+        if (stop) return@Runnable
+        val gatt = mBluetoothGatt
+        if (gatt == null || !shouldPollRssi(phase == Phase.STREAMING, System.currentTimeMillis(), lastRssiReadAtMs)) {
+            scheduleRssiPoll()
+            return@Runnable
+        }
+        val started = runCatching { gatt.readRemoteRssi() }.getOrDefault(false)
+        // Mark the attempt, not the answer: a read that never comes back must still not be
+        // retried before the next slot, or a jammed link turns this into a busy loop.
+        lastRssiReadAtMs = System.currentTimeMillis()
+        if (!started) logi(TAG) { "rssi read could not start" }
+        scheduleRssiPoll()
     }
 
     @Volatile private var activationConfirmAttempt = 0
@@ -757,7 +964,7 @@ class OttaiBleManager(
 
     private fun connectionStaleThresholdMs(): Long =
         when {
-            phase == Phase.STREAMING -> maxOf(STREAM_ACTIVITY_STALE_MS, livePollIntervalMs * 3L + 15_000L)
+            phase == Phase.STREAMING -> streamingStaleThresholdMs(livePollIntervalMs)
             phase == Phase.CONNECTING -> connectingStaleThresholdMs(connectStallStreak)
             else -> SETUP_ACTIVITY_STALE_MS
         }
@@ -793,6 +1000,7 @@ class OttaiBleManager(
         if (markSignalLoss) constatstatusstr = lossOfSignalText()
         handler.removeCallbacks(livePollRunnable)
         handler.removeCallbacks(postHistoryLiveRunnable)
+        handler.removeCallbacks(rssiPollRunnable)
         handler.removeCallbacks(pendingHistoryChunkRunnable)
         handler.removeCallbacks(endedHistoryBackfillRunnable)
         handler.removeCallbacks(initialHistoryRunnable)
@@ -800,12 +1008,18 @@ class OttaiBleManager(
         handler.removeCallbacks(pendingActivationNfcPromptRunnable)
         handler.removeCallbacks(serviceDiscoveryRunnable)
         handler.removeCallbacks(serviceDiscoveryTimeoutRunnable)
+        advertisementProbe.stop()
         pendingServiceDiscoveryGatt = null
         clearPendingHistoryRange()
         svcDeviceInfo = null
         svcCgm = null
         svcAuth = null
         sessionKeyHex = ""
+        // Session-scoped like the key: a live frame from the link being torn down must not answer
+        // the post-history one-shot's freshness question about the next one, and readrssi's 9999
+        // sentinel is what the sensor screens read as "no live link".
+        lastLiveFrameAtMs = 0L
+        readrssi = 9999
         authStep = AuthStep.NONE
         actStep = ActStep.NONE
         if (!preserveActivationNegotiation) resetActivationNegotiation()
@@ -950,6 +1164,7 @@ class OttaiBleManager(
     }
 
     override fun close() {
+        advertisementProbe.stop()
         if (stop) {
             // Permanent shutdown: free() sets stop=true before calling close(), so
             // quit the HandlerThread here — otherwise it outlives the sensor object.
@@ -1183,6 +1398,7 @@ class OttaiBleManager(
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        noteFirstGattCallback("onConnectionStateChange", gatt)
         if (stop) return
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
@@ -1204,6 +1420,18 @@ class OttaiBleManager(
                 lastBleActivityAtMs = connectTime
                 connectStallStreak = 0
                 liveReadRetryCount = 0
+                // The outage is over. Stop the probe rather than letting it run out its window:
+                // the link landing IS an advertisement getting through, and a probe that is only
+                // ever read out on timeout would leave every fast recovery out of the sample.
+                if (advertisementProbe.isActive) {
+                    val outageSec = ((connectTime - outageStartedAtMs).coerceAtLeast(0L)) / 1000L
+                    logi(TAG) { "advertisement probe ended by connect afterOutageSec=$outageSec" }
+                    advertisementProbe.stop()
+                }
+                probedThisOutage = false
+                priorityReassertCount = 0
+                fastReArmWithdrawn = false
+                fastReArmAtMs = 0L
                 // A link landed, so the abandoned-scan latch has served its purpose: a later
                 // activation attempt in this session may legitimately arm discovery again.
                 freshActivationAdvertisementAbandoned = false
@@ -1252,6 +1480,7 @@ class OttaiBleManager(
                 phase = Phase.IDLE
                 handler.removeCallbacks(livePollRunnable)
                 handler.removeCallbacks(postHistoryLiveRunnable)
+                handler.removeCallbacks(rssiPollRunnable)
                 handler.removeCallbacks(pendingHistoryChunkRunnable)
                 handler.removeCallbacks(endedHistoryBackfillRunnable)
                 handler.removeCallbacks(initialHistoryRunnable)
@@ -1262,6 +1491,11 @@ class OttaiBleManager(
                 clearPendingHistoryRange()
                 svcDeviceInfo = null; svcCgm = null; svcAuth = null
                 sessionKeyHex = ""
+                // Same session scope as the key above: the next link asks its own freshness
+                // question, and the sensor screens must not keep rendering the dead link's RSSI
+                // for the whole outage.
+                lastLiveFrameAtMs = 0L
+                readrssi = 9999
                 authStep = AuthStep.NONE
                 actStep = ActStep.NONE
                 pendingActivation = false
@@ -1305,8 +1539,21 @@ class OttaiBleManager(
                         scheduleReconnect("setup activation pre-status disconnect", 1_000L)
                     }
                 } else if (!stop) {
-                    scheduleReconnect("gatt disconnect")
+                    val now = System.currentTimeMillis()
+                    if (fastReArmBounced(status, now, fastReArmAtMs)) {
+                        fastReArmWithdrawn = true
+                        Log.w(TAG, "status=$status ${now - fastReArmAtMs}ms after a shortened " +
+                            "re-arm connected; back to the ${RECONNECT_DELAY_MS}ms delay for this outage")
+                    }
+                    val delayMs = reconnectDelayAfterDisconnectMs(status, !fastReArmWithdrawn)
+                    fastReArmAtMs =
+                        if (delayMs == SUPERVISION_TIMEOUT_RECONNECT_DELAY_MS) now + delayMs else 0L
+                    scheduleReconnect("gatt disconnect", delayMs)
                 }
+                // Last, so the guard sees whatever the branches above decided: an activation scan
+                // armed there owns the radio and this must stand aside. The reconnect is already
+                // scheduled either way — the probe only watches.
+                if (status != 0) startOutageAdvertisementProbe(status)
                 UiRefreshBus.requestStatusRefresh()
             }
         }
@@ -1326,6 +1573,51 @@ class OttaiBleManager(
     private fun linkUnstable(nowMs: Long): Boolean =
         synchronized(abnormalDropAtMs) { isLinkUnstable(abnormalDropAtMs.toList(), nowMs) }
 
+    /**
+     * Listen once, at the start of an outage, for the sensor's own advertisement.
+     *
+     * Observe-only by construction: it scans the registry address — never a candidate one probe
+     * may have retargeted us at — and its result is written to the log and nowhere else. The
+     * driver's recovery is untouched; the reconnect it was going to make is already armed.
+     */
+    private fun startOutageAdvertisementProbe(status: Int) {
+        if (stop) return
+        val explicitActivationRequest =
+            activateRequestedFor?.let { matchesManagedSensorId(it) } == true
+        val now = System.currentTimeMillis()
+        if (!shouldProbeOutageAdvertisement(
+                alreadyProbedThisOutage = probedThisOutage,
+                // activationNegotiationActive covers the lifetime-retry branch too: that one
+                // reconnects without arming either scanning sub-state, and the maxActive
+                // candidate walk is the last path that should be sharing the radio.
+                activationScanActive = activationNegotiationActive ||
+                    activationCandidateDiscoveryPending ||
+                    awaitingFreshActivationAdvertisement ||
+                    explicitActivationRequest,
+                managedScanActive = SensorBluetooth.scanActiveOrPending(),
+                nowMs = now,
+                lastProbeAtMs = lastOutageProbeAtMsShared,
+            )
+        ) {
+            return
+        }
+        val address = ownRecordAddress() ?: return
+        probedThisOutage = true
+        outageStartedAtMs = now
+        lastOutageProbeAtMsShared = now
+        val started = advertisementProbe.start(address, OUTAGE_PROBE_TIMEOUT_MS)
+        logi(TAG) { "advertisement probe started=$started after status=$status address=$address" }
+    }
+
+    private fun finishOutageAdvertisementProbe(rssi: Int?) {
+        val afterOutageSec = ((System.currentTimeMillis() - outageStartedAtMs).coerceAtLeast(0L)) / 1000L
+        if (rssi == null) {
+            logi(TAG) { "advertisement not seen within ${OUTAGE_PROBE_TIMEOUT_MS / 1000L}s of the drop" }
+        } else {
+            logi(TAG) { "advertisement seen afterOutageSec=$afterOutageSec rssi=$rssi" }
+        }
+    }
+
     override fun onConnectionParamsUpdated(
         gatt: BluetoothGatt,
         interval: Int,
@@ -1334,10 +1626,26 @@ class OttaiBleManager(
         status: Int,
     ) {
         if (stop || status != 0 || gatt !== mBluetoothGatt) return
+        // This line has always been unconditional; what changed is that it is now reachable. R8
+        // deleted onConnectionUpdated from every release build ever shipped, so the ~136 lines per
+        // sensor per 4h of link-parameter history it writes existed nowhere at all. logi() reaches
+        // trace.log in release builds (only android.util.Log is stripped there), which is the only
+        // place an outage can be read back from a user's device.
         logi(TAG) { "conn params interval=$interval latency=$latency timeout=$timeout" }
         val now = System.currentTimeMillis()
-        if (!shouldHoldFastParams(interval, latency, linkUnstable(now), now, lastPriorityReassertAtMs)) return
+        if (!shouldHoldFastParams(
+                interval,
+                latency,
+                linkUnstable(now),
+                now,
+                lastPriorityReassertAtMs,
+                priorityReassertCount,
+            )
+        ) {
+            return
+        }
         lastPriorityReassertAtMs = now
+        priorityReassertCount++
         Log.i(TAG, "unstable link: holding fast conn params over interval=$interval latency=$latency timeout=$timeout")
         runCatching { gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) }
     }
@@ -1774,6 +2082,8 @@ class OttaiBleManager(
                 }
                 phase = Phase.STREAMING
                 Log.i(TAG, "auth complete; session=ok")
+                lastRssiReadAtMs = 0L
+                scheduleRssiPoll(RSSI_FIRST_POLL_DELAY_MS)
                 run {
                     val address = OttaiConstants.normalizeBleAddress(gatt.device?.address, allowPlain = false)
                     val context = Applic.app
@@ -2150,6 +2460,13 @@ class OttaiBleManager(
             Log.w(TAG, "$kind $source dropped ${readings.size - plausible.size} corrupt records dataNo>ceiling=$ceiling")
         }
         noteCeilingOutcome(offered = readings.size, kept = plausible.size, ceiling = ceiling)
+        // A live frame that survived the ceiling means the app holds the sensor's current
+        // position, whether or not the sample inside it turns out to be one Room already has —
+        // which is exactly what the post-history one-shot needs to know, so it is stamped here
+        // rather than after the emit. Below the ceiling filter, though: a frame whose records were
+        // all dropped as corrupt says nothing about where the sensor is, and under the known
+        // dataNoCeiling poison state that is every live frame there will ever be.
+        if (live && plausible.isNotEmpty()) lastLiveFrameAtMs = receivedAtMs
         val emittedReadings = ArrayList<EmittedReading>(plausible.size)
         for ((index, r) in plausible.withIndex()) {
             if (!r.valid) {
@@ -2187,9 +2504,12 @@ class OttaiBleManager(
                 if (!continueHistoryAfterPayload(plausible)) {
                     // History can arrive in a long burst and still end several minutes behind
                     // wall time. Ask live immediately afterwards on a one-shot that cgm-info
-                    // cadence updates cannot cancel.
-                    handler.removeCallbacks(postHistoryLiveRunnable)
-                    handler.postDelayed(postHistoryLiveRunnable, 1_000L)
+                    // cadence updates cannot cancel — unless live is already current, which the
+                    // room-backfill caller makes the common case.
+                    if (shouldReadLiveAfterHistory(receivedAtMs, lastLiveFrameAtMs)) {
+                        handler.removeCallbacks(postHistoryLiveRunnable)
+                        handler.postDelayed(postHistoryLiveRunnable, 1_000L)
+                    }
                 }
             }
             UiRefreshBus.requestStatusRefresh()
@@ -3559,6 +3879,26 @@ class OttaiBleManager(
         if (stop || phase != Phase.STREAMING || sessionKeyHex.isBlank()) return
         handler.removeCallbacks(livePollRunnable)
         handler.postDelayed(livePollRunnable, delayMs.coerceIn(5_000L, 3_600_000L))
+    }
+
+    private fun scheduleRssiPoll(delayMs: Long = RSSI_POLL_INTERVAL_MS) {
+        if (stop || phase != Phase.STREAMING) return
+        handler.removeCallbacks(rssiPollRunnable)
+        handler.postDelayed(rssiPollRunnable, delayMs)
+    }
+
+    override fun onReadRemoteRssi(gatt: BluetoothGatt, rssi: Int, status: Int) {
+        super.onReadRemoteRssi(gatt, rssi, status)
+        if (stop || gatt !== mBluetoothGatt) return
+        if (status != 0) {
+            logi(TAG) { "rssi read failed status=$status" }
+            return
+        }
+        // Deliberately NOT noteGattActivity(): readRemoteRssi is HCI_Read_RSSI answered by the
+        // local controller from the last packet it saw, so the peer takes no part in it and a
+        // successful read is no evidence the sensor is still answering. Counting it as liveness
+        // would push worst-case detection of a wedged ATT path in STREAMING from 195s to ~390s.
+        logi(TAG) { "rssi=$rssi phase=$phase" }
     }
 
     /** Returns true if a write was issued (characteristic resolved), false if missing. */

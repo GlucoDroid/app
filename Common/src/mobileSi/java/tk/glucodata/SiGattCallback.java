@@ -143,6 +143,7 @@ public class SiGattCallback extends SuperGattCallback {
    @SuppressLint("MissingPermission")
    @Override
    public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
+      noteFirstGattCallback("onConnectionStateChange", bluetoothGatt);
       if (stop) {
          if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             bluetoothGatt.close();
