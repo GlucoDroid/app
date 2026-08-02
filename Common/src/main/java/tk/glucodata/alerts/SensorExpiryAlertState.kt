@@ -56,6 +56,31 @@ internal fun resolveSensorExpiryEndMs(preferredSensorId: String?, nowMs: Long): 
 }
 
 /**
+ * Thresholds that are new to the configuration and whose warning window is
+ * already open, so a settings save can adopt them (mark them warned) instead of
+ * letting them fire retroactively on the next tick.
+ *
+ * "New" means absent from the previous configuration, independent of whether the
+ * alert was enabled back then: an enable/disable cycle mid-sensor must not turn
+ * every configured threshold into a new one. Doing so adopted every currently
+ * open window at once and left the rest of the sensor without a single warning.
+ */
+internal fun newlyOpenExpiryThresholds(
+    previousMinutes: Set<Int>,
+    currentMinutes: Set<Int>,
+    endTimeMs: Long,
+    nowMs: Long
+): Set<Int> {
+    if (endTimeMs <= 0L) {
+        return emptySet()
+    }
+    val previouslyConfigured = sanitizeExpiryWarningMinutes(previousMinutes)
+    return sanitizeExpiryWarningMinutes(currentMinutes).filter {
+        it !in previouslyConfigured && endTimeMs - nowMs <= it.toLong() * 60_000L
+    }.toSet()
+}
+
+/**
  * Durable memory of which expiry thresholds already warned, keyed by the
  * sensor's end time. Production backs this with SharedPreferences
  * ([AlertRepository.sensorExpiryWarnedStore]); tests inject a fake.
@@ -85,7 +110,9 @@ internal interface ExpiryWarnedStore {
  *  - **Newly enabled thresholds** whose window is already open are adopted
  *    (marked warned, never fired retroactively). Mid-process that happens
  *    here; across a restart [AlertRepository.saveConfig] persists the
- *    adoption at save time.
+ *    adoption at save time. Only a threshold never configured in this episode
+ *    counts as new: deselecting and reselecting one keeps its window history,
+ *    so it is neither adopted nor fired for an edge it already passed.
  *  - **Cascade guard:** if several thresholds come due in the same tick (e.g. the
  *    app resumes deep inside multiple windows), fire only the smallest (most
  *    urgent) and silently mark the rest as warned.
@@ -132,10 +159,6 @@ internal class SensorExpiryAlertState(private val store: ExpiryWarnedStore) {
             }
         }
 
-        // Forget thresholds the user has removed so the maps stay bounded.
-        wasInWindow.keys.retainAll(thresholdsMinutes)
-        alertedForEnd.keys.retainAll(thresholdsMinutes)
-
         if (!activeNow || snoozed) {
             return emptySet()
         }
@@ -156,14 +179,24 @@ internal class SensorExpiryAlertState(private val store: ExpiryWarnedStore) {
                 }
             }
         } else {
+            // A deselected threshold keeps being tracked for the rest of the
+            // episode: its window state must stay current so re-selecting it is
+            // neither mistaken for a brand-new threshold (silent adoption) nor
+            // fired for an edge that passed while it was off. The maps stay
+            // bounded by EXPIRY_WARNING_PRESETS.
+            for (t in wasInWindow.keys.toList()) {
+                if (t !in thresholdsMinutes) {
+                    wasInWindow[t] = inWindow(t)
+                }
+            }
             for (t in thresholdsMinutes) {
                 val inside = inWindow(t)
                 val known = wasInWindow.containsKey(t)
                 val prev = wasInWindow[t] ?: false
                 wasInWindow[t] = inside
                 if (!known) {
-                    // Threshold enabled mid-episode: adopt like the baseline, never
-                    // fire retroactively for a window that is already open.
+                    // Threshold never configured in this episode: adopt like the
+                    // baseline, never fire retroactively for an open window.
                     if (inside && alertedForEnd[t] != endTimeMs) {
                         alertedForEnd[t] = endTimeMs
                         persistWarned()
