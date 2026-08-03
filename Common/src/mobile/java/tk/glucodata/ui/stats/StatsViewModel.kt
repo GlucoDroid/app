@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -95,10 +97,22 @@ class StatsViewModel : ViewModel() {
         val state: StatsUiState
     )
 
-    private val _selectedRange = MutableStateFlow<StatsTimeRange?>(StatsTimeRange.DAY_1)
+    private val restoredSelection: StatsRangeSelection? = StatsRangeStore.load(Applic.app)
+    private val _selectedRange = MutableStateFlow<StatsTimeRange?>(
+        when (restoredSelection) {
+            is StatsRangeSelection.Preset -> restoredSelection.range
+            is StatsRangeSelection.Custom -> null
+            null -> DEFAULT_STATS_RANGE
+        }
+    )
     val selectedRange: StateFlow<StatsTimeRange?> = _selectedRange.asStateFlow()
-    private val _customRange = MutableStateFlow<StatsDateRange?>(null)
+    private val _customRange = MutableStateFlow(
+        (restoredSelection as? StatsRangeSelection.Custom)?.range
+    )
     private val _availableRange = MutableStateFlow<StatsDateRange?>(null)
+    // A restored custom range may reach outside the data that exists today; it gets
+    // clamped once the available range is known.
+    private var pendingRestoredCustomClamp = restoredSelection is StatsRangeSelection.Custom
 
     private val _unit = MutableStateFlow(GlucoseUnit.MGDL)
     private val _targets = MutableStateFlow(StatsTargets())
@@ -183,22 +197,45 @@ class StatsViewModel : ViewModel() {
 
     init {
         observeUiRefreshBus()
+        if (pendingRestoredCustomClamp) {
+            clampRestoredCustomRangeWhenAvailable()
+        }
         refreshFromNative()
     }
 
     fun setTimeRange(range: StatsTimeRange) {
+        pendingRestoredCustomClamp = false
         if (_selectedRange.value == range && _customRange.value == null) return
         _selectedRange.value = range
         _customRange.value = null
+        StatsRangeStore.savePreset(Applic.app, range)
         resubscribeToRequestedWindow()
     }
 
     fun setCustomRange(startMillis: Long, endMillis: Long) {
+        pendingRestoredCustomClamp = false
         val normalizedRange = normalizeCustomRange(startMillis, endMillis)
         if (_customRange.value == normalizedRange && _selectedRange.value == null) return
         _selectedRange.value = null
         _customRange.value = normalizedRange
+        StatsRangeStore.saveCustom(Applic.app, normalizedRange)
         resubscribeToRequestedWindow()
+    }
+
+    private fun clampRestoredCustomRangeWhenAvailable() {
+        viewModelScope.launch {
+            val available = _availableRange.filterNotNull().first()
+            if (!pendingRestoredCustomClamp) return@launch
+            pendingRestoredCustomClamp = false
+            val restored = _customRange.value ?: return@launch
+            val clamped = clampStatsDateRangeToAvailable(restored, available)
+            if (clamped == null) {
+                _customRange.value = null
+                _selectedRange.value = DEFAULT_STATS_RANGE
+            } else if (clamped != restored) {
+                _customRange.value = clamped
+            }
+        }
     }
 
     private fun observeUiRefreshBus() {
