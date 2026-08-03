@@ -994,14 +994,11 @@ public class Notify {
     }
 
     private static String alarmDisplayGlucoseValue(float glvalue, notGlucose glucose) {
-        if (Float.isFinite(glvalue) && glvalue > 0.1f) {
-            final String glucoseFormat = pureglucoseformat != null ? pureglucoseformat : "%.1f";
-            return format(usedlocale, glucoseFormat, glvalue);
-        }
-        if (glucose != null && glucose.value != null && !glucose.value.isBlank()) {
-            return glucose.value;
-        }
-        return "";
+        final String glucoseFormat = pureglucoseformat != null ? pureglucoseformat : "%.1f";
+        return AlertDisplayText.alarmDisplayValue(
+                glvalue,
+                glucose != null ? glucose.value : null,
+                v -> format(usedlocale, glucoseFormat, v));
     }
 
     private static String resolveNotificationSensorSerial() {
