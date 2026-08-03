@@ -483,6 +483,34 @@ static bool uploadDeviceStatus() {
     return queued;
     }
 
+//Journal IOB/eIOB/COB devicestatus. Setting check, cadence and payload live on
+//the Java side (NightPost/NightscoutIobDeviceStatus) where the journal is
+//reachable and unit-testable; this just hands over the endpoint. Same
+//best-effort contract as the battery devicestatus above: never blocks the
+//serialized upload loop.
+static void uploadIobDeviceStatus() {
+    if(nightpostclass==nullptr || jnightuploadDevicestatusurl==nullptr)
+        return;
+    auto env=getenv();
+    if(env==nullptr)
+        return;
+    const static jmethodID mid=env->GetStaticMethodID(
+        nightpostclass,
+        "maybeUploadIobDeviceStatus",
+        "(Ljava/lang/String;Ljava/lang/String;)Z"
+    );
+    if(mid==nullptr) {
+        if(env->ExceptionCheck())
+            env->ExceptionClear();
+        return;
+        }
+    env->CallStaticBooleanMethod(nightpostclass,mid,jnightuploadDevicestatusurl,jnightuploadsecret);
+    if(env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        }
+    }
+
 
 extern double     calibrateONEtest(const SensorGlucoseData *sens,const ScanData &value);
 extern double getdelta(float change);
@@ -945,6 +973,7 @@ static void uploaderthread() {
         //Best effort: Java posts this on a bounded, dedicated executor. Its endpoint status never
         //overwrites the primary glucose uploader status or blocks this serialized upload loop.
         uploadDeviceStatus();
+        uploadIobDeviceStatus();
         waitmin=5*60;
         lastNightUploadWaitMinutes = waitmin;
         }
