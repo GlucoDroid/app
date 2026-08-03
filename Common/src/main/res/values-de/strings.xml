@@ -1699,6 +1699,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="notification_iob_risk_without_cob_desc">Insulin ohne erfasste Kohlenhydrate als ungedeckt werten</string>
     <string name="journal_iob_expanded">IOB %1$s E verbleibend</string>
     <string name="journal_eiob_expanded">eIOB %1$s E wirksam</string>
+    <string name="journal_iob_source_remote">Werte vom Uploader-Gerät (Nightscout)</string>
     <string name="journal_visible_events">Sichtbare Ereignisse</string>
     <string name="journal_empty">Noch keine Journalereignisse in diesem Fenster</string>
     <string name="journal_type_insulin">Insulin</string>

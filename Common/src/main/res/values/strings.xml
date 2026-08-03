@@ -2112,6 +2112,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="notification_iob_risk_without_cob_desc">Treat insulin as uncovered when no carbs are logged</string>
     <string name="journal_iob_expanded">IOB %1$sU remaining</string>
     <string name="journal_eiob_expanded">eIOB %1$sU acting</string>
+    <string name="journal_iob_source_remote">Values from the uploading device (Nightscout)</string>
     <string name="journal_visible_events">Visible events</string>
     <string name="journal_empty">No journal events in this window yet</string>
     <string name="journal_type_insulin">Insulin</string>

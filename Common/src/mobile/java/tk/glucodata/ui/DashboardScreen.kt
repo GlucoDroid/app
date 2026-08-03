@@ -164,6 +164,8 @@ import tk.glucodata.ui.journal.JournalFloatingActionMenu
 import tk.glucodata.ui.journal.JournalInlineChip
 import tk.glucodata.ui.journal.JournalSettingsScreen
 import tk.glucodata.data.journal.JournalIobCalculator
+import tk.glucodata.data.journal.JournalActiveInsulinSummary
+import tk.glucodata.drivers.nightscout.NightscoutFollowerDeviceStatus
 import tk.glucodata.ui.journal.buildJournalChartMarkers
 import tk.glucodata.ui.journal.journalQuickAddTimestamp
 import tk.glucodata.ui.viewmodel.DashboardViewModel
@@ -397,13 +399,32 @@ fun DashboardScreen(
             buildJournalChartMarkers(scopedJournalEntries, journalPresetsById, unit, glucoseHistory, journalFoodsById)
         }
     }
-    val activeInsulinSummary = remember(journalEnabled, scopedJournalEntries, journalPresetsById, journalNow) {
+    val localInsulinSummary = remember(journalEnabled, scopedJournalEntries, journalPresetsById, journalNow) {
         if (!journalEnabled || scopedJournalEntries.isEmpty()) {
             null
         } else {
             JournalIobCalculator.buildActiveInsulinSummary(scopedJournalEntries, journalPresetsById, journalNow)
         }
     }
+    // A fresh devicestatus published by the followed uploader replaces the
+    // locally recomputed IOB/eIOB so both devices show the same numbers; the
+    // journalNow ticker re-evaluates the freshness window, so a stale
+    // document falls back to the local computation on its own.
+    val remoteInsulin = remember(journalEnabled, journalNow) {
+        if (journalEnabled) NightscoutFollowerDeviceStatus.fresh(journalNow) else null
+    }
+    val activeInsulinSummary = remember(localInsulinSummary, remoteInsulin) {
+        when {
+            remoteInsulin == null -> localInsulinSummary
+            localInsulinSummary == null && remoteInsulin.iobUnits < 0.005f -> null
+            else -> (localInsulinSummary ?: JournalActiveInsulinSummary(0, 0f, 0, null)).copy(
+                iobUnits = remoteInsulin.iobUnits,
+                eiobUnits = remoteInsulin.eiobUnits.takeIf { it.isFinite() }
+                    ?: localInsulinSummary?.eiobUnits ?: 0f
+            )
+        }
+    }
+    val activeInsulinFromRemote = remoteInsulin != null && activeInsulinSummary != null
     val predictionSettings = remember(
         predictiveSimulationEnabled,
         predictionTrendMomentumEnabled,
@@ -1400,6 +1421,7 @@ fun DashboardScreen(
                                     peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
+                                    activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
@@ -1602,6 +1624,7 @@ fun DashboardScreen(
                                     peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
+                                    activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
