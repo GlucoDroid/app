@@ -134,6 +134,7 @@ private fun fetchOttaiMaterials(
     context: Context,
     mac: String,
     deviceVersion: String? = null,
+    historicalActiveTimeMs: Long = 0L,
 ): OttaiMaterialFetch {
     val canonical = OttaiConstants.canonicalSensorId(mac).ifEmpty { return OttaiMaterialFetch(null) }
     OttaiRegistry.loadMaterials(context, canonical).takeIf { it.authKeys != null }
@@ -162,7 +163,12 @@ private fun fetchOttaiMaterials(
         // would then silently reset its start time, the exact corruption class that produces a
         // poisoned dataNo ceiling. Reaching this route must stay a deliberate act.
         val version = deviceVersion?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        val resp = OttaiCloudClient.bindForMaterials(context, canonical, version) ?: return null
+        val resp = OttaiCloudClient.bindForMaterials(
+            context,
+            canonical,
+            version,
+            historicalActiveTimeMs,
+        ) ?: return null
         val boundId = OttaiConstants.canonicalSensorId(resp.mac).ifBlank { canonical }
         if (!OttaiConstants.matchesCanonicalOrKnownNativeAlias(boundId, canonical)) return null
         return OttaiCloudClient.toMaterials(context, canonical, resp)?.takeIf { it.authKeys != null }
@@ -335,6 +341,7 @@ fun OttaiSetupWizard(
     var password by remember { mutableStateOf("") }
     var cloudId by remember { mutableStateOf("") }
     var selectedDeviceVersion by remember { mutableStateOf("") }
+    var selectedAccountDevice by remember { mutableStateOf<OttaiCloudClient.DeviceSummary?>(null) }
     var bleAddress by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
@@ -403,8 +410,18 @@ fun OttaiSetupWizard(
             lastAutoFetchId = canonical
             materialLoading = true
             status = ""
+            val selected = selectedAccountDevice?.takeIf {
+                OttaiConstants.matchesCanonicalOrKnownNativeAlias(it.mac, canonical)
+            }
             val fetched = withContext(Dispatchers.IO) {
-                runCatching { fetchOttaiMaterials(context, canonical, selectedDeviceVersion) }
+                runCatching {
+                    fetchOttaiMaterials(
+                        context,
+                        canonical,
+                        selected?.deviceVersion ?: selectedDeviceVersion,
+                        selected?.bindTime ?: 0L,
+                    )
+                }
                     .onFailure { Log.w(tag, "auto-fetch materials: ${it.message}") }
                     .getOrNull()
             }
@@ -647,7 +664,15 @@ fun OttaiSetupWizard(
                         scope.launch {
                             val result = withContext(Dispatchers.IO) {
                                 runCatching {
-                                    val fetched = fetchOttaiMaterials(context, canonical, selectedDeviceVersion)
+                                    val selected = selectedAccountDevice?.takeIf {
+                                        OttaiConstants.matchesCanonicalOrKnownNativeAlias(it.mac, canonical)
+                                    }
+                                    val fetched = fetchOttaiMaterials(
+                                        context,
+                                        canonical,
+                                        selected?.deviceVersion ?: selectedDeviceVersion,
+                                        selected?.bindTime ?: 0L,
+                                    )
                                     if (fetched.materials == null) return@runCatching fetched to false
                                     val explicitBle = OttaiConstants.normalizeBleAddress(bleAddress, allowPlain = false)
                                     val connected = connectOttaiSensor(
@@ -1030,6 +1055,7 @@ fun OttaiSetupWizard(
                                     onClick = {
                                         cloudId = cid
                                         selectedDeviceVersion = d.deviceVersion
+                                        selectedAccountDevice = d
                                         lastAutoFetchId = ""
                                         materialRefresh += 1
                                         bleAddress = ""
