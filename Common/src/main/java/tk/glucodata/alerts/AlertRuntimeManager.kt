@@ -418,12 +418,18 @@ object AlertRuntimeManager {
 
         // The sensor ages whether or not a reading is available, and readings
         // often stop exactly when it is about to expire. Without a value the
-        // notification path cannot deliver, so the threshold stays pending and is
-        // offered again on the next tick instead of counting as warned (#98).
-        val glucoseValue = currentGlucoseValueLocked() ?: return
+        // alarm goes out message-only rather than waiting for a reading that may
+        // never come (#98); should even that fail, the threshold stays pending
+        // and is offered again on the next tick instead of counting as warned.
+        val glucoseValue = currentGlucoseValueLocked()
         val message = sensorExpiryMessage(triggered.first())
 
-        if (triggerAlert(type, glucoseValue, currentRateLocked(), message)) {
+        val delivered = if (glucoseValue != null) {
+            triggerAlert(type, glucoseValue, currentRateLocked(), message)
+        } else {
+            triggerMessageAlert(type, message)
+        }
+        if (delivered) {
             sensorExpiryState.confirmDelivered(triggered.first())
         }
     }
@@ -518,6 +524,19 @@ object AlertRuntimeManager {
             return triggered
         } catch (t: Throwable) {
             Log.stack(LOG_ID, "triggerAlert ${type.name}", t)
+            return false
+        }
+    }
+
+    private fun triggerMessageAlert(type: AlertType, message: String): Boolean {
+        try {
+            val triggered = Notify.triggerSupplementalMessageAlert(type.id, message)
+            if (triggered) {
+                Log.i(LOG_ID, "Triggered ${type.name} without reading: $message")
+            }
+            return triggered
+        } catch (t: Throwable) {
+            Log.stack(LOG_ID, "triggerMessageAlert ${type.name}", t)
             return false
         }
     }
