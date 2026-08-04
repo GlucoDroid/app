@@ -2244,4 +2244,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sensor_handover_warming_text">%1$s är nu datakällan men värmer fortfarande upp (cirka %2$d min). Avläsningarna återupptas när uppvärmningen är klar.</string>
     <string name="sensor_handover_multiple_text">Sensorn har löpt ut, men flera efterföljande sensorer är aktiva. Automatiskt byte hoppades över; byt manuellt.</string>
     <string name="sensor_handover_successor_ready">Efterföljande sensor är redo; det automatiska bytet tar över vid utgång</string>
+    <string name="nightscout_upload_iob">Skicka IOB till Nightscout</string>
+    <string name="nightscout_upload_iob_desc">Nightscout visar då detta värde i stället för sin egen profilbaserade beräkning. eIOB och COB skickas dessutom i ett separat fält.</string>
+    <string name="journal_iob_source_remote">Värden från den uppladdande enheten (Nightscout)</string>
 </resources>

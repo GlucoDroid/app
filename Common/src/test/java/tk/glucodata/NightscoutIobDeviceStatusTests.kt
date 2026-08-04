@@ -60,6 +60,21 @@ class NightscoutIobDeviceStatusTests {
     @Test
     fun `no classic IOB means no document`() {
         assertNull(NightscoutIobDeviceStatus.buildDocument(now, Float.NaN, Float.NaN, 24f))
+        assertNull(NightscoutIobDeviceStatus.buildDocument(now, Float.POSITIVE_INFINITY, 1f, 24f))
+    }
+
+    @Test
+    fun `non-finite optional values are omitted instead of producing invalid JSON`() {
+        val own = JSONArray(
+            NightscoutIobDeviceStatus.buildDocument(
+                now,
+                1.8f,
+                Float.POSITIVE_INFINITY,
+                Float.NEGATIVE_INFINITY,
+            )!!
+        ).getJSONObject(0).getJSONObject("jugglucong")
+        assertFalse(own.has("eiob"))
+        assertFalse(own.has("cob"))
     }
 
     @Test

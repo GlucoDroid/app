@@ -2452,4 +2452,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="sensor_handover_warming_text">%1$s hadda waa isha xogta, laakiin weli wuu diirranayaa (qiyaastii %2$d daqiiqo). Akhrisyadu way soo noqonayaan marka diirintu dhammaato.</string>
     <string name="sensor_handover_multiple_text">Dareemuhu wuu dhacay, laakiin dhowr dareeme oo beddel ah ayaa shaqaynaya. Wareejinta otomaatiga ah waa la dhaafay; fadlan gacanta ku beddel.</string>
     <string name="sensor_handover_successor_ready">Dareemaha beddelka ah wuu diyaar yahay; wareejinta otomaatiga ah ayaa la wareegaysa marka uu dhaco</string>
+    <string name="nightscout_upload_iob">U dir IOB Nightscout</string>
+    <string name="nightscout_upload_iob_desc">Nightscout wuxuu markaas muujinayaa qiimahan halkii uu ka isticmaali lahaa xisaabtiisa ku salaysan borofaylka. eIOB iyo COB sidoo kale waxaa lagu diraa meel gaar ah.</string>
+    <string name="journal_iob_source_remote">Qiimayaasha qalabka xogta diraya (Nightscout)</string>
 </resources>

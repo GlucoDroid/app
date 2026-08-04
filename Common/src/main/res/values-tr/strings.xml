@@ -2272,4 +2272,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="sensor_handover_warming_text">%1$s artık veri kaynağı, ancak hâlâ ısınıyor (yaklaşık %2$d dk). Isınma bitince ölçümler devam eder.</string>
     <string name="sensor_handover_multiple_text">Sensörün süresi doldu, ancak birden fazla halef sensör etkin. Otomatik devir atlandı; lütfen elle geçiş yapın.</string>
     <string name="sensor_handover_successor_ready">Halef sensör hazır; süre dolunca otomatik devir devreye girer</string>
+    <string name="nightscout_upload_iob">IOB’yi Nightscout’a gönder</string>
+    <string name="nightscout_upload_iob_desc">Nightscout, profil üzerinden kendi hesapladığı değer yerine bu değeri gösterir. eIOB ve COB ayrıca ayrı bir alanda gönderilir.</string>
+    <string name="journal_iob_source_remote">Verileri yükleyen cihazın değerleri (Nightscout)</string>
 </resources>

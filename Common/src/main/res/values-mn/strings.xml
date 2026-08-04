@@ -2359,4 +2359,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="sensor_handover_warming_text">%1$s одоо өгөгдлийн эх үүсвэр боловч халаалт үргэлжилж байна (ойролцоогоор %2$d мин). Халаалт дуусмагц хэмжилт үргэлжилнэ.</string>
     <string name="sensor_handover_multiple_text">Мэдрэгчийн хугацаа дууссан ч хэд хэдэн залгамжлагч мэдрэгч идэвхтэй байна. Автомат шилжүүлгийг алгаслаа; гараар шилжүүлнэ үү.</string>
     <string name="sensor_handover_successor_ready">Залгамжлагч мэдрэгч бэлэн; хугацаа дуусахад автомат шилжүүлэг ажиллана</string>
+    <string name="nightscout_upload_iob">IOB-г Nightscout руу илгээх</string>
+    <string name="nightscout_upload_iob_desc">Nightscout нь профайлаас өөрөө тооцоолохын оронд энэ утгыг харуулна. eIOB болон COB-г тусдаа талбараар давхар илгээнэ.</string>
+    <string name="journal_iob_source_remote">Өгөгдөл илгээж буй төхөөрөмжийн утгууд (Nightscout)</string>
 </resources>

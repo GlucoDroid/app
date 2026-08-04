@@ -2311,4 +2311,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sensor_handover_warming_text">%1$s цяпер крыніца даных, але яшчэ праграваецца (каля %2$d хв). Паказанні аднавяцца пасля прагрэву.</string>
     <string name="sensor_handover_multiple_text">Сенсар скончыўся, але актыўныя некалькі сенсараў-пераемнікаў. Аўтаматычная перадача прапушчана; пераключыцеся ўручную.</string>
     <string name="sensor_handover_successor_ready">Сенсар-пераемнік гатовы; аўтаматычная перадача спрацуе пры заканчэнні</string>
+    <string name="nightscout_upload_iob">Адпраўляць IOB у Nightscout</string>
+    <string name="nightscout_upload_iob_desc">Nightscout будзе паказваць гэта значэнне замест уласнага разліку з профілю. eIOB і COB дадаткова перадаюцца ў асобным полі.</string>
+    <string name="journal_iob_source_remote">Значэнні з прылады, якая адпраўляе даныя (Nightscout)</string>
 </resources>

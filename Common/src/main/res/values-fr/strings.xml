@@ -2250,4 +2250,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sensor_handover_warming_text">%1$s est désormais la source de données mais est encore en préchauffage (environ %2$d min). Les mesures reprennent une fois le préchauffage terminé.</string>
     <string name="sensor_handover_multiple_text">Le capteur a expiré, mais plusieurs capteurs successeurs sont actifs. Transfert automatique ignoré ; veuillez changer manuellement.</string>
     <string name="sensor_handover_successor_ready">Le capteur successeur est prêt ; le transfert automatique prendra le relais à l\'expiration</string>
+    <string name="nightscout_upload_iob">Envoyer l’IOB vers Nightscout</string>
+    <string name="nightscout_upload_iob_desc">Nightscout affiche alors cette valeur au lieu de son propre calcul basé sur le profil. L’eIOB et les glucides actifs (COB) sont également envoyés dans un champ distinct.</string>
+    <string name="journal_iob_source_remote">Valeurs de l’appareil émetteur (Nightscout)</string>
 </resources>

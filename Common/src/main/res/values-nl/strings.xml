@@ -2287,4 +2287,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="sensor_handover_warming_text">%1$s is nu de gegevensbron maar is nog aan het opwarmen (ongeveer %2$d min). Metingen hervatten zodra het opwarmen klaar is.</string>
     <string name="sensor_handover_multiple_text">De sensor is verlopen, maar er zijn meerdere opvolgende sensoren actief. Automatische overdracht overgeslagen; schakel handmatig over.</string>
     <string name="sensor_handover_successor_ready">Opvolgende sensor is klaar; de automatische overdracht neemt het over bij verlopen</string>
+    <string name="nightscout_upload_iob">IOB naar Nightscout sturen</string>
+    <string name="nightscout_upload_iob_desc">Nightscout toont dan deze waarde in plaats van de eigen berekening op basis van het profiel. eIOB en COB worden daarnaast in een apart veld verstuurd.</string>
+    <string name="journal_iob_source_remote">Waarden van het uploadende apparaat (Nightscout)</string>
 </resources>

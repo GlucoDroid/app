@@ -393,7 +393,7 @@ class NightscoutFollowerManager(
     private fun refreshRemoteDeviceStatus() {
         runCatching {
             val body = fetchDeviceStatusJson()
-            if (body.isBlank() || body == "[]") return
+            if (stop || body.isBlank() || body == "[]") return
             NightscoutFollowerDeviceStatus.update(NightscoutFollowerDeviceStatus.parseNewest(body))
         }.onFailure { error ->
             Log.w(TAG, "Nightscout devicestatus ignored: ${error.message}")

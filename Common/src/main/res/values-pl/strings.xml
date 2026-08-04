@@ -2279,4 +2279,7 @@
     <string name="sensor_handover_warming_text">%1$s jest teraz źródłem danych, ale wciąż się rozgrzewa (około %2$d min). Odczyty wznowią się po zakończeniu rozgrzewania.</string>
     <string name="sensor_handover_multiple_text">Czujnik wygasł, ale aktywnych jest kilka czujników następczych. Pominięto automatyczne przełączenie; przełącz ręcznie.</string>
     <string name="sensor_handover_successor_ready">Czujnik następczy jest gotowy; automatyczne przełączenie nastąpi po wygaśnięciu</string>
+    <string name="nightscout_upload_iob">Wysyłaj IOB do Nightscout</string>
+    <string name="nightscout_upload_iob_desc">Nightscout wyświetli tę wartość zamiast własnego obliczenia na podstawie profilu. eIOB i COB są dodatkowo wysyłane w osobnym polu.</string>
+    <string name="journal_iob_source_remote">Wartości z urządzenia wysyłającego dane (Nightscout)</string>
 </resources>

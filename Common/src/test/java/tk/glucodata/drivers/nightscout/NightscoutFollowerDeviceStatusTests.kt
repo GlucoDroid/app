@@ -88,6 +88,18 @@ class NightscoutFollowerDeviceStatusTests {
     }
 
     @Test
+    fun valuesTooLargeForFloatAreRejectedOrOmitted() {
+        val invalidIob = "[{\"created_at\":\"$docTime\",\"jugglucong\":{\"iob\":1e100}}]"
+        assertNull(NightscoutFollowerDeviceStatus.parseNewest(invalidIob))
+
+        val oversizedOptional = "[{\"created_at\":\"$docTime\",\"jugglucong\":" +
+            "{\"iob\":2.5,\"eiob\":1e100,\"cob\":-1e100}}]"
+        val remote = NightscoutFollowerDeviceStatus.parseNewest(oversizedOptional)!!
+        assertTrue(remote.eiobUnits.isNaN())
+        assertTrue(remote.cobGrams.isNaN())
+    }
+
+    @Test
     fun malformedBodiesParseToNull() {
         assertNull(NightscoutFollowerDeviceStatus.parseNewest("not json"))
         assertNull(NightscoutFollowerDeviceStatus.parseNewest("{}"))

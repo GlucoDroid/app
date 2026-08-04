@@ -2234,4 +2234,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sensor_handover_warming_text">%1$s è ora la sorgente dati ma è ancora in riscaldamento (circa %2$d min). Le letture riprendono al termine del riscaldamento.</string>
     <string name="sensor_handover_multiple_text">Il sensore è scaduto, ma sono attivi più sensori successori. Passaggio automatico saltato; cambia manualmente.</string>
     <string name="sensor_handover_successor_ready">Il sensore successore è pronto; il passaggio automatico interverrà alla scadenza</string>
+    <string name="nightscout_upload_iob">Invia IOB a Nightscout</string>
+    <string name="nightscout_upload_iob_desc">Nightscout mostrerà questo valore al posto del proprio calcolo basato sul profilo. eIOB e COB vengono inoltre inviati in un campo separato.</string>
+    <string name="journal_iob_source_remote">Valori dal dispositivo che invia i dati (Nightscout)</string>
 </resources>

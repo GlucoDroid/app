@@ -68,15 +68,15 @@ public class NightscoutIobDeviceStatus {
         if (elapsed < FAST_INTERVAL_MILLIS)
             return false;
         final boolean changed = differs(iob, lastIob) || differs(eiob, lastEiob) || differs(cob, lastCob);
-        final boolean insulinOnBoard = !Float.isNaN(iob) && Math.abs(iob) >= VALUE_QUANTUM / 2f;
+        final boolean insulinOnBoard = Float.isFinite(iob) && Math.abs(iob) >= VALUE_QUANTUM / 2f;
         if (insulinOnBoard || changed)
             return true;
         return elapsed >= SLOW_INTERVAL_MILLIS;
     }
 
     private static boolean differs(float value, float last) {
-        if (Float.isNaN(value) || Float.isNaN(last))
-            return Float.isNaN(value) != Float.isNaN(last);
+        if (!Float.isFinite(value) || !Float.isFinite(last))
+            return Float.isFinite(value) != Float.isFinite(last);
         return Math.round(value / VALUE_QUANTUM) != Math.round(last / VALUE_QUANTUM);
     }
 
@@ -86,7 +86,7 @@ public class NightscoutIobDeviceStatus {
     // the journal has data of that kind. All values are insulin units and
     // grams; glucose units play no role here.
     static String buildDocument(long nowMillis, float iob, float eiob, float cob) {
-        if (Float.isNaN(iob))
+        if (!Float.isFinite(iob))
             return null;
         final String timestamp = isoTimestamp(nowMillis);
         final StringBuilder out = new StringBuilder(224);
@@ -94,9 +94,9 @@ public class NightscoutIobDeviceStatus {
                 .append("\",\"openaps\":{\"iob\":{\"iob\":").append(formatUnits(iob))
                 .append(",\"timestamp\":\"").append(timestamp)
                 .append("\"}},\"jugglucong\":{\"iob\":").append(formatUnits(iob));
-        if (!Float.isNaN(eiob))
+        if (Float.isFinite(eiob))
             out.append(",\"eiob\":").append(formatUnits(eiob));
-        if (!Float.isNaN(cob))
+        if (Float.isFinite(cob))
             out.append(",\"cob\":").append(formatUnits(cob));
         out.append("}}]");
         return out.toString();

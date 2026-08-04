@@ -2260,4 +2260,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sensor_handover_warming_text">%1$s 现在是数据来源,但仍在预热(约 %2$d 分钟)。预热完成后将恢复读数。</string>
     <string name="sensor_handover_multiple_text">传感器已到期,但有多个后续传感器处于活动状态。已跳过自动交接;请手动切换。</string>
     <string name="sensor_handover_successor_ready">后续传感器已就绪;到期时自动交接将接管</string>
+    <string name="nightscout_upload_iob">将 IOB 发送到 Nightscout</string>
+    <string name="nightscout_upload_iob_desc">Nightscout 将显示此值，而不是按配置自行计算。eIOB 和 COB 还会通过单独字段发送。</string>
+    <string name="journal_iob_source_remote">来自上传设备的数值（Nightscout）</string>
 </resources>

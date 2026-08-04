@@ -73,17 +73,16 @@ object NightscoutFollowerDeviceStatus {
 
     private fun parseDocument(doc: JSONObject): RemoteIob? {
         val block = doc.optJSONObject("jugglucong") ?: return null
-        val iob = block.optDouble("iob", Double.NaN)
-        if (!iob.isFinite()) return null
+        val iob = block.optDouble("iob", Double.NaN).toFiniteFloatOrNull() ?: return null
         val timestampMillis = doc.optJSONObject("openaps")?.optJSONObject("iob")
             ?.optString("timestamp").let(::parseIsoMillis)
             ?: parseIsoMillis(doc.optString("created_at"))
             ?: doc.optLong("mills", 0L).takeIf { it > 0L }
             ?: return null
         return RemoteIob(
-            iobUnits = iob.toFloat(),
-            eiobUnits = block.optDouble("eiob", Double.NaN).toFloat(),
-            cobGrams = block.optDouble("cob", Double.NaN).toFloat(),
+            iobUnits = iob,
+            eiobUnits = block.optDouble("eiob", Double.NaN).toFiniteFloatOrNull() ?: Float.NaN,
+            cobGrams = block.optDouble("cob", Double.NaN).toFiniteFloatOrNull() ?: Float.NaN,
             timestampMillis = timestampMillis,
         )
     }
@@ -95,4 +94,7 @@ object NightscoutFollowerDeviceStatus {
             .recoverCatching { OffsetDateTime.parse(trimmed).toInstant().toEpochMilli() }
             .getOrNull()
     }
+
+    private fun Double.toFiniteFloatOrNull(): Float? =
+        takeIf { it.isFinite() }?.toFloat()?.takeIf { it.isFinite() }
 }
