@@ -2296,4 +2296,6 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="nightscout_upload_iob">IOB naar Nightscout sturen</string>
     <string name="nightscout_upload_iob_desc">Nightscout toont dan deze waarde in plaats van de eigen berekening op basis van het profiel. eIOB en COB worden daarnaast in een apart veld verstuurd.</string>
     <string name="journal_iob_source_remote">Waarden van het uploadende apparaat (Nightscout)</string>
+    <string name="ottai_cloud_already_binding">Er is nog een andere sensor aan het Ottai-account gekoppeld. Ontkoppel deze in de Ottai-app of verwijder die sensor hier om de koppeling vrij te geven en probeer het opnieuw.</string>
+    <string name="ottai_cloud_offline_routes">Importeer een bestand met aanmeldgegevens om zonder cloud verder te gaan — een QR-scan vult alleen de sensorcode in en NFC maakt de sensor alleen wakker.</string>
 </resources>

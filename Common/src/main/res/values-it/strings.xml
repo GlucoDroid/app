@@ -2243,4 +2243,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_upload_iob">Invia IOB a Nightscout</string>
     <string name="nightscout_upload_iob_desc">Nightscout mostrerà questo valore al posto del proprio calcolo basato sul profilo. eIOB e COB vengono inoltre inviati in un campo separato.</string>
     <string name="journal_iob_source_remote">Valori dal dispositivo che invia i dati (Nightscout)</string>
+    <string name="ottai_cloud_already_binding">Un altro sensore è ancora associato all’account Ottai. Dissocialo nell’app Ottai oppure rimuovilo qui per liberare l’associazione, quindi riprova.</string>
+    <string name="ottai_cloud_offline_routes">Importa un file di credenziali per continuare senza cloud: la scansione QR inserisce solo il codice del sensore e l’NFC si limita a riattivarlo.</string>
 </resources>

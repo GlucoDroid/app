@@ -2259,4 +2259,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="nightscout_upload_iob">Envoyer l’IOB vers Nightscout</string>
     <string name="nightscout_upload_iob_desc">Nightscout affiche alors cette valeur au lieu de son propre calcul basé sur le profil. L’eIOB et les glucides actifs (COB) sont également envoyés dans un champ distinct.</string>
     <string name="journal_iob_source_remote">Valeurs de l’appareil émetteur (Nightscout)</string>
+    <string name="ottai_cloud_already_binding">Un autre capteur est encore associé au compte Ottai. Dissociez-le dans l’application Ottai ou supprimez ce capteur ici pour libérer l’association, puis réessayez.</string>
+    <string name="ottai_cloud_offline_routes">Importez un fichier d’identifiants pour continuer sans le cloud — le scan QR renseigne uniquement le code du capteur et le NFC ne fait que le réveiller.</string>
 </resources>

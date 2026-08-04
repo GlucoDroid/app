@@ -2281,4 +2281,6 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="nightscout_upload_iob">IOB’yi Nightscout’a gönder</string>
     <string name="nightscout_upload_iob_desc">Nightscout, profil üzerinden kendi hesapladığı değer yerine bu değeri gösterir. eIOB ve COB ayrıca ayrı bir alanda gönderilir.</string>
     <string name="journal_iob_source_remote">Verileri yükleyen cihazın değerleri (Nightscout)</string>
+    <string name="ottai_cloud_already_binding">Ottai hesabına hâlâ başka bir sensör bağlı. Bağlantıyı serbest bırakmak için sensörü Ottai uygulamasından ayırın veya buradan kaldırın, ardından yeniden deneyin.</string>
+    <string name="ottai_cloud_offline_routes">Bulut olmadan devam etmek için bir kimlik bilgileri dosyası içe aktarın — QR taraması yalnızca sensör kodunu doldurur, NFC ise yalnızca sensörü uyandırır.</string>
 </resources>

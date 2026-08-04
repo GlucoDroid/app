@@ -2461,4 +2461,6 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="nightscout_upload_iob">U dir IOB Nightscout</string>
     <string name="nightscout_upload_iob_desc">Nightscout wuxuu markaas muujinayaa qiimahan halkii uu ka isticmaali lahaa xisaabtiisa ku salaysan borofaylka. eIOB iyo COB sidoo kale waxaa lagu diraa meel gaar ah.</string>
     <string name="journal_iob_source_remote">Qiimayaasha qalabka xogta diraya (Nightscout)</string>
+    <string name="ottai_cloud_already_binding">Akoonka Ottai weli waxaa ku xiran dareeme kale. Ka fur app-ka Ottai ama halkan ka saar dareemahaas si xiriirka loo sii daayo, dabadeed mar kale isku day.</string>
+    <string name="ottai_cloud_offline_routes">Soo deji faylka aqoonsiyada si aad u sii waddo adigoon daruurta isticmaalin — iskaanka QR wuxuu keliya buuxiyaa koodhka dareemaha, NFC-na keliya ayuu kiciyaa.</string>
 </resources>
