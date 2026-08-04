@@ -656,6 +656,7 @@ fun DashboardChartSection(
     peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
+    activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -699,6 +700,7 @@ fun DashboardChartSection(
                         peerPredictionSeries = peerPredictionSeries,
                         journalMarkers = journalMarkers,
                         activeInsulinSummary = activeInsulinSummary,
+                        activeInsulinFromRemote = activeInsulinFromRemote,
                         showEiob = showEiob,
                         appChartRangeColors = appChartRangeColors,
                         predictionPoints = predictionPoints,
@@ -772,6 +774,7 @@ fun InteractiveGlucoseChart(
     peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
+    activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -3716,6 +3719,13 @@ fun InteractiveGlucoseChart(
                                             java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
                                                 .format(java.util.Date(nextEndingAt))
                                         ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (activeInsulinFromRemote) {
+                                    Text(
+                                        text = stringResource(R.string.journal_iob_source_remote),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

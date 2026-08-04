@@ -37,6 +37,7 @@ class NightscoutFollowerManager(
         private const val RETRY_INTERVAL_MS = 30_000L
         private const val PROBE_INTERVAL_MS = 59_000L
         private const val TREATMENT_COUNT = 512
+        private const val DEVICE_STATUS_COUNT = 5
         private const val MMOL_TO_MGDL = 18.0182f
     }
 
@@ -157,6 +158,7 @@ class NightscoutFollowerManager(
         stop = true
         handler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacks(probeRunnable)
+        NightscoutFollowerDeviceStatus.clear()
         setStatus(Phase.IDLE, localizedString(R.string.nightscout_follow_status_paused, "Nightscout follower paused"))
     }
 
@@ -178,6 +180,7 @@ class NightscoutFollowerManager(
         stop = true
         handler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacks(probeRunnable)
+        NightscoutFollowerDeviceStatus.clear()
         if (wipeData) {
             Applic.app?.let { NightscoutFollowerRegistry.disableFollowerSensor(it) }
         }
@@ -214,6 +217,7 @@ class NightscoutFollowerManager(
             val fetched = fetchReadings()
             val readings = fetched.latestReadings
             importRemoteTreatments()
+            refreshRemoteDeviceStatus()
             if (readings.isEmpty()) {
                 setStatus(Phase.IDLE, localizedString(R.string.nightscout_follow_status_no_readings, "No Nightscout readings yet"))
                 scheduleRefresh(POLL_INTERVAL_MS)
@@ -382,6 +386,45 @@ class NightscoutFollowerManager(
             }
             0
         }
+
+    // Devicestatus is optional enrichment on top of entries/treatments: a
+    // failing endpoint (404 on old servers, 401, malformed body) must never
+    // block the glucose refresh, so the whole step stays inside runCatching.
+    private fun refreshRemoteDeviceStatus() {
+        runCatching {
+            val body = fetchDeviceStatusJson()
+            if (body.isBlank() || body == "[]") return
+            NightscoutFollowerDeviceStatus.update(NightscoutFollowerDeviceStatus.parseNewest(body))
+        }.onFailure { error ->
+            Log.w(TAG, "Nightscout devicestatus ignored: ${error.message}")
+        }
+    }
+
+    private fun fetchDeviceStatusJson(): String {
+        val endpoint = "${NightscoutFollowerRegistry.normalizeUrl(url)}/api/v1/devicestatus.json?count=$DEVICE_STATUS_COUNT"
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 30_000
+            requestMethod = "GET"
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "JugglucoNG Nightscout follower")
+            NightscoutFollowerRegistry.applyAuth(this, secret)
+        }
+        try {
+            val code = connection.responseCode
+            val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                .orEmpty()
+            if (code == 404) return "[]"
+            if (code !in 200..299) {
+                throw IllegalStateException("Nightscout devicestatus HTTP $code: ${body.take(160)}")
+            }
+            return body
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     private fun fetchTreatmentsJson(): String {
         val endpoint = "${NightscoutFollowerRegistry.normalizeUrl(url)}/api/v1/treatments.json?count=$TREATMENT_COUNT"
