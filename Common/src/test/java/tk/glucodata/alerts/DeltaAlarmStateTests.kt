@@ -470,4 +470,31 @@ class DeltaAlarmStateTests {
         // 28 from the NEW anchor -> no alarm; the stale 150 anchor would have given 38.
         assertFalse(state.feed(112f, 18, earlyTrigger = true))
     }
+
+    // ---- Failed delivery must not consume the alarm ----
+
+    @Test
+    fun failedDeliveryReoffersWhileTheRunStands() {
+        val state = DeltaAlarmState(falling = true)
+        assertFalse(state.feed(150f, 0))
+        assertFalse(state.feed(140f, 5))
+        assertFalse(state.feed(130f, 10))
+        assertTrue(state.feed(120f, 15))       // fires, but delivery fails
+        state.rearmAfterFailedDelivery()
+        assertTrue(state.feed(110f, 20))       // run still steep: offered again
+        assertFalse(state.feed(100f, 25))      // delivered this time -> once per run
+    }
+
+    @Test
+    fun failedDeliveryDoesNotFireAfterTheRunBreaks() {
+        val state = DeltaAlarmState(falling = true)
+        assertFalse(state.feed(150f, 0))
+        assertFalse(state.feed(140f, 5))
+        assertFalse(state.feed(130f, 10))
+        assertTrue(state.feed(120f, 15))       // fires, delivery fails
+        state.rearmAfterFailedDelivery()
+        // Reversal breaks the run: the stale falling-fast alarm dies with it.
+        assertFalse(state.feed(131f, 20))
+        assertFalse(state.feed(130f, 25))      // no late fire from the old run
+    }
 }

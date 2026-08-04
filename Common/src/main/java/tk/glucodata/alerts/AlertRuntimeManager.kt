@@ -498,7 +498,12 @@ object AlertRuntimeManager {
 
         val label = Applic.app.getString(type.nameResId)
         val message = "$label ${Notify.glucosestr(glucoseValue)}"
-        triggerAlert(type, glucoseValue, currentRateLocked(), message)
+        if (!triggerAlert(type, glucoseValue, currentRateLocked(), message)) {
+            // The latch disarmed on the offer; a failed delivery must not consume
+            // the alarm. Re-armed, it fires again while the run stands and dies
+            // with it if the run breaks.
+            state.rearmAfterFailedDelivery()
+        }
     }
 
     /** Notification text naming the threshold that fired ("... in 3 days" / "... in 6 hours"). */
