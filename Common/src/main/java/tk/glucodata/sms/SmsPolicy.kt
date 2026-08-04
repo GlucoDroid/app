@@ -1,6 +1,7 @@
 package tk.glucodata.sms
 
 import androidx.annotation.Keep
+import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -82,26 +83,34 @@ data class SmsPolicy(
 ) {
     fun normalizedRelayMode(): String = normalizeRelayMode(relayMode)
 
+    /**
+     * A contact the runtime may actually text. A half-typed row in the editor has
+     * no number yet, so it is deliberately kept in [contacts] but excluded here.
+     */
+    private fun sendableContacts(): List<SmsContact> =
+        contacts.filter { it.enabled && it.number.isNotBlank() }
+
     fun contactsForStage(stage: Int): List<SmsContact> =
-        contacts.filter { it.enabled && it.normalizedStage() == stage }
+        sendableContacts().filter { it.normalizedStage() == stage }
 
-    fun relayContacts(): List<SmsContact> = contacts.filter { it.enabled && it.relay }
+    fun relayContacts(): List<SmsContact> = sendableContacts().filter { it.relay }
 
-    /** Highest stage that has at least one enabled contact, or -1 when there are none. */
-    fun lastStage(): Int =
-        contacts.filter { it.enabled }.maxOfOrNull { it.normalizedStage() } ?: -1
+    /** Highest stage that has at least one sendable contact, or -1 when there are none. */
+    fun lastStage(): Int = sendableContacts().maxOfOrNull { it.normalizedStage() } ?: -1
 
-    fun numbers(): List<String> = contacts.filter { it.enabled }.map { it.number }
+    fun numbers(): List<String> = sendableContacts().map { it.number }
 
-    fun hasUsableContacts(): Boolean = contacts.any { it.enabled && it.number.isNotBlank() }
+    fun hasUsableContacts(): Boolean = sendableContacts().isNotEmpty()
 
     /** Clamps every field into a range the runtime can act on without further checks. */
     fun sanitized(): SmsPolicy = copy(
         subjectName = subjectName.trim().take(MAX_SUBJECT_NAME_LENGTH),
+        // Blank rows survive: the editor adds an empty contact and the user types the
+        // number into it afterwards, so dropping them here would delete the row under
+        // the user's finger. Only real numbers are deduplicated.
         contacts = contacts
             .map { it.sanitized() }
-            .filter { it.number.isNotBlank() }
-            .distinctBy { it.number }
+            .distinctBy { if (it.number.isBlank()) it.id else it.number }
             .take(MAX_CONTACTS),
         unackedMinutes = unackedMinutes.coerceIn(1, 240),
         criticalLowMgdl = criticalLowMgdl.coerceIn(20, 140),
@@ -267,7 +276,9 @@ data class SmsContact(
     val label: String = "",
     val stage: Int = 0,
     val relay: Boolean = false,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    /** Stable across edits so the editor can key its text state on the row, not its value. */
+    val id: String = UUID.randomUUID().toString()
 ) {
     fun normalizedStage(): Int = stage.coerceIn(0, SmsPolicy.MAX_STAGE)
 
@@ -302,6 +313,7 @@ data class SmsContact(
 
         fun encode(contact: SmsContact): JSONObject =
             JSONObject()
+                .put("id", contact.id)
                 .put("number", contact.number)
                 .put("label", contact.label)
                 .put("stage", contact.normalizedStage())
@@ -314,7 +326,8 @@ data class SmsContact(
                 label = obj.optString("label", ""),
                 stage = obj.optInt("stage", 0),
                 relay = obj.optBoolean("relay", false),
-                enabled = obj.optBoolean("enabled", true)
+                enabled = obj.optBoolean("enabled", true),
+                id = obj.optString("id", "").ifBlank { UUID.randomUUID().toString() }
             ).sanitized()
     }
 }

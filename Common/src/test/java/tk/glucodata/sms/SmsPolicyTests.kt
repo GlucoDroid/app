@@ -22,16 +22,50 @@ class SmsPolicyTests {
     }
 
     @Test
-    fun sanitizingDropsBlankAndDuplicateContacts() {
+    fun sanitizingDropsDuplicateNumbers() {
         val policy = SmsPolicy(
             contacts = listOf(
                 SmsContact(number = "+3161111111"),
-                SmsContact(number = "+31 6 11 11 111"),
-                SmsContact(number = "nonsense")
+                SmsContact(number = "+31 6 11 11 111")
             )
         ).sanitized()
 
         assertEquals(listOf("+3161111111"), policy.contacts.map { it.number })
+    }
+
+    @Test
+    fun freshlyAddedBlankContactsSurviveSanitizingSoTheyCanBeTypedInto() {
+        // The editor adds an empty row and the user fills it in afterwards; dropping
+        // blanks here deleted the row the moment it appeared.
+        val policy = SmsPolicy(
+            contacts = listOf(SmsContact(number = ""), SmsContact(number = ""))
+        ).sanitized()
+
+        assertEquals(2, policy.contacts.size)
+        assertFalse("a blank row is not something we can text", policy.hasUsableContacts())
+    }
+
+    @Test
+    fun halfTypedContactsAreNeverTexted() {
+        val policy = SmsPolicy(
+            contacts = listOf(
+                SmsContact(number = "", stage = 0),
+                SmsContact(number = "+3161111111", stage = 1, relay = true)
+            )
+        ).sanitized()
+
+        assertEquals(listOf("+3161111111"), policy.numbers())
+        assertTrue(policy.contactsForStage(0).isEmpty())
+        assertEquals(1, policy.lastStage())
+        assertEquals(listOf("+3161111111"), policy.relayContacts().map { it.number })
+    }
+
+    @Test
+    fun contactIdsSurviveAJsonRoundTripSoEditorStateStaysAttached() {
+        val contact = SmsContact(number = "+3161111111", label = "Mum")
+        val restored = SmsContact.decode(SmsContact.encode(contact))
+
+        assertEquals(contact.id, restored.id)
     }
 
     @Test

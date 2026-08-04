@@ -30,9 +30,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,6 +57,7 @@ import tk.glucodata.sms.SmsPolicy
 import tk.glucodata.sms.SmsWatchdog
 import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.cardShape
+import tk.glucodata.ui.util.ConnectedButtonGroup
 
 /**
  * Editor for an SMS destination.
@@ -176,7 +174,9 @@ private fun SmsNoticeCard(text: String, action: String?, onAction: () -> Unit) {
 
 @Composable
 private fun SmsContactsSection(policy: SmsPolicy, onChange: (SmsPolicy) -> Unit) {
-    var expandedIndex by rememberSaveable { mutableStateOf(-1) }
+    // Keyed by contact id rather than list position, so deleting a row cannot leave
+    // a different contact expanded.
+    var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
 
     SettingsSubsectionTitle(stringResource(R.string.sms_section_contacts))
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -194,24 +194,24 @@ private fun SmsContactsSection(policy: SmsPolicy, onChange: (SmsPolicy) -> Unit)
                 )
             }
         }
-        policy.contacts.forEachIndexed { index, contact ->
+        policy.contacts.forEach { contact ->
             SmsContactCard(
                 contact = contact,
-                expanded = expandedIndex == index,
-                onToggleExpanded = { expandedIndex = if (expandedIndex == index) -1 else index },
+                expanded = expandedId == contact.id,
+                onToggleExpanded = {
+                    expandedId = if (expandedId == contact.id) null else contact.id
+                },
                 onChange = { updated ->
                     onChange(
                         policy.copy(
-                            contacts = policy.contacts.toMutableList().also { it[index] = updated }
+                            contacts = policy.contacts.map { if (it.id == contact.id) updated else it }
                         )
                     )
                 },
                 onDelete = {
-                    expandedIndex = -1
+                    expandedId = null
                     onChange(
-                        policy.copy(
-                            contacts = policy.contacts.filterIndexed { i, _ -> i != index }
-                        )
+                        policy.copy(contacts = policy.contacts.filterNot { it.id == contact.id })
                     )
                 }
             )
@@ -219,8 +219,9 @@ private fun SmsContactsSection(policy: SmsPolicy, onChange: (SmsPolicy) -> Unit)
         if (policy.contacts.size < SmsPolicy.MAX_CONTACTS) {
             FilledTonalButton(
                 onClick = {
-                    onChange(policy.copy(contacts = policy.contacts + SmsContact(number = "")))
-                    expandedIndex = policy.contacts.size
+                    val added = SmsContact(number = "")
+                    onChange(policy.copy(contacts = policy.contacts + added))
+                    expandedId = added.id
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -242,9 +243,10 @@ private fun SmsContactCard(
     onChange: (SmsContact) -> Unit,
     onDelete: () -> Unit
 ) {
-    // Free text while editing: sanitising on every keystroke would fight the user
-    // (a leading "+" or a half-typed number would vanish under the cursor).
-    var numberText by remember(contact.number) { mutableStateOf(contact.number) }
+    // Free text while editing, keyed on the row rather than on its value: keying on
+    // the number would re-seed this from the normalized form on every keystroke and
+    // eat the separators as the user types them.
+    var numberText by remember(contact.id) { mutableStateOf(contact.number) }
     val valid = SmsContact.isPlausibleNumber(numberText)
 
     Surface(
@@ -350,20 +352,17 @@ private fun SmsContactCard(
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        (0..SmsPolicy.MAX_STAGE).forEach { stage ->
-                            SegmentedButton(
-                                selected = contact.normalizedStage() == stage,
-                                onClick = { onChange(contact.copy(stage = stage)) },
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = stage,
-                                    count = SmsPolicy.MAX_STAGE + 1
-                                )
-                            ) {
-                                Text(stringResource(stageLabel(stage)))
-                            }
-                        }
+                    val stageLabels = (0..SmsPolicy.MAX_STAGE).associateWith {
+                        stringResource(stageLabel(it))
                     }
+                    ConnectedButtonGroup(
+                        options = (0..SmsPolicy.MAX_STAGE).toList(),
+                        selectedOption = contact.normalizedStage(),
+                        onOptionSelected = { onChange(contact.copy(stage = it)) },
+                        label = { Text(stageLabels.getValue(it)) },
+                        labelText = { stageLabels.getValue(it) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     ToggleRow(
                         title = stringResource(R.string.sms_contact_relay),
                         subtitle = stringResource(R.string.sms_contact_relay_desc),
@@ -556,22 +555,19 @@ private fun SmsRelaySection(policy: SmsPolicy, onChange: (SmsPolicy) -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            val modes = listOf(
-                SmsPolicy.RELAY_OFF to R.string.sms_relay_off,
-                SmsPolicy.RELAY_WHEN_OFFLINE to R.string.sms_relay_when_offline,
-                SmsPolicy.RELAY_ALWAYS to R.string.sms_relay_always
+            val modeLabels = mapOf(
+                SmsPolicy.RELAY_OFF to stringResource(R.string.sms_relay_off),
+                SmsPolicy.RELAY_WHEN_OFFLINE to stringResource(R.string.sms_relay_when_offline),
+                SmsPolicy.RELAY_ALWAYS to stringResource(R.string.sms_relay_always)
             )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                modes.forEachIndexed { index, (mode, labelRes) ->
-                    SegmentedButton(
-                        selected = policy.normalizedRelayMode() == mode,
-                        onClick = { onChange(policy.copy(relayMode = mode)) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size)
-                    ) {
-                        Text(stringResource(labelRes))
-                    }
-                }
-            }
+            ConnectedButtonGroup(
+                options = modeLabels.keys.toList(),
+                selectedOption = policy.normalizedRelayMode(),
+                onOptionSelected = { onChange(policy.copy(relayMode = it)) },
+                label = { Text(modeLabels.getValue(it)) },
+                labelText = { modeLabels.getValue(it) },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
         if (policy.normalizedRelayMode() != SmsPolicy.RELAY_OFF) {
             ControlDivider()
