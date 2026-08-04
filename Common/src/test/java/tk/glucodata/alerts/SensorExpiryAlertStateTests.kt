@@ -181,6 +181,93 @@ class SensorExpiryAlertStateTests {
     }
 
     @Test
+    fun editingThresholdsMidEpisodeKeepsTheConfiguredOnesArmed() {
+        // Field regression: the user had 3d/2d/1d/12h/1h configured, got the 3d
+        // warning and nothing afterwards, while the persisted warned-set showed
+        // every threshold marked for that sensor. Adding one threshold must not
+        // silence the ones that were configured all along.
+        val s = newState()
+        val before = setOf(4320, 2880, 1440, 720, 60)
+        val after = before + T6H
+        assertEquals(emptySet<Int>(), s.fire(5760, before))
+        assertEquals(setOf(4320), s.fire(4320, before))
+        assertEquals(emptySet<Int>(), s.fire(2900, after))   // 6h added, its window still shut
+        assertEquals(setOf(2880), s.fire(2880, after))
+        assertEquals(setOf(1440), s.fire(1440, after))
+        assertEquals(setOf(720), s.fire(720, after))
+        assertEquals(setOf(T6H), s.fire(360, after))
+        assertEquals(setOf(60), s.fire(60, after))
+    }
+
+    @Test
+    fun reselectingAThresholdIsNotTreatedAsANewOne() {
+        val store = FakeWarnedStore()
+        val s1 = SensorExpiryAlertState(store)
+        s1.fire(5760, setOf(T3D, T1D))                                  // baseline outside both
+        assertEquals(setOf(T3D), s1.fire(4320, setOf(T3D, T1D)))
+        assertEquals(emptySet<Int>(), s1.fire(2000, setOf(T3D)))        // 1d deselected
+        assertEquals(emptySet<Int>(), s1.fire(1400, setOf(T3D)))        // its edge passes while off
+        // Reselected inside the open window: not fired retroactively, but not
+        // recorded as warned either - it never was.
+        assertEquals(emptySet<Int>(), s1.fire(1300, setOf(T3D, T1D)))
+        assertEquals(setOf("$end:$T3D"), store.entries)
+        // ...so the usual catch-up still applies after a restart.
+        assertEquals(setOf(T1D), SensorExpiryAlertState(store).fire(1290, setOf(T3D, T1D)))
+    }
+
+    @Test
+    fun disableEnableCycleMidEpisodeLeavesLaterThresholdsArmed() {
+        val s = newState()
+        val t = setOf(4320, 2880, 1440, 720, 60)
+        assertEquals(emptySet<Int>(), s.fire(5760, t))
+        assertEquals(setOf(4320), s.fire(4320, t))
+        // User switches the alert off and back on again.
+        assertEquals(
+            emptySet<Int>(),
+            s.triggeredThresholds(false, true, false, end, end - min(4000), t)
+        )
+        assertEquals(emptySet<Int>(), s.fire(4000, t))    // re-enabled: 3d stays warned, nothing due
+        assertEquals(setOf(2880), s.fire(2880, t))
+        assertEquals(setOf(60), s.fire(60, t))
+    }
+
+    @Test
+    fun onlyThresholdsAbsentFromThePreviousConfigCountAsNew() {
+        val configured = setOf(4320, 2880, 1440, 720, 60)
+        val nowMs = end - min(30)
+        // Same set saved again (e.g. after an enable/disable cycle): nothing is new,
+        // so no open window may be adopted.
+        assertEquals(
+            emptySet<Int>(),
+            newlyOpenExpiryThresholds(configured, configured, end, nowMs)
+        )
+        // One threshold genuinely added while several windows are open: only that
+        // one is adopted.
+        assertEquals(
+            setOf(T6H),
+            newlyOpenExpiryThresholds(configured, configured + T6H, end, nowMs)
+        )
+    }
+
+    @Test
+    fun newThresholdIsAdoptedOnlyWhileItsWindowIsOpen() {
+        val nowMs = end - min(300)   // 5h before the end
+        assertEquals(
+            setOf(T6H),
+            newlyOpenExpiryThresholds(setOf(T3D), setOf(T3D, T6H), end, nowMs)
+        )
+        assertEquals(
+            emptySet<Int>(),
+            newlyOpenExpiryThresholds(setOf(T3D), setOf(T3D, 60), end, nowMs)
+        )
+        // No plausible sensor end: nothing to adopt against.
+        assertEquals(
+            emptySet<Int>(),
+            newlyOpenExpiryThresholds(setOf(T3D), setOf(T3D, T6H), 0L, nowMs)
+        )
+    }
+
+    @Test
     fun newSensorRearmsAndPrunesOldPersistedEntries() {
         val store = FakeWarnedStore()
         val t = setOf(T1D)

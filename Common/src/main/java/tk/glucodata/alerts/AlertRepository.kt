@@ -102,7 +102,10 @@ object AlertRepository {
      * adoption at save time; the runtime baseline then treats it like any
      * already-warned window. Thresholds that were already configured keep their
      * state: one that is due but was never warned (process was down at window
-     * entry) stays eligible for the catch-up warning.
+     * entry) stays eligible for the catch-up warning. That includes thresholds
+     * configured while the alert was switched off - toggling the alert off and
+     * on is not a fresh start, and treating it as one silenced every open
+     * window for the rest of the sensor.
      */
     private fun adoptOpenWindowsForNewExpiryThresholds(config: AlertConfig) {
         if (!config.enabled) {
@@ -114,10 +117,12 @@ object AlertRepository {
             return
         }
         val previous = loadConfig(config.type)
-        val previouslyActive = if (previous.enabled) previous.expiryWarningMinutes else emptySet()
-        val newlyOpen = sanitizeExpiryWarningMinutes(config.expiryWarningMinutes).filter {
-            it !in previouslyActive && endTimeMs - nowMs <= it.toLong() * 60_000L
-        }
+        val newlyOpen = newlyOpenExpiryThresholds(
+            previousMinutes = previous.expiryWarningMinutes,
+            currentMinutes = config.expiryWarningMinutes,
+            endTimeMs = endTimeMs,
+            nowMs = nowMs
+        )
         if (newlyOpen.isEmpty()) {
             return
         }
