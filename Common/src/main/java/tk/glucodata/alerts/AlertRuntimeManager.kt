@@ -416,10 +416,16 @@ object AlertRuntimeManager {
             return
         }
 
+        // The sensor ages whether or not a reading is available, and readings
+        // often stop exactly when it is about to expire. Without a value the
+        // notification path cannot deliver, so the threshold stays pending and is
+        // offered again on the next tick instead of counting as warned (#98).
         val glucoseValue = currentGlucoseValueLocked() ?: return
         val message = sensorExpiryMessage(triggered.first())
 
-        triggerAlert(type, glucoseValue, currentRateLocked(), message)
+        if (triggerAlert(type, glucoseValue, currentRateLocked(), message)) {
+            sensorExpiryState.confirmDelivered(triggered.first())
+        }
     }
 
     private fun evaluateDeltaAlarmsLocked() {

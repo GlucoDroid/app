@@ -116,18 +116,39 @@ internal interface ExpiryWarnedStore {
  *  - **Cascade guard:** if several thresholds come due in the same tick (e.g. the
  *    app resumes deep inside multiple windows), fire only the smallest (most
  *    urgent) and silently mark the rest as warned.
+ *  - **Delivery handshake:** a threshold counts as warned only once the caller
+ *    reports it delivered via [confirmDelivered]. A tick that cannot deliver
+ *    (no current glucose reading, notification suppressed) leaves it pending and
+ *    it is offered again, instead of being marked warned and lost for good.
  */
 internal class SensorExpiryAlertState(private val store: ExpiryWarnedStore) {
     private var baselineReady = false
     private var lastEndTimeMs = 0L
     private val wasInWindow = mutableMapOf<Int, Boolean>()   // threshold -> inside window last tick
     private val alertedForEnd = mutableMapOf<Int, Long>()    // threshold -> endTime already warned for
+    private val pendingDelivery = mutableSetOf<Int>()        // returned, not yet confirmed delivered
 
     fun reset() {
         baselineReady = false
         lastEndTimeMs = 0L
         wasInWindow.clear()
         alertedForEnd.clear()
+        pendingDelivery.clear()
+    }
+
+    /**
+     * The caller delivered the alert for [threshold]; only now is it warned.
+     * Until this arrives the threshold stays pending and is offered again on
+     * every tick, because its window edge has already passed and nothing else
+     * would bring it back.
+     */
+    fun confirmDelivered(threshold: Int) {
+        if (lastEndTimeMs <= 0L || threshold !in pendingDelivery) {
+            return
+        }
+        pendingDelivery.remove(threshold)
+        alertedForEnd[threshold] = lastEndTimeMs
+        persistWarned()
     }
 
     /**
@@ -154,6 +175,7 @@ internal class SensorExpiryAlertState(private val store: ExpiryWarnedStore) {
             lastEndTimeMs = endTimeMs
             wasInWindow.clear()
             alertedForEnd.clear()
+            pendingDelivery.clear()
             for (t in store.load(endTimeMs)) {
                 alertedForEnd[t] = endTimeMs
             }
@@ -210,15 +232,24 @@ internal class SensorExpiryAlertState(private val store: ExpiryWarnedStore) {
         }
 
         if (newlyDue.isEmpty()) {
-            return emptySet()
+            // Nothing new, but a warning that was offered and never delivered is
+            // still owed: its edge has passed, so re-offering here is the only
+            // thing that can bring it back.
+            return pendingDelivery.minOrNull()?.let { setOf(it) } ?: emptySet()
         }
 
-        // Cascade guard: fire only the most urgent (smallest lead time); mark the
-        // rest as warned so they never fire late.
-        val fire = newlyDue.min()
-        for (t in newlyDue) {
-            alertedForEnd[t] = endTimeMs
+        // Cascade guard: offer only the most urgent (smallest lead time); mark the
+        // rest as warned so they never fire late. An undelivered threshold that a
+        // more urgent one overtakes is dropped for the same reason.
+        val candidates = newlyDue.toSet() + pendingDelivery
+        val fire = candidates.min()
+        for (t in candidates) {
+            if (t != fire) {
+                alertedForEnd[t] = endTimeMs
+            }
         }
+        pendingDelivery.clear()
+        pendingDelivery.add(fire)
         persistWarned()
         return setOf(fire)
     }

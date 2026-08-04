@@ -25,8 +25,21 @@ class SensorExpiryAlertStateTests {
 
     private fun newState(store: ExpiryWarnedStore = FakeWarnedStore()) = SensorExpiryAlertState(store)
 
-    /** Evaluate a tick "minutesBefore" minutes before [endMs]. */
+    /**
+     * Evaluate a tick "minutesBefore" minutes before [endMs], with delivery
+     * succeeding - what the runtime does when a reading is available.
+     */
     private fun SensorExpiryAlertState.fire(
+        minutesBefore: Int,
+        thresholds: Set<Int>,
+        endMs: Long = end,
+        snoozed: Boolean = false,
+        active: Boolean = true
+    ): Set<Int> = fireUndelivered(minutesBefore, thresholds, endMs, snoozed, active)
+        .also { triggered -> triggered.forEach { confirmDelivered(it) } }
+
+    /** Same tick, but the alert never reached the user (no reading, suppressed). */
+    private fun SensorExpiryAlertState.fireUndelivered(
         minutesBefore: Int,
         thresholds: Set<Int>,
         endMs: Long = end,
@@ -265,6 +278,43 @@ class SensorExpiryAlertStateTests {
             emptySet<Int>(),
             newlyOpenExpiryThresholds(setOf(T3D), setOf(T3D, T6H), 0L, nowMs)
         )
+    }
+
+    @Test
+    fun undeliveredWarningIsOfferedAgainInsteadOfBeingSwallowed() {
+        // #98: no current glucose reading means the notification path cannot
+        // deliver. The warning must survive that tick, not count as warned.
+        val store = FakeWarnedStore()
+        val s = SensorExpiryAlertState(store)
+        s.fire(1800, setOf(T1D))
+        assertEquals(setOf(T1D), s.fireUndelivered(1440, setOf(T1D)))   // edge, delivery fails
+        assertEquals(setOf<String>(), store.entries)                    // nothing recorded as warned
+        assertEquals(setOf(T1D), s.fireUndelivered(1400, setOf(T1D)))   // still owed
+        assertEquals(setOf(T1D), s.fire(1300, setOf(T1D)))              // reading is back: delivered
+        assertEquals(setOf("$end:$T1D"), store.entries)
+        assertEquals(emptySet<Int>(), s.fire(1200, setOf(T1D)))         // and only once
+    }
+
+    @Test
+    fun undeliveredWarningStillFiresAfterRestart() {
+        val store = FakeWarnedStore()
+        val s1 = SensorExpiryAlertState(store)
+        s1.fire(1800, setOf(T1D))
+        assertEquals(setOf(T1D), s1.fireUndelivered(1440, setOf(T1D)))  // never delivered, process dies
+        assertEquals(setOf(T1D), SensorExpiryAlertState(store).fire(1430, setOf(T1D)))
+    }
+
+    @Test
+    fun moreUrgentThresholdSupersedesAnUndeliveredOne() {
+        val store = FakeWarnedStore()
+        val s = SensorExpiryAlertState(store)
+        s.fire(5760, setOf(T1D, T6H))
+        assertEquals(setOf(T1D), s.fireUndelivered(1440, setOf(T1D, T6H)))  // 1d owed, undelivered
+        // The 6h edge arrives first: it wins, and the stale 1d warning is dropped
+        // rather than queued behind it.
+        assertEquals(setOf(T6H), s.fire(360, setOf(T1D, T6H)))
+        assertEquals(setOf("$end:$T1D", "$end:$T6H"), store.entries)
+        assertEquals(emptySet<Int>(), s.fire(120, setOf(T1D, T6H)))
     }
 
     @Test
