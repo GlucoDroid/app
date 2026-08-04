@@ -184,6 +184,7 @@ private int connectionTimeouts=0;
     @SuppressLint("MissingPermission")
     @Override
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
+        noteFirstGattCallback("onConnectionStateChange", bluetoothGatt);
         if (stop) {
             releaselock();
             {if(doLog) {Log.i(LOG_ID, "onConnectionStateChange stop==true");};};

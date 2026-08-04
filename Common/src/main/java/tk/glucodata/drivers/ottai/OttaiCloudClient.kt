@@ -38,10 +38,30 @@ object OttaiCloudClient {
     private const val PKG = "com.ottai.tag.watch"
     private const val TIMEOUT_MS = 30_000
 
-    /** Last non-secret failure reason (HTTP + business code/message), for the UI. */
+    // Business codes a caller has to branch on rather than merely show. An account holds one
+    // bound sensor at a time, so until the previous one is released every device call for a new
+    // MAC is refused with AppUser_AlreadyBinding ("there are other devices that were not
+    // unbound") — observed 12 times in a row while activating a replacement sensor on
+    // 2026-07-29, with the UI showing only the generic "no materials for this cloud ID".
+    const val BIZ_ALREADY_BINDING = "AppUser_AlreadyBinding"
+    // The server already considers the sensor finished. For [unbind] that is the state the caller
+    // was asking for, so it counts as released. Not yet observed on-device.
+    const val BIZ_END_USING = "AppDevice_EndUsing"
+
+    /**
+     * A non-secret cloud failure: [text] is what the UI appends, [code] is the backend's business
+     * code (see the BIZ_ constants) for the callers that act on a specific one. [code] is blank
+     * for the failures we raise ourselves, before any response exists.
+     */
+    data class CloudFailure(val text: String, val code: String = "")
+
+    /** Last non-secret failure reason (HTTP + business code/message); null after a call that succeeded. */
     @Volatile
-    var lastError: String = ""
+    var lastFailure: CloudFailure? = null
         private set
+
+    /** [lastFailure] as the string the UI shows; blank when the last call succeeded. */
+    val lastError: String get() = lastFailure?.text.orEmpty()
 
     data class LoginResult(val userId: String, val accessToken: String, val glucoseSecretKey: String) {
         val ok: Boolean get() = accessToken.isNotBlank() && glucoseSecretKey.isNotBlank()
@@ -153,7 +173,7 @@ object OttaiCloudClient {
 
     /** POST /user/smsCode — needs apiToken; sig over (phone, apiToken). Returns requestId. */
     fun requestSmsCode(ctx: Context, phone: String): String? {
-        val apiToken = getApiToken(ctx, OttaiConstants.API_BASE) ?: run { lastError = "apiToken failed"; Log.w(TAG, "apiToken failed"); return null }
+        val apiToken = getApiToken(ctx, OttaiConstants.API_BASE) ?: run { lastFailure = CloudFailure("apiToken failed"); Log.w(TAG, "apiToken failed"); return null }
         val ts = now()
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val ph = normalizePhone(phone)
@@ -215,7 +235,7 @@ object OttaiCloudClient {
         authorizationOverride: String? = null,
     ): LoginResult? {
         val acct = account.trim()
-        if (acct.isBlank() || password.isBlank()) { lastError = "account/password required"; return null }
+        if (acct.isBlank() || password.isBlank()) { lastFailure = CloudFailure("account/password required"); return null }
         // Username + password login on a GLOBAL backend (seas.ottai.com / api.syai.com) — same
         // API + signature scheme, different host. The server keys on the account USERNAME, which
         // is a server-assigned RANDOM string (verified: NOT derived from the email), so the email
@@ -223,7 +243,7 @@ object OttaiCloudClient {
         // is PLAINTEXT; sig arg-order = sign(apiToken, account, password). SINGLE attempt only —
         // a wrong password is a real failed-login attempt, so do NOT retry variants (lockout).
         val apiToken = getApiToken(ctx, base, authorizationOverride)
-            ?: run { lastError = "apiToken failed"; return null }
+            ?: run { lastFailure = CloudFailure("apiToken failed"); return null }
         val ts = now()
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val body = JSONObject().apply {
@@ -286,7 +306,7 @@ object OttaiCloudClient {
     fun bind(ctx: Context, mac: String, deviceVersion: String, userId: String): DeviceResp? {
         val canonical = OttaiConstants.canonicalSensorId(mac)
         if (canonical.isBlank() || deviceVersion.isBlank() || userId.isBlank()) {
-            lastError = "bind requires mac, deviceVersion and userId"
+            lastFailure = CloudFailure("bind requires mac, deviceVersion and userId")
             return null
         }
         val ts = now()
@@ -311,10 +331,10 @@ object OttaiCloudClient {
         val canonical = OttaiConstants.canonicalSensorId(mac)
         val userId = OttaiRegistry.loadUserId(ctx)
         val resp = bind(ctx, canonical, deviceVersion.trim(), userId) ?: return null
-        val bindError = lastError
+        val bindFailure = lastFailure
         runCatching { unbind(ctx, canonical) }
             .onFailure { Log.w(TAG, "unbind after material fetch failed: ${it.message}") }
-        lastError = bindError
+        lastFailure = bindFailure
         return resp
     }
 
@@ -330,7 +350,10 @@ object OttaiCloudClient {
         }
         val resp = httpPostJson(base(ctx) + OttaiConstants.EP_UNBIND, body.toString(), headers(ctx, ts, base(ctx))) ?: return false
         val bizCode = resp.opt("code")?.toString().orEmpty()
-        return bizCode.isBlank() || bizCode == "200" || bizCode.equals("OK", ignoreCase = true)
+        // BIZ_END_USING says the server had already finished with this sensor, so the binding the
+        // caller wanted released is gone either way — not a failure to report.
+        return bizCode.isBlank() || bizCode == "200" || bizCode.equals("OK", ignoreCase = true) ||
+            bizCode.equals(BIZ_END_USING, ignoreCase = true)
     }
 
     /** GET /deviceBind/getBindDevice — current account-bound sensor, no signature. */
@@ -542,7 +565,7 @@ object OttaiCloudClient {
      */
     private fun webPostRetry(webBase: String, path: String, buildBody: (apiToken: String, ts: Long) -> JSONObject): JSONObject? {
         repeat(5) { attempt ->
-            val apiToken = getWebApiToken(webBase) ?: run { lastError = "apiToken failed"; return null }
+            val apiToken = getWebApiToken(webBase) ?: run { lastFailure = CloudFailure("apiToken failed"); return null }
             val ts = now()
             val resp = httpPostJson("$webBase$path", buildBody(apiToken, ts).toString(), webHeaders(webBase, ts)) ?: return null
             if (!resp.optString("code").equals("User_SignatureInvalid", ignoreCase = true)) return resp
@@ -562,7 +585,7 @@ object OttaiCloudClient {
      */
     fun mailLogin(ctx: Context, email: String, password: String, webBase: String = WEB_BASE): LoginResult? {
         val em = email.trim()
-        if (em.isBlank() || password.isBlank()) { lastError = "email/password required"; return null }
+        if (em.isBlank() || password.isBlank()) { lastFailure = CloudFailure("email/password required"); return null }
         val resp = if (isSyai(webBase)) {
             val encInfo = webEncrypt(JSONObject().put("email", em).put("password", password).toString())
             webPostRetry(webBase, "/user/mail/login") { apiToken, ts ->
@@ -611,7 +634,7 @@ object OttaiCloudClient {
         // A Syai web JWT can validate a device but carries no material-decryption root. Persisting
         // it would make sign-in look successful while every fresh sensor fails material loading.
         if (isSyai(webBase)) {
-            if (lastError.isBlank()) lastError = "Syai mobile login upgrade failed"
+            if (lastError.isBlank()) lastFailure = CloudFailure("Syai mobile login upgrade failed")
             return null
         }
         // Fallback for an Ottai web account whose profile does not expose a mobile username.
@@ -780,14 +803,18 @@ object OttaiCloudClient {
                 ?.toString().orEmpty().takeIf { it != "null" }.orEmpty()
             val bizOk = bizCode.isBlank() || bizCode == "200" || bizCode.equals("OK", ignoreCase = true)
             if (code !in 200..299 || !bizOk) {
-                lastError = "http=$code biz=$bizCode ${bizMsg.take(120)}".trim()
+                lastFailure = CloudFailure("http=$code biz=$bizCode ${bizMsg.take(120)}".trim(), bizCode)
                 Log.w(TAG, "$path -> $lastError")
             } else {
-                lastError = ""
+                lastFailure = null
+                // Without this a successful cloud phase is invisible and reconstructable only from
+                // the absence of warnings. Path and status ONLY: the body carries keyA and the
+                // account glucoseSecretKey.
+                Log.i(TAG, "$path -> http=$code")
             }
             json
         } catch (t: Throwable) {
-            lastError = "network: ${t.message}"
+            lastFailure = CloudFailure("network: ${t.message}")
             Log.w(TAG, "request failed ${url.substringBefore('?')}: ${t.message}")
             null
         } finally {

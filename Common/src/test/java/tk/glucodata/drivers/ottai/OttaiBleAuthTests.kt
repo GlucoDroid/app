@@ -48,6 +48,55 @@ class OttaiBleAuthTests {
     }
 
     @Test
+    fun sharedSecretWithLeadingZero_keepsFullLengthKey() {
+        // Shared X below 2^247: the fixed-length field encoding starts 0x00 and the
+        // char-pick still yields 32 chars, while the vendor's BigInteger round-trip
+        // drops that byte (31 bytes / 62 hex) and the pick falls to 30 -> null.
+        val secret = ByteArray(32) { if (it == 0) 0 else (it * 7 + 1).toByte() }
+        assertArrayEq(secret, OttaiBleAuth.fixedFieldBytes(secret, 32))
+        val key = OttaiBleAuth.sessionKeyPick(OttaiCrypto.bytesToHex(secret))
+        assertNotNull(key)
+        assertEquals(32, key!!.length)
+
+        val stripped = java.math.BigInteger(1, secret).toByteArray()
+        assertEquals(31, stripped.size)
+        assertEquals(null, OttaiBleAuth.sessionKeyPick(OttaiCrypto.bytesToHex(stripped)))
+        assertArrayEq(secret, OttaiBleAuth.fixedFieldBytes(stripped, 32))
+    }
+
+    @Test
+    fun deriveSessionKey_survivesLeadingZeroSharedSecret() {
+        // ECDH against the curve generator gives shared X = X(d*G), so d selects the
+        // shared secret directly. Scanning up from d=2, d=379 is the first whose
+        // X < 2^247 (leading 0x00, second byte 0x55) — the 1-in-512 case that used
+        // to derive an empty key mid-handshake. Fixed curve + fixed scalar, so the
+        // secret is the same on every run and provider.
+        val params = java.security.AlgorithmParameters.getInstance("EC")
+            .apply { init(java.security.spec.ECGenParameterSpec(OttaiBleAuth.CURVE)) }
+        val ecSpec = params.getParameterSpec(java.security.spec.ECParameterSpec::class.java)
+        val kf = java.security.KeyFactory.getInstance("EC")
+        val gPub = kf.generatePublic(
+            java.security.spec.ECPublicKeySpec(ecSpec.generator, ecSpec),
+        ) as ECPublicKey
+        val priv = kf.generatePrivate(
+            java.security.spec.ECPrivateKeySpec(java.math.BigInteger.valueOf(379), ecSpec),
+        ) as ECPrivateKey
+
+        val ka = javax.crypto.KeyAgreement.getInstance("ECDH")
+        ka.init(priv)
+        ka.doPhase(gPub, true)
+        val shared = ka.generateSecret()
+        assertEquals(32, shared.size) // provider hands back the padded field element
+        assertEquals(0.toByte(), shared[0])
+        assertEquals(31, java.math.BigInteger(1, shared).toByteArray().size) // would strip
+
+        val key = OttaiBleAuth.deriveSessionKey(ecSpec.generator.affineX, ecSpec.generator.affineY, priv)
+        assertNotNull(key)
+        assertEquals(32, key!!.length)
+        assertEquals(OttaiBleAuth.sessionKeyPick(OttaiCrypto.bytesToHex(shared)), key)
+    }
+
+    @Test
     fun bytesIntLE_roundTrip() {
         for (v in listOf(0, 1, 255, 256, 0x010203, 0x7FFFFFFF, -1)) {
             assertEquals(v, OttaiBleAuth.bytesToIntLE(OttaiBleAuth.intToBytesLE(v)))

@@ -254,6 +254,51 @@ class OttaiLifetimeTests {
         )
     }
 
+    @Test
+    fun activationProbeHoldsOutForTheExactAddressWhileTheScanIsYoung() {
+        val ours = "60:83:DA:F7:D9:15"
+        val neighbour = "C0:9B:9E:60:07:37"
+        val armedAt = 1_785_334_591_000L
+
+        // The three units probed on 2026-07-29 were all admitted by the name-only fallback
+        // within 15 s of arming, each costing a connect/discover/auth cycle and a scan restart
+        // before our own sensor could be seen.
+        assertTrue(OttaiConstants.isActivationExactOnlyWindowOpen(armedAt, armedAt + 12_000L))
+        assertFalse(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = neighbour,
+                expectedAddress = ours,
+                advertisedName = "Ottai CGM",
+                exactOnlyWindowOpen = true,
+            ),
+        )
+        // Our own address is always admitted, window or not — that is the whole point of it.
+        assertTrue(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = ours,
+                expectedAddress = ours,
+                advertisedName = null,
+                exactOnlyWindowOpen = true,
+            ),
+        )
+        // Once the window closes the fallback returns, so a genuinely rotated address is still
+        // reachable — just not before the sensor has had a chance to advertise itself.
+        assertFalse(OttaiConstants.isActivationExactOnlyWindowOpen(armedAt, armedAt + 15_000L))
+        assertTrue(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = neighbour,
+                expectedAddress = ours,
+                advertisedName = "Ottai CGM",
+                exactOnlyWindowOpen = false,
+            ),
+        )
+        // No armed timestamp means no window; never hold out on a scan we cannot age.
+        assertFalse(OttaiConstants.isActivationExactOnlyWindowOpen(0L, armedAt))
+    }
+
     private companion object {
         const val DAY_MS = 24L * 60L * 60L * 1000L
     }

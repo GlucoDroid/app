@@ -548,6 +548,7 @@ class SibionicsBleManager(
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        noteFirstGattCallback("onConnectionStateChange", gatt)
         // A late callback from a retired GATT must not invalidate the active connection's
         // notification queue. The handler repeats this ownership check before mutating state.
         if (isCurrentGatt(gatt)) {

@@ -857,7 +857,16 @@ public:
         isSibionics1() ? maxSIhours
                        : ((isAccuChek() ? maxdaysAccu : info->days + 1) * 24);
 #endif
-    uint32_t maxtime = hours * 60 * 60 + getstarttime();
+    // info->days is the shell's storage geometry — 14 for a direct-stream
+    // shell seeded before its lifetime was known — while a longer activated
+    // lifetime only ever lands in wearduration2 (setSensorWearDays). Where the
+    // two disagree the longer one is the real end; otherwise checkinfo()
+    // retires a 28-day sensor on day 14 and it silently leaves the watch feed.
+    // Only AiDex, Libre3 and direct-stream shells carry wearduration2, and for
+    // the first two it never exceeds days*24*60, so this is a no-op there.
+    const int minutes =
+        std::max(hours * 60, static_cast<int>(info->wearduration2));
+    uint32_t maxtime = minutes * 60 + getstarttime();
 
     // ARCHITECTURAL FIX: Support Custom Calibration for aged sensors.
     // If user enabled Custom Calibration (index != 0), we allow the sensor to

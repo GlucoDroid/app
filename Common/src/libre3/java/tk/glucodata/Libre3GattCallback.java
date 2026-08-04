@@ -136,6 +136,7 @@ private boolean connected=false;
     @SuppressLint("MissingPermission")
     @Override 
     public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
+        noteFirstGattCallback("onConnectionStateChange", bluetoothGatt);
         checkBluetoothGatt(bluetoothGatt);
 
 

@@ -579,6 +579,19 @@ public class SensorBluetooth {
     }
 
     private boolean scanstart = false;
+
+    /**
+     * Whether the managed scan is running or about to run, the same condition scanStarter()
+     * refuses a second scan on. Android throttles startScan per app, not per scanner: a driver
+     * opening its own scanner while this one is up spends one of the five starts the platform
+     * allows in 30s, and the call the platform then fails can be this scan -- the discovery and
+     * recovery path for every sensor family.
+     */
+    static public boolean scanActiveOrPending() {
+        final SensorBluetooth blue = blueone;
+        return blue != null && (blue.mScanning || blue.scanstart);
+    }
+
     long scantime = 0L;
     final private Runnable scanRunnable = new Runnable() {
         @Override
