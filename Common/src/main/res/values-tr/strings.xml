@@ -2262,4 +2262,14 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="stats_pinned_remove">Panodan kaldır</string>
     <string name="stats_pinned_already">sabit</string>
     <string name="stats_pinned_remove_short">Kaldır</string>
+    <string name="sensor_handover_title">Otomatik sensör devri</string>
+    <string name="sensor_handover_desc">Yeni sensörü önceden etkinleştirin; eski sensörün süresi dolduğunda uygulama otomatik olarak halefe geçer</string>
+    <string name="sensor_handover_old_action_title">Devirden sonra süresi dolan sensör</string>
+    <string name="sensor_handover_old_action_desc">Devre dışı bırak: süresi dolan sensör siz kaldırana kadar listede kalır. Kaldır: kaldırma penceresindeki gibi, eşleştirme anahtarları silinir. Ölçüm geçmişi her iki durumda da korunur.</string>
+    <string name="sensor_handover_action_deactivate">Devre dışı bırak</string>
+    <string name="sensor_handover_action_remove">Kaldır</string>
+    <string name="sensor_handover_switched_text">%1$s yerine %2$s kullanılıyor</string>
+    <string name="sensor_handover_warming_text">%1$s artık veri kaynağı, ancak hâlâ ısınıyor (yaklaşık %2$d dk). Isınma bitince ölçümler devam eder.</string>
+    <string name="sensor_handover_multiple_text">Sensörün süresi doldu, ancak birden fazla halef sensör etkin. Otomatik devir atlandı; lütfen elle geçiş yapın.</string>
+    <string name="sensor_handover_successor_ready">Halef sensör hazır; süre dolunca otomatik devir devreye girer</string>
 </resources>

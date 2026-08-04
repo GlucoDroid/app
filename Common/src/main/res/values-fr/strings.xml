@@ -2240,4 +2240,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_remove">Retirer du Tableau de bord</string>
     <string name="stats_pinned_already">épinglé</string>
     <string name="stats_pinned_remove_short">Retirer</string>
+    <string name="sensor_handover_title">Transfert automatique de capteur</string>
+    <string name="sensor_handover_desc">Activez le capteur successeur à l\'avance ; à l\'expiration de l\'ancien capteur, l\'application bascule automatiquement vers le successeur</string>
+    <string name="sensor_handover_old_action_title">Capteur expiré après le transfert</string>
+    <string name="sensor_handover_old_action_desc">Désactiver : le capteur expiré reste dans la liste jusqu\'à sa suppression. Supprimer : comme la boîte de suppression, les clés d\'appairage sont effacées. L\'historique des mesures est conservé dans les deux cas.</string>
+    <string name="sensor_handover_action_deactivate">Désactiver</string>
+    <string name="sensor_handover_action_remove">Supprimer</string>
+    <string name="sensor_handover_switched_text">Passage de %1$s à %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s est désormais la source de données mais est encore en préchauffage (environ %2$d min). Les mesures reprennent une fois le préchauffage terminé.</string>
+    <string name="sensor_handover_multiple_text">Le capteur a expiré, mais plusieurs capteurs successeurs sont actifs. Transfert automatique ignoré ; veuillez changer manuellement.</string>
+    <string name="sensor_handover_successor_ready">Le capteur successeur est prêt ; le transfert automatique prendra le relais à l\'expiration</string>
 </resources>

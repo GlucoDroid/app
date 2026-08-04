@@ -2461,4 +2461,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_reset_reminder_channel_desc">Reminders and actions for resetting Sibionics 2 before it expires</string>
     <string name="stats_span_days">%1$d days</string>
     <string name="stats_window_24h">24H</string>
+    <string name="sensor_handover_title">Automatic sensor handover</string>
+    <string name="sensor_handover_desc">Activate the successor sensor ahead of time; when the old sensor expires, the app switches to the successor automatically</string>
+    <string name="sensor_handover_old_action_title">Expired sensor after handover</string>
+    <string name="sensor_handover_old_action_desc">Deactivate: the expired sensor stays in the list until you remove it. Remove: like the remove dialog, pairing keys are deleted. Measurement history is kept either way.</string>
+    <string name="sensor_handover_action_deactivate">Deactivate</string>
+    <string name="sensor_handover_action_remove">Remove</string>
+    <string name="sensor_handover_switched_text">Switched from %1$s to %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s is now the data source but is still warming up (about %2$d min). Readings resume once warmup finishes.</string>
+    <string name="sensor_handover_multiple_text">The sensor has expired, but several successor sensors are active. Automatic handover skipped; please switch manually.</string>
+    <string name="sensor_handover_successor_ready">Successor sensor is ready; automatic handover takes over at expiry</string>
 </resources>

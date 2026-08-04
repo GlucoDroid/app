@@ -2269,4 +2269,14 @@
     <string name="stats_pinned_remove">Usuń z Pulpitu</string>
     <string name="stats_pinned_already">przypięte</string>
     <string name="stats_pinned_remove_short">Usuń</string>
+    <string name="sensor_handover_title">Automatyczne przełączenie czujnika</string>
+    <string name="sensor_handover_desc">Aktywuj następny czujnik odpowiednio wcześniej; gdy stary czujnik wygaśnie, aplikacja automatycznie przełączy się na następcę</string>
+    <string name="sensor_handover_old_action_title">Wygasły czujnik po przełączeniu</string>
+    <string name="sensor_handover_old_action_desc">Dezaktywuj: wygasły czujnik pozostaje na liście, dopóki go nie usuniesz. Usuń: jak w oknie usuwania, klucze parowania zostają skasowane. Historia pomiarów jest zachowana w obu przypadkach.</string>
+    <string name="sensor_handover_action_deactivate">Dezaktywuj</string>
+    <string name="sensor_handover_action_remove">Usuń</string>
+    <string name="sensor_handover_switched_text">Przełączono z %1$s na %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s jest teraz źródłem danych, ale wciąż się rozgrzewa (około %2$d min). Odczyty wznowią się po zakończeniu rozgrzewania.</string>
+    <string name="sensor_handover_multiple_text">Czujnik wygasł, ale aktywnych jest kilka czujników następczych. Pominięto automatyczne przełączenie; przełącz ręcznie.</string>
+    <string name="sensor_handover_successor_ready">Czujnik następczy jest gotowy; automatyczne przełączenie nastąpi po wygaśnięciu</string>
 </resources>

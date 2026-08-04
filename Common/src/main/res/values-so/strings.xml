@@ -2442,4 +2442,14 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="stats_pinned_remove">Ka saar Dashboard-ka</string>
     <string name="stats_pinned_already">lagu dhejiyay</string>
     <string name="stats_pinned_remove_short">Ka saar</string>
+    <string name="sensor_handover_title">Wareejin otomaatig ah oo dareeme</string>
+    <string name="sensor_handover_desc">Dareemaha beddelka ah horay u shid; marka kan hore uu dhaco, abku wuxuu si otomaatig ah ugu wareegayaa beddelka</string>
+    <string name="sensor_handover_old_action_title">Dareemaha dhacay wareejinta kadib</string>
+    <string name="sensor_handover_old_action_desc">Damin: dareemaha dhacay wuxuu ku sii jirayaa liiska ilaa aad ka saarto. Ka saarid: sida daaqadda ka-saaridda, furayaasha lammaanaha waa la tirtirayaa. Taariikhda cabbiraadda labada xaaladoodba waa la haynayaa.</string>
+    <string name="sensor_handover_action_deactivate">Damin</string>
+    <string name="sensor_handover_action_remove">Ka saar</string>
+    <string name="sensor_handover_switched_text">Waxaa laga beddelay %1$s loona wareejiyay %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s hadda waa isha xogta, laakiin weli wuu diirranayaa (qiyaastii %2$d daqiiqo). Akhrisyadu way soo noqonayaan marka diirintu dhammaato.</string>
+    <string name="sensor_handover_multiple_text">Dareemuhu wuu dhacay, laakiin dhowr dareeme oo beddel ah ayaa shaqaynaya. Wareejinta otomaatiga ah waa la dhaafay; fadlan gacanta ku beddel.</string>
+    <string name="sensor_handover_successor_ready">Dareemaha beddelka ah wuu diyaar yahay; wareejinta otomaatiga ah ayaa la wareegaysa marka uu dhaco</string>
 </resources>

@@ -2277,4 +2277,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_remove">Убрать с главного</string>
     <string name="stats_pinned_already">закреплено</string>
     <string name="stats_pinned_remove_short">Убрать</string>
+    <string name="sensor_handover_title">Автоматическая передача сенсора</string>
+    <string name="sensor_handover_desc">Активируйте следующий сенсор заранее; когда старый сенсор истечёт, приложение автоматически переключится на преемника</string>
+    <string name="sensor_handover_old_action_title">Истёкший сенсор после передачи</string>
+    <string name="sensor_handover_old_action_desc">Деактивировать: истёкший сенсор остаётся в списке, пока вы его не удалите. Удалить: как в окне удаления, ключи сопряжения стираются. История измерений сохраняется в обоих случаях.</string>
+    <string name="sensor_handover_action_deactivate">Деактивировать</string>
+    <string name="sensor_handover_action_remove">Удалить</string>
+    <string name="sensor_handover_switched_text">Переключено с %1$s на %2$s</string>
+    <string name="sensor_handover_warming_text">%1$s теперь источник данных, но ещё прогревается (около %2$d мин). Показания возобновятся после прогрева.</string>
+    <string name="sensor_handover_multiple_text">Сенсор истёк, но активно несколько сенсоров-преемников. Автоматическая передача пропущена; переключитесь вручную.</string>
+    <string name="sensor_handover_successor_ready">Сенсор-преемник готов; автоматическая передача сработает при истечении</string>
 </resources>
