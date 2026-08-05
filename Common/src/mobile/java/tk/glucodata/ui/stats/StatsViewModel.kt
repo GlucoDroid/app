@@ -151,16 +151,11 @@ class StatsViewModel : ViewModel() {
     private val pinnedProjectionCache = ProjectionCache()
 
     /**
-     * The window the dashboard strip is summarising, and whether the statistics screen is
-     * actually on screen.
-     *
-     * Both exist for the same reason: the strip made this view model the first thing
-     * created at app start, and it then loaded whatever range the statistics screen had
-     * been left on — up to every reading ever recorded — to fill three chips covering a
-     * single day. Nothing was looking at the rest.
+     * The window the dashboard strip is summarising. Its own, so that cycling the pill on
+     * the dashboard no longer overwrites — and persists — whichever range the user had
+     * chosen on the statistics screen.
      */
     private val _pinnedWindow = MutableStateFlow<PinnedWindow?>(null)
-    private val _statsScreenAttached = MutableStateFlow(false)
 
     private val baseState = combine(
         _selectedRange,
@@ -253,18 +248,6 @@ class StatsViewModel : ViewModel() {
             clampRestoredCustomRangeWhenAvailable()
         }
         refreshFromNative()
-    }
-
-    /**
-     * The statistics screen announces itself so the history subscription can stay small
-     * while only the dashboard strip is watching.
-     */
-    internal fun setStatsScreenAttached(attached: Boolean) {
-        if (_statsScreenAttached.value == attached) return
-        _statsScreenAttached.value = attached
-        // Only ever widens: nothing shrinks a live subscription, so leaving the screen
-        // does not throw away history the user is about to come back to.
-        if (attached) resubscribeToRequestedWindow()
     }
 
     internal fun setPinnedWindow(window: PinnedWindow?) {
@@ -570,17 +553,21 @@ class StatsViewModel : ViewModel() {
      * While the dashboard is the only consumer that is the strip's window alone — a day,
      * typically — instead of whatever the statistics screen was last left on.
      */
+    /**
+     * How far back the history subscription has to reach.
+     *
+     * Deliberately not narrowed to whoever happens to be on screen. Deferring the wide
+     * read until the statistics screen composed did make app start cheaper, but it moved
+     * the whole cost onto the moment you open that screen — cancelling the live
+     * subscription, re-reading the database and flipping the screen back into its loading
+     * state on every first visit. The prefetch is what makes the screen open instantly;
+     * it happens in the background while the dashboard is up, and that is the right
+     * trade.
+     */
     private fun resolveSubscriptionStartTime(): Long {
+        val screenStart = resolveScreenSubscriptionStartTime()
         val pinnedStart = _pinnedWindow.value?.resolveRange()?.startMillis
-        if (_statsScreenAttached.value) {
-            val screenStart = resolveScreenSubscriptionStartTime()
-            return if (pinnedStart != null) minOf(screenStart, pinnedStart) else screenStart
-        }
-        // Nobody has asked for more than a day yet. The statistics screen widens this the
-        // moment it composes; the first subscription used to start from the range that
-        // screen was last left on, so every launch paid for a ninety-day read of the
-        // database before there was anything on screen using it.
-        return pinnedStart ?: (System.currentTimeMillis() - DAY_MS).coerceAtLeast(0L)
+        return if (pinnedStart != null) minOf(screenStart, pinnedStart) else screenStart
     }
 
     private fun resolveScreenSubscriptionStartTime(): Long {

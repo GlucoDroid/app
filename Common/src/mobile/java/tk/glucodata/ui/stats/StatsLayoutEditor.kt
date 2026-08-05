@@ -52,6 +52,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
@@ -83,6 +85,9 @@ private val EditorRowSpacing = 4.dp
 @Composable
 internal fun StatsLayoutEditor(
     layout: StatsLayoutState,
+    summary: StatsSummary,
+    targets: StatsTargets,
+    unit: GlucoseUnit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -152,8 +157,13 @@ internal fun StatsLayoutEditor(
             items = layout.metricOrder,
             onReordered = StatsLayoutStore::setMetricOrder
         ) { metric, dragging, handle ->
+            val spec = metricSpec(metric, summary, targets, unit)
             EditorRow(
-                title = stringResource(metric.titleResId),
+                title = spec.title,
+                // The live number and the metric's own tint, so this list reads as the
+                // grid it governs rather than as a settings screen about it.
+                value = spec.value,
+                tone = spec.tone,
                 hidden = metric in layout.hiddenMetrics,
                 dragging = dragging,
                 handle = handle,
@@ -296,6 +306,8 @@ private fun EditorRow(
     dragging: Boolean,
     handle: Modifier,
     onToggleHidden: () -> Unit,
+    value: String? = null,
+    tone: Color? = null,
     pinned: Boolean = false,
     pinnable: Boolean = false,
     onTogglePinned: () -> Unit = {},
@@ -303,10 +315,14 @@ private fun EditorRow(
     onToggleWide: () -> Unit = {}
 ) {
     val container by animateColorAsState(
-        targetValue = if (dragging) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
+        targetValue = when {
+            dragging -> MaterialTheme.colorScheme.secondaryContainer
+            // Shown rows carry the metric's own tint, in the same shape and strength as
+            // the tile they stand for; hidden ones fall back to bare surface.
+            tone != null && !hidden -> tone.copy(alpha = 0.14f)
+                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
+            hidden -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f)
+            else -> MaterialTheme.colorScheme.surfaceContainerHigh
         },
         label = "editorRowContainer"
     )
@@ -344,8 +360,21 @@ private fun EditorRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        if (value != null && tone != null) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontFeatureSettings = "tnum",
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = tone.copy(alpha = if (hidden) 0.45f else 1f),
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.padding(end = 2.dp)
+            )
+        }
         if (wide != null) {
-            IconButton(onClick = onToggleWide) {
+            IconButton(onClick = onToggleWide, modifier = Modifier.size(38.dp)) {
                 Icon(
                     imageVector = if (wide) Icons.Default.WidthFull else Icons.Default.WidthNormal,
                     contentDescription = stringResource(R.string.stats_arrange_width),
@@ -359,7 +388,7 @@ private fun EditorRow(
             }
         }
         if (pinnable) {
-            IconButton(onClick = onTogglePinned) {
+            IconButton(onClick = onTogglePinned, modifier = Modifier.size(38.dp)) {
                 Icon(
                     imageVector = if (pinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
                     contentDescription = stringResource(R.string.stats_arrange_pin),
@@ -372,7 +401,7 @@ private fun EditorRow(
                 )
             }
         }
-        IconButton(onClick = onToggleHidden) {
+        IconButton(onClick = onToggleHidden, modifier = Modifier.size(38.dp)) {
             Icon(
                 imageVector = if (hidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                 contentDescription = stringResource(R.string.stats_arrange_visibility),

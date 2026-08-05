@@ -28,7 +28,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Info
@@ -1157,57 +1156,6 @@ private fun PinnedMetricPickerSheet(
                         badge = if (metric in alreadyPinned && !selected) Icons.Filled.PushPin else null,
                         badgeDescription = stringResource(R.string.stats_pinned_already),
                         onClick = { onPick(metric) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Which numbers the grid shows.
- *
- * The same list as Arrange's metric section, but reachable in one tap from the grid it
- * governs rather than behind a mode switch, and showing each metric's live value so the
- * choice is made against the real number. Tapping toggles; the grid repacks underneath.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun MetricVisibilitySheet(
-    order: List<StatsMetric>,
-    hidden: Set<StatsMetric>,
-    summary: StatsSummary,
-    targets: StatsTargets,
-    unit: GlucoseUnit,
-    onDismiss: () -> Unit
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        dragHandle = { CompactSheetDragHandle() }
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = stringResource(R.string.stats_card_metrics),
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 12.dp)
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                order.forEach { metric ->
-                    MetricSheetRow(
-                        spec = metricSpec(metric, summary, targets, unit),
-                        selected = metric !in hidden,
-                        badge = Icons.Filled.Check.takeIf { metric !in hidden },
-                        badgeDescription = stringResource(R.string.stats_card_metrics),
-                        onClick = {
-                            StatsLayoutStore.setMetricHidden(metric, metric !in hidden)
-                        }
                     )
                 }
             }

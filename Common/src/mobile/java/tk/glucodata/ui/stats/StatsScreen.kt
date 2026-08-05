@@ -77,7 +77,6 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -193,13 +192,6 @@ fun StatsScreen(
     viewModel: StatsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    // Until this screen exists, the only thing reading the view model is the dashboard
-    // strip, which wants a day. Saying so is what keeps app start from loading the whole
-    // range this screen was last left on.
-    DisposableEffect(viewModel) {
-        viewModel.setStatsScreenAttached(true)
-        onDispose { viewModel.setStatsScreenAttached(false) }
-    }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val reportPrefs = remember(context) {
@@ -387,6 +379,9 @@ fun StatsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     StatsLayoutEditor(
                         layout = layout,
+                        summary = uiState.summary,
+                        targets = uiState.targets,
+                        unit = uiState.unit,
                         onDone = { editingLayout = false }
                     )
                 }
@@ -784,7 +779,6 @@ private fun MetricsSection(
     unit: GlucoseUnit
 ) {
     var showAll by rememberSaveable { mutableStateOf(false) }
-    var choosingMetrics by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(emptySet<StatsMetric>()) }
     // One drag state for both grids so a tile can be dragged across the fold, and one
     // expansion set so the two halves agree about which tiles are open.
@@ -845,15 +839,18 @@ private fun MetricsSection(
             }
         }
 
-        // Two quiet glyphs rather than a line of link text: the fold is a mechanism, not
-        // a heading, and the grid below it should be what the eye lands on. The second
-        // one is how metrics are switched on and off without leaving for Arrange.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (tailMetrics.isNotEmpty()) {
+        // One quiet glyph rather than a line of link text: the fold is a mechanism, not a
+        // heading, and the grid above it should be what the eye lands on. Choosing which
+        // metrics exist lives in Arrange, which is the one place that job belongs.
+        if (tailMetrics.isNotEmpty()) {
+            // Reserves less height than the glyph occupies, so it bleeds a few dp into the
+            // whitespace either side instead of adding a band of its own.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(26.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 SubtleGlyphButton(
                     icon = if (showAll) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = if (showAll) {
@@ -864,23 +861,7 @@ private fun MetricsSection(
                     onClick = { showAll = !showAll }
                 )
             }
-            SubtleGlyphButton(
-                icon = Icons.Default.Tune,
-                contentDescription = stringResource(R.string.stats_card_metrics),
-                onClick = { choosingMetrics = true }
-            )
         }
-    }
-
-    if (choosingMetrics) {
-        MetricVisibilitySheet(
-            order = fullOrder,
-            hidden = fullOrder.filterNot { it in metrics }.toSet(),
-            summary = summary,
-            targets = targets,
-            unit = unit,
-            onDismiss = { choosingMetrics = false }
-        )
     }
 }
 
