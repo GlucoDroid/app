@@ -30,6 +30,9 @@ public class SuperGlucoseAlarms {
 public SuperGlucoseAlarms(Application context) {
 	Notify.init(context);
 	tk.glucodata.alerts.AlertRuntimeManager.INSTANCE.ensureMonitoring();
+	// An unanswered alarm may already be outstanding from before a restart, so the
+	// SMS watchdog has to come up with the alert runtime rather than on first edit.
+	tk.glucodata.sms.SmsWatchdog.ensureRunning(context);
 	}
 
 //static final long showtime = Notify.glucosetimeout;

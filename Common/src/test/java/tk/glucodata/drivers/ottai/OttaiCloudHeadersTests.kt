@@ -1,6 +1,7 @@
 package tk.glucodata.drivers.ottai
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class OttaiCloudHeadersTests {
@@ -55,4 +56,55 @@ class OttaiCloudHeadersTests {
         assertEquals("8", headers["deviceId"])
         assertEquals("Bearer test-token", headers["Authorization"])
     }
+
+    @Test
+    fun expiredMaterialRecoveryUsesObservedPhoneIdentity() {
+        val headers = OttaiCloudClient.temporaryMaterialHeaders(
+            deviceId = "test-device",
+            accessToken = "test-token",
+            timestamp = 123L,
+            traceId = "test-trace",
+        )
+
+        assertEquals("ottai_main", headers["applicationType"])
+        assertEquals("ottai", headers["appName"])
+        assertEquals("com.ottai.tag", headers["packageName"])
+        assertEquals("260721", headers["versionCode"])
+        assertEquals("ottai:a:test-device", headers["deviceId"])
+        assertEquals("test-token", headers["Authorization"])
+        assertEquals("PUT", OttaiCloudClient.TEMPORARY_MATERIAL_UNBIND_METHOD)
+    }
+
+    @Test
+    fun temporaryBindTimeIsNeverUsedAsHistoricalStart() {
+        val temporary = deviceResponse(activeTime = 999_999L)
+
+        assertEquals(
+            123_000L,
+            OttaiCloudClient.sanitizeTemporaryBindResponse(temporary, 123_000L).activeTime,
+        )
+        assertEquals(
+            0L,
+            OttaiCloudClient.sanitizeTemporaryBindResponse(temporary, 0L).activeTime,
+        )
+        assertFalse(
+            OttaiCloudClient.sanitizeTemporaryBindResponse(temporary, 0L).activeTime == temporary.activeTime,
+        )
+    }
+
+    private fun deviceResponse(activeTime: Long) = OttaiCloudClient.DeviceResp(
+        mac = "001122334455",
+        keyA = "key",
+        method = "method",
+        coefficient = "coefficient",
+        produceTime = 0L,
+        methodUpdateTime = 0L,
+        coeffUpdateTime = 0L,
+        activeTime = activeTime,
+        activeExpireTime = 0L,
+        preheatPeriodTime = 0L,
+        retainTime = 0L,
+        deviceVersion = "V2.5.S2417.2",
+        deviceId = 1,
+    )
 }

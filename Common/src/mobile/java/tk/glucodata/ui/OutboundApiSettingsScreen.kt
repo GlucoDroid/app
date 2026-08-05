@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -90,6 +91,7 @@ import tk.glucodata.Applic
 import tk.glucodata.OutboundApi
 import tk.glucodata.OutboundApiSettings
 import tk.glucodata.R
+import tk.glucodata.sms.SmsWatchdog
 import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.CompactSheetDragHandle
 import tk.glucodata.ui.components.SectionLabel
@@ -140,11 +142,20 @@ fun OutboundApiSettingsScreen(navController: NavController) {
     }
 
     fun sendTest(destination: OutboundApiSettings.Destination) {
-        val result = OutboundApi.enqueueCurrentTest(context, destination.id)
-        val message = when (result) {
-            OutboundApi.TEST_QUEUED -> R.string.outbound_api_test_queued
-            OutboundApi.TEST_NO_CURRENT_READING -> R.string.outbound_api_no_current_reading
-            else -> R.string.outbound_api_not_configured
+        val message = if (destination.isSms()) {
+            when (SmsWatchdog.sendTest(context, destination.id)) {
+                SmsWatchdog.TEST_SENT -> R.string.sms_test_sent
+                SmsWatchdog.TEST_NO_PERMISSION -> R.string.sms_test_no_permission
+                SmsWatchdog.TEST_NO_TELEPHONY -> R.string.sms_test_no_telephony
+                SmsWatchdog.TEST_BUDGET_EXHAUSTED -> R.string.sms_test_budget
+                else -> R.string.sms_test_no_contacts
+            }
+        } else {
+            when (OutboundApi.enqueueCurrentTest(context, destination.id)) {
+                OutboundApi.TEST_QUEUED -> R.string.outbound_api_test_queued
+                OutboundApi.TEST_NO_CURRENT_READING -> R.string.outbound_api_no_current_reading
+                else -> R.string.outbound_api_not_configured
+            }
         }
         Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
         config = OutboundApiSettings.load(context)
@@ -373,14 +384,55 @@ private fun DestinationCard(
                         onChangePreset = onChangePreset
                     )
                     DestinationStatus(destination = destination)
+                    var confirmTestSms by remember(destination.id) { mutableStateOf(false) }
+                    if (confirmTestSms) {
+                        val recipientCount = destination.smsPolicy.numbers().size
+                        AlertDialog(
+                            onDismissRequest = { confirmTestSms = false },
+                            icon = { Icon(Icons.Filled.Sms, contentDescription = null) },
+                            title = { Text(stringResource(R.string.sms_test_confirm_title)) },
+                            text = {
+                                Text(
+                                    stringResource(
+                                        R.string.sms_test_confirm_message,
+                                        recipientCount
+                                    )
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    confirmTestSms = false
+                                    onSendTest()
+                                }) {
+                                    Text(stringResource(R.string.sms_send_test))
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { confirmTestSms = false }) {
+                                    Text(stringResource(R.string.cancel))
+                                }
+                            }
+                        )
+                    }
                     Button(
-                        onClick = onSendTest,
+                        // A test SMS is charged and lands on somebody else's phone, so it
+                        // always goes through a confirmation step.
+                        onClick = { if (destination.isSms()) confirmTestSms = true else onSendTest() },
                         enabled = destination.isReady(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Filled.Send, contentDescription = null)
+                        Icon(
+                            if (destination.isSms()) Icons.Filled.Sms else Icons.Filled.Send,
+                            contentDescription = null
+                        )
                         Text(
-                            text = stringResource(R.string.outbound_api_send_test),
+                            text = stringResource(
+                                if (destination.isSms()) {
+                                    R.string.sms_send_test
+                                } else {
+                                    R.string.outbound_api_send_test
+                                }
+                            ),
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
@@ -404,6 +456,7 @@ private fun DestinationIcon(preset: String, enabled: Boolean) {
                     OutboundApiSettings.PRESET_TELEGRAM_BOT,
                     OutboundApiSettings.PRESET_GLUCO_WATCH_VK,
                     OutboundApiSettings.PRESET_VK_MESSAGES -> Icons.Filled.Send
+                    OutboundApiSettings.PRESET_SMS -> Icons.Filled.Sms
                     else -> Icons.Filled.CloudUpload
                 },
                 contentDescription = null,
@@ -427,6 +480,7 @@ private fun DestinationEditor(
     val isVk = preset == OutboundApiSettings.PRESET_GLUCO_WATCH_VK ||
         preset == OutboundApiSettings.PRESET_VK_MESSAGES
     val isTelegram = preset == OutboundApiSettings.PRESET_TELEGRAM_BOT
+    val isSms = preset == OutboundApiSettings.PRESET_SMS
     var showPresetSheet by rememberSaveable(destination.id) { mutableStateOf(false) }
 
     if (showPresetSheet) {
@@ -458,6 +512,14 @@ private fun DestinationEditor(
         preset = preset,
         onChangePreset = { showPresetSheet = true }
     )
+
+    if (isSms) {
+        // SMS has no endpoint, headers or trigger thresholds of its own; everything
+        // it needs lives in its policy editor.
+        SmsDestinationEditor(destination = destination, onChange = onChange)
+        TemplateEditor(destination = destination, onChange = onChange)
+        return
+    }
 
     if (isTelegram || isVk) {
         OutlinedTextField(
@@ -845,7 +907,7 @@ private fun BubbleRefreshSection(
 }
 
 @Composable
-private fun ControlDivider() {
+internal fun ControlDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 16.dp),
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)
@@ -853,7 +915,7 @@ private fun ControlDivider() {
 }
 
 @Composable
-private fun ToggleRow(
+internal fun ToggleRow(
     title: String,
     subtitle: String?,
     checked: Boolean,
@@ -894,7 +956,7 @@ private fun ToggleRow(
 }
 
 @Composable
-private fun NumberStepper(
+internal fun NumberStepper(
     label: String,
     value: Int,
     range: IntRange,
@@ -1093,7 +1155,7 @@ private fun DestinationStatus(destination: OutboundApiSettings.Destination) {
 }
 
 @Composable
-private fun SettingsSubsectionTitle(text: String) {
+internal fun SettingsSubsectionTitle(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelLarge,
@@ -1215,6 +1277,12 @@ private fun destinationPresetSpecs(): List<PresetSpec> =
             titleRes = R.string.outbound_api_preset_vk,
             descriptionRes = R.string.outbound_api_preset_vk_desc,
             icon = Icons.Filled.Send
+        ),
+        PresetSpec(
+            id = OutboundApiSettings.PRESET_SMS,
+            titleRes = R.string.outbound_api_preset_sms,
+            descriptionRes = R.string.outbound_api_preset_sms_desc,
+            icon = Icons.Filled.Sms
         )
     )
 
@@ -1223,6 +1291,7 @@ private fun presetTitle(preset: String): Int =
         OutboundApiSettings.PRESET_TELEGRAM_BOT -> R.string.outbound_api_preset_telegram
         OutboundApiSettings.PRESET_GLUCO_WATCH_VK -> R.string.outbound_api_preset_gluco_watch_vk
         OutboundApiSettings.PRESET_VK_MESSAGES -> R.string.outbound_api_preset_vk
+        OutboundApiSettings.PRESET_SMS -> R.string.outbound_api_preset_sms
         else -> R.string.outbound_api_preset_custom_json
     }
 
@@ -1266,17 +1335,17 @@ private fun triggerSummary(destination: OutboundApiSettings.Destination): String
     }
 }
 
-private fun thresholdUnitLabel(): String =
+internal fun thresholdUnitLabel(): String =
     if (Applic.unit == 1) "mmol/L" else "mg/dL"
 
-private fun formatThreshold(mgdl: Int): String =
+internal fun formatThreshold(mgdl: Int): String =
     if (Applic.unit == 1) {
         String.format(Locale.US, "%.1f", mgdl / MGDL_PER_MMOLL)
     } else {
         mgdl.coerceAtLeast(1).toString()
     }
 
-private fun parseThreshold(raw: String, fallbackMgdl: Int): Int? {
+internal fun parseThreshold(raw: String, fallbackMgdl: Int): Int? {
     val normalized = raw.replace(',', '.').trim()
     if (normalized.isBlank()) return null
     val value = normalized.toFloatOrNull() ?: return null
@@ -1289,7 +1358,7 @@ private fun parseThreshold(raw: String, fallbackMgdl: Int): Int? {
     return mgdl.coerceIn(1, 600).takeIf { it != fallbackMgdl } ?: mgdl.coerceIn(1, 600)
 }
 
-private fun String.filterThresholdInput(): String =
+internal fun String.filterThresholdInput(): String =
     filter { it.isDigit() || it == '.' || it == ',' }
 
 private const val MGDL_PER_MMOLL = 18.0182f
