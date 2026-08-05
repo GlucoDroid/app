@@ -2104,7 +2104,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="haptic_profile_strong">Xoog badan</string>
     <string name="haptic_profile_escalating">Sii kordhaya</string>
     <string name="outbound_api_title">Goobaha API</string>
-    <string name="outbound_api_desc">Chatbot-ku-salaysan-ku-salaysan iyo gaarsiinta webhook</string>
+    <string name="outbound_api_desc">Gaarsiinta chatbot, webhook iyo SMS degdeg ah oo ku salaysan hordhac</string>
     <string name="outbound_api_settings_title">Goobaha API</string>
     <string name="outbound_api_master_desc">U dir akhriska tooska ah meelaha karti u leh</string>
     <string name="outbound_api_destinations">Goobaha loo aado</string>

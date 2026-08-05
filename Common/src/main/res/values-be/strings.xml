@@ -1850,7 +1850,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="haptic_profile_strong">Моцная</string>
     <string name="haptic_profile_escalating">Нарастальная</string>
     <string name="outbound_api_title">Прызначэнні API</string>
-    <string name="outbound_api_desc">Дастаўка ў чат-боты і webhook праз пресеты</string>
+    <string name="outbound_api_desc">Дастаўка ў чат-боты, webhook і экстранныя SMS праз пресеты</string>
     <string name="outbound_api_settings_title">Прызначэнні API</string>
     <string name="outbound_api_master_desc">Адпраўляць бягучыя паказанні ва ўключаныя прызначэнні</string>
     <string name="outbound_api_destinations">Прызначэнні</string>

@@ -1786,7 +1786,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="haptic_profile_strong">Forte</string>
     <string name="haptic_profile_escalating">Progressive</string>
     <string name="outbound_api_title">Destinations API</string>
-    <string name="outbound_api_desc">Envoi chatbot et webhook basé sur des préréglages</string>
+    <string name="outbound_api_desc">Envoi chatbot, webhook et SMS d\'urgence basé sur des préréglages</string>
     <string name="outbound_api_settings_title">Destinations API</string>
     <string name="outbound_api_master_desc">Envoyer les valeurs en direct vers les destinations activées</string>
     <string name="outbound_api_destinations">Destinations</string>

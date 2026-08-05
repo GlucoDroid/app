@@ -1823,7 +1823,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="haptic_profile_strong">Сильная</string>
     <string name="haptic_profile_escalating">Нарастающая</string>
     <string name="outbound_api_title">Назначения API</string>
-    <string name="outbound_api_desc">Доставка в чат-боты и webhooks на основе пресетов</string>
+    <string name="outbound_api_desc">Доставка в чат-боты, webhooks и экстренные SMS на основе пресетов</string>
     <string name="outbound_api_settings_title">Назначения API</string>
     <string name="outbound_api_master_desc">Отправлять текущие показания во включенные назначения</string>
     <string name="outbound_api_destinations">Назначения</string>

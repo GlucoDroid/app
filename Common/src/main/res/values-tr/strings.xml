@@ -1808,7 +1808,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="haptic_profile_strong">Güçlü</string>
     <string name="haptic_profile_escalating">Artan</string>
     <string name="outbound_api_title">API hedefleri</string>
-    <string name="outbound_api_desc">Ön ayarlı sohbet botu ve webhook gönderimi</string>
+    <string name="outbound_api_desc">Ön ayarlı sohbet botu, webhook ve acil SMS gönderimi</string>
     <string name="outbound_api_settings_title">API hedefleri</string>
     <string name="outbound_api_master_desc">Canlı ölçümleri etkin hedeflere gönder</string>
     <string name="outbound_api_destinations">Hedefler</string>

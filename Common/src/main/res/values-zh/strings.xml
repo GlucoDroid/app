@@ -1796,7 +1796,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="haptic_profile_strong">强烈</string>
     <string name="haptic_profile_escalating">递增</string>
     <string name="outbound_api_title">API 目标</string>
-    <string name="outbound_api_desc">基于预设的聊天机器人和 Webhook 发送</string>
+    <string name="outbound_api_desc">基于预设的聊天机器人、Webhook 和紧急短信发送</string>
     <string name="outbound_api_settings_title">API 目标</string>
     <string name="outbound_api_master_desc">将实时读数发送到已启用的目标</string>
     <string name="outbound_api_destinations">目标</string>

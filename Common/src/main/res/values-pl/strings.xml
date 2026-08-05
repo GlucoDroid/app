@@ -1815,7 +1815,7 @@
     <string name="haptic_profile_strong">Silne</string>
     <string name="haptic_profile_escalating">Narastające</string>
     <string name="outbound_api_title">Miejsca docelowe API</string>
-    <string name="outbound_api_desc">Dostarczanie do chatbotów i webhooków oparte na presetach</string>
+    <string name="outbound_api_desc">Dostarczanie do chatbotów, webhooków i SMS alarmowych oparte na presetach</string>
     <string name="outbound_api_settings_title">Miejsca docelowe API</string>
     <string name="outbound_api_master_desc">Wysyłaj odczyty live do włączonych miejsc docelowych</string>
     <string name="outbound_api_destinations">Miejsca docelowe</string>

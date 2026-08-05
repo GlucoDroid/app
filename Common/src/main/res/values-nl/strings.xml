@@ -1823,7 +1823,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="haptic_profile_strong">Sterk</string>
     <string name="haptic_profile_escalating">Oplopend</string>
     <string name="outbound_api_title">API-bestemmingen</string>
-    <string name="outbound_api_desc">Preset-gebaseerde chatbot- en webhookbezorging</string>
+    <string name="outbound_api_desc">Preset-gebaseerde chatbot-, webhook- en nood-sms-bezorging</string>
     <string name="outbound_api_settings_title">API-bestemmingen</string>
     <string name="outbound_api_master_desc">Live metingen naar ingeschakelde bestemmingen sturen</string>
     <string name="outbound_api_destinations">Bestemmingen</string>
