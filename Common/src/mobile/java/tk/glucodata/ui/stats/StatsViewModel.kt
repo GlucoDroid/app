@@ -189,6 +189,17 @@ class StatsViewModel : ViewModel() {
      */
     private val _pinnedWindow = MutableStateFlow<PinnedWindow?>(null)
 
+    /**
+     * Which deferred parts anything has actually read. Shared across summaries and across
+     * threads, so it is a concurrent set rather than a plain one.
+     */
+    private val demandedParts: MutableSet<StatsPart> =
+        java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /** True from the moment a range is chosen until the state for it has been built. */
+    private val _isSwitchingRange = MutableStateFlow(false)
+    val isSwitchingRange: StateFlow<Boolean> = _isSwitchingRange.asStateFlow()
+
     private val baseState = combine(
         _selectedRange,
         _customRange,
@@ -235,17 +246,15 @@ class StatsViewModel : ViewModel() {
     }.mapLatest { input ->
         withContext(Dispatchers.Default) {
             buildUiState(input).also { state ->
+                // Everything already known to be on screen is resolved here, on this
+                // thread, before the state is handed to the UI.
+                (state.summary.parts as? LazyStatsParts)?.warmDemanded()
                 rememberRenderedState(input.activeSerial, state)
             }
-        }
+        }.also { _isSwitchingRange.value = false }
     }.stateIn(
         scope = viewModelScope,
-        // Eagerly, not WhileSubscribed. The dashboard strip used to read this flow, which
-        // meant something held a subscription for the whole session and the state was
-        // always warm by the time anyone opened the statistics screen. Giving the strip
-        // its own cheaper flow quietly removed that subscriber, so the screen's state went
-        // cold five seconds after every visit and had to be rebuilt on the next one.
-        started = SharingStarted.Eagerly,
+        started = SharingStarted.WhileSubscribed(5_000),
         initialValue = resolveInitialUiState()
     )
 
@@ -287,6 +296,15 @@ class StatsViewModel : ViewModel() {
         refreshFromNative()
     }
 
+    /**
+     * Forgotten whenever the range changes, so a switch never pays for parts that were
+     * only ever read while scrolling around the *previous* window. Demand rebuilds itself
+     * from whatever the new window actually puts on screen.
+     */
+    private fun forgetDemandedParts() {
+        demandedParts.clear()
+    }
+
     internal fun setPinnedWindow(window: PinnedWindow?) {
         if (_pinnedWindow.value == window) return
         _pinnedWindow.value = window
@@ -296,6 +314,11 @@ class StatsViewModel : ViewModel() {
     fun setTimeRange(range: StatsTimeRange) {
         pendingRestoredCustomClamp = false
         if (_selectedRange.value == range && _customRange.value == null) return
+        // The screen says so straight away. Recomputing is quick now, but "quick" is not
+        // "instant", and a control that goes dead for a moment with no acknowledgement
+        // reads as a control that did not register the tap.
+        _isSwitchingRange.value = true
+        forgetDemandedParts()
         _selectedRange.value = range
         _customRange.value = null
         StatsRangeStore.savePreset(Applic.app, range)
@@ -306,6 +329,8 @@ class StatsViewModel : ViewModel() {
         pendingRestoredCustomClamp = false
         val normalizedRange = normalizeCustomRange(startMillis, endMillis)
         if (_customRange.value == normalizedRange && _selectedRange.value == null) return
+        _isSwitchingRange.value = true
+        forgetDemandedParts()
         _selectedRange.value = null
         _customRange.value = normalizedRange
         StatsRangeStore.saveCustom(Applic.app, normalizedRange)
@@ -1437,49 +1462,10 @@ class StatsViewModel : ViewModel() {
             veryHighPercent = percent(veryHighCount)
         )
 
-        val agp = calculateAgpByHour(history)
-        val daily = calculateDailyStats(history, targetLow, targetHigh)
-        val gvi = StatsAnalytics.calculateGvi(
-            history = variabilityHistory,
-            averageMgDl = variabilityAvg,
-            stdDevMgDl = variabilityStdDev
-        )
-        val psg = StatsAnalytics.calculatePsg(
-            history = variabilityHistory,
-            averageMgDl = avg,
-            cvPercent = variabilityCv,
-            targets = targets
-        )
-
+        // Only what the header, ring and scalar tiles need is worked out here. Everything
+        // below is a full pass over the window and goes into the deferred half.
         val chronological = StatsAnalytics.sortedByTimestampIfNeeded(history)
         val coverage = StatsAnalytics.sensorCoverage(chronological, activeRange)
-        val episodes = StatsAnalytics.detectEpisodes(chronological, targets)
-        val windowDays = coverage.windowDays.coerceAtLeast(1f)
-        val lowEpisodes = StatsAnalytics.summarizeEpisodes(episodes, EpisodeKind.LOW, windowDays)
-        val highEpisodes = StatsAnalytics.summarizeEpisodes(episodes, EpisodeKind.HIGH, windowDays)
-        val dayParts = StatsAnalytics.dayPartStats(chronological, targets)
-        val hourly = StatsAnalytics.hourlyStats(chronological, targets)
-        val weekdays = StatsAnalytics.weekdayStats(chronological, targets)
-        val days = StatsAnalytics.dayBreakdowns(chronological, targets)
-        val comparison = previousScalars?.let { previous ->
-            StatsAnalytics.compare(StatsAnalytics.periodScalars(values, targets), previous)
-        }
-        val insights = buildInsights(
-            findings = StatsAnalytics.findings(
-                FindingInput(
-                    tir = tir,
-                    averageMgDl = avg,
-                    cvPercent = cv,
-                    coverage = coverage,
-                    lowEpisodes = lowEpisodes,
-                    highEpisodes = highEpisodes,
-                    dayParts = dayParts,
-                    days = days,
-                    comparison = comparison
-                )
-            ),
-            unit = unit
-        )
 
         return StatsSummary(
             readingCount = count,
@@ -1490,33 +1476,187 @@ class StatsViewModel : ViewModel() {
             stdDevMgDl = stdDev,
             cvPercent = cv,
             gmiPercent = gmi,
-            gvi = gvi,
-            psg = psg,
             minMgDl = min,
             maxMgDl = max,
             firstTimestamp = history.first().timestamp,
             lastTimestamp = history.last().timestamp,
             tir = tir,
             tightRangePercent = StatsAnalytics.tightRangePercent(values, targets),
-            mageMgDl = StatsAnalytics.mage(chronological),
-            moddMgDl = StatsAnalytics.modd(chronological),
-            dawnRiseMgDl = StatsAnalytics.dawnRise(chronological),
-            bestStreakDays = StatsAnalytics.bestInRangeStreak(days),
-            gri = StatsAnalytics.glycemiaRiskIndex(values, targets),
-            risk = StatsAnalytics.riskIndices(values),
             coverage = coverage,
-            episodes = episodes,
-            lowEpisodes = lowEpisodes,
-            highEpisodes = highEpisodes,
-            dayParts = dayParts,
-            weekdays = weekdays,
-            days = days,
-            comparison = comparison,
-            agpByHour = agp,
-            hourlyStats = hourly,
-            dailyStats = daily,
-            insights = insights
+            parts = LazyStatsParts(
+                demanded = demandedParts,
+                history = history,
+                chronological = chronological,
+                variabilityHistory = variabilityHistory,
+                values = values,
+                targets = targets,
+                unit = unit,
+                tir = tir,
+                coverage = coverage,
+                avg = avg,
+                cv = cv,
+                variabilityAvg = variabilityAvg,
+                variabilityStdDev = variabilityStdDev,
+                variabilityCv = variabilityCv,
+                targetLow = targetLow,
+                targetHigh = targetHigh,
+                previousScalars = previousScalars,
+                agpOf = ::calculateAgpByHour,
+                dailyOf = ::calculateDailyStats,
+                insightsOf = ::buildInsights
+            )
         )
+    }
+
+    /**
+     * Resolves each expensive part on first read, once, and never again for that summary.
+     *
+     * `by lazy` rather than a hand-rolled cache because the dependencies between these are
+     * real — the insights need the episodes, which need the coverage — and lazy chaining
+     * expresses that without anyone having to remember the order.
+     */
+    private enum class StatsPart {
+        GVI, PSG, MAGE, MODD, DAWN, STREAK, GRI, RISK, EPISODES, LOW_EPISODES, HIGH_EPISODES,
+        DAY_PARTS, WEEKDAYS, DAYS, COMPARISON, AGP, HOURLY, DAILY, INSIGHTS
+    }
+
+    private class LazyStatsParts(
+        private val demanded: MutableSet<StatsPart>,
+        private val history: List<GlucosePoint>,
+        private val chronological: List<GlucosePoint>,
+        private val variabilityHistory: List<GlucosePoint>,
+        private val values: List<Float>,
+        private val targets: StatsTargets,
+        private val unit: GlucoseUnit,
+        private val tir: TimeInRangeBreakdown,
+        private val coverage: SensorCoverage,
+        private val avg: Float,
+        private val cv: Float,
+        private val variabilityAvg: Float,
+        private val variabilityStdDev: Float,
+        private val variabilityCv: Float,
+        private val targetLow: Float,
+        private val targetHigh: Float,
+        private val previousScalars: PeriodScalars?,
+        private val agpOf: (List<GlucosePoint>) -> List<AgpHourBin>,
+        private val dailyOf: (List<GlucosePoint>, Float, Float) -> List<DailyStats>,
+        private val insightsOf: (List<StatsFinding>, GlucoseUnit) -> List<StatsInsight>
+    ) : StatsSummaryParts {
+
+        private val gviValue = lazy {
+            StatsAnalytics.calculateGvi(
+                history = variabilityHistory,
+                averageMgDl = variabilityAvg,
+                stdDevMgDl = variabilityStdDev
+            )
+        }
+        private val psgValue = lazy {
+            StatsAnalytics.calculatePsg(
+                history = variabilityHistory,
+                averageMgDl = avg,
+                cvPercent = variabilityCv,
+                targets = targets
+            )
+        }
+        private val mageValue = lazy { StatsAnalytics.mage(chronological) }
+        private val moddValue = lazy { StatsAnalytics.modd(chronological) }
+        private val dawnValue = lazy { StatsAnalytics.dawnRise(chronological) }
+        private val streakValue = lazy { StatsAnalytics.bestInRangeStreak(daysValue.value) }
+        private val griValue = lazy { StatsAnalytics.glycemiaRiskIndex(values, targets) }
+        private val riskValue = lazy { StatsAnalytics.riskIndices(values) }
+        private val episodesValue = lazy { StatsAnalytics.detectEpisodes(chronological, targets) }
+        private val windowDays: Float get() = coverage.windowDays.coerceAtLeast(1f)
+        private val lowEpisodesValue = lazy {
+            StatsAnalytics.summarizeEpisodes(episodesValue.value, EpisodeKind.LOW, windowDays)
+        }
+        private val highEpisodesValue = lazy {
+            StatsAnalytics.summarizeEpisodes(episodesValue.value, EpisodeKind.HIGH, windowDays)
+        }
+        private val dayPartsValue = lazy { StatsAnalytics.dayPartStats(chronological, targets) }
+        private val weekdaysValue = lazy { StatsAnalytics.weekdayStats(chronological, targets) }
+        private val daysValue = lazy { StatsAnalytics.dayBreakdowns(chronological, targets) }
+        private val comparisonValue = lazy {
+            previousScalars?.let { previous ->
+                StatsAnalytics.compare(StatsAnalytics.periodScalars(values, targets), previous)
+            }
+        }
+        private val agpValue = lazy { agpOf(history) }
+        private val hourlyValue = lazy { StatsAnalytics.hourlyStats(chronological, targets) }
+        private val dailyValue = lazy { dailyOf(history, targetLow, targetHigh) }
+        private val insightsValue = lazy {
+            insightsOf(
+                StatsAnalytics.findings(
+                    FindingInput(
+                        tir = tir,
+                        averageMgDl = avg,
+                        cvPercent = cv,
+                        coverage = coverage,
+                        lowEpisodes = lowEpisodesValue.value,
+                        highEpisodes = highEpisodesValue.value,
+                        dayParts = dayPartsValue.value,
+                        days = daysValue.value,
+                        comparison = comparisonValue.value
+                    )
+                ),
+                unit
+            )
+        }
+
+        private fun <T> read(part: StatsPart, value: Lazy<T>): T {
+            // Noting what was actually asked for is what keeps the *next* summary off the
+            // main thread: a part is computed there once, the first time a card scrolls
+            // into view, and from then on the view model knows to work it out in the
+            // background before the state is handed over.
+            demanded += part
+            return value.value
+        }
+
+        override val gvi: GviScore get() = read(StatsPart.GVI, gviValue)
+        override val psg: PsgScore get() = read(StatsPart.PSG, psgValue)
+        override val mageMgDl: Float get() = read(StatsPart.MAGE, mageValue)
+        override val moddMgDl: Float get() = read(StatsPart.MODD, moddValue)
+        override val dawnRiseMgDl: Float get() = read(StatsPart.DAWN, dawnValue)
+        override val bestStreakDays: Int get() = read(StatsPart.STREAK, streakValue)
+        override val gri: GlycemiaRiskIndex get() = read(StatsPart.GRI, griValue)
+        override val risk: RiskIndices get() = read(StatsPart.RISK, riskValue)
+        override val episodes: List<GlucoseEpisode> get() = read(StatsPart.EPISODES, episodesValue)
+        override val lowEpisodes: EpisodeSummary get() = read(StatsPart.LOW_EPISODES, lowEpisodesValue)
+        override val highEpisodes: EpisodeSummary get() = read(StatsPart.HIGH_EPISODES, highEpisodesValue)
+        override val dayParts: List<DayPartStats> get() = read(StatsPart.DAY_PARTS, dayPartsValue)
+        override val weekdays: List<WeekdayStats> get() = read(StatsPart.WEEKDAYS, weekdaysValue)
+        override val days: List<DayBreakdown> get() = read(StatsPart.DAYS, daysValue)
+        override val comparison: StatsComparison? get() = read(StatsPart.COMPARISON, comparisonValue)
+        override val agpByHour: List<AgpHourBin> get() = read(StatsPart.AGP, agpValue)
+        override val hourlyStats: List<HourlyGlucoseStats> get() = read(StatsPart.HOURLY, hourlyValue)
+        override val dailyStats: List<DailyStats> get() = read(StatsPart.DAILY, dailyValue)
+        override val insights: List<StatsInsight> get() = read(StatsPart.INSIGHTS, insightsValue)
+
+        /** Resolves everything asked for last time, while still off the main thread. */
+        fun warmDemanded() {
+            demanded.toList().forEach { part ->
+                when (part) {
+                    StatsPart.GVI -> gviValue.value
+                    StatsPart.PSG -> psgValue.value
+                    StatsPart.MAGE -> mageValue.value
+                    StatsPart.MODD -> moddValue.value
+                    StatsPart.DAWN -> dawnValue.value
+                    StatsPart.STREAK -> streakValue.value
+                    StatsPart.GRI -> griValue.value
+                    StatsPart.RISK -> riskValue.value
+                    StatsPart.EPISODES -> episodesValue.value
+                    StatsPart.LOW_EPISODES -> lowEpisodesValue.value
+                    StatsPart.HIGH_EPISODES -> highEpisodesValue.value
+                    StatsPart.DAY_PARTS -> dayPartsValue.value
+                    StatsPart.WEEKDAYS -> weekdaysValue.value
+                    StatsPart.DAYS -> daysValue.value
+                    StatsPart.COMPARISON -> comparisonValue.value
+                    StatsPart.AGP -> agpValue.value
+                    StatsPart.HOURLY -> hourlyValue.value
+                    StatsPart.DAILY -> dailyValue.value
+                    StatsPart.INSIGHTS -> insightsValue.value
+                }
+            }
+        }
     }
 
     private fun calculateAgpByHour(history: List<GlucosePoint>): List<AgpHourBin> {

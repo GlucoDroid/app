@@ -192,6 +192,7 @@ fun StatsScreen(
     viewModel: StatsViewModel = rememberStatsViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isSwitchingRange by viewModel.isSwitchingRange.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val reportPrefs = remember(context) {
@@ -343,7 +344,7 @@ fun StatsScreen(
                 StatsRangeSelectorControl(
                     selectedRange = uiState.selectedRange,
                     activeRange = uiState.activeRange,
-                    isLoading = uiState.isLoading,
+                    isLoading = uiState.isLoading || isSwitchingRange,
                     hasData = uiState.summary.readingCount > 0,
                     readingCount = uiState.summary.readingCount,
                     coveragePercent = uiState.summary.coverage.percent
