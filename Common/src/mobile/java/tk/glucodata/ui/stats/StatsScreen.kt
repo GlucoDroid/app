@@ -71,6 +71,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -80,6 +81,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
@@ -327,10 +329,23 @@ fun StatsScreen(
     ) {
         val showLoadingPlaceholder = uiState.isLoading && uiState.summary.readingCount == 0
 
+        Column(modifier = Modifier.fillMaxSize()) {
+        // Pinned, not scrolled with the list. As a row inside the list it disappeared the
+        // moment you started dragging things around, which is exactly when you are furthest
+        // from the top and most likely to want out.
+        AnimatedVisibility(visible = editingLayout) {
+            ArrangeHeaderBar(onDone = { StatsArrangeMode.close() })
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp)
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = if (editingLayout) 4.dp else 16.dp,
+                bottom = 100.dp
+            )
         ) {
             // Arrange brings its own title and its own way out. Leaving the screen's
             // header and the range switcher above it was what buried the Done button
@@ -461,6 +476,7 @@ fun StatsScreen(
                     StatsEditLayoutButton(onClick = { StatsArrangeMode.open() })
                 }
             }
+        }
         }
 
         selectedDay?.let { day ->
@@ -783,6 +799,54 @@ private fun StatsCardContent(
     }
 }
 
+/**
+ * Arrange's title bar, fixed above the list.
+ *
+ * A mode needs a frame that stays put. This one carries the name of the mode, what the
+ * gestures do, and the way out — and none of it scrolls away underneath twenty-eight rows
+ * of things to drag.
+ */
+@Composable
+private fun ArrangeHeaderBar(onDone: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.stats_arrange_title),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Text(
+                    text = stringResource(R.string.stats_arrange_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Button(
+                onClick = onDone,
+                contentPadding = PaddingValues(start = 16.dp, end = 20.dp, top = 10.dp, bottom = 10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.libre_setup_done))
+            }
+        }
+    }
+}
+
 @Composable
 private fun MetricsSection(
     metrics: List<StatsMetric>,
@@ -859,19 +923,19 @@ private fun MetricsSection(
             }
         }
 
-        // One quiet glyph rather than a line of link text, tucked straight under the grid
-        // with no gap of its own. Spaced like another row it sat nearer the card below
-        // than the one it belongs to, and read as an invitation to keep scrolling rather
-        // than as a control for the metrics above it. Choosing which metrics exist lives
-        // in Arrange, which is the one place that job belongs.
+        // The last element of the metric stack rather than something floating between two
+        // cards: same tint and same corner language as the tiles, the grid's own 12 dp
+        // above it and the full inter-card gap below, so it belongs upwards. Zero gap
+        // above was worse than the disc it replaced — a full-bleed surface with a ripple
+        // running straight into the bottom edge of the tiles.
         if (tailMetrics.isNotEmpty()) {
-            // The whole width is the target, so it is easy to hit without a disc drawn
-            // round the glyph reserving a band of empty space to look at.
+            Spacer(modifier = Modifier.height(12.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .height(32.dp)
+                    .clip(statsCardShape(12.dp, 20.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f))
                     .clickable { showAll = !showAll },
                 contentAlignment = Alignment.Center
             ) {

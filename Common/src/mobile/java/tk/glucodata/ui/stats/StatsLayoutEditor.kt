@@ -96,39 +96,7 @@ internal fun StatsLayoutEditor(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 4.dp, end = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.stats_arrange_title),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
-                )
-                Text(
-                    text = stringResource(R.string.stats_arrange_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            // A bare text label floating at the top right did not read as the way out of
-            // a mode — it read as part of the heading. A filled button does.
-            Button(
-                onClick = onDone,
-                contentPadding = PaddingValues(start = 16.dp, end = 20.dp, top = 10.dp, bottom = 10.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(text = stringResource(R.string.libre_setup_done))
-            }
-        }
-
+        // Title and Done live in the pinned bar above this list, not in it.
         EditorSectionLabel(stringResource(R.string.stats_arrange_sections))
         ReorderableRows(
             items = layout.cardOrder,
