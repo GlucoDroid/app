@@ -1141,7 +1141,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="insight_great_a1c">Qiyaasta A1C ee weyn</string>
     <string name="insight_great_a1c_desc">Qiyaasta A1C (GMI): %1$.1f%% - waa inta la beegsanayo!</string>
     <string name="insight_a1c_estimate">Qiyaasta A1C</string>
-    <string name="insight_a1c_estimate_desc">GMI: %1$.1f%%. Waxoogaa ka sarreeya 7% bartilmaameedka.</string>
+    <string name="insight_a1c_estimate_desc">GMI: %1$.1f%%. Waxoogaa ka sarreeya 7%% bartilmaameedka.</string>
     
     <!-- GVI and PSG (xDrip-style metrics) -->
     <string name="gvi_title">Tusaha Kala-duwanaanta Gulukoosta</string>
