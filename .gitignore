@@ -49,3 +49,8 @@ hs_err_pid*
 out/
 tmp/
 Common/printmappingout.txt
+
+# Android Studio "Generate Signed APK" wizard output (Destination Folder)
+/Common/mobileGoogle/
+/Common/mobile/
+/Common/wear/

@@ -11,6 +11,9 @@ ext {
     // so Play accepts both APKs in one release (distinct versionCodes per form
     // factor). Scheme originates on the wearos branch — keep the two in step.
     appVersionCode = 1009
+    // Base version, without the flavour/build-type suffix chain that gets appended
+    // to versionName. Used for the APK filename so it stays readable.
+    appVersionName = '1.0.9-Alpha'
 
     ndkver       = '29.0.14206865'
     CMAKEVERSION = '3.22.1'
@@ -48,13 +51,23 @@ android {
 
     defaultConfig {
         applicationId "tk.glucodata.ng"
-        versionName '1.0.9-Alpha'
+        versionName appVersionName
         versionCode appVersionCode
 
         targetSdk TARGETSDK
+        minSdk 26
+        minSdkVersion 26
         buildConfigField 'int', 'targetSDK', "$targetSdk"
+        buildConfigField 'int', 'minSDK', "$minSdk"
         manifestPlaceholders["minSDK"] = "$minSdk"
         manifestPlaceholders["targetSDK"] = "$targetSdk"
+
+        // Was the `google` product flavour. Play Services is now unconditional, so
+        // the dimension only made every variant name one word longer.
+        buildConfigField 'int', 'Google', '1'
+        buildConfigField 'int', 'noZXing', '0'
+        manifestPlaceholders["debuggable"] = "false"
+        manifestPlaceholders["requireWatch"] = "true"
 
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
         buildConfigField 'int', 'isRelease', '0'
@@ -80,29 +93,9 @@ android {
         }
     }
 
-    flavorDimensions = ['wearos', 'Google']
+    flavorDimensions = ['wearos']
 
     productFlavors {
-        // The Google dimension deliberately has only one flavour. `nogoogle` was
-        // removed because it had never compiled: src/mobileSiNogoogle's GlucoseDraw
-        // references glucose_* drawables that only exist in src/mobileNosi/res, which
-        // was never on that variant's res path. The dimension is kept (rather than
-        // folded into defaultConfig) so the mobileGoogle combination source set below
-        // can supply src/mobileSi/AndroidManifest.xml -- a source set has exactly one
-        // manifest, and the `mobile` flavour's own src/mobile/AndroidManifest.xml
-        // already occupies its slot.
-        google {
-            dimension 'Google'
-            minSdk 26
-            minSdkVersion 26
-            buildConfigField 'int', 'minSDK', "$minSdk"
-            manifestPlaceholders["minSDK"] = "$minSdk"
-            versionNameSuffix '-g'
-            buildConfigField 'int', 'Google', '1'
-            buildConfigField 'int', 'noZXing', '0'
-            manifestPlaceholders["debuggable"] = "false"
-            manifestPlaceholders["requireWatch"] = "true"
-        }
         mobile {
             dimension 'wearos'
             versionNameSuffix '-phone'
@@ -269,16 +262,33 @@ android {
         main {
             java.srcDirs += ['src/dex/java', 'src/libre3/java']
         }
-        mobileGoogle {
-            java.srcDirs = ['src/mobileSi/java', 'src/mobileSiGoogle/java']
-            jniLibs.srcDirs = ['src/mobileSi/jniLibs']
-            manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
-            res.srcDirs = ['src/mobileSi/res']
+        // These used to hang off the mobileGoogle/wearGoogle flavour combinations.
+        // Note `+=`: src/mobile/java and src/mobile/res are the flavour's own
+        // defaults and must not be replaced. src/mobileSi/AndroidManifest.xml has
+        // been merged into src/mobile/AndroidManifest.xml, since one source set
+        // gets one manifest.
+        mobile {
+            java.srcDirs += ['src/mobileSi/java', 'src/mobileSiGoogle/java']
+            jniLibs.srcDirs += ['src/mobileSi/jniLibs']
+            res.srcDirs += ['src/mobileSi/res']
         }
-        wearGoogle {
-            java.srcDirs = ['src/wearSi/java']
-            jniLibs.srcDirs = ['src/wearSi/jniLibs']
+        wear {
+            java.srcDirs += ['src/wearSi/java']
+            jniLibs.srcDirs += ['src/wearSi/jniLibs']
         }
+    }
+}
+
+// APK filenames. The default is "Common-mobile-release.apk" -- module name first,
+// no version. Produce JugglucoNG-<version>[-wear][-<build type>].apk instead, e.g.
+// JugglucoNG-1.0.9-Alpha.apk / JugglucoNG-1.0.9-Alpha-dub.apk.
+android.applicationVariants.all { variant ->
+    def buildTypeTag = [release: '', releasedub: 'dub', releasedub2: 'dub2', debug: 'debug']
+            .get(variant.buildType.name, variant.buildType.name)
+    def parts = [variant.flavorName == 'wear' ? 'wear' : '', buildTypeTag].findAll { it }
+    def suffix = parts ? '-' + parts.join('-') : ''
+    variant.outputs.all { output ->
+        output.outputFileName = "JugglucoNG-${appVersionName}${suffix}.apk"
     }
 }
 
