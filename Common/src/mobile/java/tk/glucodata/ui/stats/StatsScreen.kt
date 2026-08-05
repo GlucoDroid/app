@@ -69,6 +69,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
@@ -94,7 +95,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Surface
@@ -121,9 +121,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -798,46 +795,26 @@ private fun ArrangeSheet(
     unit: GlucoseUnit,
     onDismiss: () -> Unit
 ) {
-    // A sheet, because arranging is a detour rather than a place. It comes with the exits
-    // the mode never had: swipe it down, tap outside it, or press back.
+    // Built exactly like Show on Dashboard: default sheet state, no height of its own, the
+    // header outside the scrolling part and everything else inside it.
     //
-    // Sized to a little over two thirds of the screen rather than the whole of it, so the
-    // statistics stay visible behind — you are rearranging them, and seeing what you are
-    // rearranging is the point. Material's own partial-expansion stop is half the screen,
-    // which cuts the section list off mid-way, so the height is set here instead.
-    // Material's own partial stop is exactly half the screen and is not configurable, so
-    // the resting height is set here and grown to the full screen the moment the list is
-    // scrolled — which is the moment more room is actually wanted. Dragging the sheet down
-    // still dismisses it; that gesture pushes the other way and never triggers this.
-    var grown by remember { mutableStateOf(false) }
-    val heightFraction by animateFloatAsState(
-        targetValue = if (grown) 1f else 0.78f,
-        label = "arrangeSheetHeight"
-    )
-    val growOnScroll = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (available.y < -1f) grown = true
-                return Offset.Zero
-            }
-        }
-    }
+    // The previous version pinned the height and then animated it larger off a nested
+    // scroll connection. Both halves of that fought the sheet's own gesture handling — the
+    // connection saw scrolls the sheet needed in order to decide between scrolling and
+    // dismissing, and the animating height moved its drag anchors underneath it — so it
+    // dismissed on an ordinary scroll, and on any scroll begun before the open animation
+    // had settled.
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         dragHandle = { CompactSheetDragHandle() }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(heightFraction)
-        ) {
-            // Fixed. The title says which mode you are in and the button leaves it, so
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Fixed: the title says which mode you are in and the button leaves it, so
             // neither belongs in the part that scrolls away.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 24.dp, end = 16.dp, bottom = 10.dp),
+                    .padding(start = 24.dp, end = 16.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -853,6 +830,12 @@ private fun ArrangeSheet(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Button(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(text = stringResource(R.string.libre_setup_done))
                 }
             }
@@ -860,11 +843,9 @@ private fun ArrangeSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .nestedScroll(growOnScroll)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 28.dp)
             ) {
                 StatsLayoutEditor(
                     layout = layout,
