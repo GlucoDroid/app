@@ -472,6 +472,11 @@ internal fun metricSpec(
                 summary.stdDevMgDl < 27f -> middlingWord
                 else -> swingyWord
             },
+            // One deviation either side of the mean, stated the way IQR states its own
+            // bounds. A spread is only meaningful against the level it is a spread around,
+            // and the tile was reserving this line and leaving it empty.
+            meta = "${formatMgDl((summary.avgMgDl - summary.stdDevMgDl).coerceAtLeast(0f), unit)}-" +
+                formatMgDl(summary.avgMgDl + summary.stdDevMgDl, unit),
             tone = when {
                 summary.stdDevMgDl < 18f -> TirInRangeColor
                 summary.stdDevMgDl < 27f -> TirHighColor
