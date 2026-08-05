@@ -322,6 +322,30 @@ object StatsLayoutStore {
     }
 }
 
+/**
+ * Whether the statistics screen is in arrange mode.
+ *
+ * Held outside the screen so that every way out of a mode actually works: system back,
+ * tapping Statistics in the navigation bar while already on it, and leaving the screen
+ * altogether. As local state, none of those could reach it, and the only exit was a button
+ * the user had to go looking for.
+ */
+object StatsArrangeMode {
+    private val _editing = MutableStateFlow(false)
+    val editing: StateFlow<Boolean> = _editing.asStateFlow()
+
+    fun open() {
+        _editing.value = true
+    }
+
+    /** True when this actually closed something, so a caller can stop handling the event. */
+    fun close(): Boolean {
+        if (!_editing.value) return false
+        _editing.value = false
+        return true
+    }
+}
+
 internal fun <T> List<T>.moved(from: Int, to: Int): List<T> {
     if (from == to || from !in indices || to !in indices) return this
     val mutable = toMutableList()

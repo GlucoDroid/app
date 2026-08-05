@@ -62,7 +62,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -231,7 +233,11 @@ fun StatsScreen(
     val view = LocalView.current
     LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
     val layout by StatsLayoutStore.state.collectAsState()
-    var editingLayout by rememberSaveable { mutableStateOf(false) }
+    val editingLayout by StatsArrangeMode.editing.collectAsState()
+    // Every ordinary way out of a mode, not just the button: system back, and simply
+    // leaving the screen.
+    BackHandler(enabled = editingLayout) { StatsArrangeMode.close() }
+    DisposableEffect(Unit) { onDispose { StatsArrangeMode.close() } }
     val listState = rememberLazyListState()
     val visibleCards = layout.visibleCards.filter { card -> cardHasContent(card, uiState) }
     val cardDrag = rememberStatsCardDragState(
@@ -326,32 +332,37 @@ fun StatsScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp)
         ) {
-            item(key = "header") {
-                HeaderBlock(onShareClick = {
-                    reportDaysInput = uiState.selectedRange?.days
-                        ?.takeIf { it > 0 }
-                        ?.toString()
-                        ?: uiState.activeRange?.daySpan
-                        ?.takeIf { it > 0 }
-                        ?.toString()
-                        ?: "90"
-                    showShareSheet = true
-                })
-            }
+            // Arrange brings its own title and its own way out. Leaving the screen's
+            // header and the range switcher above it was what buried the Done button
+            // halfway down the page, under a control that does nothing in this mode.
+            if (!editingLayout) {
+                item(key = "header") {
+                    HeaderBlock(onShareClick = {
+                        reportDaysInput = uiState.selectedRange?.days
+                            ?.takeIf { it > 0 }
+                            ?.toString()
+                            ?: uiState.activeRange?.daySpan
+                            ?.takeIf { it > 0 }
+                            ?.toString()
+                            ?: "90"
+                        showShareSheet = true
+                    })
+                }
 
-            item(key = "range") {
-                Spacer(modifier = Modifier.height(4.dp))
-                StatsRangeSelectorControl(
-                    selectedRange = uiState.selectedRange,
-                    activeRange = uiState.activeRange,
-                    isLoading = uiState.isLoading || isSwitchingRange,
-                    hasData = uiState.summary.readingCount > 0,
-                    readingCount = uiState.summary.readingCount,
-                    coveragePercent = uiState.summary.coverage.percent
-                        .takeIf { uiState.summary.readingCount > 0 },
-                    onRangeSelected = viewModel::setTimeRange,
-                    onCustomRangeClick = { showDateRangePicker = true }
-                )
+                item(key = "range") {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    StatsRangeSelectorControl(
+                        selectedRange = uiState.selectedRange,
+                        activeRange = uiState.activeRange,
+                        isLoading = uiState.isLoading || isSwitchingRange,
+                        hasData = uiState.summary.readingCount > 0,
+                        readingCount = uiState.summary.readingCount,
+                        coveragePercent = uiState.summary.coverage.percent
+                            .takeIf { uiState.summary.readingCount > 0 },
+                        onRangeSelected = viewModel::setTimeRange,
+                        onCustomRangeClick = { showDateRangePicker = true }
+                    )
+                }
             }
 
             if (showLoadingPlaceholder) {
@@ -383,7 +394,7 @@ fun StatsScreen(
                         summary = uiState.summary,
                         targets = uiState.targets,
                         unit = uiState.unit,
-                        onDone = { editingLayout = false }
+                        onDone = { StatsArrangeMode.close() }
                     )
                 }
             } else {
@@ -402,10 +413,10 @@ fun StatsScreen(
 
                 // Sections render in the user's own order. Long press lifts a card and
                 // drags it inline; the Arrange button opens the list editor instead.
-                items(
+                itemsIndexed(
                     items = visibleCards,
-                    key = { card -> card.name }
-                ) { card ->
+                    key = { _, card -> card.name }
+                ) { index, card ->
                     val isDragging = cardDrag.dragging == card
                     val lift by animateFloatAsState(
                         targetValue = if (isDragging) 1f else 0f,
@@ -430,7 +441,18 @@ fun StatsScreen(
                                 onTick = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
                             )
                     ) {
-                        Spacer(modifier = Modifier.height(if (card == visibleCards.first()) 16.dp else 20.dp))
+                        // The metrics grid ends in a full-width disclosure strip that
+                        // already carries its own breathing room, so the usual gap after it
+                        // reads as a hole.
+                        Spacer(
+                            modifier = Modifier.height(
+                                when {
+                                    index == 0 -> 16.dp
+                                    visibleCards.getOrNull(index - 1) == StatsCard.METRICS -> 8.dp
+                                    else -> 20.dp
+                                }
+                            )
+                        )
                         StatsCardContent(
                             card = card,
                             uiState = uiState,
@@ -445,7 +467,7 @@ fun StatsScreen(
 
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
-                    StatsEditLayoutButton(onClick = { editingLayout = true })
+                    StatsEditLayoutButton(onClick = { StatsArrangeMode.open() })
                 }
             }
         }
@@ -844,49 +866,28 @@ private fun MetricsSection(
         // heading, and the grid above it should be what the eye lands on. Choosing which
         // metrics exist lives in Arrange, which is the one place that job belongs.
         if (tailMetrics.isNotEmpty()) {
-            // Reserves less height than the glyph occupies, so it bleeds a few dp into the
-            // whitespace either side instead of adding a band of its own.
+            // The whole width is the target, so it is easy to hit without a disc drawn
+            // round the glyph reserving a band of empty space to look at.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(26.dp),
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { showAll = !showAll },
                 contentAlignment = Alignment.Center
             ) {
-                SubtleGlyphButton(
-                    icon = if (showAll) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                Icon(
+                    imageVector = if (showAll) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = if (showAll) {
                         stringResource(R.string.stats_fewer_metrics)
                     } else {
                         stringResource(R.string.stats_more_metrics)
                     },
-                    onClick = { showAll = !showAll }
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
-    }
-}
-
-/** A small tonal disc: present enough to be a target, quiet enough not to be a heading. */
-@Composable
-private fun SubtleGlyphButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp)
-        )
     }
 }
 

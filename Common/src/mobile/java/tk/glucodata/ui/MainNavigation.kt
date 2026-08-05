@@ -727,7 +727,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 launchSingleTop = true
                 restoreState = true
             }
-            // Already on the destination, do nothing
+            // Already on the destination. Tapping the tab you are already on is how people
+            // back out of a mode, so let it close Arrange rather than doing nothing.
+            else -> tk.glucodata.ui.stats.StatsArrangeMode.close()
         }
     }
 
