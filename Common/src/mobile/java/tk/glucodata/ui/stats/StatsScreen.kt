@@ -68,10 +68,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -91,6 +91,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -808,43 +810,23 @@ private fun StatsCardContent(
  */
 @Composable
 private fun ArrangeHeaderBar(onDone: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.stats_arrange_title),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
-                )
-                Text(
-                    text = stringResource(R.string.stats_arrange_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Button(
-                onClick = onDone,
-                contentPadding = PaddingValues(start = 16.dp, end = 20.dp, top = 10.dp, bottom = 10.dp)
-            ) {
+    // The same bar every other sub-screen in the app uses, with the same back arrow in
+    // the same corner. Nothing about leaving Arrange needs to be its own invention, and
+    // there is nothing to confirm on the way out — every toggle here has already saved.
+    TopAppBar(
+        title = { Text(text = stringResource(R.string.stats_arrange_title)) },
+        navigationIcon = {
+            IconButton(onClick = onDone) {
                 Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.navigate_back)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.libre_setup_done))
             }
-        }
-    }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background
+        )
+    )
 }
 
 @Composable
@@ -923,21 +905,20 @@ private fun MetricsSection(
             }
         }
 
-        // The last element of the metric stack rather than something floating between two
-        // cards: same tint and same corner language as the tiles, the grid's own 12 dp
-        // above it and the full inter-card gap below, so it belongs upwards. Zero gap
-        // above was worse than the disc it replaced — a full-bleed surface with a ripple
-        // running straight into the bottom edge of the tiles.
+        // The app's own disclosure: a centred chevron tinted primary on a plain row, the
+        // same as Show all / Show less on the sensor and calibration cards. No container
+        // of its own — every surface I gave it either boxed the glyph in dead space or
+        // ran into the tiles above.
         if (tailMetrics.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(32.dp)
-                    .clip(statsCardShape(12.dp, 20.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f))
-                    .clickable { showAll = !showAll },
-                contentAlignment = Alignment.Center
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { showAll = !showAll }
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = if (showAll) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -946,8 +927,8 @@ private fun MetricsSection(
                     } else {
                         stringResource(R.string.stats_more_metrics)
                     },
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp)
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
