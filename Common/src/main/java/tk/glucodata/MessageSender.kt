@@ -38,6 +38,7 @@ import tk.glucodata.Applic.JUGGLUCOIDENT;
 import tk.glucodata.Applic.isWearable
 import tk.glucodata.Log.doLog
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 //import tk.glucodata.Applic.messagesender
 
@@ -154,7 +155,10 @@ override fun onCapabilityChanged(cap: CapabilityInfo) {
         }
     }
     private fun sendmessage(path:String,data:ByteArray) {
-
+            if (!outgoingAllowed()) {
+                if (doLog) { Log.i(LOG_ID, "sendmessage($path) skipped: companion disabled") }
+                return
+            }
             try {
         when {
             nodes == null -> {
@@ -185,6 +189,10 @@ override fun onCapabilityChanged(cap: CapabilityInfo) {
         }
     }
 private fun nameSendMessage(name:String, path:String, data:ByteArray) {
+    if (!outgoingAllowed()) {
+        if (doLog) { Log.i(LOG_ID, "nameSendMessage($path) skipped: companion disabled") }
+        return
+    }
     scope.launch {
         Log.i(LOG_ID, "start sendNameMessage($name $path,... )")
         try {
@@ -197,6 +205,10 @@ private fun nameSendMessage(name:String, path:String, data:ByteArray) {
         }
     }
 private fun nameSendMessageResult(name:String, path:String, data:ByteArray):Boolean {
+        if (!outgoingAllowed()) {
+            if (doLog) { Log.i(LOG_ID, "nameSendMessageResult($path) skipped: companion disabled") }
+            return false
+        }
         try {
 //            val len=data.size
 //            val timeout:Long= (len / 20L).coerceAtMost(1L)
@@ -235,6 +247,9 @@ private fun nodeSendmessage(node:Node,path:String,data:ByteArray) {
      }
     public fun sendbluetooth( name:String,on:Boolean) {
         sendbool(BLUETOOTH_PATH,name,on)
+     }
+    public fun sendSensorHandoff(name:String, data:ByteArray): Boolean {
+        return nameSendMessageResult(name, SENSOR_HANDOFF_PATH, data)
      }
     private fun sendOnmessages( node:String,on:Boolean) {
         if(doLog) {Log.i(LOG_ID,"sendNameMessageOn($node,$on)");}
@@ -290,10 +305,40 @@ companion object {
     const val BLUETOOTH_PATH = "/bluetooth"
     const val DATA_PATH = "/data"
     const val MESSAGES_PATH = "/messages"
+    const val CALIBRATE_PATH = "/calibrate"
+    const val SENSOR_HANDOFF_PATH = "/sensorhandoff"
+    const val SENSOR_CLAIM_STATUS_PATH = "/sensorclaimstatus"
+    const val SYNC2_REQ_PATH = "/sync2/req"
+    const val SYNC2_CHUNK_PATH = "/sync2/chunk"
+    const val SYNC2_CAL_PATH = "/sync2/cal"
+    const val CALIBRATION_CMD_PATH = "/sync2/calcmd"
+    const val SYNC2_REMOVE_PATH = "/sync2/remove"
+    const val JOURNAL_REQ_PATH = "/sync2/journal/req"
+    const val JOURNAL_DATA_PATH = "/sync2/journal"
+    const val JOURNAL_CMD_PATH = "/sync2/journal/cmd"
     val scope = CoroutineScope(Dispatchers.IO+SupervisorJob()  )
     private var messagesender: MessageSender? = null
     @Volatile private var wearableApiUnavailable = false
     @Volatile private var wearableApiUnavailableLoggedAt = 0L
+    private val lastNetInfoExchangeMs = AtomicLong(0L)
+
+    @JvmStatic
+    fun markNetInfoExchanged() {
+        lastNetInfoExchangeMs.set(System.currentTimeMillis())
+    }
+
+    @JvmStatic
+    fun sendSensorClaimStatus() {
+        if (!isWearable) return
+        val sender = messagesender ?: return
+        sender.sendmessage(
+            SENSOR_CLAIM_STATUS_PATH,
+            byteArrayOf(WearSensorClaim.currentStateValue().toByte()),
+        )
+    }
+
+    @JvmStatic
+    fun lastNetInfoExchangeMs(): Long = lastNetInfoExchangeMs.get()
 
     private fun markWearableApiUnavailable(where: String, th: Throwable?) {
         wearableApiUnavailable = true
@@ -309,6 +354,50 @@ companion object {
 
     @JvmStatic
     fun isWearTransportAvailable(): Boolean = !wearableApiUnavailable
+
+    @Volatile private var companionEnabled: Boolean? = null
+    @Volatile private var companionEnabledAt = 0L
+    private const val COMPANION_STATE_TTL_MS = 10_000L
+
+    /**
+     * Outgoing wear traffic is only allowed while the user has the companion
+     * switched on. Disabling it used to turn off the receiver component alone,
+     * so the phone kept streaming into a channel the user had closed.
+     *
+     * The answer is cached: this sits on every send, and the underlying
+     * component lookup is a binder round trip.
+     */
+    @JvmStatic
+    fun outgoingAllowed(): Boolean {
+        if (isWearable) return true
+        val now = System.currentTimeMillis()
+        val cached = companionEnabled
+        if (cached != null && now - companionEnabledAt < COMPANION_STATE_TTL_MS) return cached
+        val fresh = try { Applic.useWearos() } catch (_: Throwable) { false }
+        companionEnabled = fresh
+        companionEnabledAt = now
+        return fresh
+    }
+
+    /** Called when the user flips the companion switch, so the gate is instant. */
+    @JvmStatic
+    fun onCompanionEnabledChanged(enabled: Boolean) {
+        companionEnabled = enabled
+        companionEnabledAt = System.currentTimeMillis()
+        if (!enabled) shutdownwearos()
+    }
+
+    /** Drops the transport so nothing is left holding nodes or streaming. */
+    @JvmStatic
+    fun shutdownwearos() {
+        val sender = messagesender ?: return
+        messagesender = null
+        runCatching {
+            sender.nodes = emptySet()
+            sender.nexttimes = LongArray(0)
+        }
+        Log.i(LOG_ID, "wear transport shut down: companion switched off")
+    }
     @JvmStatic
     public fun getMessageSender(): MessageSender? {
         return messagesender
@@ -328,6 +417,21 @@ companion object {
         sender.sendmessage(ASKFORSTART_PATH, ar)
       }
 
+    // Watch → phone: relay a fingerstick calibration (mg/dL) to the side that
+    // owns the BLE connection in companion mode.
+    @JvmStatic
+    public fun sendcalibrate(glucoseMgDl: Int) {
+        val sender = messagesender ?: return
+        val data = java.nio.ByteBuffer.allocate(4).putInt(glucoseMgDl).array()
+        sender.sendmessage(CALIBRATE_PATH, data)
+    }
+
+    @JvmStatic
+    public fun sendsensorhandoff(nodeId: String, data: ByteArray): Boolean {
+        val sender = messagesender ?: return false
+        return sender.sendSensorHandoff(nodeId, data)
+    }
+
     @JvmStatic
     public fun sendwake() {
         val sender = messagesender ?: return
@@ -340,6 +444,14 @@ companion object {
         val sender = messagesender ?: return
         val ar = byteArrayOf(0);
         sender.sendmessage(WAKESTREAM_PATH, ar)
+    }
+
+    @JvmStatic
+    /** @return false when there is no wear transport to send through. */
+    public fun sendSyncMessage(path: String, data: ByteArray): Boolean {
+        val sender = messagesender ?: return false
+        sender.sendmessage(path, data)
+        return true
     }
 
     @Keep
@@ -528,13 +640,21 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
                     return
                 }
             val netinfo: ByteArray?
-            netinfo = if(isWearable) { Natives.getmynetinfo(sender.localnode, true, 0,true,0) } else { Natives.getmynetinfo(id, false, 0, isGalaxy(othernode),0) }
+            // watchHasSensor: 1 = watch owns the sensor, -1 = it does not,
+            // 0 = keep whatever was persisted. The watch must never claim the
+            // sensor unless it actually holds a live BLE connection: the phone
+            // reacts to watchsensor=1 by setting nobluetooth=true and
+            // sendstream=false (netinfo.cpp), i.e. it drops its own sensor AND
+            // stops feeding the watch. A stale persisted flag (0) therefore
+            // strands both devices with no data.
+            netinfo = if(isWearable) { Natives.getmynetinfo(sender.localnode, true, WearSensorClaim.netInfoValue(),true,0) } else { Natives.getmynetinfo(id, false, 0, isGalaxy(othernode),0) }
             if(netinfo == null) {
                 Log.e(LOG_ID,"netinfo=null")
                 return
                 }
             if(doLog) {Log.i(LOG_ID, "sender.sendnetinfo($id, netinfo)");};
             sender.sendnetinfo(id, netinfo)
+            markNetInfoExchanged()
             times[it] = nu + netwait
         }
 
@@ -574,13 +694,21 @@ public fun sendDatawithInt(ident: Int, data: ByteArray) {
                         Log.d(LOG_ID,"name=null")
                         continue
                         }
-                    val netinfo = Natives.getmynetinfo(name, isWearable, 0, isGalaxy(node),0) ?: continue
+                    val watchSensor = if (isWearable) WearSensorClaim.netInfoValue() else 0
+                    val netinfo = Natives.getmynetinfo(name, isWearable, watchSensor, isGalaxy(node),0) ?: continue
                     sender.sendnetinfo(node, netinfo)
+                    markNetInfoExchanged()
                     times[i] = nextnetinfo
                 } else {
                     Log.i(LOG_ID, "sendnetinfo already done " + node.id)
                   }
               }
+            if (isWearable) {
+                sender.sendmessage(
+                    SENSOR_CLAIM_STATUS_PATH,
+                    byteArrayOf(WearSensorClaim.currentStateValue().toByte()),
+                )
+            }
         }
       @JvmStatic    public fun sendnetinfo() {
         scope.launch {    

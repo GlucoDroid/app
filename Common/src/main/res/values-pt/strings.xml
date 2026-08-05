@@ -1362,6 +1362,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
     <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="wear_watch_app_missing">Aplicação do relógio em falta</string>
+    <string name="wear_watch_app_missing_hint">Instale o Juggluco neste relógio e toque em atualizar.</string>
+    <string name="wear_direct_sensor_on_watch">Sensor direto no relógio</string>
+    <string name="wear_direct_sensor_watch_desc">O relógio procura o sensor e assume o Bluetooth após a primeira leitura aceite.</string>
+    <string name="wear_direct_sensor_phone_desc">Modo companheiro: o telemóvel lê e envia leituras.</string>
+    <string name="wear_claim_state_phone_owns">O telemóvel controla o sensor</string>
+    <string name="wear_claim_state_requesting">O relógio está a pedir o sensor</string>
+    <string name="wear_claim_state_connected">Relógio ligado ao sensor</string>
     <string name="web_server_desc">Servidor web compatível com Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">A aguardar ligação</string>
@@ -1991,6 +1999,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_import_export_ready">Materiais guardados para %1$s prontos.</string>
     <string name="ottai_credentials_import">Importar</string>
     <string name="ottai_credentials_replace">Substituir</string>
+    <string name="wear_libre_nfc_caveat">Os sensores Libre são ativados primeiro pelo NFC do telefone. Depois da ativação, este relógio pode assumir.</string>
 
     <!-- PR feature translations: trend, alerts, palette, and expiry. -->
     <string name="alert_falling_fast">Caindo rápido</string>
@@ -2097,7 +2106,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Ecrã e cores</string>
     <string name="display_colors_desc">Cores, valores do painel e gráficos</string>
     <string name="display_readouts_section">Leituras do painel</string>
-
     <!-- Debug log screen -->
     <string name="debug_howto_title">Como relatar um erro</string>
     <string name="debug_howto_step1">Ative a gravação abaixo.</string>

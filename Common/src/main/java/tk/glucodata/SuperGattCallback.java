@@ -102,6 +102,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     public BluetoothDevice mActiveBluetoothDevice;
     long foundtime = 0L;
     protected BluetoothGatt mBluetoothGatt;
+    private volatile BluetoothGatt locallyConnectedGatt;
     private volatile boolean connectPending = false;
     private volatile ScheduledFuture<?> pendingConnectFuture = null;
     /** connectGatt() timestamp of the attempt now in flight, cleared by the first callback the
@@ -127,6 +128,31 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             ;
         }
         ;
+    }
+
+    @Override
+    public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+        if (newState == android.bluetooth.BluetoothProfile.STATE_CONNECTED) {
+            locallyConnectedGatt = gatt;
+        } else if (newState == android.bluetooth.BluetoothProfile.STATE_DISCONNECTED
+                && locallyConnectedGatt == gatt) {
+            locallyConnectedGatt = null;
+            WearSensorClaim.onLocalGattDisconnected(SerialNumber);
+        }
+    }
+
+    /**
+     * True only when this process received STATE_CONNECTED for the callback's
+     * current Android GATT object. Persisted/synced driver state cannot set it.
+     */
+    public final boolean hasLocallyConnectedGatt() {
+        final BluetoothGatt current = mBluetoothGatt;
+        return current != null && locallyConnectedGatt == current;
+    }
+
+    /** Mark a live reading accepted by this local BLE callback. */
+    protected final void markLocalReadingAccepted(long sampleTimeMs) {
+        WearSensorClaim.onLocalReadingAccepted(SerialNumber, sampleTimeMs);
     }
 
     public void disconnect() {
@@ -642,6 +668,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         if (!isWearable) {
             app.numdata.sendglucose(SerialNumber, tim, gl, thresholdchange(rate), alarm | 0x10);
             GlucoseWidget.update();
+            WearSync2.pushTail();
             // Keep the webserver's /pebble IOB in step with the journal,
             // independent of whether any broadcast target is configured.
             JournalIobAccess.pushWatchserver(System.currentTimeMillis());
@@ -747,6 +774,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                     Log.i(LOG_ID, "RAW mode during warmup: using raw=" + glucoseToUse + " mgdl=" + mgdlToUse);
                 }
 
+                markLocalReadingAccepted(timmsec);
                 dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime, sensorgen);
                 charcha[0] = timmsec;
 
@@ -824,6 +852,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
             }
 
+            markLocalReadingAccepted(timmsec);
             dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime,
                     sensorgen);
 
@@ -961,6 +990,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         ;
         var tmpgatt = mBluetoothGatt;
         if (tmpgatt != null) {
+            if (locallyConnectedGatt == tmpgatt) {
+                locallyConnectedGatt = null;
+                WearSensorClaim.onLocalGattDisconnected(SerialNumber);
+            }
             try {
                 tmpgatt.disconnect();
                 tmpgatt.close();

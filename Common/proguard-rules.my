@@ -80,6 +80,16 @@
 }
 
 # Keep CalibrationManager names and reflected members stable.
+# JournalAccess in src/main resolves this mobile-only facade by name. Without
+# these the watch journal silently does nothing in minified builds.
+-keepnames class tk.glucodata.data.journal.WearJournalBridge
+-keepclassmembers class tk.glucodata.data.journal.WearJournalBridge {
+    public static final tk.glucodata.data.journal.WearJournalBridge INSTANCE;
+    public final byte[] serveEntries(long);
+    public final boolean applyCommand(byte[]);
+    public final boolean isJournalEnabled();
+}
+
 # CalibrationAccess in src/main resolves these mobile-only methods by name.
 -keepnames class tk.glucodata.data.calibration.CalibrationManager
 -keepclassmembers class tk.glucodata.data.calibration.CalibrationManager {
@@ -91,6 +101,8 @@
     public final long getRevision();
     public static void notifyExternalCalibrationPipelineChanged();
     public static double[] getActiveCalibrationAnchors(java.lang.String,boolean);
+    public final tk.glucodata.data.calibration.CalibrationTuning tuningForMode(boolean);
+    public static boolean isCalibrationStateLoaded();
     public static float[] getIntegratedCalibratedSeries(float[],long[],boolean,java.lang.String);
     public static long getIntegratedCalibrationFingerprint(java.lang.String,boolean);
     public static void seedIntegratedCalibrationBaseline(float[],long[],boolean,java.lang.String);
@@ -159,3 +171,11 @@
 -keep class com.sdk.** { *; }
 -keepclassmembers class com.sdk.** { *; }
 -keepnames class com.sdk.**
+
+# Keep the Compose UI entry point stable. MainActivity resolves
+# tk.glucodata.ui.ComposeHostKt#setComposeContent by name (mobile and wear each
+# provide their own implementation); without this the reflective lookup fails
+# only in minified builds and the app silently falls back to the legacy View UI.
+-keep class tk.glucodata.ui.ComposeHostKt {
+    public static void setComposeContent(androidx.appcompat.app.AppCompatActivity, android.view.View);
+}

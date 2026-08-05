@@ -299,7 +299,7 @@ override fun render(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime,s
         if(renderParameters.watchFaceLayers.contains(WatchFaceLayer.COMPLICATIONS_OVERLAY)) {
             val unixtime = zonedDateTime.toEpochSecond()
             rendertime=unixtime
-            val glucose = CurrentDisplaySource.resolveCurrent(tk.glucodata.Notify.glucosetimeout)
+            val glucose = tk.glucodata.glucosecomplication.GlucoseComplicationData.currentReading()
             val drawAmbient = renderParameters.drawMode == DrawMode.AMBIENT
             if (drawAmbient) {
                 timePaint.color = watchFaceColors.ambientPrimaryColor
@@ -379,9 +379,12 @@ override fun render(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime,s
     private val agePaint = Paint().apply {
         setARGB(0xFF,0xFF,0,0xFF)
        }
-private fun   showglucose(canvas:Canvas,glucosePaint:Paint,agePaint:Paint,getxin:Float,gety:Float,density:Float,unixtime:Long,glucose:CurrentDisplaySource.Snapshot)  {
+// Takes the resolved values rather than a live snapshot, so the face and the
+// complications draw from one resolver — including its fallback to the synced
+// history, which is the only source on a companion watch.
+private fun   showglucose(canvas:Canvas,glucosePaint:Paint,agePaint:Paint,getxin:Float,gety:Float,density:Float,unixtime:Long,glucose:tk.glucodata.glucosecomplication.GlucoseComplicationData.Reading)  {
       var getx=getxin
-      Log.i(LOG_ID,"glucose=${glucose.primaryStr} time=${glucose.timeMillis}")
+      Log.i(LOG_ID,"glucose=${glucose.text} time=${glucose.timeMillis}")
       var age:Int=(unixtime-(glucose.timeMillis/1000L)).toInt()
 //           val oldage=(60.0f*5.0f)
 
@@ -397,7 +400,7 @@ private fun   showglucose(canvas:Canvas,glucosePaint:Paint,agePaint:Paint,getxin
                 else  {
                     CommonCanvas.drawarrow(this,glucosePaint,density,rate,width*.25f,height*.55f)
                     }
-                 drawText(glucose.primaryStr,getx,gety, glucosePaint)
+                 drawText(glucose.text,getx,gety, glucosePaint)
                  val idbounds=Rect()
                  glucosePaint.textSize/=5.0f
                  val sensorid=glucose.sensorId ?: ""

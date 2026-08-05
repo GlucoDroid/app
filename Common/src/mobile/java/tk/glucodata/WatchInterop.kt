@@ -7,17 +7,35 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.view.View
+import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.Node
+import com.google.android.gms.wearable.Wearable
 import tk.glucodata.nums.AllData
+import java.util.concurrent.TimeUnit
 
 object WatchInterop {
+    data class WearSyncStatus(
+        val lastServedMs: Long,
+        val lastChunkCount: Long,
+        val lastNetInfoExchangeMs: Long
+    )
     data class WearNodeInfo(
         val id: String,
         val displayName: String,
         val isGalaxy: Boolean,
         val directSensorMode: Int,
-        val watchNumsMode: Int
-    )
+        val claimState: WearSensorClaimState?,
+        val watchNumsMode: Int,
+        val appInstalled: Boolean,
+        /** What the user asked for, which the watch may not have honoured yet. */
+        val directRequested: Boolean = false,
+        val enterRequested: Boolean = false
+    ) {
+        /** True while the request is outstanding: asked for, not yet claimed. */
+        val directPending: Boolean
+            get() = directRequested && claimState != WearSensorClaimState.CONNECTED
+    }
 
     data class GarminSnapshot(
         val sdkReady: Boolean,
@@ -55,6 +73,10 @@ object WatchInterop {
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED
             }
             pm.setComponentEnabledSetting(receiver, targetState, PackageManager.DONT_KILL_APP)
+            // Tell the transport straight away: the component state it would
+            // otherwise read back is cached, and until this call the phone kept
+            // streaming after the user switched the companion off.
+            MessageSender.onCompanionEnabledChanged(enabled)
             if (enabled) {
                 MessageSender.initwearos(app)
                 MessageSender.getMessageSender()?.finddevices()
@@ -68,23 +90,83 @@ object WatchInterop {
 
     @JvmStatic
     fun refreshWearNodes() {
-        MessageSender.getMessageSender()?.finddevices()
+        getWearMessageSender()?.finddevices()
+    }
+
+    @JvmStatic
+    fun getWearSyncStatus(): WearSyncStatus {
+        val serve = WearSync2.serveStatus()
+        return WearSyncStatus(
+            lastServedMs = serve.lastServedMs,
+            lastChunkCount = serve.lastChunkCount,
+            lastNetInfoExchangeMs = MessageSender.lastNetInfoExchangeMs()
+        )
+    }
+
+    @JvmStatic
+    fun syncWearNow(): Boolean {
+        if (getWearMessageSender() == null) return false
+        WearSync2.serveAll()
+        MessageSender.sendnetinfo()
+        return true
     }
 
     @JvmStatic
     fun getWearNodes(): List<WearNodeInfo> {
-        val sender = MessageSender.getMessageSender() ?: return emptyList()
-        val nodes = sender.nodes?.toList() ?: emptyList()
-        return nodes.map { node ->
+        val appNodes = getWearNodesWithApp()
+            .ifEmpty { getWearMessageSender()?.nodes?.toList() ?: emptyList() }
+        val appNodeIds = appNodes.mapTo(HashSet()) { it.id }
+        val nodesById = LinkedHashMap<String, Node>()
+        getConnectedWearNodes().forEach { node -> nodesById[node.id] = node }
+        appNodes.forEach { node -> nodesById[node.id] = node }
+
+        return nodesById.values.map { node ->
             val id = node.id
+            val appInstalled = id in appNodeIds
             WearNodeInfo(
                 id = id,
                 displayName = node.displayName ?: id,
                 isGalaxy = MessageSender.isGalaxy(node),
-                directSensorMode = try { Natives.directsensorwatch(id) } catch (_: Throwable) { -1 },
-                watchNumsMode = try { Natives.hasWatchNums(id) } catch (_: Throwable) { -1 }
+                directSensorMode = if (appInstalled) try { Natives.directsensorwatch(id) } catch (_: Throwable) { -1 } else -1,
+                claimState = WearSensorClaimStatus.remoteState(id),
+                watchNumsMode = if (appInstalled) try { Natives.hasWatchNums(id) } catch (_: Throwable) { -1 } else -1,
+                appInstalled = appInstalled,
+                directRequested = WearRoutingRequest.directRequested(id),
+                enterRequested = WearRoutingRequest.enterRequested(id)
             )
         }
+    }
+
+    private fun getConnectedWearNodes(): List<Node> {
+        val app = Applic.app ?: return emptyList()
+        if (!GoogleServices.isPlayServicesAvailable(app)) return emptyList()
+        return try {
+            Tasks.await(Wearable.getNodeClient(app).connectedNodes, 2, TimeUnit.SECONDS)
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    private fun getWearNodesWithApp(): List<Node> {
+        val app = Applic.app ?: return emptyList()
+        if (!GoogleServices.isPlayServicesAvailable(app)) return emptyList()
+        return try {
+            Tasks.await(
+                Wearable.getCapabilityClient(app).getCapability(Applic.JUGGLUCOIDENT, CapabilityClient.FILTER_REACHABLE),
+                2,
+                TimeUnit.SECONDS
+            ).nodes.toList()
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    private fun getWearMessageSender(): MessageSender? {
+        MessageSender.getMessageSender()?.let { return it }
+        val app = Applic.app ?: return null
+        if (!isWearOsEnabled()) return null
+        MessageSender.initwearos(app)
+        return MessageSender.getMessageSender()
     }
 
     @JvmStatic
@@ -93,7 +175,9 @@ object WatchInterop {
             Natives.getmynetinfo(
                 nodeId,
                 true,
-                if (directOnWatch) 1 else -1,
+                // This is only a request. Keep the phone streaming until the
+                // watch later proves local BLE ownership with watchsensor=1.
+                -1,
                 isGalaxy,
                 if (enterOnWatch) 1 else -1
             )
@@ -101,12 +185,22 @@ object WatchInterop {
             null
         } ?: return false
 
-        val sender = MessageSender.getMessageSender() ?: return false
+        val sender = getWearMessageSender() ?: return false
         return try {
             sender.sendnetinfo(nodeId, netInfo)
             sender.sendbluetooth(nodeId, directOnWatch)
-            val context = MainActivity.thisone ?: Applic.app ?: return false
-            Applic.setbluetooth(context, !directOnWatch)
+            WearRoutingRequest.record(nodeId, directOnWatch, enterOnWatch)
+            // Keep phone BLE alive during handoff. The watch will claim ownership
+            // in its own netinfo only after a connected driver accepts a reading;
+            // that existing protocol response then disables phone BLE. Turning
+            // direct mode off can safely resume phone BLE immediately.
+            if (!directOnWatch) {
+                // Also clears any release the watch's claim had triggered, so the
+                // phone does not stay off the sensor after direct mode is off.
+                WearPhoneBleRelease.onWatchUnreachable()
+                val context = MainActivity.thisone ?: Applic.app ?: return false
+                Applic.setbluetooth(context, true)
+            }
             true
         } catch (_: Throwable) {
             false
@@ -114,12 +208,29 @@ object WatchInterop {
     }
 
     @JvmStatic
+    fun applyStandaloneSensorMode(nodeId: String, isGalaxy: Boolean, directOnWatch: Boolean, enterOnWatch: Boolean): Boolean {
+        val sender = getWearMessageSender() ?: return false
+        if (directOnWatch) {
+            val context = Applic.app ?: MainActivity.thisone ?: return false
+            val payload = ManagedSensorHandoff.createOutgoingPayload(context)
+            if (!sender.sendSensorHandoff(nodeId, payload)) {
+                return false
+            }
+        }
+        return applyWearNodeRouting(nodeId, isGalaxy, directOnWatch, enterOnWatch)
+    }
+
+    @JvmStatic
     fun applyWearDefaults(nodeId: String, isGalaxy: Boolean): Boolean {
-        val sender = MessageSender.getMessageSender() ?: return false
-        val node: Node = sender.nodes?.firstOrNull { it.id == nodeId } ?: return false
+        val sender = getWearMessageSender() ?: return false
+        val node: Node = sender.nodes?.firstOrNull { it.id == nodeId }
+            ?: getWearNodesWithApp().firstOrNull { it.id == nodeId }
+            ?: getConnectedWearNodes().firstOrNull { it.id == nodeId }
+            ?: return false
         return try {
             sender.toDefaults(node)
             Natives.setWearosdefaults(nodeId, isGalaxy)
+            WearRoutingRequest.clear(nodeId)
             val context = MainActivity.thisone ?: Applic.app ?: return false
             Applic.setbluetooth(context, true)
             true
@@ -130,7 +241,7 @@ object WatchInterop {
 
     @JvmStatic
     fun startWearApp(nodeId: String, isGalaxy: Boolean): Boolean {
-        val sender = MessageSender.getMessageSender() ?: return false
+        val sender = getWearMessageSender() ?: return false
         return try {
             Natives.resetbylabel(nodeId, isGalaxy)
             sender.startWearOSActivity(nodeId)

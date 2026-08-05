@@ -1360,6 +1360,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
     <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="wear_watch_app_missing">Праграма для гадзінніка адсутнічае</string>
+    <string name="wear_watch_app_missing_hint">Усталюйце Juggluco на гэты гадзіннік, потым націсніце абнавіць.</string>
+    <string name="wear_direct_sensor_on_watch">Прамы датчык на гадзінніку</string>
+    <string name="wear_direct_sensor_watch_desc">Гадзіннік шукае датчык і пераймае Bluetooth пасля першага прынятага паказання.</string>
+    <string name="wear_direct_sensor_phone_desc">Рэжым кампаньёна: тэлефон скануе і адпраўляе паказанні.</string>
+    <string name="wear_claim_state_phone_owns">Тэлефон кіруе датчыкам</string>
+    <string name="wear_claim_state_requesting">Гадзіннік запытвае датчык</string>
+    <string name="wear_claim_state_connected">Гадзіннік падключаны да датчыка</string>
     <string name="web_server_desc">Вэб-сервер, сумяшчальны з Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">Чаканне падключэння</string>
@@ -1451,6 +1459,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="manual_calibration">Ручная каліброўка</string>
     <string name="mirrorscansucces">Паспяхова дададзена злучэнне ў левае сярэдняе меню→Люстэрка.</string>
     <string name="no_sensors_found">Датчыкі не знойдзены</string>
+    <string name="wear_libre_nfc_caveat">Сэнсары Libre спачатку актывуюцца праз NFC тэлефона. Пасля актывацыі гэты гадзіннік можа ўзяць працу на сябе.</string>
     <string name="overwrite">Перазапісаць?</string>
     <string name="passive_only">Толькі пасіўны</string>
     <string name="photomessage">Адсканіруйце матрыцу даных датчыка Dexcom G7/ONE+ або Sibionics GS1 ці QR-код люстэрка.</string>
@@ -2163,7 +2172,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Экран і колеры</string>
     <string name="display_colors_desc">Колеры, даныя на галоўнай і графікі</string>
     <string name="display_readouts_section">Даныя на галоўнай</string>
-
     <!-- Debug log screen -->
     <string name="debug_howto_title">Як паведаміць пра памылку</string>
     <string name="debug_howto_step1">Уключыце запіс ніжэй.</string>

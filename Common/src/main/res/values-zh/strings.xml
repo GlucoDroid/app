@@ -1377,6 +1377,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
     <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="wear_watch_app_missing">手表应用未安装</string>
+    <string name="wear_watch_app_missing_hint">在这块手表上安装 Juggluco，然后点按刷新。</string>
+    <string name="wear_direct_sensor_on_watch">手表直接连接传感器</string>
+    <string name="wear_direct_sensor_watch_desc">手表搜索传感器，并在接受第一个读数后接管蓝牙。</string>
+    <string name="wear_direct_sensor_phone_desc">伴侣模式：手机扫描并发送读数。</string>
+    <string name="wear_claim_state_phone_owns">手机持有传感器</string>
+    <string name="wear_claim_state_requesting">手表正在请求传感器</string>
+    <string name="wear_claim_state_connected">手表已连接传感器</string>
     <string name="web_server_desc">兼容 Nightscout 的 Web 服务器</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">等待连接</string>
@@ -2065,6 +2073,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
         <item quantity="one">传感器在 %d 小时后过期</item>
         <item quantity="other">传感器在 %d 小时后过期</item>
     </plurals>
+    <string name="wear_libre_nfc_caveat">Libre 传感器需先用手机 NFC 激活。激活后，这块手表可以接管。</string>
     <string name="sibionics_glucose_model">葡萄糖模型</string>
     <string name="sibionics_stock_model_detail">精确的 Sibionics 原厂算法</string>
     <string name="sibionics_responsive_algorithm">快速响应</string>
@@ -2112,7 +2121,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">显示与颜色</string>
     <string name="display_colors_desc">颜色、仪表板数值和图表</string>
     <string name="display_readouts_section">仪表板读数</string>
-
     <!-- Debug log screen -->
     <string name="debug_howto_title">如何反馈问题</string>
     <string name="debug_howto_step1">在下方开启记录。</string>

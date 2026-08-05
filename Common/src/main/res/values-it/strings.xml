@@ -1351,6 +1351,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
     <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="wear_watch_app_missing">App per orologio mancante</string>
+    <string name="wear_watch_app_missing_hint">Installa Juggluco su questo orologio, poi tocca aggiorna.</string>
+    <string name="wear_direct_sensor_on_watch">Sensore diretto sull\'orologio</string>
+    <string name="wear_direct_sensor_watch_desc">L\'orologio cerca il sensore e assume il controllo del Bluetooth dopo la prima lettura accettata.</string>
+    <string name="wear_direct_sensor_phone_desc">Modalità companion: il telefono scansiona e invia le letture.</string>
+    <string name="wear_claim_state_phone_owns">Il telefono controlla il sensore</string>
+    <string name="wear_claim_state_requesting">L\'orologio richiede il sensore</string>
+    <string name="wear_claim_state_connected">Orologio connesso al sensore</string>
     <string name="web_server_desc">Server web compatibile con Nightscout</string>
     <string name="invalid_interval">Invalid interval value</string>
     <string name="status_waiting_for_connection">In attesa di connessione</string>
@@ -1980,6 +1988,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_import_export_ready">Materiali salvati per %1$s pronti.</string>
     <string name="ottai_credentials_import">Importa</string>
     <string name="ottai_credentials_replace">Sostituisci</string>
+    <string name="wear_libre_nfc_caveat">I sensori Libre si attivano prima con l\'NFC del telefono. Dopo l\'attivazione, questo orologio può prenderli in carico.</string>
 
     <!-- PR feature translations: trend, alerts, palette, and expiry. -->
     <string name="alert_falling_fast">Caduta veloce</string>
@@ -2086,7 +2095,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="display_colors_title">Display e colori</string>
     <string name="display_colors_desc">Colori, valori della dashboard e grafici</string>
     <string name="display_readouts_section">Letture della dashboard</string>
-
     <!-- Debug log screen -->
     <string name="debug_howto_title">Come segnalare un bug</string>
     <string name="debug_howto_step1">Attiva la registrazione qui sotto.</string>

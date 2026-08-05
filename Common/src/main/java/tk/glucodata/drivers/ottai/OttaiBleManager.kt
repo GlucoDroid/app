@@ -1399,6 +1399,7 @@ class OttaiBleManager(
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         noteFirstGattCallback("onConnectionStateChange", gatt)
+        super.onConnectionStateChange(gatt, status, newState)
         if (stop) return
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {
@@ -2868,6 +2869,14 @@ class OttaiBleManager(
         storeTemperatures(id, readings)
         val toPersist = readings.filter { it.persist }
         if (toPersist.isEmpty()) return
+        // Tell the watch's ownership claim that this process decoded a live
+        // reading over its own connection. Without this the claim never leaves
+        // "requesting", so after a handoff the watch reads the sensor while the
+        // phone, never hearing otherwise, keeps its own connection open too.
+        if (live) {
+            toPersist.maxByOrNull { it.sampleMs }
+                ?.let { markLocalReadingAccepted(it.sampleMs) }
+        }
         if (live && toPersist.size == 1) {
             val reading = toPersist.single()
             HistorySyncAccess.storeCurrentReadingAsync(reading.sampleMs, reading.mgdl, 0f, 0f, id)
@@ -2916,6 +2925,7 @@ class OttaiBleManager(
     private fun publishCurrentReading(reading: EmittedReading) {
         val id = SerialNumber ?: return
         if (!reading.displayValue.isFinite() || reading.displayValue <= 0f) return
+        markLocalReadingAccepted(reading.sampleMs)
         SuperGattCallback.processExternalCurrentReading(id, reading.displayValue, 0f, reading.sampleMs, SENSOR_GEN)
         Log.i(TAG, "current publish sec=${reading.sampleMs / 1000L} display=%.2f mgdl=%.1f".format(reading.displayValue, reading.mgdl))
     }

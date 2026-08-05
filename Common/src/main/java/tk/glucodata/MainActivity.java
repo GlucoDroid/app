@@ -529,19 +529,22 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         ;
     }
 
+    static boolean composeUIActive;
+
     private void initComposeUI() {
-        if (!isWearable) {
-            try {
-                Class<?> clazz = Class.forName("tk.glucodata.ui.ComposeHostKt");
-                java.lang.reflect.Method method = clazz.getMethod("setComposeContent",
-                        androidx.appcompat.app.AppCompatActivity.class, android.view.View.class);
-                method.invoke(null, this, curve);
-                Log.i(LOG_ID, "Initialized Compose UI and hid legacy view");
-            } catch (ClassNotFoundException e) {
-                Log.i(LOG_ID, "Compose UI not found (normal for Wear/Legacy)");
-            } catch (Exception e) {
-                Log.e(LOG_ID, "Failed to init Compose UI: " + e);
-            }
+        // Mobile resolves the mobile ComposeHost, wear its own; the legacy
+        // `small` flavor has neither and falls back to the native View UI.
+        try {
+            Class<?> clazz = Class.forName("tk.glucodata.ui.ComposeHostKt");
+            java.lang.reflect.Method method = clazz.getMethod("setComposeContent",
+                    androidx.appcompat.app.AppCompatActivity.class, android.view.View.class);
+            method.invoke(null, this, curve);
+            composeUIActive = true;
+            Log.i(LOG_ID, "Initialized Compose UI and hid legacy view");
+        } catch (ClassNotFoundException e) {
+            Log.i(LOG_ID, "Compose UI not found (normal for Legacy)");
+        } catch (Exception e) {
+            Log.e(LOG_ID, "Failed to init Compose UI: " + e);
         }
     }
 
@@ -798,6 +801,21 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
         // Force notification update on resume/launch
         Notify.showoldglucose();
+        if (Applic.isWearable && Applic.Nativesloaded) {
+            // The companion stream routinely stalls while the watch app is
+            // backgrounded/dozed; ask the phone for the stream immediately on
+            // open instead of showing minutes-old data until the next push.
+            try {
+                MessageSender.sendwakestream();
+                Natives.wakestreamsender();
+                // Opening the app is the moment to fill in whatever the tail
+                // syncs missed; the alarm path stays incremental.
+                WearSync2.requestSync(true);
+                UiRefreshBus.requestDataRefresh();
+            } catch (Throwable th) {
+                Log.stack(LOG_ID, "onResume wakestream", th);
+            }
+        }
         return;
     }
 
@@ -1713,6 +1731,12 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
         }
         ;
         if (isWearable) {
+            // With the Compose UI active, back must reach the Compose
+            // BackHandler (via onBackPressed); the legacy path below assumes
+            // the View UI and swallows every key.
+            if (composeUIActive && keyCode == KeyEvent.KEYCODE_BACK) {
+                return super.onKeyDown(keyCode, event);
+            }
             if (!backinapp())
                 moveTaskToBack(true);
             return true;
@@ -1880,6 +1904,11 @@ public class MainActivity extends AppCompatActivity implements NfcAdapter.Reader
             ;
         }
         ;
+        if (isWearable && composeUIActive) {
+            // Compose navigation owns back on the watch (pop or background).
+            super.onBackPressed();
+            return;
+        }
         if (!backinapp()) {
             {
                 if (doLog) {

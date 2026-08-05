@@ -107,5 +107,8 @@ object ManagedSensorIdentityRegistry {
         }
         ManagedSensorViewModeStore.clear(context, sensorId)
         SensorIdentity.invalidateCaches()
+        // Removals never propagated to the watch: its handoff-synced record
+        // kept the sensor listed as "Connected" and hijacked current selection.
+        tk.glucodata.WearSync2.pushRemoval(sensorId)
     }
 }

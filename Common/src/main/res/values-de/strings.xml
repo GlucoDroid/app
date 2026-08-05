@@ -1435,6 +1435,14 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="wear_transport_runtime_unavailable">Wear-Transport-Laufzeit ist in dieser App-Sitzung nicht verfügbar.</string>
     <string name="wear_transport_gms_unavailable">Google Play Dienste nicht verfügbar; Wear-Transport ist deaktiviert.</string>
     <string name="wear_transport_reinit_desc">Neue Uhrensuche und Netzwerk-Synchronisierung erzwingen.</string>
+    <string name="wear_watch_app_missing">Watch-App fehlt</string>
+    <string name="wear_watch_app_missing_hint">Installieren Sie Juggluco auf dieser Watch und tippen Sie dann auf Aktualisieren.</string>
+    <string name="wear_direct_sensor_on_watch">Direkter Sensor auf der Watch</string>
+    <string name="wear_direct_sensor_watch_desc">Die Watch sucht den Sensor und übernimmt Bluetooth nach dem ersten gültigen Messwert.</string>
+    <string name="wear_direct_sensor_phone_desc">Begleitmodus: Das Smartphone scannt und sendet Messwerte.</string>
+    <string name="wear_claim_state_phone_owns">Smartphone steuert Sensor</string>
+    <string name="wear_claim_state_requesting">Watch fordert Sensor an</string>
+    <string name="wear_claim_state_connected">Watch mit Sensor verbunden</string>
     <string name="web_server_desc">Nightscout-kompatibler Webserver</string>
     <string name="invalid_interval">Ungültiger Intervallwert</string>
     <string name="status_waiting_for_connection">Wartet auf Verbindung</string>
@@ -2115,6 +2123,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="ottai_import_export_ready">Gespeicherte Materialien für %1$s sind bereit.</string>
     <string name="ottai_credentials_import">Importieren</string>
     <string name="ottai_credentials_replace">Ersetzen</string>
+    <string name="wear_libre_nfc_caveat">Libre-Sensoren werden zuerst per NFC des Telefons aktiviert. Nach der Aktivierung kann diese Uhr übernehmen.</string>
     <string name="sibionics_glucose_model">Glukosemodell</string>
     <string name="sibionics_stock_model_detail">Exakter Sibionics-Sensoralgorithmus</string>
     <string name="sibionics_responsive_algorithm">Schnelle Reaktion</string>
@@ -2138,7 +2147,6 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="display_colors_title">Anzeige &amp; Farben</string>
     <string name="display_colors_desc">Farben, Dashboard-Werte und Diagramme</string>
     <string name="display_readouts_section">Dashboard-Anzeigen</string>
-
     <!-- Debug log screen -->
     <string name="debug_howto_title">Fehler melden</string>
     <string name="debug_howto_step1">Schalten Sie unten die Aufzeichnung ein.</string>

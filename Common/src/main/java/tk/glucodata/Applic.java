@@ -877,10 +877,10 @@ public class Applic extends Application implements androidx.work.Configuration.P
                 Log.i("Applic", "startup sensor initialization failed: " + t.getMessage());
             }
 
-            // Check if FloatingService should be started
-            if (getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+            // Check if FloatingService should be started (mobile-only class, so no compile-time reference)
+            if (!isWearable && getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
                     .getBoolean("floating_glucose_enabled", false)) {
-                Intent intent = new Intent(this, tk.glucodata.service.FloatingGlucoseService.class);
+                Intent intent = new Intent().setClassName(this, "tk.glucodata.service.FloatingGlucoseService");
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     startForegroundService(intent);
                 } else {
@@ -908,6 +908,9 @@ public class Applic extends Application implements androidx.work.Configuration.P
             Specific.start(this);
             if (isWearable) {
                 tk.glucodata.glucosecomplication.GlucoseValue.updateall();
+                // Direct sensor mode has to survive a restart of the watch app,
+                // otherwise a handoff silently stops scanning.
+                WearSensorClaim.restoreOnStart();
             }
         }
         return true;

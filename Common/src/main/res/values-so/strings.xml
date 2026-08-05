@@ -2302,9 +2302,12 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="notification_charts_section">Jaantusyada</string>
     <string name="notification_status_line_section">Xariiqda xaaladda</string>
     <string name="display_colors_title">Muuqaalka &amp; midabada</string>
+    <string name="wear_direct_sensor_watch_desc">Saacaddu waxay raadisaa dareemaha waxayna la wareegtaa Bluetooth ka dib akhriska ugu horreeya ee la aqbalo.</string>
+    <string name="wear_claim_state_phone_owns">Telefoonku wuxuu maamulaa dareemaha</string>
+    <string name="wear_claim_state_requesting">Saacaddu waxay codsanaysaa dareemaha</string>
+    <string name="wear_claim_state_connected">Saacaddu waxay ku xiran tahay dareemaha</string>
     <string name="display_colors_desc">Midabada, qiyamka dashboard-ka iyo garaafyada</string>
     <string name="display_readouts_section">Akhrisyada dashboard-ka</string>
-
     <!-- Debug log screen -->
     <string name="debug_howto_title">Sida loo soo sheego cilad</string>
     <string name="debug_howto_step1">Shid duubista hoose.</string>

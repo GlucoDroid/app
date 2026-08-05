@@ -3,6 +3,14 @@ package tk.glucodata
 object CalibrationAccess {
     private const val CLASS_NAME = "tk.glucodata.data.calibration.CalibrationManager"
 
+    @Volatile
+    private var provider: CalibrationProvider? = null
+
+    @JvmStatic
+    fun register(provider: CalibrationProvider) {
+        this.provider = provider
+    }
+
     private val holder by lazy { runCatching { Class.forName(CLASS_NAME) }.getOrNull() }
     private val instance by lazy { runCatching { holder?.getField("INSTANCE")?.get(null) }.getOrNull() }
     private val hasActiveCalibrationMethod by lazy {
@@ -35,6 +43,14 @@ object CalibrationAccess {
                 String::class.java,
                 Boolean::class.javaPrimitiveType,
             )
+        }.getOrNull()
+    }
+    private val isCalibrationStateLoadedMethod by lazy {
+        runCatching { holder?.getMethod("isCalibrationStateLoaded") }.getOrNull()
+    }
+    private val tuningForModeMethod by lazy {
+        runCatching {
+            holder?.getMethod("tuningForMode", Boolean::class.javaPrimitiveType)
         }.getOrNull()
     }
     private val shouldOverwriteSensorValuesMethod by lazy {
@@ -81,8 +97,86 @@ object CalibrationAccess {
         }.getOrNull()
     }
 
+    private val setEnabledForModeMethod by lazy {
+        runCatching {
+            holder?.getMethod(
+                "setEnabledForMode",
+                Boolean::class.javaPrimitiveType,
+                Boolean::class.javaPrimitiveType,
+                String::class.java,
+            )
+        }.getOrNull()
+    }
+    private val clearAllMethod by lazy {
+        runCatching { holder?.getMethod("clearAllBlocking") }.getOrNull()
+    }
+
+    /** Enable or disable calibration for both lanes of the current sensor. */
+    @JvmStatic
+    fun setEnabled(enabled: Boolean): Boolean = runCatching {
+        val method = setEnabledForModeMethod ?: return false
+        method.invoke(instance, false, enabled, null)
+        method.invoke(instance, true, enabled, null)
+        true
+    }.getOrDefault(false)
+
+    private val deleteCalibrationAtMethod by lazy {
+        runCatching {
+            holder?.getMethod("deleteCalibrationAtBlocking", Long::class.javaPrimitiveType)
+        }.getOrNull()
+    }
+    private val updateCalibrationValueMethod by lazy {
+        runCatching {
+            holder?.getMethod(
+                "updateCalibrationUserValueBlocking",
+                Long::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType,
+            )
+        }.getOrNull()
+    }
+
+    private val addCalibrationMethod by lazy {
+        runCatching {
+            holder?.getMethod(
+                "addCalibrationFromWearAtBlocking",
+                Long::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType,
+            )
+        }.getOrNull()
+    }
+
+    /**
+     * Record a fingerstick calibration. [timestampMs] picks the reading it is
+     * measured against; 0 means the current one.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun addCalibration(userValueMgdl: Float, timestampMs: Long = 0L): Boolean = runCatching {
+        addCalibrationMethod?.invoke(instance, timestampMs, userValueMgdl) as? Boolean ?: false
+    }.getOrDefault(false)
+
+    /** Delete the calibration recorded at [timestamp]. */
+    @JvmStatic
+    fun deleteCalibrationAt(timestamp: Long): Boolean = runCatching {
+        deleteCalibrationAtMethod?.invoke(instance, timestamp) as? Boolean ?: false
+    }.getOrDefault(false)
+
+    /** Change the fingerstick value of the calibration recorded at [timestamp]. */
+    @JvmStatic
+    fun updateCalibrationUserValue(timestamp: Long, userValueMgdl: Float): Boolean = runCatching {
+        updateCalibrationValueMethod?.invoke(instance, timestamp, userValueMgdl) as? Boolean ?: false
+    }.getOrDefault(false)
+
+    /** Delete every stored calibration. */
+    @JvmStatic
+    fun clearAll(): Boolean = runCatching {
+        clearAllMethod?.invoke(instance) ?: return false
+        true
+    }.getOrDefault(false)
+
     @JvmStatic
     fun hasActiveCalibration(isRawMode: Boolean, sensorId: String? = null): Boolean {
+        provider?.let { return it.hasActiveCalibration(isRawMode, sensorId) }
         return runCatching {
             hasActiveCalibrationMethod?.invoke(instance, isRawMode, sensorId) as? Boolean
         }.getOrNull() ?: false
@@ -97,6 +191,15 @@ object CalibrationAccess {
         emitDiagnostics: Boolean = false,
         sensorIdOverride: String? = null
     ): Float {
+        provider?.let {
+            return it.getCalibratedValue(
+                value,
+                timestamp,
+                isRawMode,
+                emitDiagnostics,
+                sensorIdOverride,
+            )
+        }
         return runCatching {
             getCalibratedValueMethod?.invoke(
                 instance,
@@ -111,6 +214,7 @@ object CalibrationAccess {
 
     @JvmStatic
     fun shouldHideInitialWhenCalibrated(): Boolean {
+        provider?.let { return it.shouldHideInitialWhenCalibrated() }
         return runCatching {
             shouldHideInitialMethod?.invoke(instance) as? Boolean
         }.getOrNull() ?: false
@@ -123,13 +227,39 @@ object CalibrationAccess {
 
     @JvmStatic
     fun getActiveCalibrationAnchors(sensorId: String?, isRawMode: Boolean = false): DoubleArray {
+        provider?.let { return it.getActiveCalibrationAnchors(sensorId, isRawMode) }
         return runCatching {
             getActiveCalibrationAnchorsMethod?.invoke(instance, sensorId, isRawMode) as? DoubleArray
         }.getOrNull() ?: DoubleArray(0)
     }
 
+    /**
+     * False when the phone's calibrations are not in memory, so callers do not
+     * mistake a failed load for "this sensor has no calibration". True where
+     * there is no CalibrationManager at all (the watch), which has nothing to
+     * load.
+     */
+    @JvmStatic
+    fun isCalibrationStateLoaded(): Boolean {
+        if (holder == null) return true
+        return runCatching { isCalibrationStateLoadedMethod?.invoke(instance) as? Boolean }
+            .getOrNull() ?: false
+    }
+
+    /**
+     * The settings behind the phone's fit, so the watch can reproduce the same
+     * numbers with the shared computation.
+     */
+    @JvmStatic
+    fun tuningForMode(isRawMode: Boolean): tk.glucodata.data.calibration.CalibrationTuning =
+        runCatching {
+            tuningForModeMethod?.invoke(instance, isRawMode)
+                as? tk.glucodata.data.calibration.CalibrationTuning
+        }.getOrNull() ?: tk.glucodata.data.calibration.CalibrationTuning.DEFAULT
+
     @JvmStatic
     fun shouldOverwriteSensorValues(): Boolean {
+        provider?.let { return it.shouldOverwriteSensorValues() }
         return runCatching {
             shouldOverwriteSensorValuesMethod?.invoke(instance) as? Boolean
         }.getOrNull() ?: false
@@ -137,6 +267,7 @@ object CalibrationAccess {
 
     @JvmStatic
     fun getRevision(): Long {
+        provider?.let { return it.getRevision() }
         return runCatching {
             when (val value = getRevisionMethod?.invoke(instance)) {
                 is Long -> value

@@ -1165,6 +1165,7 @@ class ICanHealthBleManager(
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         noteFirstGattCallback("onConnectionStateChange", gatt)
+        super.onConnectionStateChange(gatt, status, newState)
         if (stop) return
         val stateAddress = gatt.device?.address?.trim()?.uppercase(Locale.US)
         if (stateAddress != null && stateAddress in rejectedOnboardingAddresses) {

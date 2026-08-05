@@ -549,6 +549,7 @@ class SibionicsBleManager(
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         noteFirstGattCallback("onConnectionStateChange", gatt)
+        super.onConnectionStateChange(gatt, status, newState)
         // A late callback from a retired GATT must not invalidate the active connection's
         // notification queue. The handler repeats this ownership check before mutating state.
         if (isCurrentGatt(gatt)) {
@@ -1786,6 +1787,11 @@ class SibionicsBleManager(
         if (mirrorReadingIntoNative(reading)) {
             NightscoutUploadWake.afterLiveNativeWrite("sibionics-managed", reading.sampleMs)
         }
+        // Notification only — no timestamp or value is derived from this. It tells
+        // the watch's ownership claim that this process decoded a live reading
+        // over its own connection, which is what lets the phone stand down after
+        // a handoff instead of holding the sensor as well.
+        markLocalReadingAccepted(reading.sampleMs)
         HistorySyncAccess.storeCurrentReadingAsync(
             reading.sampleMs,
             reading.glucoseMgdl,
@@ -1795,6 +1801,7 @@ class SibionicsBleManager(
         )
         val displayValue = toDisplay(reading.glucoseMgdl)
         val displayRate = if (Applic.unit == 1) latestRateMgdlPerMin / SibionicsConstants.MGDL_PER_MMOLL else latestRateMgdlPerMin
+        markLocalReadingAccepted(reading.sampleMs)
         SuperGattCallback.processExternalCurrentReading(
             SerialNumber,
             displayValue,
