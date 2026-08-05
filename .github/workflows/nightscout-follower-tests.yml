@@ -41,7 +41,7 @@ jobs:
 
       - name: Run Nightscout Follower Registry tests
         run: |
-          ./gradlew :Common:testMobileLibre3SiDexGoogleDebugUnitTest \
+          ./gradlew :Common:testMobileGoogleDebugUnitTest \
             --tests "tk.glucodata.drivers.nightscout.*" \
             --no-daemon \
             --warning-mode=all
@@ -52,8 +52,8 @@ jobs:
         with:
           name: nightscout-follower-test-report
           path: |
-            Common/build/reports/tests/testMobileLibre3SiDexGoogleDebugUnitTest/
-            Common/build/test-results/testMobileLibre3SiDexGoogleDebugUnitTest/
+            Common/build/reports/tests/testMobileGoogleDebugUnitTest/
+            Common/build/test-results/testMobileGoogleDebugUnitTest/
 
   # Runs on a schedule: every 30 minutes during working hours
   # Keeps the feature rock-solid through iterative testing.
@@ -93,7 +93,7 @@ jobs:
 
       - name: Run full unit test suite for nightscout follower
         run: |
-          ./gradlew :Common:testMobileLibre3SiDexGoogleDebugUnitTest \
+          ./gradlew :Common:testMobileGoogleDebugUnitTest \
             --tests "tk.glucodata.drivers.nightscout.*" \
             --rerun-tasks \
             --no-daemon
@@ -104,5 +104,5 @@ jobs:
         with:
           name: iterative-test-report-${{ github.run_number }}
           path: |
-            Common/build/reports/tests/testMobileLibre3SiDexGoogleDebugUnitTest/
-            Common/build/test-results/testMobileLibre3SiDexGoogleDebugUnitTest/
+            Common/build/reports/tests/testMobileGoogleDebugUnitTest/
+            Common/build/test-results/testMobileGoogleDebugUnitTest/
