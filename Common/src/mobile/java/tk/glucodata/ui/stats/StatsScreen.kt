@@ -441,17 +441,8 @@ fun StatsScreen(
                                 onTick = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
                             )
                     ) {
-                        // The metrics grid ends in a full-width disclosure strip that
-                        // already carries its own breathing room, so the usual gap after it
-                        // reads as a hole.
                         Spacer(
-                            modifier = Modifier.height(
-                                when {
-                                    index == 0 -> 16.dp
-                                    visibleCards.getOrNull(index - 1) == StatsCard.METRICS -> 8.dp
-                                    else -> 20.dp
-                                }
-                            )
+                            modifier = Modifier.height(if (index == 0) 16.dp else 20.dp)
                         )
                         StatsCardContent(
                             card = card,
@@ -825,32 +816,19 @@ private fun MetricsSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .animateContentSize()
     ) {
-        if (metrics.isEmpty()) {
-            SectionEmptyLine(text = stringResource(R.string.stats_metrics_all_hidden))
-        } else {
-            MetricsGrid(
-                metrics = headMetrics,
-                wideMetrics = wideMetrics,
-                summary = summary,
-                targets = targets,
-                unit = unit,
-                expanded = expanded,
-                onToggleExpanded = toggleExpanded,
-                dragState = dragState
-            )
-        }
-
-        if (tailMetrics.isNotEmpty()) {
-            AnimatedVisibility(
-                visible = showAll,
-                enter = fadeIn(tween(180)) + expandVertically(tween(240)),
-                exit = fadeOut(tween(140)) + shrinkVertically(tween(200))
-            ) {
+        // The grid keeps its own even spacing; the disclosure below is deliberately not
+        // part of it.
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (metrics.isEmpty()) {
+                SectionEmptyLine(text = stringResource(R.string.stats_metrics_all_hidden))
+            } else {
                 MetricsGrid(
-                    metrics = tailMetrics,
+                    metrics = headMetrics,
                     wideMetrics = wideMetrics,
                     summary = summary,
                     targets = targets,
@@ -860,19 +838,40 @@ private fun MetricsSection(
                     dragState = dragState
                 )
             }
+
+            if (tailMetrics.isNotEmpty()) {
+                AnimatedVisibility(
+                    visible = showAll,
+                    enter = fadeIn(tween(180)) + expandVertically(tween(240)),
+                    exit = fadeOut(tween(140)) + shrinkVertically(tween(200))
+                ) {
+                    MetricsGrid(
+                        metrics = tailMetrics,
+                        wideMetrics = wideMetrics,
+                        summary = summary,
+                        targets = targets,
+                        unit = unit,
+                        expanded = expanded,
+                        onToggleExpanded = toggleExpanded,
+                        dragState = dragState
+                    )
+                }
+            }
         }
 
-        // One quiet glyph rather than a line of link text: the fold is a mechanism, not a
-        // heading, and the grid above it should be what the eye lands on. Choosing which
-        // metrics exist lives in Arrange, which is the one place that job belongs.
+        // One quiet glyph rather than a line of link text, tucked straight under the grid
+        // with no gap of its own. Spaced like another row it sat nearer the card below
+        // than the one it belongs to, and read as an invitation to keep scrolling rather
+        // than as a control for the metrics above it. Choosing which metrics exist lives
+        // in Arrange, which is the one place that job belongs.
         if (tailMetrics.isNotEmpty()) {
             // The whole width is the target, so it is easy to hit without a disc drawn
             // round the glyph reserving a band of empty space to look at.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(18.dp))
                     .clickable { showAll = !showAll },
                 contentAlignment = Alignment.Center
             ) {

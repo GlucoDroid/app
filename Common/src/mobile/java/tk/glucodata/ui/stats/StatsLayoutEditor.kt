@@ -188,31 +188,11 @@ internal fun StatsLayoutEditor(
             )
         }
 
-        // A second way out at the end of the list. The metric list is long enough that
-        // finishing at the bottom and having to scroll back to the top to leave is its own
-        // small insult.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        TextButton(
+            onClick = { StatsLayoutStore.resetLayout() },
+            modifier = Modifier.padding(top = 4.dp)
         ) {
-            TextButton(onClick = { StatsLayoutStore.resetLayout() }) {
-                Text(text = stringResource(R.string.stats_arrange_reset))
-            }
-            Button(
-                onClick = onDone,
-                contentPadding = PaddingValues(start = 16.dp, end = 20.dp, top = 10.dp, bottom = 10.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(text = stringResource(R.string.libre_setup_done))
-            }
+            Text(text = stringResource(R.string.stats_arrange_reset))
         }
     }
 }
