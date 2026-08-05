@@ -64,14 +64,11 @@ public class Natives {
 
         public static native boolean hasBluetooth(byte[] sensorident, byte[] patchinfo);
 
-        // public static native void initopengl(boolean started);
         public static native int openglversion();
 
         // public static native void showlast();
         // public static native void hidescanresults();
-        public static native void resize(int width, int height, int initscreenwidth);
 
-        public static native void initopengl(float small, float menu, float density, float head);
 
         public static native int setfilesdir(String dir, String country, String nativedir);
 
@@ -86,13 +83,9 @@ public class Natives {
 
         public static native int step();
 
-        public static native int badscan(int kind);
 
-        // public static native long lastpoll();
         // public static native void clear();
-        public static native void prevscr();
 
-        public static native void nextscr();
 
         public static native void prevday(int day);
 
@@ -101,15 +94,11 @@ public class Natives {
         // public static native void savestate();
         public static native int translate(float dx, float dy, float yold, float y);
 
-        public static native void flingX(float vol);
 
-        public static native void xscale(float scalex, float midx);
 
-        public static native boolean isbutton(float x, float y);
 
         public static native long tap(float x, float y);
 
-        public static native long longpress(float x, float y);
 
         public static native long getstarttime();
 
@@ -192,7 +181,6 @@ public class Natives {
         // index);
         public static native void setmaxsensors(int nr);
 
-        public static native float freey();
 
         public static native long openNums(String base, long ident);
 
@@ -642,7 +630,6 @@ public class Natives {
 
         public static native void setwaitwithenablestreaming(boolean val);
 
-        public static native void setscreenwidthcm(float val);
 
         public static native boolean nfcsound();
 
