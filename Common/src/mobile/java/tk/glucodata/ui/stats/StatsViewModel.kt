@@ -296,15 +296,6 @@ class StatsViewModel : ViewModel() {
         refreshFromNative()
     }
 
-    /**
-     * Forgotten whenever the range changes, so a switch never pays for parts that were
-     * only ever read while scrolling around the *previous* window. Demand rebuilds itself
-     * from whatever the new window actually puts on screen.
-     */
-    private fun forgetDemandedParts() {
-        demandedParts.clear()
-    }
-
     internal fun setPinnedWindow(window: PinnedWindow?) {
         if (_pinnedWindow.value == window) return
         _pinnedWindow.value = window
@@ -318,7 +309,6 @@ class StatsViewModel : ViewModel() {
         // "instant", and a control that goes dead for a moment with no acknowledgement
         // reads as a control that did not register the tap.
         _isSwitchingRange.value = true
-        forgetDemandedParts()
         _selectedRange.value = range
         _customRange.value = null
         StatsRangeStore.savePreset(Applic.app, range)
@@ -330,7 +320,6 @@ class StatsViewModel : ViewModel() {
         val normalizedRange = normalizeCustomRange(startMillis, endMillis)
         if (_customRange.value == normalizedRange && _selectedRange.value == null) return
         _isSwitchingRange.value = true
-        forgetDemandedParts()
         _selectedRange.value = null
         _customRange.value = normalizedRange
         StatsRangeStore.saveCustom(Applic.app, normalizedRange)
@@ -1631,9 +1620,18 @@ class StatsViewModel : ViewModel() {
         override val dailyStats: List<DailyStats> get() = read(StatsPart.DAILY, dailyValue)
         override val insights: List<StatsInsight> get() = read(StatsPart.INSIGHTS, insightsValue)
 
-        /** Resolves everything asked for last time, while still off the main thread. */
+        /**
+         * Resolves what the previous composition actually read, while still off the main
+         * thread, and hands the record back empty so this composition can restate it.
+         *
+         * Taking and clearing in one go is what stops the set growing: a metric behind the
+         * fold, or a card scrolled past, is not composed, so it is not read, so it drops
+         * straight back out and is never computed again until it is put back on screen.
+         */
         fun warmDemanded() {
-            demanded.toList().forEach { part ->
+            val toWarm = demanded.toSet()
+            demanded.clear()
+            toWarm.forEach { part ->
                 when (part) {
                     StatsPart.GVI -> gviValue.value
                     StatsPart.PSG -> psgValue.value
