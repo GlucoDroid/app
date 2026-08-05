@@ -81,6 +81,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
@@ -795,34 +796,63 @@ private fun ArrangeSheet(
     onDismiss: () -> Unit
 ) {
     // A sheet, because arranging is a detour rather than a place. It comes with the exits
-    // the mode never had: swipe it down, tap outside it, or press back. Opened fully
-    // rather than half — the first thing in the list is the section order, and landing on
-    // a half sheet showing two and a half rows of it would be worse than useless.
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // the mode never had: swipe it down, tap outside it, or press back.
+    //
+    // Sized to a little over two thirds of the screen rather than the whole of it, so the
+    // statistics stay visible behind — you are rearranging them, and seeing what you are
+    // rearranging is the point. Material's own partial-expansion stop is half the screen,
+    // which cuts the section list off mid-way, so the height is set here instead.
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         dragHandle = { CompactSheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 32.dp)
+                .fillMaxHeight(0.78f)
         ) {
-            Text(
-                text = stringResource(R.string.stats_arrange_title),
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
-            )
-            StatsLayoutEditor(
-                layout = layout,
-                summary = summary,
-                targets = targets,
-                unit = unit,
-                onDone = onDismiss
-            )
+            // Fixed. The title says which mode you are in and the button leaves it, so
+            // neither belongs in the part that scrolls away.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 16.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.stats_arrange_title),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = stringResource(R.string.stats_arrange_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Button(onClick = onDismiss) {
+                    Text(text = stringResource(R.string.libre_setup_done))
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                StatsLayoutEditor(
+                    layout = layout,
+                    summary = summary,
+                    targets = targets,
+                    unit = unit,
+                    onDone = onDismiss
+                )
+            }
         }
     }
 }
@@ -910,13 +940,13 @@ private fun MetricsSection(
         // to the metrics; the padding is tighter than before so it takes less room doing
         // it.
         if (tailMetrics.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .clickable { showAll = !showAll }
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {

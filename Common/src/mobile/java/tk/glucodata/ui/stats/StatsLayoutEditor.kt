@@ -96,16 +96,7 @@ internal fun StatsLayoutEditor(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Title and the way out live in the bar above this list, not in it. The hint does
-        // stay here: it describes the rows, and it is the one line that can scroll away
-        // once it has been read.
-        Text(
-            text = stringResource(R.string.stats_arrange_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
-        )
-
+        // Title, hint and Done are in the sheet's fixed header, not in this list.
         EditorSectionLabel(stringResource(R.string.stats_arrange_sections))
         ReorderableRows(
             items = layout.cardOrder,
