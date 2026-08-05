@@ -125,4 +125,11 @@ class StatsLayoutTests {
     fun theDashboardStripHoldsThreeMetricsBesideThePeriodControl() {
         assertEquals(3, StatsLayoutStore.MAX_DASHBOARD_METRICS)
     }
+
+    @Test
+    fun theStatsScreenOpensOnTwoWeeks() {
+        // Long enough for the day-by-day grid, the weekday split and a GMI that means
+        // something; short enough to still be about the present.
+        assertEquals(StatsTimeRange.DAY_14, StatsUiState().selectedRange)
+    }
 }

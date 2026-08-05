@@ -876,11 +876,10 @@ internal fun PinnedMetricChip(
 // landscape call sites share one window. See PinnedStatsStrip's windowState parameter.
 internal enum class PinnedWindow(@get:StringRes val labelResId: Int, private val days: Int) {
     TODAY(R.string.stats_window_today, 0),
-    H24(R.string.stats_window_24h, 1),
+    D1(R.string.range_1d, 1),
     D3(R.string.stats_window_3d, 3),
-    D7(R.string.range_7d, 7),
-    D30(R.string.range_30d, 30),
-    D90(R.string.range_90d, 90);
+    D14(R.string.range_14d, 14),
+    D30(R.string.range_30d, 30);
 
     /**
      * Open-ended at the top: pinning the end to "now" froze the chips between

@@ -1906,7 +1906,7 @@ class StatsViewModel : ViewModel() {
         /** The previous window needs this share of the current window's readings to count. */
         private const val MIN_COMPARISON_COVERAGE = 0.6f
 
-        private val DEFAULT_STATS_RANGE = StatsTimeRange.DAY_1
+        private val DEFAULT_STATS_RANGE = StatsTimeRange.DAY_14
         @Volatile private var lastRenderedState: CachedRenderedState? = null
     }
 }
