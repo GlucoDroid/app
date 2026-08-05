@@ -268,6 +268,69 @@ data class FindingInput(
     val comparison: StatsComparison?
 )
 
+/**
+ * The costly half of a summary, computed only for what is actually being shown.
+ *
+ * Everything here is a full pass over the window — twenty thousand readings at fourteen
+ * days — and none of it is needed to draw the ring and the first rows of the grid. Working
+ * all of it out up front is what made changing the range go from quick to a wait, and it
+ * got worse with every metric added, whether or not that metric was on screen.
+ *
+ * Implementations resolve each member on first read; [StatsViewModel] forces the ones the
+ * current layout calls for while it is still on a background thread, so what is visible is
+ * ready when the state arrives and what is hidden costs nothing until it is revealed.
+ */
+interface StatsSummaryParts {
+    val gvi: GviScore
+    val psg: PsgScore
+    val mageMgDl: Float
+    val moddMgDl: Float
+    val dawnRiseMgDl: Float
+    val bestStreakDays: Int
+    val gri: GlycemiaRiskIndex
+    val risk: RiskIndices
+    val episodes: List<GlucoseEpisode>
+    val lowEpisodes: EpisodeSummary
+    val highEpisodes: EpisodeSummary
+    val dayParts: List<DayPartStats>
+    val weekdays: List<WeekdayStats>
+    val days: List<DayBreakdown>
+    val comparison: StatsComparison?
+    val agpByHour: List<AgpHourBin>
+    val hourlyStats: List<HourlyGlucoseStats>
+    val dailyStats: List<DailyStats>
+    val insights: List<StatsInsight>
+
+    object Empty : StatsSummaryParts {
+        override val gvi = GviScore()
+        override val psg = PsgScore()
+        override val mageMgDl = 0f
+        override val moddMgDl = 0f
+        override val dawnRiseMgDl = 0f
+        override val bestStreakDays = 0
+        override val gri = GlycemiaRiskIndex()
+        override val risk = RiskIndices()
+        override val episodes = emptyList<GlucoseEpisode>()
+        override val lowEpisodes = EpisodeSummary(EpisodeKind.LOW)
+        override val highEpisodes = EpisodeSummary(EpisodeKind.HIGH)
+        override val dayParts = emptyList<DayPartStats>()
+        override val weekdays = emptyList<WeekdayStats>()
+        override val days = emptyList<DayBreakdown>()
+        override val comparison: StatsComparison? = null
+        override val agpByHour = emptyList<AgpHourBin>()
+        override val hourlyStats = emptyList<HourlyGlucoseStats>()
+        override val dailyStats = emptyList<DailyStats>()
+        override val insights = emptyList<StatsInsight>()
+    }
+}
+
+/**
+ * Everything the statistics screen reads.
+ *
+ * The scalars are worked out eagerly — they are a couple of passes over the values and the
+ * header, ring and first metric rows need all of them. The rest is delegated to [parts]
+ * and reads exactly as it always did at every call site.
+ */
 data class StatsSummary(
     val readingCount: Int = 0,
     val avgMgDl: Float = 0f,
@@ -277,32 +340,44 @@ data class StatsSummary(
     val stdDevMgDl: Float = 0f,
     val cvPercent: Float = 0f,
     val gmiPercent: Float = 0f,
-    val gvi: GviScore = GviScore(),
-    val psg: PsgScore = PsgScore(),
     val minMgDl: Float = 0f,
     val maxMgDl: Float = 0f,
     val firstTimestamp: Long = 0L,
     val lastTimestamp: Long = 0L,
     val tir: TimeInRangeBreakdown = TimeInRangeBreakdown(),
     val tightRangePercent: Float = 0f,
-    val mageMgDl: Float = 0f,
-    val moddMgDl: Float = 0f,
-    val dawnRiseMgDl: Float = 0f,
-    val bestStreakDays: Int = 0,
-    val gri: GlycemiaRiskIndex = GlycemiaRiskIndex(),
-    val risk: RiskIndices = RiskIndices(),
     val coverage: SensorCoverage = SensorCoverage(),
-    val episodes: List<GlucoseEpisode> = emptyList(),
-    val lowEpisodes: EpisodeSummary = EpisodeSummary(EpisodeKind.LOW),
-    val highEpisodes: EpisodeSummary = EpisodeSummary(EpisodeKind.HIGH),
-    val dayParts: List<DayPartStats> = emptyList(),
-    val weekdays: List<WeekdayStats> = emptyList(),
-    val days: List<DayBreakdown> = emptyList(),
-    val comparison: StatsComparison? = null,
-    val agpByHour: List<AgpHourBin> = emptyList(),
-    val hourlyStats: List<HourlyGlucoseStats> = emptyList(),
-    val dailyStats: List<DailyStats> = emptyList(),
-    val insights: List<StatsInsight> = emptyList()
+    val parts: StatsSummaryParts = StatsSummaryParts.Empty
+) {
+    val gvi: GviScore get() = parts.gvi
+    val psg: PsgScore get() = parts.psg
+    val mageMgDl: Float get() = parts.mageMgDl
+    val moddMgDl: Float get() = parts.moddMgDl
+    val dawnRiseMgDl: Float get() = parts.dawnRiseMgDl
+    val bestStreakDays: Int get() = parts.bestStreakDays
+    val gri: GlycemiaRiskIndex get() = parts.gri
+    val risk: RiskIndices get() = parts.risk
+    val episodes: List<GlucoseEpisode> get() = parts.episodes
+    val lowEpisodes: EpisodeSummary get() = parts.lowEpisodes
+    val highEpisodes: EpisodeSummary get() = parts.highEpisodes
+    val dayParts: List<DayPartStats> get() = parts.dayParts
+    val weekdays: List<WeekdayStats> get() = parts.weekdays
+    val days: List<DayBreakdown> get() = parts.days
+    val comparison: StatsComparison? get() = parts.comparison
+    val agpByHour: List<AgpHourBin> get() = parts.agpByHour
+    val hourlyStats: List<HourlyGlucoseStats> get() = parts.hourlyStats
+    val dailyStats: List<DailyStats> get() = parts.dailyStats
+    val insights: List<StatsInsight> get() = parts.insights
+}
+
+/**
+ * What the dashboard strip needs, and nothing else. Kept apart from [StatsUiState] so the
+ * dashboard never pays for the statistics screen's projection just to draw three chips.
+ */
+data class StatsPinnedState(
+    val summary: StatsSummary = StatsSummary(),
+    val targets: StatsTargets = StatsTargets(),
+    val unit: GlucoseUnit = GlucoseUnit.MGDL
 )
 
 data class StatsUiState(

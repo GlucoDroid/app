@@ -40,6 +40,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,10 +63,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
@@ -78,6 +82,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
@@ -97,6 +102,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -188,9 +194,10 @@ private data class TirRowDescriptor(
 @Composable
 fun StatsScreen(
     modifier: Modifier = Modifier,
-    viewModel: StatsViewModel = viewModel()
+    viewModel: StatsViewModel = rememberStatsViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isSwitchingRange by viewModel.isSwitchingRange.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val reportPrefs = remember(context) {
@@ -229,7 +236,11 @@ fun StatsScreen(
     val view = LocalView.current
     LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
     val layout by StatsLayoutStore.state.collectAsState()
-    var editingLayout by rememberSaveable { mutableStateOf(false) }
+    val editingLayout by StatsArrangeMode.editing.collectAsState()
+    // Every ordinary way out of a mode, not just the button: system back, and simply
+    // leaving the screen.
+    BackHandler(enabled = editingLayout) { StatsArrangeMode.close() }
+    DisposableEffect(Unit) { onDispose { StatsArrangeMode.close() } }
     val listState = rememberLazyListState()
     val visibleCards = layout.visibleCards.filter { card -> cardHasContent(card, uiState) }
     val cardDrag = rememberStatsCardDragState(
@@ -342,7 +353,7 @@ fun StatsScreen(
                 StatsRangeSelectorControl(
                     selectedRange = uiState.selectedRange,
                     activeRange = uiState.activeRange,
-                    isLoading = uiState.isLoading,
+                    isLoading = uiState.isLoading || isSwitchingRange,
                     hasData = uiState.summary.readingCount > 0,
                     readingCount = uiState.summary.readingCount,
                     coveragePercent = uiState.summary.coverage.percent
@@ -373,14 +384,6 @@ fun StatsScreen(
                         subtitle = stringResource(R.string.stats_no_readings_in_range)
                     )
                 }
-            } else if (editingLayout) {
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    StatsLayoutEditor(
-                        layout = layout,
-                        onDone = { editingLayout = false }
-                    )
-                }
             } else {
                 item {
                     AnimatedVisibility(
@@ -397,10 +400,10 @@ fun StatsScreen(
 
                 // Sections render in the user's own order. Long press lifts a card and
                 // drags it inline; the Arrange button opens the list editor instead.
-                items(
+                itemsIndexed(
                     items = visibleCards,
-                    key = { card -> card.name }
-                ) { card ->
+                    key = { _, card -> card.name }
+                ) { index, card ->
                     val isDragging = cardDrag.dragging == card
                     val lift by animateFloatAsState(
                         targetValue = if (isDragging) 1f else 0f,
@@ -425,7 +428,9 @@ fun StatsScreen(
                                 onTick = { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
                             )
                     ) {
-                        Spacer(modifier = Modifier.height(if (card == visibleCards.first()) 16.dp else 20.dp))
+                        Spacer(
+                            modifier = Modifier.height(if (index == 0) 16.dp else 20.dp)
+                        )
                         StatsCardContent(
                             card = card,
                             uiState = uiState,
@@ -440,9 +445,19 @@ fun StatsScreen(
 
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
-                    StatsEditLayoutButton(onClick = { editingLayout = true })
+                    StatsEditLayoutButton(onClick = { StatsArrangeMode.open() })
                 }
             }
+        }
+
+        if (editingLayout) {
+            ArrangeSheet(
+                layout = layout,
+                summary = uiState.summary,
+                targets = uiState.targets,
+                unit = uiState.unit,
+                onDismiss = { StatsArrangeMode.close() }
+            )
         }
 
         selectedDay?.let { day ->
@@ -765,6 +780,85 @@ private fun StatsCardContent(
     }
 }
 
+/**
+ * Arrange's title bar, fixed above the list.
+ *
+ * A mode needs a frame that stays put. This one carries the name of the mode, what the
+ * gestures do, and the way out — and none of it scrolls away underneath twenty-eight rows
+ * of things to drag.
+ */
+@Composable
+private fun ArrangeSheet(
+    layout: StatsLayoutState,
+    summary: StatsSummary,
+    targets: StatsTargets,
+    unit: GlucoseUnit,
+    onDismiss: () -> Unit
+) {
+    // Built exactly like Show on Dashboard: default sheet state, no height of its own, the
+    // header outside the scrolling part and everything else inside it.
+    //
+    // The previous version pinned the height and then animated it larger off a nested
+    // scroll connection. Both halves of that fought the sheet's own gesture handling — the
+    // connection saw scrolls the sheet needed in order to decide between scrolling and
+    // dismissing, and the animating height moved its drag anchors underneath it — so it
+    // dismissed on an ordinary scroll, and on any scroll begun before the open animation
+    // had settled.
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        dragHandle = { CompactSheetDragHandle() }
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Fixed: the title says which mode you are in and the button leaves it, so
+            // neither belongs in the part that scrolls away.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 16.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.stats_arrange_title),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = stringResource(R.string.stats_arrange_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Button(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.libre_setup_done))
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 28.dp)
+            ) {
+                StatsLayoutEditor(
+                    layout = layout,
+                    summary = summary,
+                    targets = targets,
+                    unit = unit,
+                    onDone = onDismiss
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun MetricsSection(
     metrics: List<StatsMetric>,
@@ -774,10 +868,6 @@ private fun MetricsSection(
     targets: StatsTargets,
     unit: GlucoseUnit
 ) {
-    if (metrics.isEmpty()) {
-        SectionEmptyLine(text = stringResource(R.string.stats_metrics_all_hidden))
-        return
-    }
     var showAll by rememberSaveable { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(emptySet<StatsMetric>()) }
     // One drag state for both grids so a tile can be dragged across the fold, and one
@@ -802,28 +892,19 @@ private fun MetricsSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .animateContentSize()
     ) {
-        MetricsGrid(
-            metrics = headMetrics,
-            wideMetrics = wideMetrics,
-            summary = summary,
-            targets = targets,
-            unit = unit,
-            expanded = expanded,
-            onToggleExpanded = toggleExpanded,
-            dragState = dragState
-        )
-
-        if (tailMetrics.isNotEmpty()) {
-            AnimatedVisibility(
-                visible = showAll,
-                enter = fadeIn(tween(180)) + expandVertically(tween(240)),
-                exit = fadeOut(tween(140)) + shrinkVertically(tween(200))
-            ) {
+        // The grid keeps its own even spacing; the disclosure below is deliberately not
+        // part of it.
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (metrics.isEmpty()) {
+                SectionEmptyLine(text = stringResource(R.string.stats_metrics_all_hidden))
+            } else {
                 MetricsGrid(
-                    metrics = tailMetrics,
+                    metrics = headMetrics,
                     wideMetrics = wideMetrics,
                     summary = summary,
                     targets = targets,
@@ -834,6 +915,34 @@ private fun MetricsSection(
                 )
             }
 
+            if (tailMetrics.isNotEmpty()) {
+                AnimatedVisibility(
+                    visible = showAll,
+                    enter = fadeIn(tween(180)) + expandVertically(tween(240)),
+                    exit = fadeOut(tween(140)) + shrinkVertically(tween(200))
+                ) {
+                    MetricsGrid(
+                        metrics = tailMetrics,
+                        wideMetrics = wideMetrics,
+                        summary = summary,
+                        targets = targets,
+                        unit = unit,
+                        expanded = expanded,
+                        onToggleExpanded = toggleExpanded,
+                        dragState = dragState
+                    )
+                }
+            }
+        }
+
+        // Back to the label and chevron this shipped with. Four attempts at replacing it
+        // with a bare glyph produced, in order: a disc with dead space round it, a strip
+        // that read as "scroll down", a full-bleed bar that ran into the tiles, and a
+        // chevron adrift in the gap between two cards. The label is what says this belongs
+        // to the metrics; the padding is tighter than before so it takes less room doing
+        // it.
+        if (tailMetrics.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1294,19 +1403,29 @@ private fun GlycemicOverviewCard(
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val isCompact = maxWidth < 340.dp
-                val layoutPressure = ((420f - maxWidth.value) / 140f).coerceIn(0f, 1f)
-                val ringBaseSize = if (isCompact) {
-                    (maxWidth * 0.55f).coerceIn(140.dp, 206.dp)
+                // The band rows are what decide this, not a round number.
+                //
+                // A row needs its label, a 62 dp range column and a 50 dp percentage
+                // column; below about 180 dp it starts eliding the labels. So the ring
+                // keeps whatever is left over and the two only stop sharing a line when
+                // the ring would have to drop under 96 dp — a threshold of 340 dp put a
+                // 360 dp phone into the stacked layout with 150 dp of width to spare,
+                // which is the ring taking a whole row on someone else's device while it
+                // looked fine on a Pixel.
+                val minRowsWidth = 180.dp
+                val ringSpacing = 10.dp
+                val ringMin = 88.dp
+                val ringMax = 176.dp
+                val isCompact = maxWidth < ringMin + ringSpacing + minRowsWidth
+                val ringSize = if (isCompact) {
+                    (maxWidth * 0.55f).coerceIn(118.dp, 206.dp)
                 } else {
-                    (maxWidth * 0.38f).coerceIn(132.dp, 176.dp)
+                    (maxWidth * 0.34f)
+                        .coerceIn(ringMin, ringMax)
+                        // Never at the rows' expense.
+                        .coerceAtMost(maxWidth - ringSpacing - minRowsWidth)
                 }
-                val ringShrinkFactor = 1f - (0.33f * layoutPressure)
-                val ringSize = (ringBaseSize * ringShrinkFactor).coerceIn(
-                    if (isCompact) 118.dp else 108.dp,
-                    if (isCompact) 206.dp else 176.dp
-                )
-                val compactText = layoutPressure > 0.34f
+                val compactText = maxWidth < 372.dp
                 val tirRows: @Composable () -> Unit = {
                     Column(
                         modifier = Modifier.fillMaxWidth(),

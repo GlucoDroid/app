@@ -38,6 +38,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
@@ -417,6 +418,10 @@ internal fun metricSpec(
                 summary.cvPercent < 40f -> middlingWord
                 else -> swingyWord
             },
+            // The consensus threshold, the same way A1c states its own. The tile reserved
+            // this line for its neighbour's benefit and then left it blank, which is a
+            // hole where a number every CV reading is judged against could sit.
+            meta = "$targetWord ${String.format(Locale.getDefault(), "<%.0f%%", 36f)}",
             tone = when {
                 summary.cvPercent < 32f -> TirInRangeColor
                 summary.cvPercent < 40f -> TirHighColor
@@ -783,7 +788,12 @@ private fun Modifier.metricDrag(metric: StatsMetric, dragState: MetricDragState?
     val view = LocalView.current
     val isDragging = dragState.dragging == metric
     val lift by animateFloatAsState(if (isDragging) 1f else 0f, label = "metricLift")
+    // A tile that has been hidden must stop offering itself as a drop target.
+    DisposableEffect(metric, dragState) {
+        onDispose { dragState.forget(metric) }
+    }
     return this
+        .reportMetricBounds(metric, dragState)
         .zIndex(if (isDragging) 1f else 0f)
         .graphicsLayer {
             translationX = if (isDragging) dragState.offset.x else 0f
@@ -812,12 +822,17 @@ private fun Modifier.metricDrag(metric: StatsMetric, dragState: MetricDragState?
 internal fun PinnedMetricChip(
     spec: MetricSpec,
     modifier: Modifier = Modifier,
-    tir: TimeInRangeBreakdown? = null
+    tir: TimeInRangeBreakdown? = null,
+    onClick: (() -> Unit)? = null
 ) {
+    // The click has to be applied after the clip, not by the caller before it: a
+    // `clickable` outside the chip's own shape draws a rectangular ripple, which is why
+    // pressing the chip lit up square corners around a rounded card.
     Row(
         modifier = modifier
             .clip(statsCardShape(16.dp, 10.dp))
             .background(spec.tone.copy(alpha = 0.11f).compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -852,37 +867,33 @@ internal fun PinnedMetricChip(
 /**
  * Windows the dashboard strip can summarise, cycled by tapping the leading pill.
  *
- * Today and 3 days have no [StatsTimeRange] of their own, so they go through the
- * custom-range path instead; the rest map straight onto a quick range.
+ * The strip owns these outright rather than borrowing the statistics screen's range: it
+ * used to drive [StatsViewModel.setTimeRange], which meant cycling the pill on the
+ * dashboard silently changed — and persisted — whichever range the user had chosen on the
+ * statistics screen.
  */
 // internal, not private: the Dashboard owns the strip's selection so that its portrait and
 // landscape call sites share one window. See PinnedStatsStrip's windowState parameter.
-internal enum class PinnedWindow(@get:StringRes val labelResId: Int) {
-    TODAY(R.string.stats_window_today),
-    H24(R.string.stats_window_24h),
-    D3(R.string.stats_window_3d),
-    D7(R.string.range_7d),
-    D30(R.string.range_30d),
-    D90(R.string.range_90d);
+internal enum class PinnedWindow(@get:StringRes val labelResId: Int, private val days: Int) {
+    TODAY(R.string.stats_window_today, 0),
+    D1(R.string.range_1d, 1),
+    D3(R.string.stats_window_3d, 3),
+    D14(R.string.range_14d, 14),
+    D30(R.string.range_30d, 30);
 
-    val quickRange: StatsTimeRange?
-        get() = when (this) {
-            TODAY, D3 -> null
-            H24 -> StatsTimeRange.DAY_1
-            D7 -> StatsTimeRange.DAY_7
-            D30 -> StatsTimeRange.DAY_30
-            D90 -> StatsTimeRange.DAY_90
+    /**
+     * Open-ended at the top: pinning the end to "now" froze the chips between
+     * recompositions, because a reading that arrived after the range was computed fell
+     * outside it.
+     */
+    fun resolveRange(): StatsDateRange {
+        val startMillis = if (this == TODAY) {
+            val zone = java.time.ZoneId.systemDefault()
+            java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli()
+        } else {
+            (System.currentTimeMillis() - days * 24L * 60L * 60L * 1000L).coerceAtLeast(0L)
         }
-
-    /** Start/end for the windows a quick range cannot express. */
-    fun customRange(): Pair<Long, Long>? {
-        val zone = java.time.ZoneId.systemDefault()
-        val now = System.currentTimeMillis()
-        return when (this) {
-            TODAY -> java.time.LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli() to now
-            D3 -> (now - 3L * 24L * 60L * 60L * 1000L) to now
-            else -> null
-        }
+        return StatsDateRange(startMillis = startMillis, endMillis = Long.MAX_VALUE)
     }
 }
 
@@ -916,17 +927,20 @@ fun hasPinnedStats(): Boolean {
 internal fun PinnedStatsStrip(
     modifier: Modifier = Modifier,
     rows: Int = 1,
-    windowState: MutableState<PinnedWindow> = rememberSaveable { mutableStateOf(PinnedWindow.H24) },
+    windowState: MutableState<PinnedWindow> = rememberSaveable { mutableStateOf(PinnedWindow.TODAY) },
 ) {
     val context = LocalContext.current
     LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
     val layout by StatsLayoutStore.state.collectAsState()
     val pinned = layout.dashboardMetrics
-    val statsViewModel: StatsViewModel = viewModel()
-    val uiState by statsViewModel.uiState.collectAsState()
-    if (pinned.isEmpty() || uiState.summary.readingCount == 0) return
-
+    val statsViewModel: StatsViewModel = rememberStatsViewModel()
     var window by windowState
+    // Tells the view model how far back to read. Without this the strip showed numbers
+    // for whatever range the statistics screen was last left on, whatever the pill said.
+    LaunchedEffect(window) { statsViewModel.setPinnedWindow(window) }
+    val pinnedState by statsViewModel.pinnedState.collectAsState()
+    if (pinned.isEmpty() || pinnedState.summary.readingCount == 0) return
+
     // -1 means the picker was opened from the add slot.
     var editingSlot by remember { mutableStateOf<Int?>(null) }
     val dragState = rememberMetricDragState(
@@ -936,14 +950,7 @@ internal fun PinnedStatsStrip(
 
     val onCycleWindow: () -> Unit = {
         val entries = PinnedWindow.entries
-        val next = entries[(entries.indexOf(window) + 1) % entries.size]
-        window = next
-        val quick = next.quickRange
-        if (quick != null) {
-            statsViewModel.setTimeRange(quick)
-        } else {
-            next.customRange()?.let { (start, end) -> statsViewModel.setCustomRange(start, end) }
-        }
+        window = entries[(entries.indexOf(window) + 1) % entries.size]
     }
 
     // Cells in reading order: the window pill, then each pinned metric, then the add
@@ -959,14 +966,13 @@ internal fun PinnedStatsStrip(
         pinned.forEachIndexed { index, metric ->
             add { cellModifier ->
                 PinnedMetricChip(
-                    spec = metricSpec(metric, uiState.summary, uiState.targets, uiState.unit),
-                    tir = uiState.summary.tir.takeIf { metric == StatsMetric.TIME_IN_RANGE },
-                    modifier = cellModifier
-                        .metricDrag(metric, dragState)
-                        .clickable {
-                            // A long press that became a drag must not also open the picker.
-                            if (dragState.dragging == null) editingSlot = index
-                        }
+                    spec = metricSpec(metric, pinnedState.summary, pinnedState.targets, pinnedState.unit),
+                    tir = pinnedState.summary.tir.takeIf { metric == StatsMetric.TIME_IN_RANGE },
+                    modifier = cellModifier.metricDrag(metric, dragState),
+                    onClick = {
+                        // A long press that became a drag must not also open the picker.
+                        if (dragState.dragging == null) editingSlot = index
+                    }
                 )
             }
         }
@@ -1022,9 +1028,9 @@ internal fun PinnedStatsStrip(
         PinnedMetricPickerSheet(
             current = pinned.getOrNull(slot),
             alreadyPinned = pinned,
-            summary = uiState.summary,
-            targets = uiState.targets,
-            unit = uiState.unit,
+            summary = pinnedState.summary,
+            targets = pinnedState.targets,
+            unit = pinnedState.unit,
             onPick = { metric ->
                 StatsLayoutStore.replaceDashboardMetric(slot, metric)
                 editingSlot = null
@@ -1146,62 +1152,80 @@ private fun PinnedMetricPickerSheet(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 StatsMetric.entries.forEach { metric ->
-                    val spec = metricSpec(metric, summary, targets, unit)
                     val selected = metric == current
-                    val pinnedElsewhere = metric in alreadyPinned && !selected
-                    val rowShape = statsCardShape(20.dp, 12.dp)
-                    val container by animateColorAsState(
-                        targetValue = when {
-                            selected -> spec.tone.copy(alpha = 0.20f)
-                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            else -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f)
-                        },
-                        label = "pickerRow"
+                    MetricSheetRow(
+                        spec = metricSpec(metric, summary, targets, unit),
+                        selected = selected,
+                        badge = if (metric in alreadyPinned && !selected) Icons.Filled.PushPin else null,
+                        badgeDescription = stringResource(R.string.stats_pinned_already),
+                        onClick = { onPick(metric) }
                     )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(rowShape)
-                            .background(container)
-                            .clickable { onPick(metric) }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = spec.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (pinnedElsewhere) {
-                            Icon(
-                                imageVector = Icons.Filled.PushPin,
-                                contentDescription = stringResource(R.string.stats_pinned_already),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                        Text(
-                            text = spec.value,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontFeatureSettings = "tnum",
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = spec.tone,
-                            maxLines = 1
-                        )
-                    }
                 }
             }
         }
+    }
+}
+
+/**
+ * One row of a metric sheet: name, live value, and selection carried by the row's own
+ * container in the same shape language as the tiles it stands for.
+ */
+@Composable
+private fun MetricSheetRow(
+    spec: MetricSpec,
+    selected: Boolean,
+    badge: androidx.compose.ui.graphics.vector.ImageVector?,
+    badgeDescription: String,
+    onClick: () -> Unit
+) {
+    val container by animateColorAsState(
+        targetValue = if (selected) {
+            spec.tone.copy(alpha = 0.20f).compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f)
+        },
+        label = "metricSheetRow"
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(statsCardShape(20.dp, 12.dp))
+            .background(container)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            text = spec.title,
+            style = MaterialTheme.typography.titleSmall,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        badge?.let {
+            Icon(
+                imageVector = it,
+                contentDescription = badgeDescription,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                modifier = Modifier.size(15.dp)
+            )
+        }
+        Text(
+            text = spec.value,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFeatureSettings = "tnum",
+                fontWeight = FontWeight.SemiBold
+            ),
+            color = spec.tone.copy(alpha = if (selected) 1f else 0.55f),
+            maxLines = 1
+        )
     }
 }
 
