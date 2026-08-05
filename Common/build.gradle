@@ -7,6 +7,11 @@ plugins {
 
 // Single source of truth for toolchain + dependency versions.
 ext {
+    // Bump the app version here only. Wear releases use appVersionCode + 1000000
+    // so Play accepts both APKs in one release (distinct versionCodes per form
+    // factor). Scheme originates on the wearos branch — keep the two in step.
+    appVersionCode = 1009
+
     ndkver       = '29.0.14206865'
     CMAKEVERSION = '3.22.1'
     CPPSTD       = '-std=gnu++26'
@@ -44,7 +49,7 @@ android {
     defaultConfig {
         applicationId "tk.glucodata.ng"
         versionName '1.0.9-Alpha'
-        versionCode 1009
+        versionCode appVersionCode
 
         targetSdk TARGETSDK
         buildConfigField 'int', 'targetSDK', "$targetSdk"
@@ -109,6 +114,7 @@ android {
             minSdkVersion 26
             buildConfigField 'int', 'minSDK', "$minSdk"
             manifestPlaceholders["minSDK"] = "$minSdk"
+            versionCode 1000000 + appVersionCode //WATCH: mobile versionCode + 1M offset
             versionNameSuffix '-wear'
             signingConfig signingConfigs.alg
             buildConfigField 'int', 'isWear', '1'
