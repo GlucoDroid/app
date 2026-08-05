@@ -930,7 +930,7 @@ internal fun PinnedStatsStrip(
     LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
     val layout by StatsLayoutStore.state.collectAsState()
     val pinned = layout.dashboardMetrics
-    val statsViewModel: StatsViewModel = viewModel()
+    val statsViewModel: StatsViewModel = rememberStatsViewModel()
     var window by windowState
     // Tells the view model how far back to read. Without this the strip showed numbers
     // for whatever range the statistics screen was last left on, whatever the pill said.

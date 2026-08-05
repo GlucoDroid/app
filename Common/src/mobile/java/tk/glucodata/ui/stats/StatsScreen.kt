@@ -189,7 +189,7 @@ private data class TirRowDescriptor(
 @Composable
 fun StatsScreen(
     modifier: Modifier = Modifier,
-    viewModel: StatsViewModel = viewModel()
+    viewModel: StatsViewModel = rememberStatsViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current

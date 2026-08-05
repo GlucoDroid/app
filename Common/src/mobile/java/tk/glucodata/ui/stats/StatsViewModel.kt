@@ -1,8 +1,15 @@
 package tk.glucodata.ui.stats
 
+import android.content.ContextWrapper
 import android.util.Log
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,6 +47,31 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlin.math.sqrt
+
+/**
+ * The one statistics view model for the whole activity.
+ *
+ * A plain `viewModel()` inside a `composable("stats") { … }` scopes to that destination's
+ * [androidx.navigation.NavBackStackEntry]. Bottom navigation here pops the destination it
+ * leaves — `popUpTo(startDestination) { saveState = true }` — and popping clears that
+ * entry's `ViewModelStore`; `saveState` preserves a `SavedStateHandle`, not view models.
+ * So every single visit to the Statistics tab was building a new view model from nothing:
+ * a fresh Room subscription, another native backfill check, and every statistic
+ * recomputed against an empty cache. The dashboard strip was getting a second instance of
+ * its own for the same reason, doing the same work twice over.
+ *
+ * Scoping to the activity means one instance, built once, kept warm.
+ */
+@Composable
+internal fun rememberStatsViewModel(): StatsViewModel {
+    val context = LocalContext.current
+    val owner = remember(context) {
+        generateSequence(context) { (it as? ContextWrapper)?.baseContext }
+            .filterIsInstance<ViewModelStoreOwner>()
+            .firstOrNull()
+    }
+    return viewModel(viewModelStoreOwner = owner ?: checkNotNull(LocalViewModelStoreOwner.current))
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StatsViewModel : ViewModel() {
@@ -208,7 +240,12 @@ class StatsViewModel : ViewModel() {
         }
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
+        // Eagerly, not WhileSubscribed. The dashboard strip used to read this flow, which
+        // meant something held a subscription for the whole session and the state was
+        // always warm by the time anyone opened the statistics screen. Giving the strip
+        // its own cheaper flow quietly removed that subscriber, so the screen's state went
+        // cold five seconds after every visit and had to be rebuilt on the next one.
+        started = SharingStarted.Eagerly,
         initialValue = resolveInitialUiState()
     )
 
@@ -547,12 +584,6 @@ class StatsViewModel : ViewModel() {
         }
     }
 
-    /**
-     * How far back the history subscription has to reach for everyone currently watching.
-     *
-     * While the dashboard is the only consumer that is the strip's window alone — a day,
-     * typically — instead of whatever the statistics screen was last left on.
-     */
     /**
      * How far back the history subscription has to reach.
      *
