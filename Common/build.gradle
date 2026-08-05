@@ -10,7 +10,6 @@ ext {
     ndkver       = '29.0.14206865'
     CMAKEVERSION = '3.22.1'
     CPPSTD       = '-std=gnu++26'
-    MINSDK       = 21
     TARGETSDK    = 35
     APPCOMPAT    = '1.7.1'
     GMSBASE      = '18.9.0'
@@ -79,6 +78,14 @@ android {
     flavorDimensions = ['wearos', 'Google']
 
     productFlavors {
+        // The Google dimension deliberately has only one flavour. `nogoogle` was
+        // removed because it had never compiled: src/mobileSiNogoogle's GlucoseDraw
+        // references glucose_* drawables that only exist in src/mobileNosi/res, which
+        // was never on that variant's res path. The dimension is kept (rather than
+        // folded into defaultConfig) so the mobileGoogle combination source set below
+        // can supply src/mobileSi/AndroidManifest.xml -- a source set has exactly one
+        // manifest, and the `mobile` flavour's own src/mobile/AndroidManifest.xml
+        // already occupies its slot.
         google {
             dimension 'Google'
             minSdk 26
@@ -91,18 +98,6 @@ android {
             manifestPlaceholders["debuggable"] = "false"
             manifestPlaceholders["requireWatch"] = "true"
         }
-        nogoogle {
-            dimension 'Google'
-            minSdk MINSDK
-            minSdkVersion MINSDK
-            versionNameSuffix '-nog'
-            buildConfigField 'int', 'minSDK', "$minSdk"
-            buildConfigField 'int', 'Google', '0'
-            buildConfigField 'int', 'noZXing', '0'
-            manifestPlaceholders["debuggable"] = "true"
-            manifestPlaceholders["requireWatch"] = "false"
-        }
-
         mobile {
             dimension 'wearos'
             versionNameSuffix '-phone'
@@ -273,17 +268,7 @@ android {
             manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
             res.srcDirs = ['src/mobileSi/res']
         }
-        mobileNogoogle {
-            java.srcDirs = ['src/mobileSi/java', 'src/mobileSiNogoogle/java']
-            jniLibs.srcDirs = ['src/mobileSi/jniLibs']
-            manifest { srcFile 'src/mobileSi/AndroidManifest.xml' }
-            res.srcDirs = ['src/mobileSi/res', 'src/mobileSiNogoogle/res']
-        }
         wearGoogle {
-            java.srcDirs = ['src/wearSi/java']
-            jniLibs.srcDirs = ['src/wearSi/jniLibs']
-        }
-        wearNogoogle {
             java.srcDirs = ['src/wearSi/java']
             jniLibs.srcDirs = ['src/wearSi/jniLibs']
         }
@@ -390,8 +375,8 @@ dependencies {
     mobileImplementation "androidx.room:room-ktx:$room_version"
     ksp "androidx.room:room-compiler:$room_version"
 
-    // Scanning (QR / barcode). Used by src/mobileSi + the mobileSi{Google,Nogoogle}
-    // ZXing shims -- both Google and nogoogle mobile builds need all of it.
+    // Scanning (QR / barcode). Used by src/mobileSi + the src/mobileSiGoogle
+    // ZXing shim.
     def cameraXVersion = "1.4.2"
     mobileImplementation 'com.google.zxing:core:3.5.4'
     mobileImplementation 'com.journeyapps:zxing-android-embedded:4.3.0'
