@@ -121,6 +121,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -802,6 +805,23 @@ private fun ArrangeSheet(
     // statistics stay visible behind — you are rearranging them, and seeing what you are
     // rearranging is the point. Material's own partial-expansion stop is half the screen,
     // which cuts the section list off mid-way, so the height is set here instead.
+    // Material's own partial stop is exactly half the screen and is not configurable, so
+    // the resting height is set here and grown to the full screen the moment the list is
+    // scrolled — which is the moment more room is actually wanted. Dragging the sheet down
+    // still dismisses it; that gesture pushes the other way and never triggers this.
+    var grown by remember { mutableStateOf(false) }
+    val heightFraction by animateFloatAsState(
+        targetValue = if (grown) 1f else 0.78f,
+        label = "arrangeSheetHeight"
+    )
+    val growOnScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -1f) grown = true
+                return Offset.Zero
+            }
+        }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -810,7 +830,7 @@ private fun ArrangeSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.78f)
+                .fillMaxHeight(heightFraction)
         ) {
             // Fixed. The title says which mode you are in and the button leaves it, so
             // neither belongs in the part that scrolls away.
@@ -841,6 +861,7 @@ private fun ArrangeSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .nestedScroll(growOnScroll)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 32.dp)

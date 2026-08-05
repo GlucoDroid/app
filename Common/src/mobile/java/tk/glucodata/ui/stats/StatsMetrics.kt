@@ -418,6 +418,10 @@ internal fun metricSpec(
                 summary.cvPercent < 40f -> middlingWord
                 else -> swingyWord
             },
+            // The consensus threshold, the same way A1c states its own. The tile reserved
+            // this line for its neighbour's benefit and then left it blank, which is a
+            // hole where a number every CV reading is judged against could sit.
+            meta = "$targetWord ${String.format(Locale.getDefault(), "<%.0f%%", 36f)}",
             tone = when {
                 summary.cvPercent < 32f -> TirInRangeColor
                 summary.cvPercent < 40f -> TirHighColor
