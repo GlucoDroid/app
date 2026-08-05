@@ -322,7 +322,7 @@ fun DashboardScreen(
     // call sites, so state living in the strip was discarded on every rotation and the window
     // fell back to 24h. This screen stays in composition across the orientation change.
     val pinnedStatsWindow = rememberSaveable {
-        mutableStateOf(tk.glucodata.ui.stats.PinnedWindow.H24)
+        mutableStateOf(tk.glucodata.ui.stats.PinnedWindow.TODAY)
     }
     val chartSmoothingMinutes by viewModel.chartSmoothingMinutes.collectAsState()
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()

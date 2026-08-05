@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Visibility
@@ -28,6 +29,8 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WidthFull
 import androidx.compose.material.icons.filled.WidthNormal
 import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -105,7 +108,18 @@ internal fun StatsLayoutEditor(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            TextButton(onClick = onDone) {
+            // A bare text label floating at the top right did not read as the way out of
+            // a mode — it read as part of the heading. A filled button does.
+            Button(
+                onClick = onDone,
+                contentPadding = PaddingValues(start = 16.dp, end = 20.dp, top = 10.dp, bottom = 10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.size(8.dp))
                 Text(text = stringResource(R.string.libre_setup_done))
             }
         }
@@ -528,9 +542,18 @@ internal class MetricDragState(
         offset += delta
         val held = bounds[metric] ?: return false
         val centre = held.center + offset
-        val target = bounds.entries.firstOrNull { (other, rect) ->
-            other != metric && rect.contains(centre)
-        }?.key ?: return false
+        // Whichever slot the tile is now nearest to, and only once it is nearer to that
+        // one than to its own. Hit-testing by containment instead meant every gap between
+        // and around the tiles was dead space where a drag did nothing, which is what made
+        // dragging feel like it could only ever move a tile to the neighbouring slot.
+        val nearest = bounds.entries
+            .filter { (other, _) -> other != metric }
+            .minByOrNull { (_, rect) -> (rect.center - centre).getDistance() }
+            ?: return false
+        if ((nearest.value.center - centre).getDistance() >= (held.center - centre).getDistance()) {
+            return false
+        }
+        val target = nearest.key
 
         val order = orderOf()
         val from = order.indexOf(metric)
@@ -554,18 +577,30 @@ internal fun rememberMetricDragState(
     }
 }
 
+/**
+ * Reports a tile's slot in root coordinates.
+ *
+ * Must sit *outside* the drag's `graphicsLayer` in the modifier chain. Inside it, the
+ * reported position followed the finger — `positionInRoot` includes the layer's
+ * translation — so the hit-test point moved at twice the drag distance and the tile
+ * would swap once and then chase itself off into nowhere.
+ */
+internal fun Modifier.reportMetricBounds(
+    metric: StatsMetric,
+    state: MetricDragState
+): Modifier = onGloballyPositioned { coordinates ->
+    state.reportBounds(
+        metric,
+        Rect(coordinates.positionInRoot(), coordinates.size.toSize())
+    )
+}
+
 internal fun Modifier.draggableMetric(
     metric: StatsMetric,
     state: MetricDragState,
     onLift: () -> Unit,
     onTick: () -> Unit
 ): Modifier = this
-    .onGloballyPositioned { coordinates ->
-        state.reportBounds(
-            metric,
-            Rect(coordinates.positionInRoot(), coordinates.size.toSize())
-        )
-    }
     .pointerInput(metric, state) {
         detectDragGesturesAfterLongPress(
             onDragStart = {

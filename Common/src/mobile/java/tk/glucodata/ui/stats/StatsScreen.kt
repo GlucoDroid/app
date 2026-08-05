@@ -77,6 +77,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -97,6 +98,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -191,6 +193,13 @@ fun StatsScreen(
     viewModel: StatsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    // Until this screen exists, the only thing reading the view model is the dashboard
+    // strip, which wants a day. Saying so is what keeps app start from loading the whole
+    // range this screen was last left on.
+    DisposableEffect(viewModel) {
+        viewModel.setStatsScreenAttached(true)
+        onDispose { viewModel.setStatsScreenAttached(false) }
+    }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val reportPrefs = remember(context) {
@@ -774,11 +783,8 @@ private fun MetricsSection(
     targets: StatsTargets,
     unit: GlucoseUnit
 ) {
-    if (metrics.isEmpty()) {
-        SectionEmptyLine(text = stringResource(R.string.stats_metrics_all_hidden))
-        return
-    }
     var showAll by rememberSaveable { mutableStateOf(false) }
+    var choosingMetrics by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(emptySet<StatsMetric>()) }
     // One drag state for both grids so a tile can be dragged across the fold, and one
     // expansion set so the two halves agree about which tiles are open.
@@ -805,16 +811,20 @@ private fun MetricsSection(
             .animateContentSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        MetricsGrid(
-            metrics = headMetrics,
-            wideMetrics = wideMetrics,
-            summary = summary,
-            targets = targets,
-            unit = unit,
-            expanded = expanded,
-            onToggleExpanded = toggleExpanded,
-            dragState = dragState
-        )
+        if (metrics.isEmpty()) {
+            SectionEmptyLine(text = stringResource(R.string.stats_metrics_all_hidden))
+        } else {
+            MetricsGrid(
+                metrics = headMetrics,
+                wideMetrics = wideMetrics,
+                summary = summary,
+                targets = targets,
+                unit = unit,
+                expanded = expanded,
+                onToggleExpanded = toggleExpanded,
+                dragState = dragState
+            )
+        }
 
         if (tailMetrics.isNotEmpty()) {
             AnimatedVisibility(
@@ -833,33 +843,68 @@ private fun MetricsSection(
                     dragState = dragState
                 )
             }
+        }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable { showAll = !showAll }
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (showAll) {
+        // Two quiet glyphs rather than a line of link text: the fold is a mechanism, not
+        // a heading, and the grid below it should be what the eye lands on. The second
+        // one is how metrics are switched on and off without leaving for Arrange.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (tailMetrics.isNotEmpty()) {
+                SubtleGlyphButton(
+                    icon = if (showAll) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (showAll) {
                         stringResource(R.string.stats_fewer_metrics)
                     } else {
                         stringResource(R.string.stats_more_metrics)
                     },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Icon(
-                    imageVector = if (showAll) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
+                    onClick = { showAll = !showAll }
                 )
             }
+            SubtleGlyphButton(
+                icon = Icons.Default.Tune,
+                contentDescription = stringResource(R.string.stats_card_metrics),
+                onClick = { choosingMetrics = true }
+            )
         }
+    }
+
+    if (choosingMetrics) {
+        MetricVisibilitySheet(
+            order = fullOrder,
+            hidden = fullOrder.filterNot { it in metrics }.toSet(),
+            summary = summary,
+            targets = targets,
+            unit = unit,
+            onDismiss = { choosingMetrics = false }
+        )
+    }
+}
+
+/** A small tonal disc: present enough to be a target, quiet enough not to be a heading. */
+@Composable
+private fun SubtleGlyphButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 
@@ -1294,19 +1339,29 @@ private fun GlycemicOverviewCard(
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val isCompact = maxWidth < 340.dp
-                val layoutPressure = ((420f - maxWidth.value) / 140f).coerceIn(0f, 1f)
-                val ringBaseSize = if (isCompact) {
-                    (maxWidth * 0.55f).coerceIn(140.dp, 206.dp)
+                // The band rows are what decide this, not a round number.
+                //
+                // A row needs its label, a 62 dp range column and a 50 dp percentage
+                // column; below about 180 dp it starts eliding the labels. So the ring
+                // keeps whatever is left over and the two only stop sharing a line when
+                // the ring would have to drop under 96 dp — a threshold of 340 dp put a
+                // 360 dp phone into the stacked layout with 150 dp of width to spare,
+                // which is the ring taking a whole row on someone else's device while it
+                // looked fine on a Pixel.
+                val minRowsWidth = 180.dp
+                val ringSpacing = 10.dp
+                val ringMin = 88.dp
+                val ringMax = 176.dp
+                val isCompact = maxWidth < ringMin + ringSpacing + minRowsWidth
+                val ringSize = if (isCompact) {
+                    (maxWidth * 0.55f).coerceIn(118.dp, 206.dp)
                 } else {
-                    (maxWidth * 0.38f).coerceIn(132.dp, 176.dp)
+                    (maxWidth * 0.34f)
+                        .coerceIn(ringMin, ringMax)
+                        // Never at the rows' expense.
+                        .coerceAtMost(maxWidth - ringSpacing - minRowsWidth)
                 }
-                val ringShrinkFactor = 1f - (0.33f * layoutPressure)
-                val ringSize = (ringBaseSize * ringShrinkFactor).coerceIn(
-                    if (isCompact) 118.dp else 108.dp,
-                    if (isCompact) 206.dp else 176.dp
-                )
-                val compactText = layoutPressure > 0.34f
+                val compactText = maxWidth < 372.dp
                 val tirRows: @Composable () -> Unit = {
                     Column(
                         modifier = Modifier.fillMaxWidth(),

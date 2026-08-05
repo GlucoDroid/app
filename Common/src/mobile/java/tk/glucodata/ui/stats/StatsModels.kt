@@ -305,6 +305,16 @@ data class StatsSummary(
     val insights: List<StatsInsight> = emptyList()
 )
 
+/**
+ * What the dashboard strip needs, and nothing else. Kept apart from [StatsUiState] so the
+ * dashboard never pays for the statistics screen's projection just to draw three chips.
+ */
+data class StatsPinnedState(
+    val summary: StatsSummary = StatsSummary(),
+    val targets: StatsTargets = StatsTargets(),
+    val unit: GlucoseUnit = GlucoseUnit.MGDL
+)
+
 data class StatsUiState(
     val selectedRange: StatsTimeRange? = StatsTimeRange.DAY_14,
     val activeRange: StatsDateRange? = null,

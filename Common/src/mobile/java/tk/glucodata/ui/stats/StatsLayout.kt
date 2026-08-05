@@ -94,7 +94,22 @@ enum class StatsMetric(@param:StringRes val titleResId: Int) {
         )
 
         /** Rows shown before the rest fold away behind the disclosure. */
-        const val DEFAULT_VISIBLE_ROWS = 3
+        const val DEFAULT_VISIBLE_ROWS = 4
+
+        /**
+         * Pinned to the dashboard out of the box.
+         *
+         * Mean, variability and time in range are the trio every consensus report leads
+         * with, and each answers a question the dashboard chart does not: where the level
+         * sits, how steady it is, and how much of the window was on target.
+         *
+         * A1c (GMI) is deliberately not here. It is a regression fitted to mean glucose
+         * over fourteen days or more; over the strip's default window it is the mean
+         * wearing a percent sign, and it swings hour to hour in a way that reads as noise.
+         * It is one tap away for anyone running the strip at 30 or 90 days, where it means
+         * something.
+         */
+        val PINNED_BY_DEFAULT = listOf(TIME_IN_RANGE, AVERAGE, CV)
     }
 }
 
@@ -104,7 +119,7 @@ data class StatsLayoutState(
     val metricOrder: List<StatsMetric> = StatsMetric.DEFAULT_ORDER,
     val hiddenMetrics: Set<StatsMetric> = StatsMetric.HIDDEN_BY_DEFAULT,
     val wideMetrics: Set<StatsMetric> = emptySet(),
-    val dashboardMetrics: List<StatsMetric> = emptyList()
+    val dashboardMetrics: List<StatsMetric> = StatsMetric.PINNED_BY_DEFAULT
 ) {
     val visibleCards: List<StatsCard> get() = cardOrder.filterNot { it in hiddenCards }
     val visibleMetrics: List<StatsMetric> get() = metricOrder.filterNot { it in hiddenMetrics }
@@ -130,7 +145,7 @@ object StatsLayoutStore {
      * older default is discarded rather than merged: merging left people with the old
      * pairing plus new metrics tacked on the end, which is worse than a clean default.
      */
-    private const val LAYOUT_VERSION = 4
+    private const val LAYOUT_VERSION = 5
     private const val KEY_DASHBOARD = "stats_layout_dashboard_metrics"
 
     /**
@@ -244,10 +259,11 @@ object StatsLayoutStore {
         if (store.getInt(KEY_VERSION, 0) != LAYOUT_VERSION) {
             // Ordering resets, but what the user pinned to the dashboard is unrelated to
             // the default order and survives — losing it on every version bump was its
-            // own small annoyance.
+            // own small annoyance. Someone who had pinned nothing gets the new defaults,
+            // since a version bump is exactly the moment the defaults changed.
+            val stored = readPinned(store)
             return defaults.copy(
-                dashboardMetrics = readOrder(store, KEY_DASHBOARD, emptyList()) { StatsMetric.valueOf(it) }
-                    .take(MAX_DASHBOARD_METRICS)
+                dashboardMetrics = stored.takeIf { it.isNotEmpty() } ?: defaults.dashboardMetrics
             )
         }
         return StatsLayoutState(
@@ -256,10 +272,24 @@ object StatsLayoutStore {
             metricOrder = readOrder(store, KEY_METRIC_ORDER, StatsMetric.DEFAULT_ORDER) { StatsMetric.valueOf(it) },
             hiddenMetrics = readSet(store, KEY_METRIC_HIDDEN, defaults.hiddenMetrics) { StatsMetric.valueOf(it) },
             wideMetrics = readSet(store, KEY_METRIC_WIDE, defaults.wideMetrics) { StatsMetric.valueOf(it) },
-            dashboardMetrics = readOrder(store, KEY_DASHBOARD, emptyList()) { StatsMetric.valueOf(it) }
-                .take(MAX_DASHBOARD_METRICS)
+            // Unlike every other key, an empty value here is a real answer: it means the
+            // user unpinned everything, and handing them the defaults back on the next
+            // launch would be a bug rather than a kindness.
+            dashboardMetrics = if (store.getString(KEY_DASHBOARD, null) == null) {
+                defaults.dashboardMetrics
+            } else {
+                readPinned(store)
+            }
         )
     }
+
+    private fun readPinned(store: SharedPreferences): List<StatsMetric> =
+        store.getString(KEY_DASHBOARD, null)
+            .orEmpty()
+            .split(',')
+            .mapNotNull { name -> runCatching { StatsMetric.valueOf(name.trim()) }.getOrNull() }
+            .distinct()
+            .take(MAX_DASHBOARD_METRICS)
 
     /**
      * Stored order wins for everything it names; anything added to the enum since the

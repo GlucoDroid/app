@@ -134,11 +134,33 @@ class StatsViewModel : ViewModel() {
     private var availableRangeJob: Job? = null
     @Volatile private var statsDisplayHistoryCacheKey: StatsDisplayHistoryCacheKey? = null
     @Volatile private var statsDisplayHistoryCacheValue: List<GlucosePoint> = emptyList()
-    @Volatile private var statsRangeProjectionCacheKey: StatsRangeProjectionCacheKey? = null
-    @Volatile private var statsRangeProjectionCacheValue = StatsRangeProjection(
-        filteredHistory = emptyList(),
-        summary = StatsSummary()
-    )
+    /**
+     * One slot per consumer. The statistics screen and the dashboard strip ask for
+     * different windows of the same history, so a single shared slot would have been
+     * invalidated by whichever of them recomposed last.
+     */
+    private class ProjectionCache {
+        @Volatile var key: StatsRangeProjectionCacheKey? = null
+        @Volatile var value = StatsRangeProjection(
+            filteredHistory = emptyList(),
+            summary = StatsSummary()
+        )
+    }
+
+    private val screenProjectionCache = ProjectionCache()
+    private val pinnedProjectionCache = ProjectionCache()
+
+    /**
+     * The window the dashboard strip is summarising, and whether the statistics screen is
+     * actually on screen.
+     *
+     * Both exist for the same reason: the strip made this view model the first thing
+     * created at app start, and it then loaded whatever range the statistics screen had
+     * been left on — up to every reading ever recorded — to fill three chips covering a
+     * single day. Nothing was looking at the rest.
+     */
+    private val _pinnedWindow = MutableStateFlow<PinnedWindow?>(null)
+    private val _statsScreenAttached = MutableStateFlow(false)
 
     private val baseState = combine(
         _selectedRange,
@@ -195,12 +217,60 @@ class StatsViewModel : ViewModel() {
         initialValue = resolveInitialUiState()
     )
 
+    /**
+     * Numbers for the dashboard strip, over the strip's own window.
+     *
+     * Deliberately a second flow rather than a second reader of [uiState]: the strip must
+     * not drag the statistics screen's range around with it — cycling the window pill used
+     * to overwrite and persist whatever range the user had chosen on the statistics screen
+     * — and the screen's full projection is far more work than three chips need. Both go
+     * through [resolveRangeProjection], so where the windows agree the numbers agree.
+     */
+    internal val pinnedState: StateFlow<StatsPinnedState> = combine(
+        baseState,
+        _historyPoints,
+        _pinnedWindow
+    ) { base, history, window ->
+        PinnedInput(
+            unit = base.unit,
+            targets = base.targets,
+            viewMode = base.viewMode,
+            calibrationRevision = base.calibrationRevision,
+            history = history,
+            window = window
+        )
+    }.mapLatest { input ->
+        withContext(Dispatchers.Default) { buildPinnedState(input) }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = StatsPinnedState()
+    )
+
     init {
         observeUiRefreshBus()
         if (pendingRestoredCustomClamp) {
             clampRestoredCustomRangeWhenAvailable()
         }
         refreshFromNative()
+    }
+
+    /**
+     * The statistics screen announces itself so the history subscription can stay small
+     * while only the dashboard strip is watching.
+     */
+    internal fun setStatsScreenAttached(attached: Boolean) {
+        if (_statsScreenAttached.value == attached) return
+        _statsScreenAttached.value = attached
+        // Only ever widens: nothing shrinks a live subscription, so leaving the screen
+        // does not throw away history the user is about to come back to.
+        if (attached) resubscribeToRequestedWindow()
+    }
+
+    internal fun setPinnedWindow(window: PinnedWindow?) {
+        if (_pinnedWindow.value == window) return
+        _pinnedWindow.value = window
+        resubscribeToRequestedWindow()
     }
 
     fun setTimeRange(range: StatsTimeRange) {
@@ -494,7 +564,26 @@ class StatsViewModel : ViewModel() {
         }
     }
 
+    /**
+     * How far back the history subscription has to reach for everyone currently watching.
+     *
+     * While the dashboard is the only consumer that is the strip's window alone — a day,
+     * typically — instead of whatever the statistics screen was last left on.
+     */
     private fun resolveSubscriptionStartTime(): Long {
+        val pinnedStart = _pinnedWindow.value?.resolveRange()?.startMillis
+        if (_statsScreenAttached.value) {
+            val screenStart = resolveScreenSubscriptionStartTime()
+            return if (pinnedStart != null) minOf(screenStart, pinnedStart) else screenStart
+        }
+        // Nobody has asked for more than a day yet. The statistics screen widens this the
+        // moment it composes; the first subscription used to start from the range that
+        // screen was last left on, so every launch paid for a ninety-day read of the
+        // database before there was anything on screen using it.
+        return pinnedStart ?: (System.currentTimeMillis() - DAY_MS).coerceAtLeast(0L)
+    }
+
+    private fun resolveScreenSubscriptionStartTime(): Long {
         val customRange = _customRange.value
         return when {
             customRange != null -> {
@@ -715,7 +804,10 @@ class StatsViewModel : ViewModel() {
         viewMode: Int,
         unit: GlucoseUnit,
         targets: StatsTargets,
-        activeRange: StatsDateRange?
+        activeRange: StatsDateRange?,
+        cache: ProjectionCache = screenProjectionCache,
+        useDisplayCache: Boolean = true,
+        withComparison: Boolean = true
     ): StatsRangeProjection {
         if (history.isEmpty()) {
             return StatsRangeProjection(
@@ -748,15 +840,16 @@ class StatsViewModel : ViewModel() {
             veryLowMgDl = targets.veryLowMgDl,
             veryHighMgDl = targets.veryHighMgDl
         )
-        if (statsRangeProjectionCacheKey == cacheKey) {
-            return statsRangeProjectionCacheValue
+        if (cache.key == cacheKey) {
+            return cache.value
         }
 
         val displayHistory = resolveStatsDisplayHistory(
             history = rawHistory,
             viewMode = viewMode,
             unit = unit,
-            historySignature = historySignature
+            historySignature = historySignature,
+            useCache = useDisplayCache
         )
         val filteredHistory = displayHistory.filter { point ->
             isStatsValueValid(point.value)
@@ -768,18 +861,22 @@ class StatsViewModel : ViewModel() {
                 targets = targets,
                 unit = unit,
                 activeRange = activeRange,
-                previousScalars = resolvePreviousPeriodScalars(
-                    history = history,
-                    viewMode = viewMode,
-                    unit = unit,
-                    targets = targets,
-                    activeRange = activeRange,
-                    currentReadingCount = filteredHistory.size
-                )
+                previousScalars = if (withComparison) {
+                    resolvePreviousPeriodScalars(
+                        history = history,
+                        viewMode = viewMode,
+                        unit = unit,
+                        targets = targets,
+                        activeRange = activeRange,
+                        currentReadingCount = filteredHistory.size
+                    )
+                } else {
+                    null
+                }
             )
         )
-        statsRangeProjectionCacheKey = cacheKey
-        statsRangeProjectionCacheValue = projection
+        cache.key = cacheKey
+        cache.value = projection
         return projection
     }
 
@@ -1181,6 +1278,29 @@ class StatsViewModel : ViewModel() {
             summary = rangeProjection.summary,
             temperaturePoints = filteredTemperature,
             readings = rangeProjection.filteredHistory
+        )
+    }
+
+    private fun buildPinnedState(input: PinnedInput): StatsPinnedState {
+        val window = input.window ?: return StatsPinnedState(unit = input.unit, targets = input.targets)
+        val projection = resolveRangeProjection(
+            history = input.history,
+            viewMode = input.viewMode,
+            unit = input.unit,
+            targets = input.targets,
+            activeRange = window.resolveRange(),
+            cache = pinnedProjectionCache,
+            // The strip's window is a day or so of readings; recomputing the display
+            // projection is cheaper than letting two windows fight over one cache slot.
+            useDisplayCache = false,
+            // Nothing on the strip shows a comparison, and loading the preceding period
+            // to compute one would double the very cost this pipeline exists to avoid.
+            withComparison = false
+        )
+        return StatsPinnedState(
+            summary = projection.summary,
+            targets = input.targets,
+            unit = input.unit
         )
     }
 
@@ -1590,6 +1710,15 @@ class StatsViewModel : ViewModel() {
         val activeSerial: String?,
         val historyPoints: List<GlucosePoint>,
         val temperaturePoints: List<TemperaturePoint>
+    )
+
+    private data class PinnedInput(
+        val unit: GlucoseUnit,
+        val targets: StatsTargets,
+        val viewMode: Int,
+        val calibrationRevision: Long,
+        val history: List<GlucosePoint>,
+        val window: PinnedWindow?
     )
 
     private data class BaseInput(
