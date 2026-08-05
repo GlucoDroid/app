@@ -40,6 +40,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,7 +69,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
@@ -81,7 +81,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePickerDialog
@@ -91,11 +90,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Surface
@@ -331,55 +329,37 @@ fun StatsScreen(
     ) {
         val showLoadingPlaceholder = uiState.isLoading && uiState.summary.readingCount == 0
 
-        Column(modifier = Modifier.fillMaxSize()) {
-        // Pinned, not scrolled with the list. As a row inside the list it disappeared the
-        // moment you started dragging things around, which is exactly when you are furthest
-        // from the top and most likely to want out.
-        AnimatedVisibility(visible = editingLayout) {
-            ArrangeHeaderBar(onDone = { StatsArrangeMode.close() })
-        }
-
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = if (editingLayout) 4.dp else 16.dp,
-                bottom = 100.dp
-            )
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 100.dp)
         ) {
-            // Arrange brings its own title and its own way out. Leaving the screen's
-            // header and the range switcher above it was what buried the Done button
-            // halfway down the page, under a control that does nothing in this mode.
-            if (!editingLayout) {
-                item(key = "header") {
-                    HeaderBlock(onShareClick = {
-                        reportDaysInput = uiState.selectedRange?.days
-                            ?.takeIf { it > 0 }
-                            ?.toString()
-                            ?: uiState.activeRange?.daySpan
-                            ?.takeIf { it > 0 }
-                            ?.toString()
-                            ?: "90"
-                        showShareSheet = true
-                    })
-                }
+            item(key = "header") {
+                HeaderBlock(onShareClick = {
+                    reportDaysInput = uiState.selectedRange?.days
+                        ?.takeIf { it > 0 }
+                        ?.toString()
+                        ?: uiState.activeRange?.daySpan
+                        ?.takeIf { it > 0 }
+                        ?.toString()
+                        ?: "90"
+                    showShareSheet = true
+                })
+            }
 
-                item(key = "range") {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    StatsRangeSelectorControl(
-                        selectedRange = uiState.selectedRange,
-                        activeRange = uiState.activeRange,
-                        isLoading = uiState.isLoading || isSwitchingRange,
-                        hasData = uiState.summary.readingCount > 0,
-                        readingCount = uiState.summary.readingCount,
-                        coveragePercent = uiState.summary.coverage.percent
-                            .takeIf { uiState.summary.readingCount > 0 },
-                        onRangeSelected = viewModel::setTimeRange,
-                        onCustomRangeClick = { showDateRangePicker = true }
-                    )
-                }
+            item(key = "range") {
+                Spacer(modifier = Modifier.height(4.dp))
+                StatsRangeSelectorControl(
+                    selectedRange = uiState.selectedRange,
+                    activeRange = uiState.activeRange,
+                    isLoading = uiState.isLoading || isSwitchingRange,
+                    hasData = uiState.summary.readingCount > 0,
+                    readingCount = uiState.summary.readingCount,
+                    coveragePercent = uiState.summary.coverage.percent
+                        .takeIf { uiState.summary.readingCount > 0 },
+                    onRangeSelected = viewModel::setTimeRange,
+                    onCustomRangeClick = { showDateRangePicker = true }
+                )
             }
 
             if (showLoadingPlaceholder) {
@@ -401,17 +381,6 @@ fun StatsScreen(
                     EmptyStateCard(
                         title = stringResource(R.string.start_tracking),
                         subtitle = stringResource(R.string.stats_no_readings_in_range)
-                    )
-                }
-            } else if (editingLayout) {
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    StatsLayoutEditor(
-                        layout = layout,
-                        summary = uiState.summary,
-                        targets = uiState.targets,
-                        unit = uiState.unit,
-                        onDone = { StatsArrangeMode.close() }
                     )
                 }
             } else {
@@ -479,6 +448,15 @@ fun StatsScreen(
                 }
             }
         }
+
+        if (editingLayout) {
+            ArrangeSheet(
+                layout = layout,
+                summary = uiState.summary,
+                targets = uiState.targets,
+                unit = uiState.unit,
+                onDismiss = { StatsArrangeMode.close() }
+            )
         }
 
         selectedDay?.let { day ->
@@ -809,24 +787,44 @@ private fun StatsCardContent(
  * of things to drag.
  */
 @Composable
-private fun ArrangeHeaderBar(onDone: () -> Unit) {
-    // The same bar every other sub-screen in the app uses, with the same back arrow in
-    // the same corner. Nothing about leaving Arrange needs to be its own invention, and
-    // there is nothing to confirm on the way out — every toggle here has already saved.
-    TopAppBar(
-        title = { Text(text = stringResource(R.string.stats_arrange_title)) },
-        navigationIcon = {
-            IconButton(onClick = onDone) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.navigate_back)
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background
-        )
-    )
+private fun ArrangeSheet(
+    layout: StatsLayoutState,
+    summary: StatsSummary,
+    targets: StatsTargets,
+    unit: GlucoseUnit,
+    onDismiss: () -> Unit
+) {
+    // A sheet, because arranging is a detour rather than a place. It comes with the exits
+    // the mode never had: swipe it down, tap outside it, or press back. Opened fully
+    // rather than half — the first thing in the list is the section order, and landing on
+    // a half sheet showing two and a half rows of it would be worse than useless.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = { CompactSheetDragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.stats_arrange_title),
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.padding(start = 8.dp, bottom = 12.dp)
+            )
+            StatsLayoutEditor(
+                layout = layout,
+                summary = summary,
+                targets = targets,
+                unit = unit,
+                onDone = onDismiss
+            )
+        }
+    }
 }
 
 @Composable
@@ -905,30 +903,37 @@ private fun MetricsSection(
             }
         }
 
-        // The app's own disclosure: a centred chevron tinted primary on a plain row, the
-        // same as Show all / Show less on the sensor and calibration cards. No container
-        // of its own — every surface I gave it either boxed the glyph in dead space or
-        // ran into the tiles above.
+        // Back to the label and chevron this shipped with. Four attempts at replacing it
+        // with a bare glyph produced, in order: a disc with dead space round it, a strip
+        // that read as "scroll down", a full-bleed bar that ran into the tiles, and a
+        // chevron adrift in the gap between two cards. The label is what says this belongs
+        // to the metrics; the padding is tighter than before so it takes less room doing
+        // it.
         if (tailMetrics.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .clickable { showAll = !showAll }
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = if (showAll) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (showAll) {
+                Text(
+                    text = if (showAll) {
                         stringResource(R.string.stats_fewer_metrics)
                     } else {
                         stringResource(R.string.stats_more_metrics)
                     },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Icon(
+                    imageVector = if (showAll) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
