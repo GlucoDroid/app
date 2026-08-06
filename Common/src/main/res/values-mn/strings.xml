@@ -1579,8 +1579,8 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="journal_dose_pair_insulin">Pair insulin</string>
     <string name="journal_dose_pair_carbs">Pair carbs</string>
     <string name="journal_dose_suggested_insulin">%1$s U suggested</string>
-    <string name="dashboard_forecast_recommendation_carbs">≈ Нүүрс ус: %1$s г</string>
-    <string name="dashboard_forecast_recommendation_insulin">≈ Инсулин: %1$s Н</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Нүүрс ус: %1$s г</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Инсулин: %1$s Н</string>
     <string name="journal_dose_covers_carbs">%1$s g covered</string>
     <string name="journal_dose_food_component">Food %1$s</string>
     <string name="journal_dose_correction_component">Correction %1$s</string>
@@ -1601,8 +1601,8 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Үр дүнтэй IOB (eIOB)-г харуулах</string>
     <string name="journal_eiob_display_desc">Идэвхээр тохируулсан инсулиныг IOB-ийн хажууд харуулах</string>
-    <string name="journal_iob_expanded">IOB %1$s U үлдсэн</string>
-    <string name="journal_eiob_expanded">eIOB %1$s U үйлчилж байна</string>
+    <string name="journal_iob_expanded">IoB %1$s U үлдсэн</string>
+    <string name="journal_eiob_expanded">eIoB %1$s U үйлчилж байна</string>
     <string name="journal_dashboard_quickadd_title">Хяналтын самбарт хурдан нэмэх</string>
     <string name="journal_dashboard_quickadd_desc">Журналын + товчийг харуулах</string>
     <string name="journal_quickadd_always_now_title">Одоогийн цагийг ашиглах</string>

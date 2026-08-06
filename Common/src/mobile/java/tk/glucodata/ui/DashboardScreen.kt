@@ -1329,7 +1329,6 @@ fun DashboardScreen(
                             showDelta = dashboardShowDelta,
                             deltaIntervalMinutes = deltaIntervalMinutes,
                             arrowForecastColorsEnabled = glucoseArrowForecastEnabled,
-                            doseRecommendation = forecastDoseRecommendation,
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
@@ -1470,6 +1469,7 @@ fun DashboardScreen(
                                     activeInsulinSummary = activeInsulinSummary,
                                     activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
+                                    forecastDoseRecommendation = forecastDoseRecommendation,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,
@@ -1593,7 +1593,6 @@ fun DashboardScreen(
                             showDelta = dashboardShowDelta,
                             deltaIntervalMinutes = deltaIntervalMinutes,
                             arrowForecastColorsEnabled = glucoseArrowForecastEnabled,
-                            doseRecommendation = forecastDoseRecommendation,
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
@@ -1674,6 +1673,7 @@ fun DashboardScreen(
                                     activeInsulinSummary = activeInsulinSummary,
                                     activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
+                                    forecastDoseRecommendation = forecastDoseRecommendation,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,

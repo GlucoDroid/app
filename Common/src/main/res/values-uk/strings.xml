@@ -1640,8 +1640,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Додати інсулін</string>
     <string name="journal_dose_pair_carbs">Додати вуглеводи</string>
     <string name="journal_dose_suggested_insulin">Запропоновано %1$s ОД</string>
-    <string name="dashboard_forecast_recommendation_carbs">≈ Вуглеводи: %1$s г</string>
-    <string name="dashboard_forecast_recommendation_insulin">≈ Інсулін: %1$s ОД</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Вуглеводи: %1$s г</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Інсулін: %1$s ОД</string>
     <string name="journal_dose_covers_carbs">Покриває %1$s г</string>
     <string name="journal_dose_food_component">Їжа %1$s</string>
     <string name="journal_dose_correction_component">Корекція %1$s</string>
@@ -1660,8 +1660,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_eiob">eIOB %1$s ОД</string>
     <string name="journal_eiob_display_title">Показувати ефективний IOB (eIOB)</string>
     <string name="journal_eiob_display_desc">Показувати інсулін із поправкою на активність поруч з IOB</string>
-    <string name="journal_iob_expanded">Залишковий IOB: %1$s ОД</string>
-    <string name="journal_eiob_expanded">Діючий eIOB: %1$s ОД</string>
+    <string name="journal_iob_expanded">Залишковий IoB: %1$s ОД</string>
+    <string name="journal_eiob_expanded">Діючий eIoB: %1$s ОД</string>
     <string name="journal_dashboard_quickadd_title">Швидке додавання на головній</string>
     <string name="journal_dashboard_quickadd_desc">Показувати кнопку + журналу</string>
     <string name="journal_quickadd_always_now_title">Використовувати поточний час</string>

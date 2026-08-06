@@ -1639,8 +1639,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="journal_dose_pair_insulin">Insulin koppeln</string>
     <string name="journal_dose_pair_carbs">Kohlenhydrate koppeln</string>
     <string name="journal_dose_suggested_insulin">%1$s U vorgeschlagen</string>
-    <string name="dashboard_forecast_recommendation_carbs">≈ Kohlenhydrate: %1$s g</string>
-    <string name="dashboard_forecast_recommendation_insulin">≈ Insulin: %1$s U</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Kohlenhydrate: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Insulin: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g abgedeckt</string>
     <string name="journal_dose_food_component">Essen %1$s</string>
     <string name="journal_dose_correction_component">Korrektur %1$s</string>
@@ -1713,8 +1713,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="notification_iob_cob_risk_desc">Warnen, wenn wirkendes Insulin Glukose unter den Zielbereich drücken könnte</string>
     <string name="notification_iob_risk_without_cob_title">Fehlendes COB einbeziehen</string>
     <string name="notification_iob_risk_without_cob_desc">Insulin ohne erfasste Kohlenhydrate als ungedeckt werten</string>
-    <string name="journal_iob_expanded">IOB %1$s E verbleibend</string>
-    <string name="journal_eiob_expanded">eIOB %1$s E wirksam</string>
+    <string name="journal_iob_expanded">IoB %1$s E verbleibend</string>
+    <string name="journal_eiob_expanded">eIoB %1$s E wirksam</string>
     <string name="journal_iob_source_remote">Werte vom Uploader-Gerät (Nightscout)</string>
     <string name="journal_visible_events">Sichtbare Ereignisse</string>
     <string name="journal_empty">Noch keine Journalereignisse in diesem Fenster</string>

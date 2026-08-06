@@ -2049,8 +2049,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Pair insulin</string>
     <string name="journal_dose_pair_carbs">Pair carbs</string>
     <string name="journal_dose_suggested_insulin">%1$s U suggested</string>
-    <string name="dashboard_forecast_recommendation_carbs">≈ Carbs: %1$s g</string>
-    <string name="dashboard_forecast_recommendation_insulin">≈ Insulin: %1$s U</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Carbs: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Insulin: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g covered</string>
     <string name="journal_dose_food_component">Food %1$s</string>
     <string name="journal_dose_correction_component">Correction %1$s</string>
@@ -2129,8 +2129,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="notification_iob_cob_risk_desc">Warn when near-term insulin may push glucose below target</string>
     <string name="notification_iob_risk_without_cob_title">Include missing COB</string>
     <string name="notification_iob_risk_without_cob_desc">Treat insulin as uncovered when no carbs are logged</string>
-    <string name="journal_iob_expanded">IOB %1$sU remaining</string>
-    <string name="journal_eiob_expanded">eIOB %1$sU acting</string>
+    <string name="journal_iob_expanded">IoB %1$sU remaining</string>
+    <string name="journal_eiob_expanded">eIoB %1$sU acting</string>
     <string name="journal_iob_source_remote">Values from the uploading device (Nightscout)</string>
     <string name="journal_visible_events">Visible events</string>
     <string name="journal_empty">No journal events in this window yet</string>

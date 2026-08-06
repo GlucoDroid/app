@@ -1593,8 +1593,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="journal_dose_pair_insulin">İnsülini eşleştir</string>
     <string name="journal_dose_pair_carbs">Karbonhidratı eşleştir</string>
     <string name="journal_dose_suggested_insulin">%1$s U önerildi</string>
-    <string name="dashboard_forecast_recommendation_carbs">≈ Karbonhidrat: %1$s g</string>
-    <string name="dashboard_forecast_recommendation_insulin">≈ İnsülin: %1$s U</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Karbonhidrat: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ İnsülin: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g karşılar</string>
     <string name="journal_dose_food_component">Yemek %1$s</string>
     <string name="journal_dose_correction_component">Düzeltme %1$s</string>
@@ -1613,8 +1613,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Etkin IOB’yi (eIOB) göster</string>
     <string name="journal_eiob_display_desc">Etkinliğe göre ayarlanmış insülini IOB’nin yanında göster</string>
-    <string name="journal_iob_expanded">Kalan IOB: %1$s U</string>
-    <string name="journal_eiob_expanded">Etkin eIOB: %1$s U</string>
+    <string name="journal_iob_expanded">Kalan IoB: %1$s U</string>
+    <string name="journal_eiob_expanded">Etkin eIoB: %1$s U</string>
     <string name="journal_dashboard_quickadd_title">Panoda hızlı ekleme</string>
     <string name="journal_dashboard_quickadd_desc">Günlüğün + düğmesini göster</string>
     <string name="journal_quickadd_always_now_title">Geçerli saati kullan</string>

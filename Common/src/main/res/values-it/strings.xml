@@ -1555,8 +1555,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Abbina insulina</string>
     <string name="journal_dose_pair_carbs">Abbina carboidrati</string>
     <string name="journal_dose_suggested_insulin">%1$s U suggerite</string>
-    <string name="dashboard_forecast_recommendation_carbs">≈ Carboidrati: %1$s g</string>
-    <string name="dashboard_forecast_recommendation_insulin">≈ Insulina: %1$s U</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Carboidrati: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Insulina: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g coperti</string>
     <string name="journal_dose_food_component">Cibo %1$s</string>
     <string name="journal_dose_correction_component">Correzione %1$s</string>
@@ -1575,8 +1575,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Mostra IOB effettivo (eIOB)</string>
     <string name="journal_eiob_display_desc">Mostra l’insulina corretta per l’attività accanto all’IOB</string>
-    <string name="journal_iob_expanded">IOB residuo: %1$s U</string>
-    <string name="journal_eiob_expanded">eIOB attivo: %1$s U</string>
+    <string name="journal_iob_expanded">IoB residuo: %1$s U</string>
+    <string name="journal_eiob_expanded">eIoB attivo: %1$s U</string>
     <string name="journal_dashboard_quickadd_title">Aggiunta rapida nella dashboard</string>
     <string name="journal_dashboard_quickadd_desc">Mostra il pulsante + del diario</string>
     <string name="journal_quickadd_always_now_title">Usa l’ora attuale</string>

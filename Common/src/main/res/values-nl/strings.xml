@@ -1608,8 +1608,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="journal_dose_pair_insulin">Insuline koppelen</string>
     <string name="journal_dose_pair_carbs">Koolhydraten koppelen</string>
     <string name="journal_dose_suggested_insulin">%1$s U voorgesteld</string>
-    <string name="dashboard_forecast_recommendation_carbs">≈ Koolhydraten: %1$s g</string>
-    <string name="dashboard_forecast_recommendation_insulin">≈ Insuline: %1$s E</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Koolhydraten: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Insuline: %1$s E</string>
     <string name="journal_dose_covers_carbs">%1$s g gedekt</string>
     <string name="journal_dose_food_component">Eten %1$s</string>
     <string name="journal_dose_correction_component">Correctie %1$s</string>
@@ -1628,8 +1628,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Effectieve IOB (eIOB) tonen</string>
     <string name="journal_eiob_display_desc">Toon activiteitsgecorrigeerde insuline naast IOB</string>
-    <string name="journal_iob_expanded">Resterende IOB: %1$s U</string>
-    <string name="journal_eiob_expanded">Actieve eIOB: %1$s U</string>
+    <string name="journal_iob_expanded">Resterende IoB: %1$s U</string>
+    <string name="journal_eiob_expanded">Actieve eIoB: %1$s U</string>
     <string name="journal_dashboard_quickadd_title">Snel toevoegen op het dashboard</string>
     <string name="journal_dashboard_quickadd_desc">Toon de +-knop van het journaal</string>
     <string name="journal_quickadd_always_now_title">Huidige tijd gebruiken</string>

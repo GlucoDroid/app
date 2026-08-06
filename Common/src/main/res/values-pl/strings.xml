@@ -1600,8 +1600,8 @@
     <string name="journal_dose_pair_insulin">Połącz insulinę</string>
     <string name="journal_dose_pair_carbs">Połącz węglowodany</string>
     <string name="journal_dose_suggested_insulin">Sugerowane %1$s U</string>
-    <string name="dashboard_forecast_recommendation_carbs">≈ Węglowodany: %1$s g</string>
-    <string name="dashboard_forecast_recommendation_insulin">≈ Insulina: %1$s j.</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Węglowodany: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Insulina: %1$s j.</string>
     <string name="journal_dose_covers_carbs">Pokrywa %1$s g</string>
     <string name="journal_dose_food_component">Jedzenie %1$s</string>
     <string name="journal_dose_correction_component">Korekta %1$s</string>
@@ -1620,8 +1620,8 @@
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Pokaż efektywne IOB (eIOB)</string>
     <string name="journal_eiob_display_desc">Pokaż insulinę skorygowaną o aktywność obok IOB</string>
-    <string name="journal_iob_expanded">Pozostałe IOB: %1$s U</string>
-    <string name="journal_eiob_expanded">Aktywne eIOB: %1$s U</string>
+    <string name="journal_iob_expanded">Pozostałe IoB: %1$s U</string>
+    <string name="journal_eiob_expanded">Aktywne eIoB: %1$s U</string>
     <string name="journal_dashboard_quickadd_title">Szybkie dodawanie na pulpicie</string>
     <string name="journal_dashboard_quickadd_desc">Pokaż przycisk + Dziennika</string>
     <string name="journal_quickadd_always_now_title">Używaj bieżącego czasu</string>

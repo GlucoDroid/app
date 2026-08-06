@@ -42,6 +42,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -143,12 +145,15 @@ import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.prediction.GlucosePredictionPoint
 import tk.glucodata.data.prediction.GlucosePredictionSeries
 import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
+import tk.glucodata.data.prediction.ForecastDoseRecommendation
+import tk.glucodata.data.prediction.ForecastDoseRecommendationKind
 import tk.glucodata.ui.getDisplayValues
 import tk.glucodata.ui.util.GlucoseFormatter
 import tk.glucodata.ui.viewmodel.SensorColors
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.roundToInt
+import java.text.NumberFormat
 
 private const val PREVIEW_WINDOW_MODE_EXPANDED_ONLY = 0
 private const val PREVIEW_WINDOW_MODE_ALWAYS = 1
@@ -658,6 +663,7 @@ fun DashboardChartSection(
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
+    forecastDoseRecommendation: ForecastDoseRecommendation? = null,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
@@ -702,6 +708,7 @@ fun DashboardChartSection(
                         activeInsulinSummary = activeInsulinSummary,
                         activeInsulinFromRemote = activeInsulinFromRemote,
                         showEiob = showEiob,
+                        forecastDoseRecommendation = forecastDoseRecommendation,
                         appChartRangeColors = appChartRangeColors,
                         predictionPoints = predictionPoints,
                         predictionSeries = predictionSeries,
@@ -766,7 +773,7 @@ fun DashboardChartSection(
     }
 }
 
-@SuppressLint("UnusedBoxWithConstraintsScope")
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
@@ -776,6 +783,7 @@ fun InteractiveGlucoseChart(
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
+    forecastDoseRecommendation: ForecastDoseRecommendation? = null,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
@@ -3637,12 +3645,42 @@ fun InteractiveGlucoseChart(
                 val remainingLabel = summary.nextEndingAt
                     ?.let { formatRemainingDuration(it - System.currentTimeMillis()) }
                     ?.takeIf { it.isNotBlank() }
+                val forecastRecommendationAmount = remember(
+                    forecastDoseRecommendation?.kind,
+                    forecastDoseRecommendation?.amount
+                ) {
+                    forecastDoseRecommendation?.let { recommendation ->
+                        NumberFormat.getNumberInstance().apply {
+                            minimumFractionDigits = if (
+                                recommendation.kind == ForecastDoseRecommendationKind.INSULIN
+                            ) 1 else 0
+                            maximumFractionDigits = minimumFractionDigits
+                            isGroupingUsed = false
+                        }.format(recommendation.amount)
+                    }
+                }
+                val forecastRecommendationLabel = if (
+                    forecastDoseRecommendation != null && forecastRecommendationAmount != null
+                ) {
+                    val recommendation = forecastDoseRecommendation
+                    when (recommendation.kind) {
+                        ForecastDoseRecommendationKind.CARBS -> stringResource(
+                            R.string.dashboard_forecast_recommendation_carbs,
+                            forecastRecommendationAmount
+                        )
+                        ForecastDoseRecommendationKind.INSULIN -> stringResource(
+                            R.string.dashboard_forecast_recommendation_insulin,
+                            forecastRecommendationAmount
+                        )
+                    }
+                } else null
                 val activeInsulinShape =
                     if (isActiveInsulinExpanded) RoundedCornerShape(18.dp) else CircleShape
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(start = 12.dp, top = 12.dp)
+                        .widthIn(max = (maxWidth - 24.dp).coerceAtLeast(160.dp))
                         .zIndex(1.6f)
                         .clip(activeInsulinShape)
                         .clickable { isActiveInsulinExpanded = !isActiveInsulinExpanded },
@@ -3655,34 +3693,49 @@ fun InteractiveGlucoseChart(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        FlowRow(
+                            modifier = Modifier.wrapContentWidth(Alignment.Start),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
                             Text(
-                                text = "IOB ${unitsLabel(summary.iobUnits)}U",
+                                text = "IoB ${unitsLabel(summary.iobUnits)}U",
                                 style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1
                             )
-                            if (showEiob) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "eIOB ${unitsLabel(summary.eiobUnits)}U",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            remainingLabel?.let { label ->
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Icon(
-                                    imageVector = Icons.Default.AccessTime,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+                            forecastRecommendationLabel?.let { label ->
                                 Text(
                                     text = label,
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
                                 )
+                            }
+                            if (showEiob) {
+                                Text(
+                                    text = "eIoB ${unitsLabel(summary.eiobUnits)}U",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+                            remainingLabel?.let { label ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccessTime,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                         AnimatedVisibility(visible = isActiveInsulinExpanded) {

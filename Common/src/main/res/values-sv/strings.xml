@@ -1565,8 +1565,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Koppla insulin</string>
     <string name="journal_dose_pair_carbs">Koppla kolhydrater</string>
     <string name="journal_dose_suggested_insulin">%1$s U föreslaget</string>
-    <string name="dashboard_forecast_recommendation_carbs">≈ Kolhydrater: %1$s g</string>
-    <string name="dashboard_forecast_recommendation_insulin">≈ Insulin: %1$s E</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Kolhydrater: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Insulin: %1$s E</string>
     <string name="journal_dose_covers_carbs">%1$s g täcks</string>
     <string name="journal_dose_food_component">Mat %1$s</string>
     <string name="journal_dose_correction_component">Korrigering %1$s</string>
@@ -1585,8 +1585,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Visa effektivt IOB (eIOB)</string>
     <string name="journal_eiob_display_desc">Visa aktivitetsjusterat insulin bredvid IOB</string>
-    <string name="journal_iob_expanded">Återstående IOB: %1$s U</string>
-    <string name="journal_eiob_expanded">Aktivt eIOB: %1$s U</string>
+    <string name="journal_iob_expanded">Återstående IoB: %1$s U</string>
+    <string name="journal_eiob_expanded">Aktivt eIoB: %1$s U</string>
     <string name="journal_dashboard_quickadd_title">Snabbregistrering på översikten</string>
     <string name="journal_dashboard_quickadd_desc">Visa journalens +-knapp</string>
     <string name="journal_quickadd_always_now_title">Använd aktuell tid</string>
