@@ -2390,9 +2390,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_state_off">Автопроверка выключена</string>
     <string name="app_updates_state_checking">Проверка…</string>
     <string name="app_updates_state_unavailable">Управляется извне</string>
-    <string name="app_updates_intro_title">Будьте в курсе обновлений</string>
+    <string name="app_updates_intro_title">Автопроверка обновлений</string>
     <string name="app_updates_intro_body">Сообщим, когда выйдет новая версия. Ничего не скачивается и не ставится само.</string>
-    <string name="app_updates_intro_enable">Проверять обновления</string>
+    <string name="app_updates_intro_enable">Включить</string>
     <string name="app_updates_intro_decline">Не сейчас</string>
     <string name="app_updates_card_title">Доступно обновление</string>
     <string name="app_updates_card_body">Версия %1$s готова к загрузке (%2$s).</string>

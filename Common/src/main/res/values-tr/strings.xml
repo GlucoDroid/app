@@ -2375,9 +2375,9 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="app_updates_state_off">Otomatik denetim kapalı</string>
     <string name="app_updates_state_checking">Denetleniyor…</string>
     <string name="app_updates_state_unavailable">Uygulama dışında yönetiliyor</string>
-    <string name="app_updates_intro_title">Güncel kalın</string>
+    <string name="app_updates_intro_title">Otomatik güncelleme denetimi</string>
     <string name="app_updates_intro_body">Yeni sürüm çıktığında haberiniz olsun. Hiçbir şey kendiliğinden inmez veya kurulmaz.</string>
-    <string name="app_updates_intro_enable">Güncellemeleri denetle</string>
+    <string name="app_updates_intro_enable">Aç</string>
     <string name="app_updates_intro_decline">Şimdi değil</string>
     <string name="app_updates_card_title">Güncelleme mevcut</string>
     <string name="app_updates_card_body">%1$s sürümü indirilmeye hazır (%2$s).</string>

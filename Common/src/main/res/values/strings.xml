@@ -2572,9 +2572,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_state_off">Automatic checks are off</string>
     <string name="app_updates_state_checking">Checking…</string>
     <string name="app_updates_state_unavailable">Handled outside the app</string>
-    <string name="app_updates_intro_title">Stay up to date</string>
+    <string name="app_updates_intro_title">Automatic update checks</string>
     <string name="app_updates_intro_body">Get a heads-up when a new version is out. Nothing downloads or installs on its own.</string>
-    <string name="app_updates_intro_enable">Check for updates</string>
+    <string name="app_updates_intro_enable">Turn on</string>
     <string name="app_updates_intro_decline">Not now</string>
     <string name="app_updates_card_title">Update available</string>
     <string name="app_updates_card_body">Version %1$s is ready to download (%2$s).</string>

@@ -2381,9 +2381,9 @@
     <string name="app_updates_state_off">Automatyczne sprawdzanie wyłączone</string>
     <string name="app_updates_state_checking">Sprawdzanie…</string>
     <string name="app_updates_state_unavailable">Obsługiwane poza aplikacją</string>
-    <string name="app_updates_intro_title">Bądź na bieżąco</string>
+    <string name="app_updates_intro_title">Automatyczne sprawdzanie aktualizacji</string>
     <string name="app_updates_intro_body">Damy znać, gdy pojawi się nowa wersja. Nic nie pobiera się ani nie instaluje samo.</string>
-    <string name="app_updates_intro_enable">Sprawdzaj aktualizacje</string>
+    <string name="app_updates_intro_enable">Włącz</string>
     <string name="app_updates_intro_decline">Nie teraz</string>
     <string name="app_updates_card_title">Dostępna aktualizacja</string>
     <string name="app_updates_card_body">Wersja %1$s jest gotowa do pobrania (%2$s).</string>

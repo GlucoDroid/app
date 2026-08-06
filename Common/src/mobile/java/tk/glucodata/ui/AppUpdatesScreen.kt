@@ -143,8 +143,8 @@ fun AppUpdatesScreen(navController: NavController) {
                 return@Column
             }
 
-            // --- Versions -------------------------------------------------------------
-            SectionLabel(stringResource(R.string.app_updates_section_versions), topPadding = 12.dp)
+//            // --- Versions -------------------------------------------------------------
+//            SectionLabel(stringResource(R.string.app_updates_section_versions), topPadding = 12.dp)
 
             InstalledVersionRow(CardPosition.TOP)
             SettingsItem(
@@ -197,6 +197,7 @@ fun AppUpdatesScreen(navController: NavController) {
                 emphasised = !hasStatusCard,
                 onClick = { AppUpdateController.checkNow(context) }
             )
+            Spacer(Modifier.height(12.dp))
 
             if (!hasStatusCard && !state.checking && state.lastCheckAtMillis > 0L) {
                 Text(
@@ -211,8 +212,8 @@ fun AppUpdatesScreen(navController: NavController) {
                 )
             }
 
-            // --- Preferences ---------------------------------------------------------
-            SectionLabel(stringResource(R.string.app_updates_section_preferences))
+//            // --- Preferences ---------------------------------------------------------
+//            SectionLabel(stringResource(R.string.app_updates_section_preferences))
 
             SettingsSwitchItem(
                 title = stringResource(R.string.app_updates_auto_title),

@@ -2347,9 +2347,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_state_off">Automatisk kontroll är av</string>
     <string name="app_updates_state_checking">Kontrollerar…</string>
     <string name="app_updates_state_unavailable">Hanteras utanför appen</string>
-    <string name="app_updates_intro_title">Håll dig uppdaterad</string>
+    <string name="app_updates_intro_title">Automatisk sökning efter uppdateringar</string>
     <string name="app_updates_intro_body">Få veta när en ny version släpps. Inget laddas ner eller installeras av sig självt.</string>
-    <string name="app_updates_intro_enable">Sök efter uppdateringar</string>
+    <string name="app_updates_intro_enable">Aktivera</string>
     <string name="app_updates_intro_decline">Inte nu</string>
     <string name="app_updates_card_title">Uppdatering tillgänglig</string>
     <string name="app_updates_card_body">Version %1$s är klar att laddas ner (%2$s).</string>

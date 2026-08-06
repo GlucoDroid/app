@@ -2550,9 +2550,9 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="app_updates_state_off">Hubinta tooska ah waa damisan tahay</string>
     <string name="app_updates_state_checking">Waa la hubinayaa…</string>
     <string name="app_updates_state_unavailable">Waxaa maamula meel abka ka baxsan</string>
-    <string name="app_updates_intro_title">Ku sii socod cusboonaysiinta</string>
+    <string name="app_updates_intro_title">Hubinta cusboonaysiinta oo toos ah</string>
     <string name="app_updates_intro_body">Waa lagu ogeysiin doonaa marka nooc cusub soo baxo. Waxba iskood uma soo dego mana rakibmaan.</string>
-    <string name="app_updates_intro_enable">Hubi cusboonaysiinta</string>
+    <string name="app_updates_intro_enable">Shid</string>
     <string name="app_updates_intro_decline">Hadda maya</string>
     <string name="app_updates_card_title">Cusboonaysiin ayaa diyaar ah</string>
     <string name="app_updates_card_body">Nooca %1$s wuu diyaar u yahay soo dejin (%2$s).</string>

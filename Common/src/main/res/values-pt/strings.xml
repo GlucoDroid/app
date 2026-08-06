@@ -2348,9 +2348,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_state_off">Verificação automática desligada</string>
     <string name="app_updates_state_checking">A verificar…</string>
     <string name="app_updates_state_unavailable">Gerido fora do app</string>
-    <string name="app_updates_intro_title">Fique a par das novidades</string>
+    <string name="app_updates_intro_title">Verificação automática de atualizações</string>
     <string name="app_updates_intro_body">Avisamos quando sair uma versão nova. Nada é transferido nem instalado sozinho.</string>
-    <string name="app_updates_intro_enable">Procurar atualizações</string>
+    <string name="app_updates_intro_enable">Ativar</string>
     <string name="app_updates_intro_decline">Agora não</string>
     <string name="app_updates_card_title">Atualização disponível</string>
     <string name="app_updates_card_body">A versão %1$s está pronta para transferir (%2$s).</string>

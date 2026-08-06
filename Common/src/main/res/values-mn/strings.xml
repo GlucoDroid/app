@@ -2462,9 +2462,9 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="app_updates_state_off">Автомат шалгалт унтраалттай</string>
     <string name="app_updates_state_checking">Шалгаж байна…</string>
     <string name="app_updates_state_unavailable">Аппаас гадуур удирддаг</string>
-    <string name="app_updates_intro_title">Шинэ мэдээллээс хоцрохгүй</string>
+    <string name="app_updates_intro_title">Шинэчлэлтийг автоматаар шалгах</string>
     <string name="app_updates_intro_body">Шинэ хувилбар гарахад мэдэгдэнэ. Юу ч өөрөө татагдахгүй, суухгүй.</string>
-    <string name="app_updates_intro_enable">Шинэчлэлт шалгах</string>
+    <string name="app_updates_intro_enable">Асаах</string>
     <string name="app_updates_intro_decline">Одоо биш</string>
     <string name="app_updates_card_title">Шинэчлэлт бэлэн</string>
     <string name="app_updates_card_body">%1$s хувилбар татахад бэлэн (%2$s).</string>

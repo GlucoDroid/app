@@ -2337,9 +2337,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_state_off">Controllo automatico disattivato</string>
     <string name="app_updates_state_checking">Controllo in corso…</string>
     <string name="app_updates_state_unavailable">Gestito fuori dall\'app</string>
-    <string name="app_updates_intro_title">Resta aggiornato</string>
+    <string name="app_updates_intro_title">Controllo automatico degli aggiornamenti</string>
     <string name="app_updates_intro_body">Ti avvisiamo quando esce una nuova versione. Nulla si scarica o si installa da solo.</string>
-    <string name="app_updates_intro_enable">Controlla gli aggiornamenti</string>
+    <string name="app_updates_intro_enable">Attiva</string>
     <string name="app_updates_intro_decline">Non ora</string>
     <string name="app_updates_card_title">Aggiornamento disponibile</string>
     <string name="app_updates_card_body">La versione %1$s è pronta per il download (%2$s).</string>

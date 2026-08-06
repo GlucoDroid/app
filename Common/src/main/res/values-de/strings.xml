@@ -2386,9 +2386,9 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="app_updates_state_off">Automatische Prüfung ist aus</string>
     <string name="app_updates_state_checking">Wird geprüft …</string>
     <string name="app_updates_state_unavailable">Wird außerhalb der App verwaltet</string>
-    <string name="app_updates_intro_title">Auf dem neuesten Stand bleiben</string>
+    <string name="app_updates_intro_title">Automatische Update-Prüfung</string>
     <string name="app_updates_intro_body">Erfahre es, wenn eine neue Version da ist. Nichts lädt oder installiert sich von selbst.</string>
-    <string name="app_updates_intro_enable">Auf Updates prüfen</string>
+    <string name="app_updates_intro_enable">Aktivieren</string>
     <string name="app_updates_intro_decline">Jetzt nicht</string>
     <string name="app_updates_card_title">Update verfügbar</string>
     <string name="app_updates_card_body">Version %1$s steht zum Download bereit (%2$s).</string>

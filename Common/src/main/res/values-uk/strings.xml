@@ -2419,9 +2419,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_state_off">Автоперевірку вимкнено</string>
     <string name="app_updates_state_checking">Перевірка…</string>
     <string name="app_updates_state_unavailable">Керується зовні</string>
-    <string name="app_updates_intro_title">Будьте в курсі оновлень</string>
+    <string name="app_updates_intro_title">Автоперевірка оновлень</string>
     <string name="app_updates_intro_body">Повідомимо, коли вийде нова версія. Нічого не завантажується й не встановлюється саме.</string>
-    <string name="app_updates_intro_enable">Перевіряти оновлення</string>
+    <string name="app_updates_intro_enable">Увімкнути</string>
     <string name="app_updates_intro_decline">Не зараз</string>
     <string name="app_updates_card_title">Доступне оновлення</string>
     <string name="app_updates_card_body">Версія %1$s готова до завантаження (%2$s).</string>

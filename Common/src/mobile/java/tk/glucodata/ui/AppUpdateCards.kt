@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -87,7 +89,11 @@ fun DashboardAppUpdateBanner(
         AppUpdateCard(
             accent = MaterialTheme.colorScheme.primary,
             title = stringResource(R.string.app_updates_intro_title),
-            body = stringResource(R.string.app_updates_intro_body)
+            body = stringResource(R.string.app_updates_intro_body),
+            icon = Icons.Filled.Update,
+            // The X means the same thing as "Not now": answered, don't ask again. Leaving it
+            // unanswered would just bring the card back on the next launch.
+            onDismiss = { AppUpdateController.answerIntro(context, false) }
         ) {
             AppUpdateTextAction(
                 label = stringResource(R.string.app_updates_intro_decline),
@@ -119,12 +125,22 @@ fun DashboardAppUpdateBanner(
                     Formatter.formatShortFileSize(context, it.artifact.sizeBytes)
                 )
             },
+            icon = Icons.Filled.Download,
             onDismiss = { AppUpdateController.dismissBanner(context) }
         ) {
-            AppUpdateFilledAction(
+            AppUpdateTextAction(
                 label = stringResource(R.string.app_updates_action_view),
-                accent = MaterialTheme.colorScheme.tertiary,
                 onClick = onOpenAppUpdates
+            )
+            AppUpdateFilledAction(
+                label = stringResource(R.string.app_updates_action_download),
+                accent = MaterialTheme.colorScheme.tertiary,
+                // Start it, then go where the progress is visible. Kicking off a 76 MB transfer
+                // from a card that cannot show it would leave the user with no idea it began.
+                onClick = {
+                    AppUpdateController.startDownload(context)
+                    onOpenAppUpdates()
+                }
             )
         }
     }

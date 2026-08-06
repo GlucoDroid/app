@@ -2414,9 +2414,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_state_off">Аўтаправерка выключана</string>
     <string name="app_updates_state_checking">Праверка…</string>
     <string name="app_updates_state_unavailable">Кіруецца звонку</string>
-    <string name="app_updates_intro_title">Будзьце ў курсе абнаўленняў</string>
+    <string name="app_updates_intro_title">Аўтаправерка абнаўленняў</string>
     <string name="app_updates_intro_body">Паведамім, калі выйдзе новая версія. Нічога не спампоўваецца і не ўсталёўваецца самастойна.</string>
-    <string name="app_updates_intro_enable">Правяраць абнаўленні</string>
+    <string name="app_updates_intro_enable">Уключыць</string>
     <string name="app_updates_intro_decline">Не зараз</string>
     <string name="app_updates_card_title">Даступнае абнаўленне</string>
     <string name="app_updates_card_body">Версія %1$s гатовая да спампоўкі (%2$s).</string>
