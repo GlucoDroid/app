@@ -2143,7 +2143,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="glucose_palette_brightness">Helderheid</string>
     <string name="notification_charts_section">Grafieken</string>
     <string name="notification_status_line_section">Statusregel</string>
-    <string name="display_colors_title">Weergave &amp; kleuren</string>
+    <string name="display_colors_title">Weergave</string>
     <string name="display_colors_desc">Kleuren, dashboardwaarden en grafieken</string>
     <string name="display_readouts_section">Dashboardwaarden</string>
     <!-- Debug log screen -->
@@ -2290,7 +2290,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_pinned_already">vastgezet</string>
     <string name="stats_pinned_remove_short">Verwijderen</string>
     <string name="sensor_handover_title">Automatische sensoroverdracht</string>
-    <string name="sensor_handover_desc">Activeer de opvolgende sensor ruim van tevoren; wanneer de oude sensor verloopt, schakelt de app automatisch over naar de opvolger</string>
+    <string name="sensor_handover_desc">Activeer de opvolger vooraf; de app schakelt over zodra de huidige verloopt</string>
     <string name="sensor_handover_old_action_title">Verlopen sensor na de overdracht</string>
     <string name="sensor_handover_old_action_desc">Deactiveren: de verlopen sensor blijft in de lijst totdat je hem verwijdert. Verwijderen: zoals het verwijdervenster, koppelingssleutels worden gewist. Meetgeschiedenis blijft in beide gevallen bewaard.</string>
     <string name="sensor_handover_action_deactivate">Deactiveren</string>

@@ -2299,7 +2299,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="glucose_palette_brightness">Iftiinka</string>
     <string name="notification_charts_section">Jaantusyada</string>
     <string name="notification_status_line_section">Xariiqda xaaladda</string>
-    <string name="display_colors_title">Muuqaalka &amp; midabada</string>
+    <string name="display_colors_title">Muuqaalka</string>
     <string name="wear_direct_sensor_watch_desc">Saacaddu waxay raadisaa dareemaha waxayna la wareegtaa Bluetooth ka dib akhriska ugu horreeya ee la aqbalo.</string>
     <string name="wear_claim_state_phone_owns">Telefoonku wuxuu maamulaa dareemaha</string>
     <string name="wear_claim_state_requesting">Saacaddu waxay codsanaysaa dareemaha</string>
@@ -2450,7 +2450,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="stats_pinned_already">lagu dhejiyay</string>
     <string name="stats_pinned_remove_short">Ka saar</string>
     <string name="sensor_handover_title">Wareejin otomaatig ah oo dareeme</string>
-    <string name="sensor_handover_desc">Dareemaha beddelka ah horay u shid; marka kan hore uu dhaco, abku wuxuu si otomaatig ah ugu wareegayaa beddelka</string>
+    <string name="sensor_handover_desc">Hore u shid dareemaha xiga; abku si otomaatig ah ayuu u wareegayaa marka kan hadda jira dhaco</string>
     <string name="sensor_handover_old_action_title">Dareemaha dhacay wareejinta kadib</string>
     <string name="sensor_handover_old_action_desc">Damin: dareemaha dhacay wuxuu ku sii jirayaa liiska ilaa aad ka saarto. Ka saarid: sida daaqadda ka-saaridda, furayaasha lammaanaha waa la tirtirayaa. Taariikhda cabbiraadda labada xaaladoodba waa la haynayaa.</string>
     <string name="sensor_handover_action_deactivate">Damin</string>

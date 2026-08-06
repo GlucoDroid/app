@@ -15,6 +15,14 @@ class SibionicsDeviceBindingTest {
     )
 
     @Test
+    fun defaultSensorAlgorithmKeepsCalibrationEnabled() {
+        assertEquals(
+            SibionicsAlgorithmSelection.STOCK_CALIBRATED,
+            SibionicsAlgorithmSelection.DEFAULT,
+        )
+    }
+
+    @Test
     fun recognizesObservedSibionics2TransmitterName() {
         assertTrue(SibionicsConstants.isSibionics2TransmitterName("P225043JMV"))
         assertTrue(SibionicsConstants.isSibionics2TransmitterName("P2250671014ATR89"))

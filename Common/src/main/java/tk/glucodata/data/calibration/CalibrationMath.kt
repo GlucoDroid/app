@@ -205,7 +205,7 @@ internal object CalibrationMath {
         val ageHours = abs(deltaHours)
         val baseHalfLife = if (deltaHours >= 0.0) pastHalfLifeHours else futureHalfLifeHours
         val halfLifeScale = when (tuning.weightMode) {
-            WEIGHT_FRESH -> if (deltaHours >= 0.0) 0.55 else 0.75
+            WEIGHT_FRESH -> if (deltaHours >= 0.0) 0.45 else 0.65
             WEIGHT_STABLE -> if (deltaHours >= 0.0) 1.75 else 1.25
             else -> 1.0
         }

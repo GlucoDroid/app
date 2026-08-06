@@ -2145,7 +2145,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_brightness">Яркость</string>
     <string name="notification_charts_section">Графики</string>
     <string name="notification_status_line_section">Строка состояния</string>
-    <string name="display_colors_title">Экран и цвета</string>
+    <string name="display_colors_title">Экран</string>
     <string name="display_colors_desc">Цвета, данные на главной и графики</string>
     <string name="display_readouts_section">Данные на главной</string>
     <!-- Debug log screen -->
@@ -2292,7 +2292,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_already">закреплено</string>
     <string name="stats_pinned_remove_short">Убрать</string>
     <string name="sensor_handover_title">Автоматическая передача сенсора</string>
-    <string name="sensor_handover_desc">Активируйте следующий сенсор заранее; когда старый сенсор истечёт, приложение автоматически переключится на преемника</string>
+    <string name="sensor_handover_desc">Активируйте следующий сенсор заранее; приложение переключится после завершения текущего</string>
     <string name="sensor_handover_old_action_title">Истёкший сенсор после передачи</string>
     <string name="sensor_handover_old_action_desc">Деактивировать: истёкший сенсор остаётся в списке, пока вы его не удалите. Удалить: как в окне удаления, ключи сопряжения стираются. История измерений сохраняется в обоих случаях.</string>
     <string name="sensor_handover_action_deactivate">Деактивировать</string>

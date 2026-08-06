@@ -2116,7 +2116,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_brightness">亮度</string>
     <string name="notification_charts_section">图表</string>
     <string name="notification_status_line_section">状态行</string>
-    <string name="display_colors_title">显示与颜色</string>
+    <string name="display_colors_title">显示</string>
     <string name="display_colors_desc">颜色、仪表板数值和图表</string>
     <string name="display_readouts_section">仪表板读数</string>
     <!-- Debug log screen -->
@@ -2263,7 +2263,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_already">已固定</string>
     <string name="stats_pinned_remove_short">移除</string>
     <string name="sensor_handover_title">自动传感器交接</string>
-    <string name="sensor_handover_desc">提前激活后续传感器;旧传感器到期后,应用会自动切换到后续传感器</string>
+    <string name="sensor_handover_desc">提前激活下一枚传感器；当前传感器到期后自动切换</string>
     <string name="sensor_handover_old_action_title">交接后的过期传感器</string>
     <string name="sensor_handover_old_action_desc">停用:过期传感器保留在列表中,直到您将其移除。移除:与移除对话框相同,配对密钥将被删除。两种情况下测量历史均会保留。</string>
     <string name="sensor_handover_action_deactivate">停用</string>

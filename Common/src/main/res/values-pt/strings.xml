@@ -2101,7 +2101,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_brightness">Brilho</string>
     <string name="notification_charts_section">Gráficos</string>
     <string name="notification_status_line_section">Linha de estado</string>
-    <string name="display_colors_title">Ecrã e cores</string>
+    <string name="display_colors_title">Ecrã</string>
     <string name="display_colors_desc">Cores, valores do painel e gráficos</string>
     <string name="display_readouts_section">Leituras do painel</string>
     <!-- Debug log screen -->
@@ -2248,7 +2248,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_already">fixado</string>
     <string name="stats_pinned_remove_short">Remover</string>
     <string name="sensor_handover_title">Transferência automática de sensor</string>
-    <string name="sensor_handover_desc">Ative o sensor sucessor com antecedência; quando o sensor antigo expirar, o aplicativo muda automaticamente para o sucessor</string>
+    <string name="sensor_handover_desc">Ative o próximo sensor antes; a aplicação muda quando o atual expirar</string>
     <string name="sensor_handover_old_action_title">Sensor expirado após a transferência</string>
     <string name="sensor_handover_old_action_desc">Desativar: o sensor expirado permanece na lista até você removê-lo. Remover: como a caixa de remoção, as chaves de pareamento são apagadas. O histórico de medições é mantido em ambos os casos.</string>
     <string name="sensor_handover_action_deactivate">Desativar</string>

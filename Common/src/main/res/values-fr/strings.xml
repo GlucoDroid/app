@@ -2106,7 +2106,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_brightness">Luminosité</string>
     <string name="notification_charts_section">Graphiques</string>
     <string name="notification_status_line_section">Ligne d’état</string>
-    <string name="display_colors_title">Affichage et couleurs</string>
+    <string name="display_colors_title">Affichage</string>
     <string name="display_colors_desc">Couleurs, valeurs du tableau de bord et graphiques</string>
     <string name="display_readouts_section">Valeurs du tableau de bord</string>
     <!-- Debug log screen -->
@@ -2253,7 +2253,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_already">épinglé</string>
     <string name="stats_pinned_remove_short">Retirer</string>
     <string name="sensor_handover_title">Transfert automatique de capteur</string>
-    <string name="sensor_handover_desc">Activez le capteur successeur à l\'avance ; à l\'expiration de l\'ancien capteur, l\'application bascule automatiquement vers le successeur</string>
+    <string name="sensor_handover_desc">Activez le suivant à l\'avance ; l\'app basculera automatiquement à l\'expiration</string>
     <string name="sensor_handover_old_action_title">Capteur expiré après le transfert</string>
     <string name="sensor_handover_old_action_desc">Désactiver : le capteur expiré reste dans la liste jusqu\'à sa suppression. Supprimer : comme la boîte de suppression, les clés d\'appairage sont effacées. L\'historique des mesures est conservé dans les deux cas.</string>
     <string name="sensor_handover_action_deactivate">Désactiver</string>

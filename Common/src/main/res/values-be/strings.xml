@@ -2167,7 +2167,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_brightness">Яркасць</string>
     <string name="notification_charts_section">Графікі</string>
     <string name="notification_status_line_section">Радок стану</string>
-    <string name="display_colors_title">Экран і колеры</string>
+    <string name="display_colors_title">Экран</string>
     <string name="display_colors_desc">Колеры, даныя на галоўнай і графікі</string>
     <string name="display_readouts_section">Даныя на галоўнай</string>
     <!-- Debug log screen -->
@@ -2314,7 +2314,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_already">замацавана</string>
     <string name="stats_pinned_remove_short">Прыбраць</string>
     <string name="sensor_handover_title">Аўтаматычная перадача сенсара</string>
-    <string name="sensor_handover_desc">Актывуйце наступны сенсар загадзя; калі стары сенсар скончыцца, праграма аўтаматычна пераключыцца на пераемніка</string>
+    <string name="sensor_handover_desc">Актывуйце наступны сенсар загадзя; праграма пераключыцца пасля заканчэння бягучага</string>
     <string name="sensor_handover_old_action_title">Скончаны сенсар пасля перадачы</string>
     <string name="sensor_handover_old_action_desc">Дэактываваць: скончаны сенсар застаецца ў спісе, пакуль вы яго не выдаліце. Выдаліць: як у акне выдалення, ключы спалучэння сціраюцца. Гісторыя вымярэнняў захоўваецца ў абодвух выпадках.</string>
     <string name="sensor_handover_action_deactivate">Дэактываваць</string>

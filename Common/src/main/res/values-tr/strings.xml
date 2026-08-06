@@ -2128,7 +2128,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="glucose_palette_brightness">Parlaklık</string>
     <string name="notification_charts_section">Grafikler</string>
     <string name="notification_status_line_section">Durum satırı</string>
-    <string name="display_colors_title">Görünüm ve renkler</string>
+    <string name="display_colors_title">Görünüm</string>
     <string name="display_colors_desc">Renkler, pano değerleri ve grafikler</string>
     <string name="display_readouts_section">Pano değerleri</string>
     <!-- Debug log screen -->
@@ -2275,7 +2275,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="stats_pinned_already">sabit</string>
     <string name="stats_pinned_remove_short">Kaldır</string>
     <string name="sensor_handover_title">Otomatik sensör devri</string>
-    <string name="sensor_handover_desc">Yeni sensörü önceden etkinleştirin; eski sensörün süresi dolduğunda uygulama otomatik olarak halefe geçer</string>
+    <string name="sensor_handover_desc">Sonraki sensörü önceden etkinleştirin; mevcut sensör bitince uygulama otomatik geçer</string>
     <string name="sensor_handover_old_action_title">Devirden sonra süresi dolan sensör</string>
     <string name="sensor_handover_old_action_desc">Devre dışı bırak: süresi dolan sensör siz kaldırana kadar listede kalır. Kaldır: kaldırma penceresindeki gibi, eşleştirme anahtarları silinir. Ölçüm geçmişi her iki durumda da korunur.</string>
     <string name="sensor_handover_action_deactivate">Devre dışı bırak</string>

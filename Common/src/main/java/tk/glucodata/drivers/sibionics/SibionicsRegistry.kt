@@ -531,7 +531,7 @@ object SibionicsRegistry {
         val selectionKey = PREF_ALGORITHM_SELECTION_PREFIX + sensorId
         if (preferences.contains(selectionKey)) {
             return SibionicsAlgorithmSelection.fromStorage(
-                preferences.getInt(selectionKey, SibionicsAlgorithmSelection.STOCK.storageId),
+                preferences.getInt(selectionKey, SibionicsAlgorithmSelection.DEFAULT.storageId),
             )
         }
         val legacyKey = PREF_CUSTOM_ALGORITHM_PREFIX + sensorId
@@ -542,7 +542,7 @@ object SibionicsRegistry {
                 SibionicsAlgorithmSelection.STOCK_CALIBRATED
             }
         } else {
-            SibionicsAlgorithmSelection.STOCK
+            SibionicsAlgorithmSelection.DEFAULT
         }
     }
 

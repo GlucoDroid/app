@@ -2090,7 +2090,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_brightness">Luminosità</string>
     <string name="notification_charts_section">Grafici</string>
     <string name="notification_status_line_section">Riga di stato</string>
-    <string name="display_colors_title">Display e colori</string>
+    <string name="display_colors_title">Schermo</string>
     <string name="display_colors_desc">Colori, valori della dashboard e grafici</string>
     <string name="display_readouts_section">Letture della dashboard</string>
     <!-- Debug log screen -->
@@ -2237,7 +2237,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_already">fissato</string>
     <string name="stats_pinned_remove_short">Rimuovi</string>
     <string name="sensor_handover_title">Passaggio automatico del sensore</string>
-    <string name="sensor_handover_desc">Attiva il sensore successore in anticipo; alla scadenza del vecchio sensore l\'app passa automaticamente al successore</string>
+    <string name="sensor_handover_desc">Attiva prima il sensore successivo; l\'app passerà automaticamente alla scadenza</string>
     <string name="sensor_handover_old_action_title">Sensore scaduto dopo il passaggio</string>
     <string name="sensor_handover_old_action_desc">Disattiva: il sensore scaduto resta nell\'elenco finché non lo rimuovi. Rimuovi: come la finestra di rimozione, le chiavi di associazione vengono eliminate. Lo storico delle misurazioni viene comunque conservato.</string>
     <string name="sensor_handover_action_deactivate">Disattiva</string>

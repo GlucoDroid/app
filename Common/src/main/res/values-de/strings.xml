@@ -2142,7 +2142,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="glucose_palette_brightness">Helligkeit</string>
     <string name="notification_charts_section">Diagramme</string>
     <string name="notification_status_line_section">Statuszeile</string>
-    <string name="display_colors_title">Anzeige &amp; Farben</string>
+    <string name="display_colors_title">Anzeige</string>
     <string name="display_colors_desc">Farben, Dashboard-Werte und Diagramme</string>
     <string name="display_readouts_section">Dashboard-Anzeigen</string>
     <!-- Debug log screen -->
@@ -2289,7 +2289,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="stats_pinned_already">angeheftet</string>
     <string name="stats_pinned_remove_short">Entfernen</string>
     <string name="sensor_handover_title">Automatische Sensor-Übergabe</string>
-    <string name="sensor_handover_desc">Nachfolge-Sensor rechtzeitig vorher aktivieren; läuft der alte Sensor ab, wechselt die App automatisch auf den Nachfolger</string>
+    <string name="sensor_handover_desc">Nachfolger früh aktivieren; nach Ablauf wechselt die App automatisch</string>
     <string name="sensor_handover_old_action_title">Abgelaufener Sensor nach der Übergabe</string>
     <string name="sensor_handover_old_action_desc">Deaktivieren: der abgelaufene Sensor bleibt in der Liste, bis Sie ihn entfernen. Entfernen: wie die Entfernen-Maske, Kopplungsschlüssel werden gelöscht. Messdaten bleiben in beiden Fällen erhalten.</string>
     <string name="sensor_handover_action_deactivate">Deaktivieren</string>

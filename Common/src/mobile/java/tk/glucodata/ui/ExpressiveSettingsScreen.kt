@@ -125,7 +125,6 @@ fun ExpressiveSettingsScreen(
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
     val dataSmoothingExchangeOnly by viewModel.dataSmoothingExchangeOnly.collectAsState()
-    val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val alertsMasterEnabled by viewModel.alertsMasterEnabled.collectAsState()
@@ -164,7 +163,6 @@ fun ExpressiveSettingsScreen(
     var showClearHistoryDialog by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showFactoryResetDialog by remember { mutableStateOf(false) }
-    var showPreviewWindowDialog by remember { mutableStateOf(false) }
     var isClearing by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var pendingSettingsImportUri by remember { mutableStateOf<Uri?>(null) }
@@ -215,12 +213,6 @@ fun ExpressiveSettingsScreen(
             }
         }.joinToString(" · ")
     }
-    val previewWindowLabel = when (previewWindowMode) {
-        1 -> stringResource(R.string.preview_window_always)
-        2 -> stringResource(R.string.preview_window_never)
-        else -> stringResource(R.string.preview_window_expanded_only)
-    }
-
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -292,6 +284,16 @@ fun ExpressiveSettingsScreen(
                     onOpenCalibration = { navController.navigate("settings/calibrations") },
                     iconTint = glucoseColor,
                     position = CardPosition.MIDDLE
+                )
+
+                SettingsItem(
+                    title = stringResource(R.string.graph_smoothing_title),
+                    subtitle = graphSmoothingLabel,
+                    showArrow = true,
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
+                    iconTint = glucoseColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/data-smoothing") }
                 )
 
                 JournalSettingsItem(
@@ -560,24 +562,6 @@ fun ExpressiveSettingsScreen(
                     )
                 }
                 SettingsItem(
-                    title = stringResource(R.string.graph_smoothing_title),
-                    subtitle = graphSmoothingLabel,
-                    showArrow = true,
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
-                    iconTint = advColor,
-                    position = CardPosition.MIDDLE,
-                    onClick = { navController.navigate("settings/data-smoothing") }
-                )
-                SettingsItem(
-                    title = stringResource(R.string.preview_window_title),
-                    subtitle = previewWindowLabel,
-                    showArrow = true,
-                    icon = Icons.Default.CropSquare,
-                    iconTint = advColor,
-                    position = CardPosition.MIDDLE,
-                    onClick = { showPreviewWindowDialog = true }
-                )
-                SettingsItem(
                     title = stringResource(R.string.cgm_readiness_title),
                     subtitle = stringResource(R.string.cgm_readiness_settings_desc),
                     showArrow = true,
@@ -734,14 +718,6 @@ fun ExpressiveSettingsScreen(
         context.findActivity()?.hardRestart() 
     }, { showUnitDialog = false })
     if (showThemeDialog) ThemePickerDialog(themeMode, { onThemeChanged(it); showThemeDialog = false }, { showThemeDialog = false })
-    if (showPreviewWindowDialog) PreviewWindowPickerDialog(
-        currentMode = previewWindowMode,
-        onSelect = {
-            viewModel.setPreviewWindowMode(it)
-            showPreviewWindowDialog = false
-        },
-        onDismiss = { showPreviewWindowDialog = false }
-    )
     if (showSensorHandoverActionDialog) SensorHandoverActionPickerDialog(
         currentAction = sensorHandoverAction,
         onSelect = {
@@ -1888,7 +1864,7 @@ private fun SensorHandoverActionPickerDialog(
 }
 
 @Composable
-private fun PreviewWindowPickerDialog(
+internal fun PreviewWindowPickerDialog(
     currentMode: Int,
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit

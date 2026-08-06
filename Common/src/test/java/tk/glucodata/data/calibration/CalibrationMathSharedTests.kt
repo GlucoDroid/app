@@ -131,6 +131,27 @@ class CalibrationMathSharedTests {
     }
 
     @Test
+    fun freshModeStronglyPrefersANewerAnchor() {
+        val points = listOf(
+            CalPoint(x = 100.0, y = 140.0, timestamp = now - 18 * hour),
+            CalPoint(x = 100.0, y = 105.0, timestamp = now - hour),
+        )
+
+        fun predict(weightMode: String): Double = CalibrationMath.computeAlgorithm(
+            algorithm = CalibrationMath.ALG_SANE_WEIGHTED_OLS,
+            targetValue = 100.0,
+            targetTimestamp = now,
+            points = points,
+            tuning = tuning.copy(weightMode = weightMode),
+        ).prediction
+
+        val fresh = predict(CalibrationMath.WEIGHT_FRESH)
+        val balanced = predict(CalibrationMath.WEIGHT_BALANCED)
+
+        assertTrue("fresh=$fresh balanced=$balanced", fresh < balanced - 3.0)
+    }
+
+    @Test
     fun invalidReadingsAreLeftAlone() {
         assertEquals(0f, CalibrationMath.sanitizeCalibratedValue(Double.NaN, 0f), 1e-9f)
         assertEquals(120f, CalibrationMath.sanitizeCalibratedValue(Double.NaN, 120f), 1e-9f)

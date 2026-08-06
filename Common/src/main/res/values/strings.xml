@@ -2168,7 +2168,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="notification_settings_subtitle">Customize notification shade</string>
     <string name="notification_charts_section">Charts</string>
     <string name="notification_status_line_section">Status line</string>
-    <string name="display_colors_title">Display &amp; colors</string>
+    <string name="display_colors_title">Display</string>
     <string name="display_colors_desc">Colors, dashboard values, and charts</string>
     <string name="display_readouts_section">Dashboard readouts</string>
     <string name="lock_screen_aod">Lock screen (AOD)</string>
@@ -2477,7 +2477,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_span_days">%1$d days</string>
     <string name="stats_window_24h">24H</string>
     <string name="sensor_handover_title">Automatic sensor handover</string>
-    <string name="sensor_handover_desc">Activate the successor sensor ahead of time; when the old sensor expires, the app switches to the successor automatically</string>
+    <string name="sensor_handover_desc">Activate the next sensor early; the app switches when the current one expires</string>
     <string name="sensor_handover_old_action_title">Expired sensor after handover</string>
     <string name="sensor_handover_old_action_desc">Deactivate: the expired sensor stays in the list until you remove it. Remove: like the remove dialog, pairing keys are deleted. Measurement history is kept either way.</string>
     <string name="sensor_handover_action_deactivate">Deactivate</string>

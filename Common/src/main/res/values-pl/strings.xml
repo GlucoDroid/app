@@ -2134,7 +2134,7 @@
     <string name="glucose_palette_brightness">Jasność</string>
     <string name="notification_charts_section">Wykresy</string>
     <string name="notification_status_line_section">Wiersz stanu</string>
-    <string name="display_colors_title">Wyświetlanie i kolory</string>
+    <string name="display_colors_title">Wyświetlanie</string>
     <string name="display_colors_desc">Kolory, wartości pulpitu i wykresy</string>
     <string name="display_readouts_section">Odczyty pulpitu</string>
     <!-- Debug log screen -->
@@ -2281,7 +2281,7 @@
     <string name="stats_pinned_already">przypięte</string>
     <string name="stats_pinned_remove_short">Usuń</string>
     <string name="sensor_handover_title">Automatyczne przełączenie czujnika</string>
-    <string name="sensor_handover_desc">Aktywuj następny czujnik odpowiednio wcześniej; gdy stary czujnik wygaśnie, aplikacja automatycznie przełączy się na następcę</string>
+    <string name="sensor_handover_desc">Aktywuj następny czujnik wcześniej; aplikacja przełączy się po wygaśnięciu obecnego</string>
     <string name="sensor_handover_old_action_title">Wygasły czujnik po przełączeniu</string>
     <string name="sensor_handover_old_action_desc">Dezaktywuj: wygasły czujnik pozostaje na liście, dopóki go nie usuniesz. Usuń: jak w oknie usuwania, klucze parowania zostają skasowane. Historia pomiarów jest zachowana w obu przypadkach.</string>
     <string name="sensor_handover_action_deactivate">Dezaktywuj</string>

@@ -2215,7 +2215,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="glucose_palette_brightness">Гэрэлтэлт</string>
     <string name="notification_charts_section">Графикууд</string>
     <string name="notification_status_line_section">Төлөвийн мөр</string>
-    <string name="display_colors_title">Дэлгэц ба өнгө</string>
+    <string name="display_colors_title">Дэлгэц</string>
     <string name="display_colors_desc">Өнгө, хяналтын самбарын утга болон график</string>
     <string name="display_readouts_section">Хяналтын самбарын утга</string>
     <!-- Debug log screen -->
@@ -2362,7 +2362,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_pinned_already">бэхлэгдсэн</string>
     <string name="stats_pinned_remove_short">Хасах</string>
     <string name="sensor_handover_title">Мэдрэгчийн автомат шилжүүлэг</string>
-    <string name="sensor_handover_desc">Дараагийн мэдрэгчийг урьдчилан идэвхжүүлнэ үү; хуучин мэдрэгчийн хугацаа дуусахад апп автоматаар залгамжлагч руу шилжинэ</string>
+    <string name="sensor_handover_desc">Дараагийн мэдрэгчийг урьдчилан идэвхжүүл; одоогийнх дуусахад апп автоматаар шилжинэ</string>
     <string name="sensor_handover_old_action_title">Шилжүүлгийн дараах хугацаа дууссан мэдрэгч</string>
     <string name="sensor_handover_old_action_desc">Идэвхгүй болгох: хугацаа дууссан мэдрэгч устгах хүртэл жагсаалтад үлдэнэ. Устгах: устгах цонхтой адил, хослуулах түлхүүрүүд устана. Хэмжилтийн түүх хоёр тохиолдолд хадгалагдана.</string>
     <string name="sensor_handover_action_deactivate">Идэвхгүй болгох</string>

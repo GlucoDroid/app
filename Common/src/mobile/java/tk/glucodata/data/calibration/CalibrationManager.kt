@@ -178,7 +178,7 @@ object CalibrationManager {
     private val _disabledRawSensorIds = MutableStateFlow<Set<String>>(emptySet())
     private val _disabledAutoSensorIds = MutableStateFlow<Set<String>>(emptySet())
 
-    private val _hideInitialWhenCalibrated = MutableStateFlow(false)
+    private val _hideInitialWhenCalibrated = MutableStateFlow(true)
     val hideInitialWhenCalibrated: StateFlow<Boolean> = _hideInitialWhenCalibrated
 
     private val _applyToPast = MutableStateFlow(false)
@@ -193,7 +193,7 @@ object CalibrationManager {
     private val _overwriteSensorValues = MutableStateFlow(false)
     val overwriteSensorValues: StateFlow<Boolean> = _overwriteSensorValues
 
-    private val _visualContinuity = MutableStateFlow(false)
+    private val _visualContinuity = MutableStateFlow(true)
     val visualContinuity: StateFlow<Boolean> = _visualContinuity
 
     private val _weightMode = MutableStateFlow(CalibrationWeightMode.FRESH)
@@ -246,12 +246,12 @@ object CalibrationManager {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _disabledRawSensorIds.value = readSensorIdSet(KEY_DISABLED_RAW_SENSOR_IDS)
         _disabledAutoSensorIds.value = readSensorIdSet(KEY_DISABLED_AUTO_SENSOR_IDS)
-        _hideInitialWhenCalibrated.value = prefs.getBoolean(KEY_HIDE_INITIAL_WHEN_CALIBRATED, false)
+        _hideInitialWhenCalibrated.value = prefs.getBoolean(KEY_HIDE_INITIAL_WHEN_CALIBRATED, true)
         _applyToPast.value = prefs.getBoolean(KEY_APPLY_TO_PAST, false)
         _lockPastHistory.value = prefs.getBoolean(KEY_LOCK_PAST_HISTORY, false)
         _keepDisabledHistory.value = prefs.getBoolean(KEY_KEEP_DISABLED_HISTORY, false)
         _overwriteSensorValues.value = prefs.getBoolean(KEY_OVERWRITE_SENSOR_VALUES, false)
-        _visualContinuity.value = prefs.getBoolean(KEY_VISUAL_CONTINUITY, false)
+        _visualContinuity.value = prefs.getBoolean(KEY_VISUAL_CONTINUITY, true)
         _weightMode.value = CalibrationWeightMode.fromStorage(
             prefs.getString(KEY_WEIGHT_MODE, CalibrationWeightMode.FRESH.storageValue)
         )

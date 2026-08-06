@@ -2100,7 +2100,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="glucose_palette_brightness">Ljusstyrka</string>
     <string name="notification_charts_section">Diagram</string>
     <string name="notification_status_line_section">Statusrad</string>
-    <string name="display_colors_title">Visning och färger</string>
+    <string name="display_colors_title">Visning</string>
     <string name="display_colors_desc">Färger, översiktsvärden och diagram</string>
     <string name="display_readouts_section">Översiktsvärden</string>
     <!-- Debug log screen -->
@@ -2247,7 +2247,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_pinned_already">fäst</string>
     <string name="stats_pinned_remove_short">Ta bort</string>
     <string name="sensor_handover_title">Automatiskt sensorbyte</string>
-    <string name="sensor_handover_desc">Aktivera efterföljande sensor i god tid; när den gamla sensorn löper ut byter appen automatiskt till efterträdaren</string>
+    <string name="sensor_handover_desc">Aktivera nästa sensor i förväg; appen byter när den aktuella löper ut</string>
     <string name="sensor_handover_old_action_title">Utgången sensor efter bytet</string>
     <string name="sensor_handover_old_action_desc">Avaktivera: den utgångna sensorn ligger kvar i listan tills du tar bort den. Ta bort: som borttagningsdialogen, parningsnycklar raderas. Mäthistoriken behålls i båda fallen.</string>
     <string name="sensor_handover_action_deactivate">Avaktivera</string>
