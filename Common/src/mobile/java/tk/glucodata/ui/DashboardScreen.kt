@@ -279,6 +279,7 @@ fun DashboardScreen(
     onNavigateToHistory: () -> Unit = {},
     onNavigateToMqAccount: () -> Unit = {},
     onNavigateToReadiness: () -> Unit = {},
+    onNavigateToAppUpdates: () -> Unit = {},
     onTriggerCalibration: (CalibrationSheetState) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -1244,7 +1245,13 @@ fun DashboardScreen(
                 modifier = Modifier
                     .padding(padding),
                 readinessContent = {
+                    // Plain Column here, unlike the spaced LazyColumns below, so the gap
+                    // between the two banners rides on the second one.
                     DashboardCgmReadinessBanner(onOpenReadiness = onNavigateToReadiness)
+                    DashboardAppUpdateBanner(
+                        modifier = Modifier.padding(top = 12.dp),
+                        onOpenAppUpdates = onNavigateToAppUpdates
+                    )
                 }
             )
             } else if (isLandscape) {
@@ -1321,6 +1328,10 @@ fun DashboardScreen(
 
                     item {
                         DashboardCgmReadinessBanner(onOpenReadiness = onNavigateToReadiness)
+                    }
+
+                    item {
+                        DashboardAppUpdateBanner(onOpenAppUpdates = onNavigateToAppUpdates)
                     }
 
                     item {
@@ -1575,6 +1586,13 @@ fun DashboardScreen(
                     DashboardCgmReadinessBanner(
                         modifier = Modifier.padding(horizontal = contentHorizontalPadding),
                         onOpenReadiness = onNavigateToReadiness
+                    )
+                }
+
+                item {
+                    DashboardAppUpdateBanner(
+                        modifier = Modifier.padding(horizontal = contentHorizontalPadding),
+                        onOpenAppUpdates = onNavigateToAppUpdates
                     )
                 }
 

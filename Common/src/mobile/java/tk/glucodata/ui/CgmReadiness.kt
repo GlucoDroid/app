@@ -655,8 +655,9 @@ private fun CgmStatusChip(
     }
 }
 
+/** Shared with the app-updater cards so both speak the same visual language. */
 @Composable
-private fun StatusIconSurface(
+internal fun StatusIconSurface(
     icon: ImageVector,
     color: Color
 ) {

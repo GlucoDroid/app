@@ -172,6 +172,12 @@
 -keepclassmembers class com.sdk.** { *; }
 -keepnames class com.sdk.**
 
+# In-app updater. WorkManager instantiates the worker by class name and the PackageInstaller
+# status PendingIntent resolves the receiver by component, neither of which R8 can see as a
+# reference. Both also carry @Keep at their declaration; keep the two in sync.
+-keep class tk.glucodata.update.AppUpdateCheckWorker { public <init>(...); }
+-keep class tk.glucodata.update.AppUpdateInstallReceiver { public <init>(...); }
+
 # Keep the Compose UI entry point stable. MainActivity resolves
 # tk.glucodata.ui.ComposeHostKt#setComposeContent by name (mobile and wear each
 # provide their own implementation); without this the reflective lookup fails

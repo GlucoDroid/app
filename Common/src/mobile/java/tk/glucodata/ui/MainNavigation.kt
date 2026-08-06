@@ -118,6 +118,7 @@ private fun DashboardRoute(
         onNavigateToHistory = { navController.navigate("history") },
         onNavigateToMqAccount = { navController.navigate("settings/mq-account") },
         onNavigateToReadiness = { navController.navigate("settings/cgm-readiness") },
+        onNavigateToAppUpdates = { navController.navigate("settings/app-updates") },
         onTriggerCalibration = onTriggerCalibration
     )
 }
@@ -856,6 +857,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/turnserver") { tk.glucodata.ui.TurnServerSettingsScreen(navController) }
                     composable("settings/debug") { DebugSettingsScreen(navController) }
                     composable("settings/cgm-readiness") { CgmReadinessScreen(navController) }
+                    composable("settings/app-updates") { AppUpdatesScreen(navController) }
                     composable("settings/alerts") { tk.glucodata.ui.alerts.AlertSettingsScreen(navController) }
                     composable("settings/alerts/talker") { tk.glucodata.ui.alerts.TalkerSettingsScreen(navController) }
                     composable("settings/journal") { JournalSettingsScreen(navController, dashboardViewModel) }
@@ -1008,6 +1010,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/turnserver") { tk.glucodata.ui.TurnServerSettingsScreen(navController) }
                 composable("settings/debug") { DebugSettingsScreen(navController) }
                 composable("settings/cgm-readiness") { CgmReadinessScreen(navController) }
+                composable("settings/app-updates") { AppUpdatesScreen(navController) }
                 composable("settings/alerts") { tk.glucodata.ui.alerts.AlertSettingsScreen(navController) }
                 composable("settings/alerts/talker") { tk.glucodata.ui.alerts.TalkerSettingsScreen(navController) }
                 composable("settings/journal") { JournalSettingsScreen(navController, dashboardViewModel) }

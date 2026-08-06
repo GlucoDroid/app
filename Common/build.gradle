@@ -69,6 +69,12 @@ android {
         manifestPlaceholders["debuggable"] = "false"
         manifestPlaceholders["requireWatch"] = "true"
 
+        // versionName gets '-phone'/'-wear' and 'DUB'/'DEBUG' appended per variant, so it can't
+        // be compared against a release tag. The in-app updater needs the bare number.
+        buildConfigField 'String', 'BASE_VERSION_NAME', "\"$appVersionName\""
+        // GitHub repo the in-app updater reads releases from. Forks change it here.
+        buildConfigField 'String', 'UPDATE_REPO', '"ctqvva/JugglucoNG"'
+
         buildConfigField 'String', 'BUILD_TIME', 'new java.text.SimpleDateFormat("HH:mm:ss dd-MMM-yyyy").format(new java.util.Date(' + System.currentTimeMillis() + 'L))'
         buildConfigField 'int', 'isRelease', '0'
         buildConfigField 'int', 'isReleaseID', '0'
