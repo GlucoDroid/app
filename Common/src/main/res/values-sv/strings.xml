@@ -1352,8 +1352,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_selected">Vald: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Använd falsk QR-info från detta BLE-namn</string>
     <string name="sibionics_use_ble_device">Använd denna Bluetooth-enhet</string>
-    <string name="sibionics_legacy_driver_title">Äldre drivrutin</string>
-    <string name="sibionics_legacy_driver_desc">Använd den gamla proprietära drivrutinen endast för en befintlig konfiguration.</string>
     <string name="sibionics_managed_sensor_added">Hanterad Sibionics-sensor tillagd: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>

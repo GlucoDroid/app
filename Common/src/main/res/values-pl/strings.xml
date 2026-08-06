@@ -1387,8 +1387,6 @@
     <string name="sibionics_ble_selected">Wybrano: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Użyj fałszywych danych QR z tej nazwy BLE</string>
     <string name="sibionics_use_ble_device">Użyj tego urządzenia Bluetooth</string>
-    <string name="sibionics_legacy_driver_title">Starszy sterownik</string>
-    <string name="sibionics_legacy_driver_desc">Używaj starego zastrzeżonego sterownika tylko ze zgodną istniejącą konfiguracją.</string>
     <string name="sibionics_managed_sensor_added">Dodano zarządzany sensor Sibionics: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>

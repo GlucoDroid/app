@@ -1368,8 +1368,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sibionics_ble_selected">已选择：%1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">使用该 BLE 名称生成伪二维码信息</string>
     <string name="sibionics_use_ble_device">使用此 Bluetooth 设备</string>
-    <string name="sibionics_legacy_driver_title">旧版驱动</string>
-    <string name="sibionics_legacy_driver_desc">仅为兼容现有设置时使用旧版专有驱动。</string>
     <string name="sibionics_managed_sensor_added">已添加托管 Sibionics 传感器：%1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>

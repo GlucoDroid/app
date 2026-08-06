@@ -1658,8 +1658,6 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="sibionics_ble_probe_desc">Haddii dareemahaagu halkan ka muuqdo, Bluetooth waa nool yahay. Sawirka QR ayaa wali la door bidaa in si buuxda loo habeeyo.</string>
     <string name="sibionics_ble_probe_empty">Wali lama helin FF30 aaladaha Sibionics</string>
     <string name="sibionics_ble_selected">La xushay: %1$s</string>
-    <string name="sibionics_legacy_driver_title">Darawalka hore</string>
-    <string name="sibionics_legacy_driver_desc">Isticmaal darawalka gaarka ah ee hore keliya si uu ula jaanqaado habayn jirta.</string>
     <string name="sibionics_use_fake_qr_from_ble">Isticmaal macluumaadka QR ee been abuurka ah ee magacan BLE</string>
     <string name="wear_transport">Gudbinta Wear OS</string>
     <string name="wear_transport_desc">Habee gudbinta xogta Wear OS iyo isku xidhka xaaladda</string>

@@ -1426,8 +1426,6 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="sibionics_ble_selected">Ausgewählt: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Gefälschte QR-Daten aus diesem BLE-Namen verwenden</string>
     <string name="sibionics_use_ble_device">Dieses Bluetooth-Gerät verwenden</string>
-    <string name="sibionics_legacy_driver_title">Legacy-Treiber</string>
-    <string name="sibionics_legacy_driver_desc">Den alten proprietären Treiber nur zur Kompatibilität mit einer vorhandenen Einrichtung verwenden.</string>
     <string name="sibionics_managed_sensor_added">Verwalteter Sibionics-Sensor hinzugefügt: %1$s</string>
     <string name="wear_transport">Wear-Transport</string>
     <string name="wear_transport_desc">Wear-OS-Datenübertragung und Sync-Status konfigurieren.</string>

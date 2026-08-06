@@ -1383,8 +1383,6 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="sibionics_ble_selected">Selected: %1$s</string>
     <string name="sibionics_use_fake_qr_from_ble">Use fake QR info from this BLE name</string>
     <string name="sibionics_use_ble_device">Use this Bluetooth device</string>
-    <string name="sibionics_legacy_driver_title">Хуучин драйвер</string>
-    <string name="sibionics_legacy_driver_desc">Хуучин өмчийн драйверийг зөвхөн одоогийн тохиргоотой нийцүүлэхэд ашиглана.</string>
     <string name="sibionics_managed_sensor_added">Managed Sibionics sensor added: %1$s</string>
     <string name="wear_transport">Wear transport</string>
     <string name="wear_transport_desc">Configure Wear OS data transport and sync state.</string>
