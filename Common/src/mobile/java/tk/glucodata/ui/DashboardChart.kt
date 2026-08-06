@@ -159,6 +159,7 @@ private const val PREVIEW_WINDOW_MODE_EXPANDED_ONLY = 0
 private const val PREVIEW_WINDOW_MODE_ALWAYS = 1
 private const val PREVIEW_WINDOW_MODE_NEVER = 2
 private const val PREVIEW_WINDOW_DURATION_MS = 24L * 60L * 60L * 1000L
+private const val ACTIVE_INSULIN_MAX_WIDTH_FRACTION = 0.46f
 private val PreviewWindowHeight = 58.dp
 private val PreviewWindowOuterPadding = 12.dp
 
@@ -3676,11 +3677,14 @@ fun InteractiveGlucoseChart(
                 } else null
                 val activeInsulinShape =
                     if (isActiveInsulinExpanded) RoundedCornerShape(18.dp) else CircleShape
+                // Stay just under half of the chart in both states. The FlowRow can then
+                // wrap secondary values without covering the date/selection overlays.
+                val activeInsulinMaxWidth = maxWidth * ACTIVE_INSULIN_MAX_WIDTH_FRACTION
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(start = 12.dp, top = 12.dp)
-                        .widthIn(max = (maxWidth - 24.dp).coerceAtLeast(160.dp))
+                        .widthIn(max = activeInsulinMaxWidth)
                         .zIndex(1.6f)
                         .clip(activeInsulinShape)
                         .clickable { isActiveInsulinExpanded = !isActiveInsulinExpanded },
