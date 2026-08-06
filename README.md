@@ -2,27 +2,33 @@
 
 # JugglucoNG
 
-A continuous glucose monitoring app for Android, rebuilt on Material 3. JugglucoNG is a fork of [Juggluco](https://github.com/j-kaltes/Juggluco) by Jaap Korthals Altes that keeps Juggluco's native sensor engine and wraps it in a modern Compose UI, a sensor-independent database, and a much larger feature set: multi-sensor support, a treatment journal with IOB/COB, predictive simulation, a rewritten alarm engine, and Nightscout in both directions.
+JugglucoNG is a continuous glucose monitoring app for Android, built around a Material 3 Expressive interface and a multi-sensor runtime. It began as a fork of [Juggluco](https://github.com/j-kaltes/Juggluco) by Jaap Korthals Altes and still shares a substantial Libre and native foundation with it. Today it is its own application rather than a UI layer over Juggluco: JugglucoNG has its own architecture, managed sensor drivers, sensor-independent data layer, alarm engine, journal and prediction tooling, and integrations.
 
 ![Screenshot](juggluco_screenshot.png)
 
-**Latest release: [1.0.9-Alpha](https://github.com/ctqvva/JugglucoNG/releases)**. This is alpha software: expect rough edges, and never make treatment decisions based on this app alone.
+<sub>Interface: English · Беларуская · 中文 · Deutsch · Français · Italiano · Nederlands · Polski · Português · Русский · Svenska · Soomaali · Türkçe · Українська · Монгол</sub>
 
-## Supported sensors
+**Latest alpha: [Releases](https://github.com/ctqvva/JugglucoNG/releases)**. Expect rough edges, and never make treatment decisions based on this app alone.
 
-- Abbott FreeStyle Libre 2 / 2+ / 3 / 3+
+## Sensor and data-source support
+
+Direct sensor families:
+
+- Abbott FreeStyle Libre / 2 / 2+ / 3 / 3+
 - Dexcom G7 / ONE+
-- Sibionics GS1
-- Accu-Chek SmartGuide
 - CareSens Air
-- Aidex X
-- Ottai
-- GlucoRx Anytime CT4 / CT5
-- iCan i3 (Sinocare)
-- MQ / Glutec
-- Nightscout follower (use another uploader as your data source)
+- Accu-Chek SmartGuide
 
-Multiple sensors can run at the same time. An opt-in handover mode starts the next sensor automatically when the current one reaches its official expiry. Bluetooth fingerstick meters can log readings straight into the journal.
+- Sibionics GS1 (EU, Chinese, and Hematonix), Sibionics 2
+- AiDex X / LinX
+- iCan i3 / i6 (Sinocare)
+- Anytime / Yuwell
+- MQ / Glutec
+- Ottai / SyAi
+
+Follower sources: Nightscout and the HTTP API.
+
+Multiple direct sensors can run at the same time. An opt-in handover mode starts the next sensor automatically when the current one reaches its official expiry. Bluetooth fingerstick meters can log readings straight into the journal.
 
 ## Features
 
@@ -44,12 +50,13 @@ Multiple sensors can run at the same time. An opt-in handover mode starts the ne
 
 Requirements: JDK 21, Android SDK with NDK and CMake, and the libjuice submodule:
 
-```
+```sh
 git submodule update --init
-./gradlew assembleMobileLibre3SiDexGoogleDebug
+./gradlew :Common:assembleMobileDebug --no-daemon
+./gradlew :Common:assembleMobileRelease --no-daemon
 ```
+The app is localised into 15 languages; new user-facing strings go into `Common/src/main/res/values/strings.xml` and every `values-*` locale.
 
-Some product flavors depend on proprietary vendor libraries (Libre 3, Sibionics) that are not part of this repository; the corresponding variants need those `jniLibs` supplied separately. Unit tests run with `./gradlew :Common:testMobileLibre3SiDexGoogleDebugUnitTest`.
 
 ## Version history
 
@@ -57,6 +64,6 @@ See the [Releases page](https://github.com/ctqvva/JugglucoNG/releases) for the c
 
 ## License and credits
 
-GPL-3.0 (see [LICENSE.txt](LICENSE.txt)). Based on [Juggluco](https://github.com/j-kaltes/Juggluco) by Jaap Korthals Altes, whose native sensor engine this project builds on. JugglucoNG is developed by [ctqvva](https://github.com/ctqvva) with contributions from the community.
+GPL-3.0 (see [LICENSE.txt](LICENSE.txt)). Forked from [Juggluco](https://github.com/j-kaltes/Juggluco) by Jaap Korthals Altes, whose Libre and native work JugglucoNG still builds on. Developed by [ctqvva](https://github.com/ctqvva) with contributions from the community.
 
 **Disclaimer:** this software is experimental and comes with no warranty of any kind. It is not a medical device. Always confirm readings with an approved device before acting on them.
