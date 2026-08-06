@@ -141,6 +141,7 @@ fun DashboardAppUpdateBanner(
     ) {
         AppUpdateStatusCard(
             state = state,
+            host = AppUpdateCardHost.DASHBOARD,
             // Dismissing mid-transfer would hide a running download; the X returns when idle.
             onDismiss = if (state.stage == UpdateStage.IDLE) {
                 { AppUpdateController.dismissBanner(context) }
@@ -188,15 +189,35 @@ fun AppUpdatesSettingsItem(
 }
 
 /**
+ * Where the status card is being drawn. The download → verify → install machinery is identical
+ * in both places; what differs is how much room there is and how much the surface is allowed to
+ * commit the user to.
+ */
+internal enum class AppUpdateCardHost {
+    /**
+     * A card interrupting the glucose view. It gets one press to do the whole job — the user is
+     * not there to manage an update — and says as little as possible around it.
+     */
+    DASHBOARD,
+
+    /**
+     * The App updates screen, where the user came deliberately. Download and install stay two
+     * separate steps, so the staged file can be inspected, discarded or installed later.
+     */
+    SETTINGS
+}
+
+/**
  * The updater's status card, shared by the dashboard and the App updates screen.
  *
- * One component for both hosts because the sequence is the same in both places: press once,
- * watch it download and verify, then answer the system's install prompt. [onViewDetails] adds a
- * quiet "View" action for hosts that have somewhere to go; [onDismiss] adds the X.
+ * One component because the progress, verify, permission and failure states are the same
+ * everywhere; [host] carries the two differences. [onViewDetails] adds a quiet "View" action for
+ * hosts that have somewhere to go; [onDismiss] adds the X.
  */
 @Composable
 internal fun AppUpdateStatusCard(
     state: AppUpdateUiState,
+    host: AppUpdateCardHost,
     modifier: Modifier = Modifier,
     onDismiss: (() -> Unit)? = null,
     onViewDetails: (() -> Unit)? = null
@@ -296,33 +317,48 @@ internal fun AppUpdateStatusCard(
                 elevated = true
             )
 
-            update != null -> AppUpdateCard(
-                modifier = modifier,
-                accent = MaterialTheme.colorScheme.tertiary,
-                title = stringResource(R.string.app_updates_card_title),
-                body = stringResource(
-                    R.string.app_updates_latest_value,
-                    update.versionName,
-                    Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
-                ),
-                icon = Icons.Filled.Download,
-                onDismiss = onDismiss,
-                elevated = true
-            ) {
-                if (onViewDetails != null) {
-                    AppUpdateTextAction(
-                        label = stringResource(R.string.app_updates_action_view),
-                        onClick = onViewDetails
+            update != null -> {
+                val oneTap = host == AppUpdateCardHost.DASHBOARD
+                AppUpdateCard(
+                    modifier = modifier,
+                    accent = MaterialTheme.colorScheme.tertiary,
+                    title = stringResource(R.string.app_updates_card_title),
+                    body = if (oneTap) {
+                        stringResource(
+                            R.string.app_updates_latest_value,
+                            update.versionName,
+                            Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
+                        )
+                    } else {
+                        stringResource(
+                            R.string.app_updates_card_body,
+                            update.versionName,
+                            Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
+                        )
+                    },
+                    icon = Icons.Filled.Download,
+                    onDismiss = onDismiss,
+                    elevated = true
+                ) {
+                    if (onViewDetails != null) {
+                        AppUpdateTextAction(
+                            label = stringResource(R.string.app_updates_action_view),
+                            onClick = onViewDetails
+                        )
+                    }
+                    AppUpdateFilledAction(
+                        label = if (oneTap) {
+                            downloadActionLabel()
+                        } else {
+                            stringResource(R.string.app_updates_action_download)
+                        },
+                        accent = MaterialTheme.colorScheme.tertiary,
+                        // From the dashboard, one press does the whole job — an "Install" button
+                        // in between would ask for the same decision twice. On the screen the
+                        // two steps stay separate; that is where a user manages the update.
+                        onClick = { AppUpdateController.startDownload(context, autoInstall = oneTap) }
                     )
                 }
-                AppUpdateFilledAction(
-                    label = downloadActionLabel(),
-                    accent = MaterialTheme.colorScheme.tertiary,
-                    // One press for the whole thing: download, verify, then the system's own
-                    // confirmation. An "Install" button in between would be asking the user to
-                    // confirm the same decision twice.
-                    onClick = { AppUpdateController.startDownload(context, autoInstall = true) }
-                )
             }
 
             else -> Unit

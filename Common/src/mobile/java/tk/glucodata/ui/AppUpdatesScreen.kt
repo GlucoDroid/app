@@ -151,7 +151,7 @@ fun AppUpdatesScreen(navController: NavController) {
             Spacer(Modifier.height(24.dp))
 
             if (hasStatusCard) {
-                AppUpdateStatusCard(state = state)
+                AppUpdateStatusCard(state = state, host = AppUpdateCardHost.SETTINGS)
                 Spacer(Modifier.height(12.dp))
             }
 

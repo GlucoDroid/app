@@ -23,6 +23,17 @@ object AppUpdateSettings {
     private const val KEY_LAST_ERROR = "last_error"
     private const val KEY_CACHED_UPDATE = "cached_update"
     private const val KEY_DISMISSED = "dismissed_update"
+    private const val KEY_DISMISSED_AT = "dismissed_update_at"
+
+    /**
+     * How long an X on the update card silences that release for.
+     *
+     * Permanent dismissal was wrong: one stray tap and a pending update never announces itself
+     * again, which for a release that fixes something is worse than a card the user has already
+     * learned to ignore. A week is long enough not to nag and short enough that the update is
+     * not lost.
+     */
+    private const val DISMISSAL_TTL_MS = 7L * 24 * 60 * 60 * 1000
 
     fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -106,13 +117,27 @@ object AppUpdateSettings {
         prefs(context).edit().remove(KEY_CACHED_UPDATE).apply()
     }
 
-    /** Banner dismissal is per release, so a newer one still gets to speak up once. */
-    fun dismissedIdentity(context: Context): String? =
-        prefs(context).getString(KEY_DISMISSED, null)
+    /** Banner dismissal is per release and expires, so a still-pending update comes back. */
+    fun dismissedIdentity(context: Context): String? {
+        val prefs = prefs(context)
+        val identity = prefs.getString(KEY_DISMISSED, null) ?: return null
+        val dismissedAt = prefs.getLong(KEY_DISMISSED_AT, 0L)
+        val age = System.currentTimeMillis() - dismissedAt
+        // A clock that moved backwards counts as expired rather than as dismissed forever.
+        if (age !in 0 until DISMISSAL_TTL_MS) {
+            prefs.edit().remove(KEY_DISMISSED).remove(KEY_DISMISSED_AT).apply()
+            return null
+        }
+        return identity
+    }
 
     fun setDismissedIdentity(context: Context, identity: String?) {
         prefs(context).edit().apply {
-            if (identity == null) remove(KEY_DISMISSED) else putString(KEY_DISMISSED, identity)
+            if (identity == null) {
+                remove(KEY_DISMISSED).remove(KEY_DISMISSED_AT)
+            } else {
+                putString(KEY_DISMISSED, identity).putLong(KEY_DISMISSED_AT, System.currentTimeMillis())
+            }
         }.apply()
     }
 
