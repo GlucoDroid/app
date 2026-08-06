@@ -2049,6 +2049,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Pair insulin</string>
     <string name="journal_dose_pair_carbs">Pair carbs</string>
     <string name="journal_dose_suggested_insulin">%1$s U suggested</string>
+    <string name="unit_insulin_value">%1$s U</string>
+    <string name="unit_carbs_value">%1$s g</string>
+    <string name="dashboard_iob_short">IoB %1$s</string>
+    <string name="dashboard_eiob_short">eIoB %1$s</string>
+    <string name="dashboard_iob_full">Insulin on board %1$s</string>
+    <string name="dashboard_eiob_full">Effective now %1$s</string>
+    <string name="dashboard_forecast_recommendation_short">≏ %1$s</string>
     <string name="dashboard_forecast_recommendation_carbs">≏ Carbs: %1$s g</string>
     <string name="dashboard_forecast_recommendation_insulin">≏ Insulin: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g covered</string>
@@ -2129,8 +2136,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="notification_iob_cob_risk_desc">Warn when near-term insulin may push glucose below target</string>
     <string name="notification_iob_risk_without_cob_title">Include missing COB</string>
     <string name="notification_iob_risk_without_cob_desc">Treat insulin as uncovered when no carbs are logged</string>
-    <string name="journal_iob_expanded">IoB %1$sU remaining</string>
-    <string name="journal_eiob_expanded">eIoB %1$sU acting</string>
+    <string name="journal_iob_expanded">IoB %1$s U remaining</string>
+    <string name="journal_eiob_expanded">eIoB %1$s U acting</string>
     <string name="journal_iob_source_remote">Values from the uploading device (Nightscout)</string>
     <string name="journal_visible_events">Visible events</string>
     <string name="journal_empty">No journal events in this window yet</string>
@@ -2162,7 +2169,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_disable_preset">Disable</string>
     <string name="journal_active_insulin">Active insulin</string>
     <string name="journal_active_insulin_subtitle">Counts toward IOB and predictions</string>
-    <string name="journal_active_insulin_summary">%1$d doses · %2$sU · %3$d%% now</string>
+    <string name="journal_active_insulin_summary">%1$d doses · %2$s U · %3$d%% now</string>
     <string name="journal_active_insulin_until">Running until %1$s</string>
     <string name="journal_preset_nph">Intermediate / NPH</string>
     <string name="journal_preset_ultra_long_basal">Ultra long basal</string>

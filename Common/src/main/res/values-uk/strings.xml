@@ -1640,6 +1640,13 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Додати інсулін</string>
     <string name="journal_dose_pair_carbs">Додати вуглеводи</string>
     <string name="journal_dose_suggested_insulin">Запропоновано %1$s ОД</string>
+    <string name="unit_insulin_value">%1$s ОД</string>
+    <string name="unit_carbs_value">%1$s г</string>
+    <string name="dashboard_iob_short">IoB %1$s</string>
+    <string name="dashboard_eiob_short">eIoB %1$s</string>
+    <string name="dashboard_iob_full">Активний інсулін %1$s</string>
+    <string name="dashboard_eiob_full">Діє зараз %1$s</string>
+    <string name="dashboard_forecast_recommendation_short">≏ %1$s</string>
     <string name="dashboard_forecast_recommendation_carbs">≏ Вуглеводи: %1$s г</string>
     <string name="dashboard_forecast_recommendation_insulin">≏ Інсулін: %1$s ОД</string>
     <string name="journal_dose_covers_carbs">Покриває %1$s г</string>
@@ -1845,7 +1852,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mirror_security">Безпека</string>
     <string name="mirror_password_desc">Має збігатися на обох пристроях</string>
     <string name="journal_active_insulin">Активний інсулін</string>
-    <string name="journal_active_insulin_summary">%1$d доз · %2$s Од · зараз %3$d%%</string>
+    <string name="journal_active_insulin_summary">%1$d доз · %2$s ОД · зараз %3$d%%</string>
     <string name="journal_active_insulin_until">Діє до %1$s</string>
     <string name="alert_delivery_notification">Сповіщення</string>
     <string name="alert_delivery_alarm">Будильник</string>

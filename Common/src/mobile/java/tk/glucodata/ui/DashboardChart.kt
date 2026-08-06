@@ -8,6 +8,7 @@ import android.os.Vibrator
 import android.os.VibrationEffect
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -42,8 +43,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -160,6 +159,7 @@ private const val PREVIEW_WINDOW_MODE_ALWAYS = 1
 private const val PREVIEW_WINDOW_MODE_NEVER = 2
 private const val PREVIEW_WINDOW_DURATION_MS = 24L * 60L * 60L * 1000L
 private const val ACTIVE_INSULIN_MAX_WIDTH_FRACTION = 0.46f
+private const val ACTIVE_INSULIN_EXPANDED_MAX_WIDTH_FRACTION = 0.58f
 private val PreviewWindowHeight = 58.dp
 private val PreviewWindowOuterPadding = 12.dp
 
@@ -774,7 +774,6 @@ fun DashboardChartSection(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
@@ -3642,10 +3641,13 @@ fun InteractiveGlucoseChart(
                         String.format(java.util.Locale.getDefault(), "%.1f", units)
                     }
                 }
+                val iobValue = stringResource(R.string.unit_insulin_value, unitsLabel(summary.iobUnits))
+                val eiobValue = stringResource(R.string.unit_insulin_value, unitsLabel(summary.eiobUnits))
                 val totalUnitsLabel = unitsLabel(summary.totalUnits)
-                val remainingLabel = summary.nextEndingAt
-                    ?.let { formatRemainingDuration(it - System.currentTimeMillis()) }
-                    ?.takeIf { it.isNotBlank() }
+                val remainingLabel = formatRemainingDuration(
+                    LocalContext.current,
+                    summary.nextEndingAt?.minus(System.currentTimeMillis())
+                )
                 val forecastRecommendationAmount = remember(
                     forecastDoseRecommendation?.kind,
                     forecastDoseRecommendation?.amount
@@ -3660,26 +3662,49 @@ fun InteractiveGlucoseChart(
                         }.format(recommendation.amount)
                     }
                 }
+                // Collapsed shows the bare amount ("≏ 17 g" — the unit already says which);
+                // expanded has room to name what is being suggested.
                 val forecastRecommendationLabel = if (
                     forecastDoseRecommendation != null && forecastRecommendationAmount != null
                 ) {
-                    val recommendation = forecastDoseRecommendation
-                    when (recommendation.kind) {
-                        ForecastDoseRecommendationKind.CARBS -> stringResource(
-                            R.string.dashboard_forecast_recommendation_carbs,
-                            forecastRecommendationAmount
-                        )
-                        ForecastDoseRecommendationKind.INSULIN -> stringResource(
-                            R.string.dashboard_forecast_recommendation_insulin,
-                            forecastRecommendationAmount
-                        )
+                    when (forecastDoseRecommendation.kind) {
+                        ForecastDoseRecommendationKind.CARBS -> if (isActiveInsulinExpanded) {
+                            stringResource(
+                                R.string.dashboard_forecast_recommendation_carbs,
+                                forecastRecommendationAmount
+                            )
+                        } else {
+                            stringResource(
+                                R.string.dashboard_forecast_recommendation_short,
+                                stringResource(R.string.unit_carbs_value, forecastRecommendationAmount)
+                            )
+                        }
+                        ForecastDoseRecommendationKind.INSULIN -> if (isActiveInsulinExpanded) {
+                            stringResource(
+                                R.string.dashboard_forecast_recommendation_insulin,
+                                forecastRecommendationAmount
+                            )
+                        } else {
+                            stringResource(
+                                R.string.dashboard_forecast_recommendation_short,
+                                stringResource(R.string.unit_insulin_value, forecastRecommendationAmount)
+                            )
+                        }
                     }
                 } else null
-                val activeInsulinShape =
-                    if (isActiveInsulinExpanded) RoundedCornerShape(18.dp) else CircleShape
-                // Stay just under half of the chart in both states. The FlowRow can then
-                // wrap secondary values without covering the date/selection overlays.
-                val activeInsulinMaxWidth = maxWidth * ACTIVE_INSULIN_MAX_WIDTH_FRACTION
+                val activeInsulinCorner by animateDpAsState(
+                    targetValue = if (isActiveInsulinExpanded) 24.dp else 16.dp,
+                    animationSpec = activeInsulinMotionSpec(),
+                    label = "activeInsulinCorner"
+                )
+                val activeInsulinShape = RoundedCornerShape(activeInsulinCorner)
+                // Collapsed stays under half the chart so it never reaches the date chip;
+                // expanded is allowed a little more room but still stops short of it.
+                val activeInsulinMaxWidth = maxWidth * if (isActiveInsulinExpanded) {
+                    ACTIVE_INSULIN_EXPANDED_MAX_WIDTH_FRACTION
+                } else {
+                    ACTIVE_INSULIN_MAX_WIDTH_FRACTION
+                }
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -3694,47 +3719,40 @@ fun InteractiveGlucoseChart(
                     shadowElevation = 0.dp
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .animateContentSize(animationSpec = activeInsulinMotionSpec())
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        FlowRow(
-                            modifier = Modifier.wrapContentWidth(Alignment.Start),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
+                        // Expanding spells the abbreviations out in place instead of
+                        // repeating the same two numbers in a second block below.
+                        if (isActiveInsulinExpanded) {
                             Text(
-                                text = "IoB ${unitsLabel(summary.iobUnits)}U",
+                                text = stringResource(R.string.dashboard_iob_full, iobValue),
                                 style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1
+                                fontWeight = FontWeight.SemiBold
                             )
-                            forecastRecommendationLabel?.let { label ->
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1
-                                )
-                            }
                             if (showEiob) {
                                 Text(
-                                    text = "eIoB ${unitsLabel(summary.eiobUnits)}U",
+                                    text = stringResource(R.string.dashboard_eiob_full, eiobValue),
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            remainingLabel?.let { label ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.AccessTime,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                        } else {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.dashboard_iob_short, iobValue),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                                if (showEiob) {
                                     Text(
-                                        text = label,
+                                        text = stringResource(R.string.dashboard_eiob_short, eiobValue),
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1
@@ -3742,51 +3760,72 @@ fun InteractiveGlucoseChart(
                                 }
                             }
                         }
-                        AnimatedVisibility(visible = isActiveInsulinExpanded) {
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    text = stringResource(R.string.journal_active_insulin),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = buildString {
-                                        append(stringResource(R.string.journal_iob_expanded, unitsLabel(summary.iobUnits)))
-                                        if (showEiob) {
-                                            append(" · ")
-                                            append(stringResource(R.string.journal_eiob_expanded, unitsLabel(summary.eiobUnits)))
+                        // Secondary line: the suggestion and, while collapsed, how long the
+                        // insulin still runs. Expanded states the end time in full below.
+                        if (forecastRecommendationLabel != null ||
+                            (remainingLabel != null && !isActiveInsulinExpanded)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                forecastRecommendationLabel?.let { label ->
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = if (isActiveInsulinExpanded) 2 else 1
+                                    )
+                                }
+                                if (!isActiveInsulinExpanded) {
+                                    remainingLabel?.let { label ->
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.AccessTime,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = label,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1
+                                            )
                                         }
-                                    },
-                                    style = MaterialTheme.typography.titleSmall
-                                )
+                                    }
+                                }
+                            }
+                        }
+                        if (isActiveInsulinExpanded) {
+                            Text(
+                                text = stringResource(
+                                    R.string.journal_active_insulin_summary,
+                                    summary.activeEntryCount,
+                                    totalUnitsLabel,
+                                    summary.weightedActivityPercent
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            summary.nextEndingAt?.let { nextEndingAt ->
                                 Text(
                                     text = stringResource(
-                                        R.string.journal_active_insulin_summary,
-                                        summary.activeEntryCount,
-                                        totalUnitsLabel,
-                                        summary.weightedActivityPercent
+                                        R.string.journal_active_insulin_until,
+                                        java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+                                            .format(java.util.Date(nextEndingAt))
                                     ),
-                                    style = MaterialTheme.typography.titleSmall
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                summary.nextEndingAt?.let { nextEndingAt ->
-                                    Text(
-                                        text = stringResource(
-                                            R.string.journal_active_insulin_until,
-                                            java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
-                                                .format(java.util.Date(nextEndingAt))
-                                        ),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (activeInsulinFromRemote) {
-                                    Text(
-                                        text = stringResource(R.string.journal_iob_source_remote),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            }
+                            if (activeInsulinFromRemote) {
+                                Text(
+                                    text = stringResource(R.string.journal_iob_source_remote),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -4625,13 +4664,27 @@ private fun JournalMarkerChip(
     }
 }
 
-private fun formatRemainingDuration(remainingMillis: Long): String {
-    if (remainingMillis <= 0L) return ""
-    val totalMinutes = (remainingMillis / 60_000L).coerceAtLeast(0L)
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-    return String.format(java.util.Locale.getDefault(), "%02d:%02d", hours, minutes)
+/**
+ * Countdown next to the clock glyph on the active-insulin chip. Rendered as "2 h 40 min"
+ * rather than "02:40" so it cannot be mistaken for a wall-clock time.
+ */
+private fun formatRemainingDuration(context: android.content.Context, remainingMillis: Long?): String? {
+    if (remainingMillis == null || remainingMillis <= 0L) return null
+    val totalMinutes = (remainingMillis / 60_000L).toInt()
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours == 0 -> context.getString(R.string.stats_duration_minutes, minutes)
+        minutes == 0 -> context.getString(R.string.stats_duration_hours, hours)
+        else -> context.getString(R.string.stats_duration_hours_minutes, hours, minutes)
+    }
 }
+
+/** Shared spring for the active-insulin chip's size and corner morph, so they move as one. */
+private fun <T> activeInsulinMotionSpec() = spring<T>(
+    dampingRatio = 0.85f,
+    stiffness = Spring.StiffnessMediumLow
+)
 
 private fun resolveGraphRangeDefaults(
     requestedLow: Float,
