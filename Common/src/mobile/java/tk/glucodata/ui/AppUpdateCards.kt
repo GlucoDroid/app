@@ -1,6 +1,16 @@
+@file:OptIn(ExperimentalLayoutApi::class)
+
 package tk.glucodata.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.text.format.Formatter
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -10,8 +20,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,30 +35,43 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Update
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import tk.glucodata.R
 import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.SettingsItem
 import tk.glucodata.update.AppUpdateController
+import tk.glucodata.update.AppUpdateUiState
+import tk.glucodata.update.UpdateEligibility
 import tk.glucodata.update.UpdateError
+import tk.glucodata.update.UpdateStage
 
 /**
  * True when [DashboardAppUpdateBanner] would draw something.
@@ -66,9 +91,10 @@ fun rememberAppUpdateBannerVisible(): Boolean {
 /**
  * Dashboard card for the in-app updater.
  *
- * At most one card is ever shown, and each shows at most once: the one-time opt-in card until
- * the user answers it, then an "update available" card until that particular release is
- * dismissed.
+ * At most one card is ever shown: the one-time opt-in card until the user answers it, then the
+ * status card until that particular release is dismissed. The status card carries the whole
+ * download → verify → install sequence itself, so pressing the primary action never turns into
+ * a trip to another screen to press something else.
  */
 @Composable
 fun DashboardAppUpdateBanner(
@@ -113,36 +139,16 @@ fun DashboardAppUpdateBanner(
         exit = fadeOut() + shrinkVertically(),
         modifier = modifier
     ) {
-        val update = state.available
-        AppUpdateCard(
-            accent = MaterialTheme.colorScheme.tertiary,
-            title = stringResource(R.string.app_updates_card_title),
-            // Just version and size here — the detail screen carries the release notes.
-            body = update?.let {
-                stringResource(
-                    R.string.app_updates_latest_value,
-                    it.versionName,
-                    Formatter.formatShortFileSize(context, it.artifact.sizeBytes)
-                )
+        AppUpdateStatusCard(
+            state = state,
+            // Dismissing mid-transfer would hide a running download; the X returns when idle.
+            onDismiss = if (state.stage == UpdateStage.IDLE) {
+                { AppUpdateController.dismissBanner(context) }
+            } else {
+                null
             },
-            icon = Icons.Filled.Download,
-            onDismiss = { AppUpdateController.dismissBanner(context) }
-        ) {
-            AppUpdateTextAction(
-                label = stringResource(R.string.app_updates_action_view),
-                onClick = onOpenAppUpdates
-            )
-            AppUpdateFilledAction(
-                label = stringResource(R.string.app_updates_action_download),
-                accent = MaterialTheme.colorScheme.tertiary,
-                // Start it, then go where the progress is visible. Kicking off a 76 MB transfer
-                // from a card that cannot show it would leave the user with no idea it began.
-                onClick = {
-                    AppUpdateController.startDownload(context)
-                    onOpenAppUpdates()
-                }
-            )
-        }
+            onViewDetails = onOpenAppUpdates
+        )
     }
 }
 
@@ -182,6 +188,203 @@ fun AppUpdatesSettingsItem(
 }
 
 /**
+ * The updater's status card, shared by the dashboard and the App updates screen.
+ *
+ * One component for both hosts because the sequence is the same in both places: press once,
+ * watch it download and verify, then answer the system's install prompt. [onViewDetails] adds a
+ * quiet "View" action for hosts that have somewhere to go; [onDismiss] adds the X.
+ */
+@Composable
+internal fun AppUpdateStatusCard(
+    state: AppUpdateUiState,
+    modifier: Modifier = Modifier,
+    onDismiss: (() -> Unit)? = null,
+    onViewDetails: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val update = state.available
+    val requestInstallPermission = rememberInstallPermissionRequest()
+
+    if (state.error == UpdateError.INSTALL_PERMISSION) {
+        AppUpdateCard(
+            modifier = modifier,
+            accent = MaterialTheme.colorScheme.error,
+            title = stringResource(R.string.app_updates_permission_title),
+            body = stringResource(R.string.app_updates_permission_body),
+            icon = Icons.Filled.Security,
+            elevated = true
+        ) {
+            AppUpdateFilledAction(
+                label = stringResource(R.string.app_updates_permission_action),
+                accent = MaterialTheme.colorScheme.error,
+                onClick = requestInstallPermission
+            )
+        }
+        return
+    }
+
+    when (state.stage) {
+        UpdateStage.DOWNLOADING -> AppUpdateCard(
+            modifier = modifier,
+            accent = MaterialTheme.colorScheme.primary,
+            title = stringResource(R.string.app_updates_downloading_title),
+            body = stringResource(
+                R.string.app_updates_downloading_body,
+                Formatter.formatShortFileSize(context, state.downloadedBytes),
+                Formatter.formatShortFileSize(context, state.totalBytes)
+            ),
+            icon = Icons.Filled.Download,
+            content = {
+                LinearProgressIndicator(
+                    progress = { state.downloadFraction },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            actions = {
+                AppUpdateTextAction(
+                    label = stringResource(R.string.app_updates_action_cancel),
+                    onClick = { AppUpdateController.cancelDownload(context) }
+                )
+            }
+        )
+
+        UpdateStage.VERIFYING -> AppUpdateCard(
+            modifier = modifier,
+            accent = MaterialTheme.colorScheme.primary,
+            title = stringResource(R.string.app_updates_verifying_title),
+            body = stringResource(R.string.app_updates_verifying_body),
+            icon = Icons.Filled.Security,
+            content = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
+        )
+
+        // Reached when the system prompt was dismissed or the install failed. The normal path
+        // goes from VERIFYING straight into that prompt without stopping here.
+        UpdateStage.READY_TO_INSTALL, UpdateStage.INSTALLING -> AppUpdateCard(
+            modifier = modifier,
+            accent = MaterialTheme.colorScheme.primary,
+            title = stringResource(R.string.app_updates_ready_title, update?.versionName.orEmpty()),
+            body = state.error?.let { updateErrorText(it) }
+                ?: stringResource(R.string.app_updates_ready_body),
+            icon = Icons.Filled.SystemUpdate,
+            elevated = true
+        ) {
+            AppUpdateTextAction(
+                label = stringResource(R.string.app_updates_action_discard),
+                onClick = { AppUpdateController.cancelDownload(context) }
+            )
+            AppUpdateFilledAction(
+                label = stringResource(R.string.app_updates_action_install),
+                accent = MaterialTheme.colorScheme.primary,
+                onClick = {
+                    if (UpdateEligibility.canRequestPackageInstalls(context)) {
+                        AppUpdateController.install(context)
+                    } else {
+                        requestInstallPermission()
+                    }
+                }
+            )
+        }
+
+        UpdateStage.IDLE -> when {
+            state.error != null -> AppUpdateCard(
+                modifier = modifier,
+                accent = MaterialTheme.colorScheme.error,
+                title = stringResource(R.string.app_updates_error_title),
+                body = updateErrorText(state.error),
+                icon = Icons.Filled.ErrorOutline,
+                onDismiss = onDismiss,
+                elevated = true
+            )
+
+            update != null -> AppUpdateCard(
+                modifier = modifier,
+                accent = MaterialTheme.colorScheme.tertiary,
+                title = stringResource(R.string.app_updates_card_title),
+                body = stringResource(
+                    R.string.app_updates_latest_value,
+                    update.versionName,
+                    Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
+                ),
+                icon = Icons.Filled.Download,
+                onDismiss = onDismiss,
+                elevated = true
+            ) {
+                if (onViewDetails != null) {
+                    AppUpdateTextAction(
+                        label = stringResource(R.string.app_updates_action_view),
+                        onClick = onViewDetails
+                    )
+                }
+                AppUpdateFilledAction(
+                    label = downloadActionLabel(),
+                    accent = MaterialTheme.colorScheme.tertiary,
+                    // One press for the whole thing: download, verify, then the system's own
+                    // confirmation. An "Install" button in between would be asking the user to
+                    // confirm the same decision twice.
+                    onClick = { AppUpdateController.startDownload(context, autoInstall = true) }
+                )
+            }
+
+            else -> Unit
+        }
+    }
+}
+
+/**
+ * "Download and install" is the honest label — it says where the tap ends. It is also around
+ * 150 dp wide, which a narrow device or a large accessibility font turns into a wrapped or
+ * clipped row, so those get the short form rather than a broken layout.
+ */
+@Composable
+private fun downloadActionLabel(): String {
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val fontScale = LocalDensity.current.fontScale
+    val roomy = screenWidthDp >= 380 && fontScale <= 1.15f
+    return stringResource(
+        if (roomy) R.string.app_updates_action_download_install
+        else R.string.app_updates_action_download
+    )
+}
+
+/** Sends the user to grant "install unknown apps", and resumes the install when they come back. */
+@Composable
+internal fun rememberInstallPermissionRequest(): () -> Unit {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        AppUpdateController.clearError()
+        if (UpdateEligibility.canRequestPackageInstalls(context) &&
+            AppUpdateController.state.value.stage == UpdateStage.READY_TO_INSTALL
+        ) {
+            AppUpdateController.install(context)
+        }
+    }
+    return remember(context, launcher) { { context.launchInstallPermission(launcher::launch) } }
+}
+
+/** Android 8+ grants "install unknown apps" per source, so the target is our own package page. */
+private fun Context.launchInstallPermission(launch: (Intent) -> Unit) {
+    val intent = Intent(
+        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+        Uri.parse("package:$packageName")
+    )
+    try {
+        launch(intent)
+    } catch (_: ActivityNotFoundException) {
+        try {
+            launch(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(
+                this,
+                getString(R.string.cgm_readiness_settings_unavailable),
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+}
+
+/**
  * The card shared by the dashboard banner and the App updates screen.
  *
  * Every metric here is copied from [tk.glucodata.ui.components.SettingsItem] on purpose —
@@ -203,7 +406,7 @@ internal fun AppUpdateCard(
     onDismiss: (() -> Unit)? = null,
     elevated: Boolean = false,
     content: (@Composable () -> Unit)? = null,
-    actions: (@Composable RowScope.() -> Unit)? = null
+    actions: (@Composable FlowRowScope.() -> Unit)? = null
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -257,10 +460,12 @@ internal fun AppUpdateCard(
 
                 if (actions != null) {
                     Spacer(Modifier.height(12.dp))
-                    Row(
+                    // FlowRow rather than Row: if a long label plus a large font scale still
+                    // overruns the card, the buttons wrap onto a second line instead of clipping.
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                         content = actions
                     )
                 }
@@ -286,17 +491,19 @@ private fun AppUpdateIconTile(icon: ImageVector, color: Color) {
 
 @Composable
 internal fun AppUpdateFilledAction(label: String, accent: Color, onClick: () -> Unit) {
-    androidx.compose.material3.Button(
+    Button(
         onClick = onClick,
-        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accent)
+        colors = ButtonDefaults.buttonColors(containerColor = accent)
     ) {
-        Text(label)
+        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
 internal fun AppUpdateTextAction(label: String, onClick: () -> Unit) {
-    androidx.compose.material3.TextButton(onClick = onClick) { Text(label) }
+    TextButton(onClick = onClick) {
+        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 /** User-facing text for a failure. Never derived from exception messages: proguard strips those. */

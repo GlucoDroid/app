@@ -2356,6 +2356,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_card_body">A versão %1$s está pronta para transferir (%2$s).</string>
     <string name="app_updates_action_view">Ver</string>
     <string name="app_updates_action_download">Transferir</string>
+    <string name="app_updates_action_download_install">Transferir e instalar</string>
     <string name="app_updates_action_install">Instalar</string>
     <string name="app_updates_action_cancel">Cancelar transferência</string>
     <string name="app_updates_action_discard">Descartar</string>

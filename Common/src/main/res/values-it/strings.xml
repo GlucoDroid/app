@@ -2345,6 +2345,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_card_body">La versione %1$s è pronta per il download (%2$s).</string>
     <string name="app_updates_action_view">Mostra</string>
     <string name="app_updates_action_download">Scarica</string>
+    <string name="app_updates_action_download_install">Scarica e installa</string>
     <string name="app_updates_action_install">Installa</string>
     <string name="app_updates_action_cancel">Annulla download</string>
     <string name="app_updates_action_discard">Elimina</string>

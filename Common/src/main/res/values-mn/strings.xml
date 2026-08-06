@@ -2470,6 +2470,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="app_updates_card_body">%1$s хувилбар татахад бэлэн (%2$s).</string>
     <string name="app_updates_action_view">Үзэх</string>
     <string name="app_updates_action_download">Татах</string>
+    <string name="app_updates_action_download_install">Татаад суулгах</string>
     <string name="app_updates_action_install">Суулгах</string>
     <string name="app_updates_action_cancel">Татахыг цуцлах</string>
     <string name="app_updates_action_discard">Устгах</string>

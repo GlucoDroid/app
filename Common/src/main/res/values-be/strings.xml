@@ -2422,6 +2422,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_card_body">Версія %1$s гатовая да спампоўкі (%2$s).</string>
     <string name="app_updates_action_view">Падрабязна</string>
     <string name="app_updates_action_download">Спампаваць</string>
+    <string name="app_updates_action_download_install">Спампаваць і ўсталяваць</string>
     <string name="app_updates_action_install">Усталяваць</string>
     <string name="app_updates_action_cancel">Скасаваць спампоўку</string>
     <string name="app_updates_action_discard">Выдаліць</string>

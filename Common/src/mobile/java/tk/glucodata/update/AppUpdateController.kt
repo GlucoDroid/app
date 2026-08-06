@@ -72,6 +72,14 @@ object AppUpdateController {
     private var downloadJob: Job? = null
 
     /**
+     * Whether the download now running was started by a button that promised to install too.
+     * The user has already made that decision once; stopping at a second "Install" press would
+     * be asking for the same confirmation twice. The system's own prompt still stands between
+     * this and anything being replaced.
+     */
+    private var installWhenReady = false
+
+    /**
      * Called once per app start. Reloads persisted state, drops a staged APK left over from a
      * completed install, and (re)schedules the daily check when it is enabled.
      */
@@ -179,10 +187,11 @@ object AppUpdateController {
         }
     }
 
-    fun startDownload(context: Context) {
+    fun startDownload(context: Context, autoInstall: Boolean = false) {
         val appContext = context.applicationContext
         val update = _state.value.available ?: return
         if (_state.value.stage == UpdateStage.DOWNLOADING) return
+        installWhenReady = autoInstall
 
         _state.update {
             it.copy(
@@ -216,6 +225,10 @@ object AppUpdateController {
                                 error = null
                             )
                         }
+                        // Hand straight over to the system installer. If the permission is
+                        // missing, install() reports it and the UI offers the settings trip;
+                        // the staged file stays put either way.
+                        if (installWhenReady) install(appContext)
                     }
                 }
             }
@@ -225,6 +238,7 @@ object AppUpdateController {
     fun cancelDownload(context: Context) {
         downloadJob?.cancel()
         downloadJob = null
+        installWhenReady = false
         UpdateDownloader.clearStaged(context.applicationContext)
         _state.update {
             it.copy(stage = UpdateStage.IDLE, downloadedBytes = 0L, readyFilePath = null, error = null)
@@ -278,6 +292,7 @@ object AppUpdateController {
     }
 
     private fun failDownload(context: Context, error: UpdateError) {
+        installWhenReady = false
         UpdateDownloader.clearStaged(context)
         _state.update {
             it.copy(stage = UpdateStage.IDLE, readyFilePath = null, downloadedBytes = 0L, error = error)

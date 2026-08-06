@@ -2,16 +2,8 @@
 
 package tk.glucodata.ui
 
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
 import android.text.format.DateUtils
 import android.text.format.Formatter
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -95,19 +87,6 @@ fun AppUpdatesScreen(navController: NavController) {
     val state by AppUpdateController.state.collectAsStateWithLifecycle()
     var showSourceDialog by remember { mutableStateOf(false) }
 
-    // Returning from the "install unknown apps" settings page should pick the flow back up
-    // rather than leaving the user on a card that still says "not allowed".
-    val installPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) {
-        AppUpdateController.clearError()
-        if (UpdateEligibility.canRequestPackageInstalls(context) &&
-            state.stage == UpdateStage.READY_TO_INSTALL
-        ) {
-            AppUpdateController.install(context)
-        }
-    }
-
     LaunchedEffect(Unit) { AppUpdateController.initialize(context) }
 
     Scaffold(
@@ -172,21 +151,7 @@ fun AppUpdatesScreen(navController: NavController) {
             Spacer(Modifier.height(24.dp))
 
             if (hasStatusCard) {
-                UpdateStatusCard(
-                    state = state,
-                    onDownload = { AppUpdateController.startDownload(context) },
-                    onCancel = { AppUpdateController.cancelDownload(context) },
-                    onInstall = {
-                        if (UpdateEligibility.canRequestPackageInstalls(context)) {
-                            AppUpdateController.install(context)
-                        } else {
-                            context.launchInstallPermission(installPermissionLauncher::launch)
-                        }
-                    },
-                    onGrantInstallPermission = {
-                        context.launchInstallPermission(installPermissionLauncher::launch)
-                    }
-                )
+                AppUpdateStatusCard(state = state)
                 Spacer(Modifier.height(12.dp))
             }
 
@@ -299,123 +264,6 @@ private fun CheckForUpdatesButton(
     }
 }
 
-/**
- * Status only. The action lives in its own button below, so the idle card carries no buttons at
- * all — the download and install flows are the only states with something to press.
- */
-@Composable
-private fun UpdateStatusCard(
-    state: AppUpdateUiState,
-    onDownload: () -> Unit,
-    onCancel: () -> Unit,
-    onInstall: () -> Unit,
-    onGrantInstallPermission: () -> Unit
-) {
-    val context = LocalContext.current
-    val update = state.available
-
-    if (state.error == UpdateError.INSTALL_PERMISSION) {
-        AppUpdateCard(
-            accent = MaterialTheme.colorScheme.error,
-            title = stringResource(R.string.app_updates_permission_title),
-            body = stringResource(R.string.app_updates_permission_body),
-            icon = Icons.Filled.Security,
-            elevated = true
-        ) {
-            AppUpdateFilledAction(
-                label = stringResource(R.string.app_updates_permission_action),
-                accent = MaterialTheme.colorScheme.error,
-                onClick = onGrantInstallPermission
-            )
-        }
-        return
-    }
-
-    when (state.stage) {
-        UpdateStage.DOWNLOADING -> AppUpdateCard(
-            accent = MaterialTheme.colorScheme.primary,
-            title = stringResource(R.string.app_updates_downloading_title),
-            body = stringResource(
-                R.string.app_updates_downloading_body,
-                Formatter.formatShortFileSize(context, state.downloadedBytes),
-                Formatter.formatShortFileSize(context, state.totalBytes)
-            ),
-            icon = Icons.Filled.CloudDownload,
-            content = {
-                LinearProgressIndicator(
-                    progress = { state.downloadFraction },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            actions = {
-                AppUpdateTextAction(
-                    label = stringResource(R.string.app_updates_action_cancel),
-                    onClick = onCancel
-                )
-            }
-        )
-
-        UpdateStage.VERIFYING -> AppUpdateCard(
-            accent = MaterialTheme.colorScheme.primary,
-            title = stringResource(R.string.app_updates_verifying_title),
-            body = stringResource(R.string.app_updates_verifying_body),
-            icon = Icons.Filled.Security,
-            content = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
-        )
-
-        UpdateStage.READY_TO_INSTALL, UpdateStage.INSTALLING -> AppUpdateCard(
-            accent = MaterialTheme.colorScheme.primary,
-            title = stringResource(R.string.app_updates_ready_title, update?.versionName.orEmpty()),
-            body = state.error?.let { updateErrorText(it) }
-                ?: stringResource(R.string.app_updates_ready_body),
-            icon = Icons.Filled.SystemUpdate,
-            elevated = true
-        ) {
-            AppUpdateTextAction(
-                label = stringResource(R.string.app_updates_action_discard),
-                onClick = onCancel
-            )
-            AppUpdateFilledAction(
-                label = stringResource(R.string.app_updates_action_install),
-                accent = MaterialTheme.colorScheme.primary,
-                onClick = onInstall
-            )
-        }
-
-        // Reached only when there is something to act on — the caller skips the card entirely
-        // for "checking" and "up to date", which are the button's business, not a surface's.
-        UpdateStage.IDLE -> when {
-            state.error != null -> AppUpdateCard(
-                accent = MaterialTheme.colorScheme.error,
-                title = stringResource(R.string.app_updates_error_title),
-                body = updateErrorText(state.error),
-                icon = Icons.Filled.ErrorOutline,
-                elevated = true
-            )
-
-            update != null -> AppUpdateCard(
-                accent = MaterialTheme.colorScheme.tertiary,
-                title = stringResource(R.string.app_updates_card_title),
-                body = stringResource(
-                    R.string.app_updates_card_body,
-                    update.versionName,
-                    Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
-                ),
-                icon = Icons.Filled.SystemUpdate,
-                elevated = true
-            ) {
-                AppUpdateFilledAction(
-                    label = stringResource(R.string.app_updates_action_download),
-                    accent = MaterialTheme.colorScheme.tertiary,
-                    onClick = onDownload
-                )
-            }
-
-            else -> Unit
-        }
-    }
-}
-
 @Composable
 private fun UnsupportedCard(state: AppUpdateUiState) {
     val context = LocalContext.current
@@ -521,24 +369,3 @@ private fun AppUpdateUiState.lastCheckedLabel(): String =
     } else {
         stringResource(R.string.app_updates_never_checked)
     }
-
-/** Android 8+ grants "install unknown apps" per source, so the target is our own package page. */
-private fun Context.launchInstallPermission(launch: (Intent) -> Unit) {
-    val intent = Intent(
-        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-        Uri.parse("package:$packageName")
-    )
-    try {
-        launch(intent)
-    } catch (_: ActivityNotFoundException) {
-        try {
-            launch(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES))
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(
-                this,
-                getString(R.string.cgm_readiness_settings_unavailable),
-                Toast.LENGTH_LONG
-            ).show()
-        }
-    }
-}

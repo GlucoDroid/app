@@ -2383,6 +2383,7 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="app_updates_card_body">%1$s sürümü indirilmeye hazır (%2$s).</string>
     <string name="app_updates_action_view">Görüntüle</string>
     <string name="app_updates_action_download">İndir</string>
+    <string name="app_updates_action_download_install">İndir ve kur</string>
     <string name="app_updates_action_install">Kur</string>
     <string name="app_updates_action_cancel">İndirmeyi iptal et</string>
     <string name="app_updates_action_discard">Sil</string>

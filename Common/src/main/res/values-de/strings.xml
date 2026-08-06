@@ -2394,6 +2394,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="app_updates_card_body">Version %1$s steht zum Download bereit (%2$s).</string>
     <string name="app_updates_action_view">Ansehen</string>
     <string name="app_updates_action_download">Herunterladen</string>
+    <string name="app_updates_action_download_install">Herunterladen und installieren</string>
     <string name="app_updates_action_install">Installieren</string>
     <string name="app_updates_action_cancel">Download abbrechen</string>
     <string name="app_updates_action_discard">Verwerfen</string>

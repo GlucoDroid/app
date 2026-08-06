@@ -2398,6 +2398,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="app_updates_card_body">Versie %1$s staat klaar om te downloaden (%2$s).</string>
     <string name="app_updates_action_view">Bekijken</string>
     <string name="app_updates_action_download">Downloaden</string>
+    <string name="app_updates_action_download_install">Downloaden en installeren</string>
     <string name="app_updates_action_install">Installeren</string>
     <string name="app_updates_action_cancel">Download annuleren</string>
     <string name="app_updates_action_discard">Verwijderen</string>

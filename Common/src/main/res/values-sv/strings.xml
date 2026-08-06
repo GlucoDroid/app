@@ -2355,6 +2355,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_card_body">Version %1$s är klar att laddas ner (%2$s).</string>
     <string name="app_updates_action_view">Visa</string>
     <string name="app_updates_action_download">Ladda ner</string>
+    <string name="app_updates_action_download_install">Ladda ner och installera</string>
     <string name="app_updates_action_install">Installera</string>
     <string name="app_updates_action_cancel">Avbryt nedladdning</string>
     <string name="app_updates_action_discard">Kasta</string>

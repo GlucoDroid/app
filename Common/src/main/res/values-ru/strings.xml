@@ -2398,6 +2398,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_card_body">Версия %1$s готова к загрузке (%2$s).</string>
     <string name="app_updates_action_view">Подробнее</string>
     <string name="app_updates_action_download">Скачать</string>
+    <string name="app_updates_action_download_install">Скачать и установить</string>
     <string name="app_updates_action_install">Установить</string>
     <string name="app_updates_action_cancel">Отменить загрузку</string>
     <string name="app_updates_action_discard">Удалить</string>

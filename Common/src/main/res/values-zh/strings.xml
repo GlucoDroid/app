@@ -2371,6 +2371,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_card_body">版本 %1$s 可供下载（%2$s）。</string>
     <string name="app_updates_action_view">查看</string>
     <string name="app_updates_action_download">下载</string>
+    <string name="app_updates_action_download_install">下载并安装</string>
     <string name="app_updates_action_install">安装</string>
     <string name="app_updates_action_cancel">取消下载</string>
     <string name="app_updates_action_discard">丢弃</string>

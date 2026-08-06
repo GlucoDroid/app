@@ -2427,6 +2427,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_card_body">Версія %1$s готова до завантаження (%2$s).</string>
     <string name="app_updates_action_view">Деталі</string>
     <string name="app_updates_action_download">Завантажити</string>
+    <string name="app_updates_action_download_install">Завантажити й встановити</string>
     <string name="app_updates_action_install">Встановити</string>
     <string name="app_updates_action_cancel">Скасувати завантаження</string>
     <string name="app_updates_action_discard">Видалити</string>

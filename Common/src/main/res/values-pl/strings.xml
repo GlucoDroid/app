@@ -2389,6 +2389,7 @@
     <string name="app_updates_card_body">Wersja %1$s jest gotowa do pobrania (%2$s).</string>
     <string name="app_updates_action_view">Pokaż</string>
     <string name="app_updates_action_download">Pobierz</string>
+    <string name="app_updates_action_download_install">Pobierz i zainstaluj</string>
     <string name="app_updates_action_install">Zainstaluj</string>
     <string name="app_updates_action_cancel">Anuluj pobieranie</string>
     <string name="app_updates_action_discard">Odrzuć</string>

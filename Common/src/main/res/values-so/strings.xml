@@ -2558,6 +2558,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="app_updates_card_body">Nooca %1$s wuu diyaar u yahay soo dejin (%2$s).</string>
     <string name="app_updates_action_view">Fiiri</string>
     <string name="app_updates_action_download">Soo deji</string>
+    <string name="app_updates_action_download_install">Soo deji oo rakib</string>
     <string name="app_updates_action_install">Rakib</string>
     <string name="app_updates_action_cancel">Jooji soo dejinta</string>
     <string name="app_updates_action_discard">Tuur</string>

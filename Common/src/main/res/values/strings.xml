@@ -2580,6 +2580,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_card_body">Version %1$s is ready to download (%2$s).</string>
     <string name="app_updates_action_view">View</string>
     <string name="app_updates_action_download">Download</string>
+    <string name="app_updates_action_download_install">Download and install</string>
     <string name="app_updates_action_install">Install</string>
     <string name="app_updates_action_cancel">Cancel download</string>
     <string name="app_updates_action_discard">Discard</string>
