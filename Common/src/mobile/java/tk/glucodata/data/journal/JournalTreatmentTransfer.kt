@@ -128,6 +128,20 @@ object JournalTreatmentTransfer {
         source: JournalEntrySource,
         sourcePrefix: String,
         insulinPresets: List<JournalInsulinPreset>
+    ): ParsedTreatment? = parseTreatment(
+        treatment = treatment,
+        source = source,
+        sourcePrefix = sourcePrefix,
+        insulinPresets = insulinPresets,
+        stringResource = context::getString
+    )
+
+    internal fun parseTreatment(
+        treatment: JSONObject,
+        source: JournalEntrySource,
+        sourcePrefix: String,
+        insulinPresets: List<JournalInsulinPreset>,
+        stringResource: (Int) -> String
     ): ParsedTreatment? {
         val timestamp = treatment.optTreatmentTimestampMillis()
         val baseId = treatment.sourceBaseId(timestamp) ?: return null
@@ -164,7 +178,7 @@ object JournalTreatmentTransfer {
                 JournalEntryInput(
                     timestamp = safeTimestamp,
                     type = JournalEntryType.CARBS,
-                    title = titleSuffix ?: context.getString(R.string.journal_aaps_carbs_title),
+                    title = titleSuffix ?: stringResource(R.string.journal_aaps_carbs_title),
                     note = note,
                     amount = carbs,
                     durationMinutes = treatment.optDurationMinutes(),
@@ -188,7 +202,7 @@ object JournalTreatmentTransfer {
                     title = treatment.optNonBlankString("insulinType")
                         ?: preset?.displayName
                         ?: titleSuffix
-                        ?: context.getString(R.string.journal_aaps_insulin_title),
+                        ?: stringResource(R.string.journal_aaps_insulin_title),
                     note = note,
                     amount = insulin,
                     insulinPresetId = preset?.id,
@@ -210,7 +224,7 @@ object JournalTreatmentTransfer {
                 JournalEntryInput(
                     timestamp = safeTimestamp,
                     type = JournalEntryType.FINGERSTICK,
-                    title = titleSuffix ?: context.getString(R.string.journal_type_fingerstick),
+                    title = titleSuffix ?: stringResource(R.string.journal_type_fingerstick),
                     note = note,
                     glucoseValueMgDl = glucoseMgdl,
                     source = source,
@@ -225,7 +239,7 @@ object JournalTreatmentTransfer {
                 JournalEntryInput(
                     timestamp = safeTimestamp,
                     type = JournalEntryType.ACTIVITY,
-                    title = titleSuffix ?: context.getString(R.string.journal_type_activity),
+                    title = titleSuffix ?: stringResource(R.string.journal_type_activity),
                     note = note,
                     durationMinutes = treatment.optDurationMinutes(),
                     intensity = treatment.optJournalIntensity(),
@@ -243,7 +257,7 @@ object JournalTreatmentTransfer {
                 JournalEntryInput(
                     timestamp = safeTimestamp,
                     type = JournalEntryType.NOTE,
-                    title = titleSuffix ?: context.getString(R.string.journal_type_note),
+                    title = titleSuffix ?: stringResource(R.string.journal_type_note),
                     note = note ?: eventType,
                     source = source,
                     sourceRecordId = sourceRecordId(sourcePrefix, baseId, SOURCE_KIND_NOTE),
