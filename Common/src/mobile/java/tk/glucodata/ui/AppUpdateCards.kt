@@ -8,10 +8,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -166,9 +168,14 @@ fun AppUpdatesSettingsItem(
 /**
  * The card shared by the dashboard banner and the App updates screen.
  *
- * Text-forward on purpose: an icon tile on the left with buttons underneath reads as a settings
- * row, not a card. The optional [icon] is used only where the card is the screen's status hero;
- * actions sit bottom-right, aligned with the card edge rather than orphaned under a glyph.
+ * Every metric here is copied from [tk.glucodata.ui.components.SettingsItem] on purpose —
+ * 16 dp padding, a 40 dp/12 dp icon tile, a 12 dp gap — so the card's text column starts at
+ * exactly the same x as the text in every settings row on the same screen. The first version
+ * had the title next to the icon and the body under it, which put the two halves of one
+ * sentence on two different left edges, neither of which matched the rows below.
+ *
+ * The only thing that deviates from a row is the corner radius: 20 dp, so it reads as a card
+ * rather than another list item.
  */
 @Composable
 internal fun AppUpdateCard(
@@ -184,7 +191,7 @@ internal fun AppUpdateCard(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(20.dp),
         color = if (elevated) {
             accent.copy(alpha = 0.10f)
         } else {
@@ -192,52 +199,71 @@ internal fun AppUpdateCard(
         },
         border = BorderStroke(1.dp, accent.copy(alpha = 0.22f))
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (icon != null) {
-                    StatusIconSurface(icon = icon, color = accent)
-                    Spacer(Modifier.width(14.dp))
-                }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
-                )
-                if (onDismiss != null) {
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription = stringResource(R.string.cgm_readiness_dismiss_action),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+        Row(modifier = Modifier.padding(16.dp)) {
+            if (icon != null) {
+                AppUpdateIconTile(icon = icon, color = accent)
+                Spacer(Modifier.width(12.dp))
+            }
+            // One column: title, body, progress and buttons all hang off a single left edge.
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (onDismiss != null) {
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.cgm_readiness_dismiss_action),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
-            }
 
-            if (!body.isNullOrEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = body,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+                if (!body.isNullOrEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = body,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-            if (content != null) {
-                Spacer(Modifier.height(16.dp))
-                content()
-            }
+                if (content != null) {
+                    Spacer(Modifier.height(16.dp))
+                    content()
+                }
 
-            if (actions != null) {
-                Spacer(Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically,
-                    content = actions
-                )
+                if (actions != null) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically,
+                        content = actions
+                    )
+                }
             }
+        }
+    }
+}
+
+/** Same tile as a settings row's icon: 40 dp, 12 dp radius, 12 % tint, 24 dp glyph. */
+@Composable
+private fun AppUpdateIconTile(icon: ImageVector, color: Color) {
+    Surface(
+        modifier = Modifier.size(40.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.12f),
+        contentColor = color
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
         }
     }
 }

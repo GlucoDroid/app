@@ -28,9 +28,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.DeveloperMode
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
@@ -145,7 +149,7 @@ fun AppUpdatesScreen(navController: NavController) {
                         Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
                     )
                 } ?: stringResource(R.string.app_updates_latest_none),
-                icon = Icons.Filled.SystemUpdate,
+                icon = Icons.Filled.NewReleases,
                 iconTint = MaterialTheme.colorScheme.secondary,
                 position = CardPosition.MIDDLE
             )
@@ -153,7 +157,7 @@ fun AppUpdatesScreen(navController: NavController) {
                 title = stringResource(R.string.app_updates_source_title),
                 subtitle = state.updateSource,
                 showArrow = true,
-                icon = Icons.Filled.Storefront,
+                icon = Icons.Filled.Link,
                 iconTint = MaterialTheme.colorScheme.secondary,
                 position = CardPosition.BOTTOM,
                 onClick = { showSourceDialog = true }
@@ -199,7 +203,7 @@ fun AppUpdatesScreen(navController: NavController) {
                 title = stringResource(R.string.app_updates_auto_title),
                 subtitle = stringResource(R.string.app_updates_auto_desc),
                 checked = state.autoCheckEnabled,
-                icon = Icons.Filled.CloudDownload,
+                icon = Icons.Filled.NotificationsActive,
                 iconTint = MaterialTheme.colorScheme.secondary,
                 position = CardPosition.SINGLE,
                 onCheckedChange = { AppUpdateController.setAutoCheckEnabled(context, it) }
@@ -385,7 +389,7 @@ private fun UnsupportedCard(state: AppUpdateUiState) {
             accent = MaterialTheme.colorScheme.secondary,
             title = stringResource(R.string.app_updates_unsupported_debug_title),
             body = stringResource(R.string.app_updates_unsupported_debug_body),
-            icon = Icons.Filled.Info
+            icon = Icons.Filled.DeveloperMode
         )
     }
 }
@@ -399,7 +403,7 @@ private fun InstalledVersionRow(position: CardPosition) {
             BuildConfig.BASE_VERSION_NAME,
             BuildConfig.VERSION_CODE
         ),
-        icon = Icons.Filled.Info,
+        icon = Icons.Filled.Smartphone,
         iconTint = MaterialTheme.colorScheme.secondary,
         position = position
     )
