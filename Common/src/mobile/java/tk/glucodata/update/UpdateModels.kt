@@ -10,17 +10,23 @@ package tk.glucodata.update
  * final confirmation dialog; nothing here installs silently.
  */
 
-/** Which releases the user wants to be offered. */
-enum class UpdateChannel(val prefValue: String) {
-    /** GitHub releases not flagged as pre-release. */
-    STABLE("stable"),
-
-    /** Everything, pre-releases included. */
-    PRERELEASE("prerelease");
+/**
+ * Where releases are read from, as `owner/repository`. User-adjustable so a fork — or a
+ * mirror of this project — can be followed instead of the default.
+ *
+ * Pointing this somewhere hostile still cannot install anything: the APK's signing certificate
+ * has to match the installed app's, which no third party can produce.
+ */
+@JvmInline
+value class UpdateSource(val repository: String) {
+    val isValid: Boolean get() = PATTERN.matches(repository)
 
     companion object {
-        fun fromPref(value: String?): UpdateChannel =
-            entries.firstOrNull { it.prefValue == value } ?: STABLE
+        private val PATTERN = Regex("^[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._-]{1,100}$")
+
+        fun sanitize(raw: String): String = raw.trim().trim('/')
+
+        fun isValid(raw: String): Boolean = PATTERN.matches(sanitize(raw))
     }
 }
 

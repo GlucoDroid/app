@@ -3,6 +3,7 @@
 package tk.glucodata.ui
 
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -24,22 +25,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -65,22 +66,23 @@ import tk.glucodata.ui.components.SettingsItem
 import tk.glucodata.ui.components.SettingsSwitchItem
 import tk.glucodata.update.AppUpdateController
 import tk.glucodata.update.AppUpdateUiState
-import tk.glucodata.update.UpdateChannel
 import tk.glucodata.update.UpdateEligibility
 import tk.glucodata.update.UpdateError
+import tk.glucodata.update.UpdateSource
 import tk.glucodata.update.UpdateStage
 
 /**
  * "App updates" — the detail screen behind the Data management entry.
  *
- * The whole flow is here in one place, in the order the user walks it: what is installed, what
- * is available, download, verify, install. Nothing on this screen happens without a tap.
+ * Ordered by how often each part is touched, not by narrative: version facts read at the top,
+ * the status card and its one action in the middle where a thumb lands, preferences at the
+ * bottom. Nothing on this screen happens without a tap.
  */
 @Composable
 fun AppUpdatesScreen(navController: NavController) {
     val context = LocalContext.current
     val state by AppUpdateController.state.collectAsStateWithLifecycle()
-    var showChannelDialog by remember { mutableStateOf(false) }
+    var showSourceDialog by remember { mutableStateOf(false) }
 
     // Returning from the "install unknown apps" settings page should pick the flow back up
     // rather than leaving the user on a card that still says "not allowed".
@@ -122,18 +124,46 @@ fun AppUpdatesScreen(navController: NavController) {
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Spacer(Modifier.height(8.dp))
-
             if (!state.supported) {
+                Spacer(Modifier.height(8.dp))
                 UnsupportedCard(state)
-                Spacer(Modifier.height(12.dp))
-                InstalledVersionRow(position = CardPosition.SINGLE)
+                SectionLabel(stringResource(R.string.app_updates_section_versions))
+                InstalledVersionRow(CardPosition.SINGLE)
                 return@Column
             }
 
-            UpdateHeroCard(
+            // --- Versions -------------------------------------------------------------
+            SectionLabel(stringResource(R.string.app_updates_section_versions), topPadding = 12.dp)
+
+            InstalledVersionRow(CardPosition.TOP)
+            SettingsItem(
+                title = stringResource(R.string.app_updates_latest_title),
+                subtitle = state.available?.let { update ->
+                    stringResource(
+                        R.string.app_updates_latest_value,
+                        update.versionName,
+                        Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
+                    )
+                } ?: stringResource(R.string.app_updates_latest_none),
+                icon = Icons.Filled.SystemUpdate,
+                iconTint = MaterialTheme.colorScheme.secondary,
+                position = CardPosition.MIDDLE
+            )
+            SettingsItem(
+                title = stringResource(R.string.app_updates_source_title),
+                subtitle = state.updateSource,
+                showArrow = true,
+                icon = Icons.Filled.Storefront,
+                iconTint = MaterialTheme.colorScheme.secondary,
+                position = CardPosition.BOTTOM,
+                onClick = { showSourceDialog = true }
+            )
+
+            // --- Status + the one action --------------------------------------------
+            Spacer(Modifier.height(24.dp))
+
+            UpdateStatusCard(
                 state = state,
-                onCheck = { AppUpdateController.checkNow(context) },
                 onDownload = { AppUpdateController.startDownload(context) },
                 onCancel = { AppUpdateController.cancelDownload(context) },
                 onInstall = {
@@ -148,6 +178,21 @@ fun AppUpdatesScreen(navController: NavController) {
                 }
             )
 
+            Spacer(Modifier.height(2.dp))
+            SettingsItem(
+                title = stringResource(R.string.app_updates_action_check),
+                subtitle = if (state.checking) {
+                    stringResource(R.string.app_updates_state_checking)
+                } else {
+                    stringResource(R.string.app_updates_last_checked, state.lastCheckedLabel())
+                },
+                icon = Icons.Filled.Refresh,
+                iconTint = MaterialTheme.colorScheme.primary,
+                position = CardPosition.SINGLE,
+                onClick = { AppUpdateController.checkNow(context) }
+            )
+
+            // --- Preferences ---------------------------------------------------------
             SectionLabel(stringResource(R.string.app_updates_section_preferences))
 
             SettingsSwitchItem(
@@ -156,48 +201,8 @@ fun AppUpdatesScreen(navController: NavController) {
                 checked = state.autoCheckEnabled,
                 icon = Icons.Filled.CloudDownload,
                 iconTint = MaterialTheme.colorScheme.secondary,
-                position = CardPosition.TOP,
+                position = CardPosition.SINGLE,
                 onCheckedChange = { AppUpdateController.setAutoCheckEnabled(context, it) }
-            )
-            SettingsItem(
-                title = stringResource(R.string.app_updates_channel_title),
-                subtitle = stringResource(state.channel.labelRes()),
-                showArrow = true,
-                icon = Icons.Filled.Tune,
-                iconTint = MaterialTheme.colorScheme.secondary,
-                position = CardPosition.BOTTOM,
-                onClick = { showChannelDialog = true }
-            )
-
-            SectionLabel(stringResource(R.string.app_updates_section_versions))
-
-            InstalledVersionRow(position = CardPosition.TOP)
-            SettingsItem(
-                title = stringResource(R.string.app_updates_latest_title),
-                subtitle = state.available?.let { update ->
-                    val size = Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
-                    if (update.prerelease) {
-                        stringResource(
-                            R.string.app_updates_latest_prerelease_value,
-                            update.versionName,
-                            size
-                        )
-                    } else {
-                        stringResource(R.string.app_updates_latest_value, update.versionName, size)
-                    }
-                } ?: stringResource(R.string.app_updates_latest_none),
-                icon = Icons.Filled.SystemUpdate,
-                iconTint = MaterialTheme.colorScheme.secondary,
-                position = CardPosition.MIDDLE
-            )
-            SettingsItem(
-                title = stringResource(R.string.app_updates_release_page_title),
-                subtitle = "github.com/${BuildConfig.UPDATE_REPO}",
-                showArrow = true,
-                icon = Icons.AutoMirrored.Filled.OpenInNew,
-                iconTint = MaterialTheme.colorScheme.secondary,
-                position = CardPosition.BOTTOM,
-                onClick = { context.openReleasePage(state.available?.tagName) }
             )
 
             val notes = state.available?.notes?.trim().orEmpty()
@@ -219,23 +224,26 @@ fun AppUpdatesScreen(navController: NavController) {
         }
     }
 
-    if (showChannelDialog) {
-        ChannelPickerDialog(
-            current = state.channel,
-            onSelect = {
-                AppUpdateController.setChannel(context, it)
-                showChannelDialog = false
+    if (showSourceDialog) {
+        UpdateSourceDialog(
+            current = state.updateSource,
+            isDefault = state.isDefaultUpdateSource,
+            onSave = {
+                AppUpdateController.setUpdateSource(context, it)
+                showSourceDialog = false
             },
-            onDismiss = { showChannelDialog = false }
+            onDismiss = { showSourceDialog = false }
         )
     }
 }
 
-/** The status card at the top: one state, one obvious next action. */
+/**
+ * Status only. "Check now" lives in its own row below, so the idle card carries no buttons at
+ * all — the download and install flows are the only states with something to press.
+ */
 @Composable
-private fun UpdateHeroCard(
+private fun UpdateStatusCard(
     state: AppUpdateUiState,
-    onCheck: () -> Unit,
     onDownload: () -> Unit,
     onCancel: () -> Unit,
     onInstall: () -> Unit,
@@ -243,32 +251,26 @@ private fun UpdateHeroCard(
 ) {
     val context = LocalContext.current
     val update = state.available
-    val lastChecked = if (state.lastCheckAtMillis > 0L) {
-        DateUtils.getRelativeTimeSpanString(
-            state.lastCheckAtMillis,
-            System.currentTimeMillis(),
-            DateUtils.MINUTE_IN_MILLIS
-        ).toString()
-    } else {
-        stringResource(R.string.app_updates_never_checked)
-    }
 
     if (state.error == UpdateError.INSTALL_PERMISSION) {
-        AppUpdateSurface(
-            icon = Icons.Filled.Security,
+        AppUpdateCard(
             accent = MaterialTheme.colorScheme.error,
             title = stringResource(R.string.app_updates_permission_title),
             body = stringResource(R.string.app_updates_permission_body),
-            primaryLabel = stringResource(R.string.app_updates_permission_action),
-            onPrimary = onGrantInstallPermission,
+            icon = Icons.Filled.Security,
             elevated = true
-        )
+        ) {
+            AppUpdateFilledAction(
+                label = stringResource(R.string.app_updates_permission_action),
+                accent = MaterialTheme.colorScheme.error,
+                onClick = onGrantInstallPermission
+            )
+        }
         return
     }
 
     when (state.stage) {
-        UpdateStage.DOWNLOADING -> AppUpdateSurface(
-            icon = Icons.Filled.CloudDownload,
+        UpdateStage.DOWNLOADING -> AppUpdateCard(
             accent = MaterialTheme.colorScheme.primary,
             title = stringResource(R.string.app_updates_downloading_title),
             body = stringResource(
@@ -276,50 +278,58 @@ private fun UpdateHeroCard(
                 Formatter.formatShortFileSize(context, state.downloadedBytes),
                 Formatter.formatShortFileSize(context, state.totalBytes)
             ),
-            primaryLabel = stringResource(R.string.app_updates_action_cancel),
-            onPrimary = onCancel,
+            icon = Icons.Filled.CloudDownload,
             content = {
                 LinearProgressIndicator(
                     progress = { state.downloadFraction },
                     modifier = Modifier.fillMaxWidth()
                 )
+            },
+            actions = {
+                AppUpdateTextAction(
+                    label = stringResource(R.string.app_updates_action_cancel),
+                    onClick = onCancel
+                )
             }
         )
 
-        UpdateStage.VERIFYING -> AppUpdateSurface(
-            icon = Icons.Filled.Security,
+        UpdateStage.VERIFYING -> AppUpdateCard(
             accent = MaterialTheme.colorScheme.primary,
             title = stringResource(R.string.app_updates_verifying_title),
             body = stringResource(R.string.app_updates_verifying_body),
+            icon = Icons.Filled.Security,
             content = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
         )
 
-        UpdateStage.READY_TO_INSTALL, UpdateStage.INSTALLING -> AppUpdateSurface(
-            icon = Icons.Filled.SystemUpdate,
+        UpdateStage.READY_TO_INSTALL, UpdateStage.INSTALLING -> AppUpdateCard(
             accent = MaterialTheme.colorScheme.primary,
             title = stringResource(R.string.app_updates_ready_title, update?.versionName.orEmpty()),
             body = state.error?.let { updateErrorText(it) }
                 ?: stringResource(R.string.app_updates_ready_body),
-            primaryLabel = stringResource(R.string.app_updates_action_install),
-            onPrimary = onInstall,
-            secondaryLabel = stringResource(R.string.app_updates_action_discard),
-            onSecondary = onCancel,
+            icon = Icons.Filled.SystemUpdate,
             elevated = true
-        )
+        ) {
+            AppUpdateTextAction(
+                label = stringResource(R.string.app_updates_action_discard),
+                onClick = onCancel
+            )
+            AppUpdateFilledAction(
+                label = stringResource(R.string.app_updates_action_install),
+                accent = MaterialTheme.colorScheme.primary,
+                onClick = onInstall
+            )
+        }
 
         UpdateStage.IDLE -> when {
-            state.error != null -> AppUpdateSurface(
-                icon = Icons.Filled.ErrorOutline,
+            state.error != null -> AppUpdateCard(
                 accent = MaterialTheme.colorScheme.error,
                 title = stringResource(R.string.app_updates_error_title),
                 body = updateErrorText(state.error),
-                primaryLabel = stringResource(R.string.app_updates_action_retry),
-                onPrimary = onCheck,
+                icon = Icons.Filled.ErrorOutline,
                 elevated = true
             )
 
-            update != null -> AppUpdateSurface(
-                icon = Icons.Filled.SystemUpdate,
+            update != null -> AppUpdateCard(
                 accent = MaterialTheme.colorScheme.tertiary,
                 title = stringResource(R.string.app_updates_card_title),
                 body = stringResource(
@@ -327,26 +337,29 @@ private fun UpdateHeroCard(
                     update.versionName,
                     Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
                 ),
-                primaryLabel = stringResource(R.string.app_updates_action_download),
-                onPrimary = onDownload,
+                icon = Icons.Filled.SystemUpdate,
                 elevated = true
-            )
+            ) {
+                AppUpdateFilledAction(
+                    label = stringResource(R.string.app_updates_action_download),
+                    accent = MaterialTheme.colorScheme.tertiary,
+                    onClick = onDownload
+                )
+            }
 
-            state.checking -> AppUpdateSurface(
-                icon = Icons.Filled.CloudDownload,
+            state.checking -> AppUpdateCard(
                 accent = MaterialTheme.colorScheme.primary,
                 title = stringResource(R.string.app_updates_checking_title),
                 body = stringResource(R.string.app_updates_checking_body),
+                icon = Icons.Filled.CloudDownload,
                 content = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
             )
 
-            else -> AppUpdateSurface(
-                icon = Icons.Filled.CheckCircle,
+            else -> AppUpdateCard(
                 accent = MaterialTheme.colorScheme.primary,
                 title = stringResource(R.string.app_updates_up_to_date_title),
-                body = stringResource(R.string.app_updates_last_checked, lastChecked),
-                primaryLabel = stringResource(R.string.app_updates_action_check),
-                onPrimary = onCheck
+                body = null,
+                icon = Icons.Filled.CheckCircle
             )
         }
     }
@@ -360,19 +373,19 @@ private fun UnsupportedCard(state: AppUpdateUiState) {
             val installer = remember(context) {
                 UpdateEligibility.installerPackage(context).orEmpty()
             }
-            AppUpdateSurface(
-                icon = Icons.Filled.Storefront,
+            AppUpdateCard(
                 accent = MaterialTheme.colorScheme.secondary,
                 title = stringResource(R.string.app_updates_unsupported_store_title),
-                body = stringResource(R.string.app_updates_unsupported_store_body, installer)
+                body = stringResource(R.string.app_updates_unsupported_store_body, installer),
+                icon = Icons.Filled.Storefront
             )
         }
 
-        else -> AppUpdateSurface(
-            icon = Icons.Filled.Info,
+        else -> AppUpdateCard(
             accent = MaterialTheme.colorScheme.secondary,
             title = stringResource(R.string.app_updates_unsupported_debug_title),
-            body = stringResource(R.string.app_updates_unsupported_debug_body)
+            body = stringResource(R.string.app_updates_unsupported_debug_body),
+            icon = Icons.Filled.Info
         )
     }
 }
@@ -392,49 +405,74 @@ private fun InstalledVersionRow(position: CardPosition) {
     )
 }
 
+/** Lets a fork or mirror be followed instead of the default project. */
 @Composable
-private fun ChannelPickerDialog(
-    current: UpdateChannel,
-    onSelect: (UpdateChannel) -> Unit,
+private fun UpdateSourceDialog(
+    current: String,
+    isDefault: Boolean,
+    onSave: (String?) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var text by remember(current) { mutableStateOf(current) }
+    val valid = UpdateSource.isValid(text)
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.app_updates_channel_title)) },
+        title = { Text(stringResource(R.string.app_updates_source_title)) },
         text = {
             Column {
-                UpdateChannel.entries.forEach { channel ->
-                    SettingsItem(
-                        title = stringResource(channel.labelRes()),
-                        subtitle = stringResource(channel.descriptionRes()),
-                        position = CardPosition.SINGLE,
-                        onClick = { onSelect(channel) },
-                        trailingContent = {
-                            RadioButton(selected = channel == current, onClick = { onSelect(channel) })
-                        }
-                    )
-                    Spacer(Modifier.height(2.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    isError = text.isNotBlank() && !valid,
+                    supportingText = {
+                        Text(
+                            if (text.isNotBlank() && !valid) {
+                                stringResource(R.string.app_updates_source_invalid)
+                            } else {
+                                stringResource(R.string.app_updates_source_help)
+                            }
+                        )
+                    },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        imeAction = ImeAction.Done
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (!isDefault) {
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = { onSave(null) }) {
+                        Text(stringResource(R.string.app_updates_source_reset))
+                    }
                 }
             }
         },
         confirmButton = {
+            TextButton(enabled = valid, onClick = { onSave(text) }) {
+                Text(stringResource(R.string.app_updates_action_save))
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
 
-private fun UpdateChannel.labelRes(): Int = when (this) {
-    UpdateChannel.STABLE -> R.string.app_updates_channel_stable
-    UpdateChannel.PRERELEASE -> R.string.app_updates_channel_prerelease
-}
-
-private fun UpdateChannel.descriptionRes(): Int = when (this) {
-    UpdateChannel.STABLE -> R.string.app_updates_channel_stable_desc
-    UpdateChannel.PRERELEASE -> R.string.app_updates_channel_prerelease_desc
-}
+@Composable
+private fun AppUpdateUiState.lastCheckedLabel(): String =
+    if (lastCheckAtMillis > 0L) {
+        DateUtils.getRelativeTimeSpanString(
+            lastCheckAtMillis,
+            System.currentTimeMillis(),
+            DateUtils.MINUTE_IN_MILLIS
+        ).toString()
+    } else {
+        stringResource(R.string.app_updates_never_checked)
+    }
 
 /** Android 8+ grants "install unknown apps" per source, so the target is our own package page. */
-private fun android.content.Context.launchInstallPermission(launch: (Intent) -> Unit) {
+private fun Context.launchInstallPermission(launch: (Intent) -> Unit) {
     val intent = Intent(
         Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
         Uri.parse("package:$packageName")
@@ -451,24 +489,5 @@ private fun android.content.Context.launchInstallPermission(launch: (Intent) -> 
                 Toast.LENGTH_LONG
             ).show()
         }
-    }
-}
-
-private fun android.content.Context.openReleasePage(tag: String?) {
-    val url = if (tag.isNullOrBlank()) {
-        "https://github.com/${BuildConfig.UPDATE_REPO}/releases/latest"
-    } else {
-        "https://github.com/${BuildConfig.UPDATE_REPO}/releases/tag/$tag"
-    }
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    try {
-        startActivity(intent)
-    } catch (_: ActivityNotFoundException) {
-        Toast.makeText(
-            this,
-            getString(R.string.cgm_readiness_settings_unavailable),
-            Toast.LENGTH_LONG
-        ).show()
     }
 }

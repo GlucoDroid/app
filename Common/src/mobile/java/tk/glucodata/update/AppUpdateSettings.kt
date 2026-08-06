@@ -3,6 +3,7 @@ package tk.glucodata.update
 import android.content.Context
 import android.content.SharedPreferences
 import org.json.JSONObject
+import tk.glucodata.BuildConfig
 
 /**
  * Preferences for the in-app updater, plus the cached result of the last check.
@@ -17,7 +18,7 @@ object AppUpdateSettings {
 
     private const val KEY_AUTO_CHECK = "auto_check"
     private const val KEY_INTRO_ANSWERED = "intro_answered"
-    private const val KEY_CHANNEL = "channel"
+    private const val KEY_SOURCE = "update_source"
     private const val KEY_LAST_CHECK_AT = "last_check_at"
     private const val KEY_LAST_ERROR = "last_error"
     private const val KEY_CACHED_UPDATE = "cached_update"
@@ -52,11 +53,29 @@ object AppUpdateSettings {
             .apply()
     }
 
-    fun channel(context: Context): UpdateChannel =
-        UpdateChannel.fromPref(prefs(context).getString(KEY_CHANNEL, null))
+    /** `owner/repository` releases are read from. Defaults to this build's own project. */
+    fun updateSource(context: Context): String {
+        val stored = prefs(context).getString(KEY_SOURCE, null)
+        return stored?.takeIf { UpdateSource.isValid(it) } ?: defaultUpdateSource
+    }
 
-    fun setChannel(context: Context, channel: UpdateChannel) {
-        prefs(context).edit().putString(KEY_CHANNEL, channel.prefValue).apply()
+    val defaultUpdateSource: String get() = BuildConfig.UPDATE_REPO
+
+    fun isDefaultUpdateSource(context: Context): Boolean =
+        updateSource(context) == defaultUpdateSource
+
+    /** Pass null to go back to the default. Invalid values are ignored rather than stored. */
+    fun setUpdateSource(context: Context, repository: String?) {
+        val editor = prefs(context).edit()
+        val cleaned = repository?.let(UpdateSource::sanitize)
+        if (cleaned == null || cleaned == defaultUpdateSource) {
+            editor.remove(KEY_SOURCE)
+        } else if (UpdateSource.isValid(cleaned)) {
+            editor.putString(KEY_SOURCE, cleaned)
+        } else {
+            return
+        }
+        editor.apply()
     }
 
     fun lastCheckAtMillis(context: Context): Long = prefs(context).getLong(KEY_LAST_CHECK_AT, 0L)

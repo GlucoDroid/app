@@ -282,6 +282,10 @@ fun DashboardScreen(
     onNavigateToAppUpdates: () -> Unit = {},
     onTriggerCalibration: (CalibrationSheetState) -> Unit = {}
 ) {
+    // Read once here: the LazyColumns below use Arrangement.spacedBy, which reserves its gap
+    // around an item even when that item renders nothing. An always-emitted banner item would
+    // push the whole dashboard down by one gap whenever there is no update to announce.
+    val appUpdateBannerVisible = rememberAppUpdateBannerVisible()
     val context = LocalContext.current
     val view = LocalView.current
     val dashboardPrefs = remember(context) {
@@ -1245,13 +1249,13 @@ fun DashboardScreen(
                 modifier = Modifier
                     .padding(padding),
                 readinessContent = {
-                    // Plain Column here, unlike the spaced LazyColumns below, so the gap
-                    // between the two banners rides on the second one.
                     DashboardCgmReadinessBanner(onOpenReadiness = onNavigateToReadiness)
-                    DashboardAppUpdateBanner(
-                        modifier = Modifier.padding(top = 12.dp),
-                        onOpenAppUpdates = onNavigateToAppUpdates
-                    )
+                    if (appUpdateBannerVisible) {
+                        DashboardAppUpdateBanner(
+                            modifier = Modifier.padding(top = 12.dp),
+                            onOpenAppUpdates = onNavigateToAppUpdates
+                        )
+                    }
                 }
             )
             } else if (isLandscape) {
@@ -1330,8 +1334,10 @@ fun DashboardScreen(
                         DashboardCgmReadinessBanner(onOpenReadiness = onNavigateToReadiness)
                     }
 
-                    item {
-                        DashboardAppUpdateBanner(onOpenAppUpdates = onNavigateToAppUpdates)
+                    if (appUpdateBannerVisible) {
+                        item {
+                            DashboardAppUpdateBanner(onOpenAppUpdates = onNavigateToAppUpdates)
+                        }
                     }
 
                     item {
@@ -1589,11 +1595,13 @@ fun DashboardScreen(
                     )
                 }
 
-                item {
-                    DashboardAppUpdateBanner(
-                        modifier = Modifier.padding(horizontal = contentHorizontalPadding),
-                        onOpenAppUpdates = onNavigateToAppUpdates
-                    )
+                if (appUpdateBannerVisible) {
+                    item {
+                        DashboardAppUpdateBanner(
+                            modifier = Modifier.padding(horizontal = contentHorizontalPadding),
+                            onOpenAppUpdates = onNavigateToAppUpdates
+                        )
+                    }
                 }
 
                 item {

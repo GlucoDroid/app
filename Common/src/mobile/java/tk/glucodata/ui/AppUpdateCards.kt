@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalLayoutApi::class)
-
 package tk.glucodata.ui
 
 import android.text.format.Formatter
@@ -11,9 +9,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,12 +21,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,11 +45,26 @@ import tk.glucodata.update.AppUpdateController
 import tk.glucodata.update.UpdateError
 
 /**
- * Dashboard card for the in-app updater, drawn in the same idiom as the CGM readiness banner.
+ * True when [DashboardAppUpdateBanner] would draw something.
  *
- * At most one card is ever shown, and each shows at most once:
- *  - the one-time opt-in card, until the user answers it;
- *  - an "update available" card, until the user dismisses that particular release.
+ * The dashboard's LazyColumn uses `Arrangement.spacedBy`, which reserves its gap around *every*
+ * item — including one that renders nothing. Call sites use this to skip emitting the item at
+ * all, rather than pushing the whole dashboard down by a phantom row.
+ */
+@Composable
+fun rememberAppUpdateBannerVisible(): Boolean {
+    val context = LocalContext.current
+    val state by AppUpdateController.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { AppUpdateController.initialize(context) }
+    return state.showIntroCard || state.showUpdateCard
+}
+
+/**
+ * Dashboard card for the in-app updater.
+ *
+ * At most one card is ever shown, and each shows at most once: the one-time opt-in card until
+ * the user answers it, then an "update available" card until that particular release is
+ * dismissed.
  */
 @Composable
 fun DashboardAppUpdateBanner(
@@ -73,16 +82,21 @@ fun DashboardAppUpdateBanner(
         exit = fadeOut() + shrinkVertically(),
         modifier = modifier
     ) {
-        AppUpdateSurface(
-            icon = Icons.Filled.SystemUpdate,
+        AppUpdateCard(
             accent = MaterialTheme.colorScheme.primary,
             title = stringResource(R.string.app_updates_intro_title),
-            body = stringResource(R.string.app_updates_intro_body),
-            primaryLabel = stringResource(R.string.app_updates_intro_enable),
-            onPrimary = { AppUpdateController.answerIntro(context, true) },
-            secondaryLabel = stringResource(R.string.app_updates_intro_decline),
-            onSecondary = { AppUpdateController.answerIntro(context, false) }
-        )
+            body = stringResource(R.string.app_updates_intro_body)
+        ) {
+            AppUpdateTextAction(
+                label = stringResource(R.string.app_updates_intro_decline),
+                onClick = { AppUpdateController.answerIntro(context, false) }
+            )
+            AppUpdateFilledAction(
+                label = stringResource(R.string.app_updates_intro_enable),
+                accent = MaterialTheme.colorScheme.primary,
+                onClick = { AppUpdateController.answerIntro(context, true) }
+            )
+        }
     }
 
     AnimatedVisibility(
@@ -92,23 +106,25 @@ fun DashboardAppUpdateBanner(
         modifier = modifier
     ) {
         val update = state.available
-        AppUpdateSurface(
-            icon = Icons.Filled.SystemUpdate,
+        AppUpdateCard(
             accent = MaterialTheme.colorScheme.tertiary,
             title = stringResource(R.string.app_updates_card_title),
-            body = if (update == null) {
-                ""
-            } else {
+            // Just version and size here — the detail screen carries the release notes.
+            body = update?.let {
                 stringResource(
-                    R.string.app_updates_card_body,
-                    update.versionName,
-                    Formatter.formatShortFileSize(context, update.artifact.sizeBytes)
+                    R.string.app_updates_latest_value,
+                    it.versionName,
+                    Formatter.formatShortFileSize(context, it.artifact.sizeBytes)
                 )
             },
-            primaryLabel = stringResource(R.string.app_updates_action_view),
-            onPrimary = onOpenAppUpdates,
             onDismiss = { AppUpdateController.dismissBanner(context) }
-        )
+        ) {
+            AppUpdateFilledAction(
+                label = stringResource(R.string.app_updates_action_view),
+                accent = MaterialTheme.colorScheme.tertiary,
+                onClick = onOpenAppUpdates
+            )
+        }
     }
 }
 
@@ -148,57 +164,48 @@ fun AppUpdatesSettingsItem(
 }
 
 /**
- * The card body shared by the dashboard banner and the App updates screen hero. Mirrors
- * `CgmReadinessSummaryCard`: 20 dp corners, a tinted 44 dp status glyph, a hairline border in
- * the accent colour, and actions in a [FlowRow] so they wrap instead of clipping.
+ * The card shared by the dashboard banner and the App updates screen.
+ *
+ * Text-forward on purpose: an icon tile on the left with buttons underneath reads as a settings
+ * row, not a card. The optional [icon] is used only where the card is the screen's status hero;
+ * actions sit bottom-right, aligned with the card edge rather than orphaned under a glyph.
  */
 @Composable
-internal fun AppUpdateSurface(
-    icon: ImageVector,
+internal fun AppUpdateCard(
     accent: Color,
     title: String,
-    body: String,
+    body: String?,
     modifier: Modifier = Modifier,
-    primaryLabel: String? = null,
-    onPrimary: (() -> Unit)? = null,
-    secondaryLabel: String? = null,
-    onSecondary: (() -> Unit)? = null,
+    icon: ImageVector? = null,
     onDismiss: (() -> Unit)? = null,
     elevated: Boolean = false,
-    content: (@Composable () -> Unit)? = null
+    content: (@Composable () -> Unit)? = null,
+    actions: (@Composable RowScope.() -> Unit)? = null
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         color = if (elevated) {
             accent.copy(alpha = 0.10f)
         } else {
             MaterialTheme.colorScheme.surfaceContainerHigh
         },
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.24f)),
-        shadowElevation = if (elevated) 1.dp else 0.dp
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.22f))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                StatusIconSurface(icon = icon, color = accent)
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    if (body.isNotEmpty()) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = body,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    StatusIconSurface(icon = icon, color = accent)
+                    Spacer(Modifier.width(14.dp))
                 }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
                 if (onDismiss != null) {
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                         Icon(
                             Icons.Filled.Close,
                             contentDescription = stringResource(R.string.cgm_readiness_dismiss_action),
@@ -208,32 +215,46 @@ internal fun AppUpdateSurface(
                 }
             }
 
+            if (!body.isNullOrEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             if (content != null) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(16.dp))
                 content()
             }
 
-            if (primaryLabel != null || secondaryLabel != null) {
-                Spacer(Modifier.height(14.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (primaryLabel != null && onPrimary != null) {
-                        Button(
-                            onClick = onPrimary,
-                            colors = ButtonDefaults.buttonColors(containerColor = accent)
-                        ) {
-                            Text(primaryLabel)
-                        }
-                    }
-                    if (secondaryLabel != null && onSecondary != null) {
-                        OutlinedButton(onClick = onSecondary) { Text(secondaryLabel) }
-                    }
-                }
+            if (actions != null) {
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = actions
+                )
             }
         }
     }
+}
+
+@Composable
+internal fun AppUpdateFilledAction(label: String, accent: Color, onClick: () -> Unit) {
+    androidx.compose.material3.Button(
+        onClick = onClick,
+        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accent)
+    ) {
+        Text(label)
+    }
+}
+
+@Composable
+internal fun AppUpdateTextAction(label: String, onClick: () -> Unit) {
+    androidx.compose.material3.TextButton(onClick = onClick) { Text(label) }
 }
 
 /** User-facing text for a failure. Never derived from exception messages: proguard strips those. */

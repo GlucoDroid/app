@@ -33,19 +33,21 @@ object GithubUpdateSource {
     private const val MAX_RELEASES = 15
     private const val MAX_METADATA_BYTES = 512 * 1024
 
-    val userAgent: String = "JugglucoNG/${BuildConfig.BASE_VERSION_NAME} (Android; +https://github.com/${BuildConfig.UPDATE_REPO})"
+    val userAgent: String = "JugglucoNG/${BuildConfig.BASE_VERSION_NAME} (Android)"
 
-    /** `https://github.com/<owner>/<repo>/releases/download/` — every asset URL must start with this. */
-    private val assetUrlPrefix: String
-        get() = "https://$RELEASE_HOST/${BuildConfig.UPDATE_REPO}/releases/download/"
+    /** Any `https://github.com/<owner>/<repo>/releases/download/...` URL. */
+    private val ASSET_URL = Regex("^https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/releases/download/")
 
     /**
-     * Looks for a release on [channel] that is newer than the running build and carries an
-     * artifact for this applicationId.
+     * Looks for a release in [repository] (`owner/repo`) that is newer than the running build
+     * and carries an artifact for this applicationId.
+     *
+     * Pre-releases are skipped. The project publishes everything as a full release, so a channel
+     * setting would have been a picker with one real option; if that changes, filter here.
      */
-    fun check(channel: UpdateChannel): UpdateCheckResult {
+    fun check(repository: String): UpdateCheckResult {
         val body = when (val response = getText(
-            url = "https://$API_HOST/repos/${BuildConfig.UPDATE_REPO}/releases?per_page=$MAX_RELEASES",
+            url = "https://$API_HOST/repos/$repository/releases?per_page=$MAX_RELEASES",
             accept = "application/vnd.github+json"
         )) {
             is TextResponse.Ok -> response.body
@@ -55,14 +57,14 @@ object GithubUpdateSource {
         val releases = runCatching { GithubReleaseParser.parseReleases(body) }.getOrNull()
             ?: return UpdateCheckResult.Failed(UpdateError.PARSE)
 
-        val candidates = releases.filter { channel == UpdateChannel.PRERELEASE || !it.prerelease }
+        val candidates = releases.filterNot { it.prerelease }
         if (candidates.isEmpty()) return UpdateCheckResult.UpToDate
 
         // Only the newest release matters. Walking further back would mean offering an older
         // build than the newest published one, which is never what the user wants.
         for (release in candidates) {
             val manifest = release.asset(GithubReleaseParser.MANIFEST_ASSET)
-                ?.let { fetchManifest(it.downloadUrl) }
+                ?.let { fetchManifest(it.downloadUrl, repository) }
             val update = GithubReleaseParser.toAvailableUpdate(
                 release = release,
                 manifest = manifest,
@@ -70,7 +72,7 @@ object GithubUpdateSource {
                 deviceSdk = Build.VERSION.SDK_INT
             ) ?: continue
 
-            if (!isTrustedAssetUrl(update.artifact.downloadUrl)) {
+            if (!isTrustedAssetUrl(update.artifact.downloadUrl, repository)) {
                 Log.w(LOG_TAG, "rejecting release asset from unexpected host")
                 return UpdateCheckResult.Failed(UpdateError.NO_ARTIFACT)
             }
@@ -88,16 +90,26 @@ object GithubUpdateSource {
         return UpdateCheckResult.Failed(UpdateError.NO_ARTIFACT)
     }
 
-    private fun fetchManifest(url: String): GithubReleaseParser.UpdateManifest? {
-        if (!isTrustedAssetUrl(url)) return null
+    private fun fetchManifest(url: String, repository: String): GithubReleaseParser.UpdateManifest? {
+        if (!isTrustedAssetUrl(url, repository)) return null
         val response = getText(url, accept = "application/json")
         if (response !is TextResponse.Ok) return null
         return GithubReleaseParser.parseManifest(response.body)
     }
 
-    /** True for URLs we are willing to open: HTTPS, GitHub, and under this repo's release path. */
-    fun isTrustedAssetUrl(url: String): Boolean {
-        if (!url.startsWith(assetUrlPrefix)) return false
+    /**
+     * True for URLs we are willing to open: HTTPS, github.com, under a release download path.
+     *
+     * Pass [repository] to pin it to one project — done for every URL that came out of a live
+     * API response. The unpinned form is for re-validating a URL cached from an earlier session,
+     * where the source setting may since have changed.
+     */
+    fun isTrustedAssetUrl(url: String, repository: String? = null): Boolean {
+        if (repository != null) {
+            if (!url.startsWith("https://$RELEASE_HOST/$repository/releases/download/")) return false
+        } else if (!ASSET_URL.containsMatchIn(url)) {
+            return false
+        }
         val host = runCatching { URL(url).host }.getOrNull() ?: return false
         return host == RELEASE_HOST
     }

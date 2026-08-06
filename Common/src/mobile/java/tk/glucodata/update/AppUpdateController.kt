@@ -30,7 +30,9 @@ data class AppUpdateUiState(
     /** The one-time opt-in card has not been answered yet. */
     val introPending: Boolean = false,
     val autoCheckEnabled: Boolean = false,
-    val channel: UpdateChannel = UpdateChannel.STABLE,
+    /** `owner/repository` releases are read from. */
+    val updateSource: String = "",
+    val isDefaultUpdateSource: Boolean = true,
     val checking: Boolean = false,
     val lastCheckAtMillis: Long = 0L,
     val error: UpdateError? = null,
@@ -111,7 +113,8 @@ object AppUpdateController {
                 blocker = blocker,
                 introPending = blocker == null && !AppUpdateSettings.isIntroAnswered(appContext),
                 autoCheckEnabled = AppUpdateSettings.isAutoCheckEnabled(appContext),
-                channel = AppUpdateSettings.channel(appContext),
+                updateSource = AppUpdateSettings.updateSource(appContext),
+                isDefaultUpdateSource = AppUpdateSettings.isDefaultUpdateSource(appContext),
                 lastCheckAtMillis = AppUpdateSettings.lastCheckAtMillis(appContext),
                 // A live error (download failed, signature mismatch) outranks the persisted
                 // check error — otherwise re-entering a screen quietly wipes what the user is
@@ -145,10 +148,11 @@ object AppUpdateController {
 
     fun setAutoCheckEnabled(context: Context, enabled: Boolean) = answerIntro(context, enabled)
 
-    fun setChannel(context: Context, channel: UpdateChannel) {
+    /** Points the updater at a different `owner/repository`. */
+    fun setUpdateSource(context: Context, repository: String?) {
         val appContext = context.applicationContext
-        AppUpdateSettings.setChannel(appContext, channel)
-        // A channel switch invalidates whatever the previous channel found.
+        AppUpdateSettings.setUpdateSource(appContext, repository)
+        // Whatever the previous source found no longer applies.
         AppUpdateSettings.clearCachedUpdate(appContext)
         AppUpdateSettings.setDismissedIdentity(appContext, null)
         UpdateDownloader.clearStaged(appContext)
@@ -162,7 +166,7 @@ object AppUpdateController {
         if (_state.value.checking || !UpdateEligibility.isSupported(appContext)) return
         _state.update { it.copy(checking = true, error = null) }
         scope.launch {
-            val result = GithubUpdateSource.check(AppUpdateSettings.channel(appContext))
+            val result = GithubUpdateSource.check(AppUpdateSettings.updateSource(appContext))
             AppUpdateSettings.recordCheck(appContext, result, System.currentTimeMillis())
             // The dismissal is keyed by release identity, so finding the same release again
             // keeps the card hidden while a genuinely new one still gets to show up once.
