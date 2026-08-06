@@ -11,22 +11,61 @@ package tk.glucodata.update
  */
 
 /**
- * Where releases are read from, as `owner/repository`. User-adjustable so a fork — or a
- * mirror of this project — can be followed instead of the default.
+ * Where releases are read from. Any `https://` URL — this project, a fork, a mirror, or a
+ * self-hosted manifest. Three shapes are understood:
  *
- * Pointing this somewhere hostile still cannot install anything: the APK's signing certificate
- * has to match the installed app's, which no third party can produce.
+ *  - `https://github.com/<owner>/<repo>` — rewritten to that repo's releases API;
+ *  - `https://api.github.com/repos/<owner>/<repo>/releases` — used as-is;
+ *  - anything else — fetched and read as either a GitHub-shaped releases array or an
+ *    `update-manifest.json` object, decided by the response itself.
+ *
+ * Deliberately unrestricted. Pointing this at a hostile host still cannot install anything: an
+ * APK has to carry the installed app's signing certificate to replace it, and no third party can
+ * produce one. An allowlist here would buy nothing and only stop legitimate mirrors.
  */
-@JvmInline
-value class UpdateSource(val repository: String) {
-    val isValid: Boolean get() = PATTERN.matches(repository)
+object UpdateSource {
 
-    companion object {
-        private val PATTERN = Regex("^[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._-]{1,100}$")
+    /** What a source URL resolves to before anything is fetched. */
+    sealed interface Resolved {
+        /** A GitHub releases API endpoint; assets come from the API's own listing. */
+        data class GithubReleases(val apiUrl: String) : Resolved
 
-        fun sanitize(raw: String): String = raw.trim().trim('/')
+        /** A plain document; its content decides how it is parsed. */
+        data class Document(val url: String) : Resolved
+    }
 
-        fun isValid(raw: String): Boolean = PATTERN.matches(sanitize(raw))
+    private val GITHUB_REPO_PATH = Regex("^/([A-Za-z0-9._-]{1,64})/([A-Za-z0-9._-]{1,100})/?$")
+
+    fun sanitize(raw: String): String = raw.trim().trimEnd('/')
+
+    /** Null when [raw] is not a usable https URL. */
+    fun resolve(raw: String): Resolved? {
+        val cleaned = sanitize(raw)
+        val url = runCatching { java.net.URL(cleaned) }.getOrNull() ?: return null
+        if (!url.protocol.equals("https", ignoreCase = true)) return null
+        if (url.host.isNullOrBlank()) return null
+
+        if (url.host.equals("github.com", ignoreCase = true)) {
+            val match = GITHUB_REPO_PATH.find(url.path)
+            if (match != null) {
+                val (owner, repo) = match.destructured
+                return Resolved.GithubReleases("https://api.github.com/repos/$owner/$repo/releases")
+            }
+        }
+        if (url.host.equals("api.github.com", ignoreCase = true) && url.path.endsWith("/releases")) {
+            return Resolved.GithubReleases(cleaned)
+        }
+        return Resolved.Document(cleaned)
+    }
+
+    fun isValid(raw: String): Boolean = resolve(raw) != null
+
+    /** Resolves a possibly-relative artifact URL against the manifest it came from. */
+    fun resolveArtifactUrl(manifestUrl: String, artifactUrl: String): String? {
+        val resolved = runCatching {
+            java.net.URL(java.net.URL(manifestUrl), artifactUrl)
+        }.getOrNull() ?: return null
+        return resolved.takeIf { it.protocol.equals("https", ignoreCase = true) }?.toString()
     }
 }
 
@@ -34,9 +73,10 @@ value class UpdateSource(val repository: String) {
 data class UpdateArtifact(
     val fileName: String,
     /**
-     * Always taken from the GitHub API's own asset listing, never from a field inside
-     * `update-manifest.json`. A tampered manifest therefore cannot point the download
-     * somewhere else.
+     * For a GitHub source this comes from the API's own asset listing rather than from a field
+     * inside `update-manifest.json`, so a tampered manifest cannot redirect the download. A
+     * self-hosted manifest has no asset listing, so there it is the manifest's own `url`,
+     * resolved against the manifest's location.
      */
     val downloadUrl: String,
     val sizeBytes: Long,

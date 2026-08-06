@@ -2466,8 +2466,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_error_install_failed">Усталёўка не завершылася.</string>
     <string name="app_updates_error_cancelled">Усталёўка скасавана.</string>
     <string name="app_updates_source_title">Крыніца абнаўленняў</string>
-    <string name="app_updates_source_help">Выпускі чытаюцца з гэтага праекта GitHub у выглядзе уладальнік/рэпазіторый. Абнаўленне ўсталюецца, толькі калі яно падпісана тым жа ключом, што і бягучая зборка.</string>
-    <string name="app_updates_source_invalid">Пазначце ў выглядзе уладальнік/рэпазіторый.</string>
+    <string name="app_updates_source_help">Любы адрас https: праект на GitHub, яго форк ці люстэрка, або ўласны маніфест абнаўленняў. Абнаўленне ўсталюецца, толькі калі падпісана тым жа ключом, што і бягучая зборка, — абараняе менавіта гэта, а не крыніца.</string>
+    <string name="app_updates_source_invalid">Увядзіце адрас, які пачынаецца з https://.</string>
     <string name="app_updates_source_reset">Прадвызначана</string>
     <string name="app_updates_action_save">Захаваць</string>
 </resources>

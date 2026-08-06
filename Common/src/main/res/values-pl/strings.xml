@@ -2433,8 +2433,8 @@
     <string name="app_updates_error_install_failed">Instalacja nie została ukończona.</string>
     <string name="app_updates_error_cancelled">Instalacja anulowana.</string>
     <string name="app_updates_source_title">Źródło aktualizacji</string>
-    <string name="app_updates_source_help">Wydania są pobierane z tego projektu GitHub, w formie właściciel/repozytorium. Aktualizacja zainstaluje się tylko wtedy, gdy jest podpisana tym samym kluczem co bieżąca kompilacja.</string>
-    <string name="app_updates_source_invalid">Użyj formy właściciel/repozytorium.</string>
+    <string name="app_updates_source_help">Dowolny adres https: projekt na GitHubie, jego fork lub kopia, albo własny manifest aktualizacji. Aktualizacja zainstaluje się tylko wtedy, gdy jest podpisana tym samym kluczem co bieżąca kompilacja — to właśnie chroni, a nie pochodzenie.</string>
+    <string name="app_updates_source_invalid">Podaj adres zaczynający się od https://.</string>
     <string name="app_updates_source_reset">Użyj domyślnego</string>
     <string name="app_updates_action_save">Zapisz</string>
 </resources>

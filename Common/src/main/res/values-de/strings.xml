@@ -2438,8 +2438,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="app_updates_error_install_failed">Die Installation wurde nicht abgeschlossen.</string>
     <string name="app_updates_error_cancelled">Installation abgebrochen.</string>
     <string name="app_updates_source_title">Update-Quelle</string>
-    <string name="app_updates_source_help">Releases werden aus diesem GitHub-Projekt gelesen, als Eigentümer/Repository. Ein Update lässt sich nur installieren, wenn es mit demselben Schlüssel signiert ist wie dein aktueller Build.</string>
-    <string name="app_updates_source_invalid">Format: Eigentümer/Repository.</string>
+    <string name="app_updates_source_help">Beliebige https-Adresse: ein GitHub-Projekt, ein Fork oder Spiegel davon, oder dein eigenes Update-Manifest. Ein Update lässt sich nur installieren, wenn es mit demselben Schlüssel signiert ist wie dein aktueller Build — das schützt dich, nicht die Herkunft.</string>
+    <string name="app_updates_source_invalid">Gib eine https://-Adresse ein.</string>
     <string name="app_updates_source_reset">Standard verwenden</string>
     <string name="app_updates_action_save">Speichern</string>
 </resources>

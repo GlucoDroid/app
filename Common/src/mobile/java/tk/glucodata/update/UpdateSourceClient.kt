@@ -11,21 +11,21 @@ import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
 /**
- * Fetches release metadata from the GitHub Releases API.
+ * Fetches release metadata from whatever source the user has configured — this project's GitHub
+ * releases by default, or a fork, mirror or self-hosted manifest.
  *
- * Hardening that matters here, because this decides what APK the user is later asked to install:
- *  - HTTPS only, and only the two GitHub hosts below;
- *  - the download URL always comes from the API's asset listing, never from a field inside
- *    `update-manifest.json`;
+ * There is no host allowlist, on purpose. The source is the user's explicit choice, and the
+ * check that actually protects them is elsewhere: an APK must carry this install's signing
+ * certificate to replace it (see [ApkVerifier]), which no third party can forge. What is still
+ * enforced here is worth keeping though:
+ *  - HTTPS only, including after redirects;
+ *  - for a GitHub source, download URLs come from the API's asset listing rather than from a
+ *    field inside `update-manifest.json`, so a tampered manifest cannot redirect the download;
  *  - response bodies are size-capped, so a hostile or broken endpoint cannot exhaust memory.
  */
-object GithubUpdateSource {
+object UpdateSourceClient {
 
     private const val LOG_TAG = "AppUpdate"
-
-    private const val API_HOST = "api.github.com"
-    private const val RELEASE_HOST = "github.com"
-    private const val CDN_HOST = "objects.githubusercontent.com"
 
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val READ_TIMEOUT_MS = 20_000
@@ -35,25 +35,54 @@ object GithubUpdateSource {
 
     val userAgent: String = "JugglucoNG/${BuildConfig.BASE_VERSION_NAME} (Android)"
 
-    /** Any `https://github.com/<owner>/<repo>/releases/download/...` URL. */
-    private val ASSET_URL = Regex("^https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/releases/download/")
-
     /**
-     * Looks for a release in [repository] (`owner/repo`) that is newer than the running build
-     * and carries an artifact for this applicationId.
+     * Looks for something newer than the running build at [source] (any https URL).
      *
      * Pre-releases are skipped. The project publishes everything as a full release, so a channel
      * setting would have been a picker with one real option; if that changes, filter here.
      */
-    fun check(repository: String): UpdateCheckResult {
+    fun check(source: String): UpdateCheckResult {
+        return when (val resolved = UpdateSource.resolve(source)) {
+            null -> UpdateCheckResult.Failed(UpdateError.PARSE)
+            is UpdateSource.Resolved.GithubReleases -> checkGithub(resolved.apiUrl)
+            is UpdateSource.Resolved.Document -> checkDocument(resolved.url)
+        }
+    }
+
+    /** A source that is not a releases API: one document, shape decides how it is read. */
+    private fun checkDocument(url: String): UpdateCheckResult {
+        val body = when (val response = getText(url, accept = "application/json")) {
+            is TextResponse.Ok -> response.body
+            is TextResponse.Error -> return UpdateCheckResult.Failed(response.error)
+        }
+        val trimmed = body.trimStart()
+        // A releases array can be served from anywhere — a mirror, a proxy, a cached copy.
+        if (trimmed.startsWith("[")) return releasesResult(body, assetUrlsFromApi = true)
+
+        val manifest = GithubReleaseParser.parseManifest(body)
+            ?: return UpdateCheckResult.Failed(UpdateError.PARSE)
+        val update = GithubReleaseParser.fromManifest(
+            manifest = manifest,
+            manifestUrl = url,
+            applicationId = BuildConfig.APPLICATION_ID,
+            deviceSdk = Build.VERSION.SDK_INT
+        ) ?: return UpdateCheckResult.Failed(UpdateError.NO_ARTIFACT)
+        return verdictFor(update)
+    }
+
+    private fun checkGithub(apiUrl: String): UpdateCheckResult {
+        val separator = if (apiUrl.contains('?')) "&" else "?"
         val body = when (val response = getText(
-            url = "https://$API_HOST/repos/$repository/releases?per_page=$MAX_RELEASES",
+            url = "$apiUrl${separator}per_page=$MAX_RELEASES",
             accept = "application/vnd.github+json"
         )) {
             is TextResponse.Ok -> response.body
             is TextResponse.Error -> return UpdateCheckResult.Failed(response.error)
         }
+        return releasesResult(body, assetUrlsFromApi = true)
+    }
 
+    private fun releasesResult(body: String, assetUrlsFromApi: Boolean): UpdateCheckResult {
         val releases = runCatching { GithubReleaseParser.parseReleases(body) }.getOrNull()
             ?: return UpdateCheckResult.Failed(UpdateError.PARSE)
 
@@ -64,7 +93,7 @@ object GithubUpdateSource {
         // build than the newest published one, which is never what the user wants.
         for (release in candidates) {
             val manifest = release.asset(GithubReleaseParser.MANIFEST_ASSET)
-                ?.let { fetchManifest(it.downloadUrl, repository) }
+                ?.let { fetchManifest(it.downloadUrl) }
             val update = GithubReleaseParser.toAvailableUpdate(
                 release = release,
                 manifest = manifest,
@@ -72,51 +101,37 @@ object GithubUpdateSource {
                 deviceSdk = Build.VERSION.SDK_INT
             ) ?: continue
 
-            if (!isTrustedAssetUrl(update.artifact.downloadUrl, repository)) {
-                Log.w(LOG_TAG, "rejecting release asset from unexpected host")
+            if (!isDownloadableUrl(update.artifact.downloadUrl)) {
+                Log.w(LOG_TAG, "rejecting release asset with a non-https URL")
                 return UpdateCheckResult.Failed(UpdateError.NO_ARTIFACT)
             }
-            return if (GithubReleaseParser.isNewerThanInstalled(
-                    update = update,
-                    installedVersionCode = BuildConfig.VERSION_CODE,
-                    installedVersionName = BuildConfig.BASE_VERSION_NAME
-                )
-            ) {
-                UpdateCheckResult.Available(update)
-            } else {
-                UpdateCheckResult.UpToDate
-            }
+            return verdictFor(update)
         }
         return UpdateCheckResult.Failed(UpdateError.NO_ARTIFACT)
     }
 
-    private fun fetchManifest(url: String, repository: String): GithubReleaseParser.UpdateManifest? {
-        if (!isTrustedAssetUrl(url, repository)) return null
+    private fun verdictFor(update: AvailableUpdate): UpdateCheckResult =
+        if (GithubReleaseParser.isNewerThanInstalled(
+                update = update,
+                installedVersionCode = BuildConfig.VERSION_CODE,
+                installedVersionName = BuildConfig.BASE_VERSION_NAME
+            )
+        ) {
+            UpdateCheckResult.Available(update)
+        } else {
+            UpdateCheckResult.UpToDate
+        }
+
+    private fun fetchManifest(url: String): GithubReleaseParser.UpdateManifest? {
+        if (!isDownloadableUrl(url)) return null
         val response = getText(url, accept = "application/json")
         if (response !is TextResponse.Ok) return null
         return GithubReleaseParser.parseManifest(response.body)
     }
 
-    /**
-     * True for URLs we are willing to open: HTTPS, github.com, under a release download path.
-     *
-     * Pass [repository] to pin it to one project — done for every URL that came out of a live
-     * API response. The unpinned form is for re-validating a URL cached from an earlier session,
-     * where the source setting may since have changed.
-     */
-    fun isTrustedAssetUrl(url: String, repository: String? = null): Boolean {
-        if (repository != null) {
-            if (!url.startsWith("https://$RELEASE_HOST/$repository/releases/download/")) return false
-        } else if (!ASSET_URL.containsMatchIn(url)) {
-            return false
-        }
-        val host = runCatching { URL(url).host }.getOrNull() ?: return false
-        return host == RELEASE_HOST
-    }
-
-    /** Redirect targets are checked too, since GitHub bounces asset downloads to its CDN. */
-    fun isTrustedDownloadHost(host: String?): Boolean =
-        host == RELEASE_HOST || host == CDN_HOST
+    /** The only transport rule left: it has to be HTTPS. */
+    fun isDownloadableUrl(url: String): Boolean =
+        runCatching { URL(url).protocol.equals("https", ignoreCase = true) }.getOrDefault(false)
 
     private sealed interface TextResponse {
         data class Ok(val body: String) : TextResponse
@@ -153,13 +168,10 @@ object GithubUpdateSource {
         }
     }
 
-    /** Opens an HTTPS connection with our headers and timeouts, rejecting non-GitHub hosts. */
+    /** Opens an HTTPS connection with our headers and timeouts. Plain HTTP is refused. */
     internal fun openConnection(url: String): HttpURLConnection {
         val parsed = URL(url)
         require(parsed.protocol == "https") { "refusing non-https update URL" }
-        require(parsed.host == API_HOST || isTrustedDownloadHost(parsed.host)) {
-            "refusing update URL outside GitHub"
-        }
         val connection = parsed.openConnection() as HttpURLConnection
         require(connection is HttpsURLConnection) { "refusing non-TLS update connection" }
         connection.connectTimeout = CONNECT_TIMEOUT_MS

@@ -30,7 +30,7 @@ class AppUpdateCheckWorker(
         if (!AppUpdateSettings.isAutoCheckEnabled(context)) return Result.success()
         if (!UpdateEligibility.isSupported(context)) return Result.success()
 
-        val result = GithubUpdateSource.check(AppUpdateSettings.updateSource(context))
+        val result = UpdateSourceClient.check(AppUpdateSettings.updateSource(context))
         AppUpdateSettings.recordCheck(context, result, System.currentTimeMillis())
         AppUpdateController.refreshFromSettings(context)
 

@@ -2399,8 +2399,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_error_install_failed">Installationen slutfördes inte.</string>
     <string name="app_updates_error_cancelled">Installationen avbröts.</string>
     <string name="app_updates_source_title">Uppdateringskälla</string>
-    <string name="app_updates_source_help">Versioner läses från det här GitHub-projektet, som ägare/förråd. En uppdatering kan bara installeras om den är signerad med samma nyckel som ditt nuvarande bygge.</string>
-    <string name="app_updates_source_invalid">Använd formen ägare/förråd.</string>
+    <string name="app_updates_source_help">Vilken https-adress som helst: ett GitHub-projekt, en fork eller spegling av det, eller ditt eget uppdateringsmanifest. En uppdatering kan bara installeras om den är signerad med samma nyckel som ditt nuvarande bygge — det är det som skyddar dig, inte varifrån den kom.</string>
+    <string name="app_updates_source_invalid">Ange en https://-adress.</string>
     <string name="app_updates_source_reset">Använd standard</string>
     <string name="app_updates_action_save">Spara</string>
 </resources>

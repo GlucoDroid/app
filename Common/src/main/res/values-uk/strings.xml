@@ -2471,8 +2471,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_error_install_failed">Встановлення не завершено.</string>
     <string name="app_updates_error_cancelled">Встановлення скасовано.</string>
     <string name="app_updates_source_title">Джерело оновлень</string>
-    <string name="app_updates_source_help">Випуски читаються з цього проєкту GitHub у вигляді власник/репозиторій. Оновлення встановиться, лише якщо підписане тим самим ключем, що й поточна збірка.</string>
-    <string name="app_updates_source_invalid">Укажіть у вигляді власник/репозиторій.</string>
+    <string name="app_updates_source_help">Будь-яка адреса https: проєкт на GitHub, його форк чи дзеркало, або власний маніфест оновлень. Оновлення встановиться, лише якщо підписане тим самим ключем, що й поточна збірка, — захищає саме це, а не джерело.</string>
+    <string name="app_updates_source_invalid">Введіть адресу, що починається з https://.</string>
     <string name="app_updates_source_reset">За умовчанням</string>
     <string name="app_updates_action_save">Зберегти</string>
 </resources>

@@ -2427,8 +2427,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="app_updates_error_install_failed">Kurulum tamamlanmadı.</string>
     <string name="app_updates_error_cancelled">Kurulum iptal edildi.</string>
     <string name="app_updates_source_title">Güncelleme kaynağı</string>
-    <string name="app_updates_source_help">Sürümler bu GitHub projesinden, sahip/depo biçiminde okunur. Bir güncelleme yalnızca mevcut yapınızla aynı anahtarla imzalandıysa kurulabilir.</string>
-    <string name="app_updates_source_invalid">sahip/depo biçimini kullanın.</string>
+    <string name="app_updates_source_help">Herhangi bir https adresi: bir GitHub projesi, onun bir çatalı veya aynası ya da kendi güncelleme manifestiniz. Bir güncelleme yalnızca mevcut yapınızla aynı anahtarla imzalandıysa kurulabilir — sizi koruyan bu, kaynağın nerede olduğu değil.</string>
+    <string name="app_updates_source_invalid">https:// ile başlayan bir adres girin.</string>
     <string name="app_updates_source_reset">Varsayılanı kullan</string>
     <string name="app_updates_action_save">Kaydet</string>
 </resources>

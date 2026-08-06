@@ -2405,8 +2405,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_error_install_failed">L\'installation ne s\'est pas terminée.</string>
     <string name="app_updates_error_cancelled">Installation annulée.</string>
     <string name="app_updates_source_title">Source des mises à jour</string>
-    <string name="app_updates_source_help">Les versions sont lues depuis ce projet GitHub, sous la forme propriétaire/dépôt. Une mise à jour ne peut s\'installer que si elle est signée avec la même clé que votre build actuel.</string>
-    <string name="app_updates_source_invalid">Utilisez la forme propriétaire/dépôt.</string>
+    <string name="app_updates_source_help">N\'importe quelle adresse https : un projet GitHub, un fork ou un miroir, ou votre propre manifeste de mise à jour. Une mise à jour ne peut s\'installer que si elle est signée avec la même clé que votre build actuel — c\'est cela qui vous protège, pas la provenance.</string>
+    <string name="app_updates_source_invalid">Saisissez une adresse https://.</string>
     <string name="app_updates_source_reset">Valeur par défaut</string>
     <string name="app_updates_action_save">Enregistrer</string>
 </resources>

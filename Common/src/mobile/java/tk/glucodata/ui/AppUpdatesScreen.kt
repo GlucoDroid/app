@@ -20,12 +20,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.DeveloperMode
@@ -38,11 +41,14 @@ import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -58,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -151,50 +158,58 @@ fun AppUpdatesScreen(navController: NavController) {
                 } ?: stringResource(R.string.app_updates_latest_none),
                 icon = Icons.Filled.NewReleases,
                 iconTint = MaterialTheme.colorScheme.secondary,
-                position = CardPosition.MIDDLE
-            )
-            SettingsItem(
-                title = stringResource(R.string.app_updates_source_title),
-                subtitle = state.updateSource,
-                showArrow = true,
-                icon = Icons.Filled.Link,
-                iconTint = MaterialTheme.colorScheme.secondary,
-                position = CardPosition.BOTTOM,
-                onClick = { showSourceDialog = true }
+                position = CardPosition.BOTTOM
             )
 
-            // --- Status + the one action --------------------------------------------
+            // --- Status and the action ------------------------------------------------
+            // The card only appears when there is something to act on. "You're on the latest
+            // version" does not need a container of its own — it is a caption under the button
+            // that produced it, not a surface competing with the rest of the screen.
+            val hasStatusCard = state.error != null ||
+                state.available != null ||
+                state.stage != UpdateStage.IDLE
+
             Spacer(Modifier.height(24.dp))
 
-            UpdateStatusCard(
-                state = state,
-                onDownload = { AppUpdateController.startDownload(context) },
-                onCancel = { AppUpdateController.cancelDownload(context) },
-                onInstall = {
-                    if (UpdateEligibility.canRequestPackageInstalls(context)) {
-                        AppUpdateController.install(context)
-                    } else {
+            if (hasStatusCard) {
+                UpdateStatusCard(
+                    state = state,
+                    onDownload = { AppUpdateController.startDownload(context) },
+                    onCancel = { AppUpdateController.cancelDownload(context) },
+                    onInstall = {
+                        if (UpdateEligibility.canRequestPackageInstalls(context)) {
+                            AppUpdateController.install(context)
+                        } else {
+                            context.launchInstallPermission(installPermissionLauncher::launch)
+                        }
+                    },
+                    onGrantInstallPermission = {
                         context.launchInstallPermission(installPermissionLauncher::launch)
                     }
-                },
-                onGrantInstallPermission = {
-                    context.launchInstallPermission(installPermissionLauncher::launch)
-                }
-            )
+                )
+                Spacer(Modifier.height(12.dp))
+            }
 
-            Spacer(Modifier.height(2.dp))
-            SettingsItem(
-                title = stringResource(R.string.app_updates_action_check),
-                subtitle = if (state.checking) {
-                    stringResource(R.string.app_updates_state_checking)
-                } else {
-                    stringResource(R.string.app_updates_last_checked, state.lastCheckedLabel())
-                },
-                icon = Icons.Filled.Refresh,
-                iconTint = MaterialTheme.colorScheme.primary,
-                position = CardPosition.SINGLE,
+            CheckForUpdatesButton(
+                checking = state.checking,
+                // Downloading or installing is the primary action while a card offers it; the
+                // check drops to the quieter treatment rather than competing with it.
+                emphasised = !hasStatusCard,
                 onClick = { AppUpdateController.checkNow(context) }
             )
+
+            if (!hasStatusCard && !state.checking && state.lastCheckAtMillis > 0L) {
+                Text(
+                    text = stringResource(R.string.app_updates_up_to_date_title) +
+                        " · " + stringResource(R.string.app_updates_last_checked, state.lastCheckedLabel()),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp, start = 16.dp, end = 16.dp)
+                )
+            }
 
             // --- Preferences ---------------------------------------------------------
             SectionLabel(stringResource(R.string.app_updates_section_preferences))
@@ -205,8 +220,17 @@ fun AppUpdatesScreen(navController: NavController) {
                 checked = state.autoCheckEnabled,
                 icon = Icons.Filled.NotificationsActive,
                 iconTint = MaterialTheme.colorScheme.secondary,
-                position = CardPosition.SINGLE,
+                position = CardPosition.TOP,
                 onCheckedChange = { AppUpdateController.setAutoCheckEnabled(context, it) }
+            )
+            SettingsItem(
+                title = stringResource(R.string.app_updates_source_title),
+                subtitle = state.updateSource,
+                showArrow = true,
+                icon = Icons.Filled.Link,
+                iconTint = MaterialTheme.colorScheme.secondary,
+                position = CardPosition.BOTTOM,
+                onClick = { showSourceDialog = true }
             )
 
             val notes = state.available?.notes?.trim().orEmpty()
@@ -242,7 +266,40 @@ fun AppUpdatesScreen(navController: NavController) {
 }
 
 /**
- * Status only. "Check now" lives in its own row below, so the idle card carries no buttons at
+ * The screen's action, in the same shape as every other full-width action in this app
+ * (Nightscout's "Test connection" / "Send now"): 56 dp tall, icon, 10 dp, label. An action is a
+ * button — rendering it as a settings row makes it look like a destination and gives it a
+ * chevron's worth of affordance instead of a button's.
+ */
+@Composable
+private fun CheckForUpdatesButton(
+    checking: Boolean,
+    emphasised: Boolean,
+    onClick: () -> Unit
+) {
+    val modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 56.dp)
+    val content: @Composable RowScope.() -> Unit = {
+        if (checking) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(10.dp))
+            Text(stringResource(R.string.app_updates_state_checking))
+        } else {
+            Icon(Icons.Filled.Refresh, contentDescription = null)
+            Spacer(Modifier.width(10.dp))
+            Text(stringResource(R.string.app_updates_action_check))
+        }
+    }
+    if (emphasised) {
+        Button(onClick = onClick, enabled = !checking, modifier = modifier, content = content)
+    } else {
+        OutlinedButton(onClick = onClick, enabled = !checking, modifier = modifier, content = content)
+    }
+}
+
+/**
+ * Status only. The action lives in its own button below, so the idle card carries no buttons at
  * all — the download and install flows are the only states with something to press.
  */
 @Composable
@@ -324,6 +381,8 @@ private fun UpdateStatusCard(
             )
         }
 
+        // Reached only when there is something to act on — the caller skips the card entirely
+        // for "checking" and "up to date", which are the button's business, not a surface's.
         UpdateStage.IDLE -> when {
             state.error != null -> AppUpdateCard(
                 accent = MaterialTheme.colorScheme.error,
@@ -351,20 +410,7 @@ private fun UpdateStatusCard(
                 )
             }
 
-            state.checking -> AppUpdateCard(
-                accent = MaterialTheme.colorScheme.primary,
-                title = stringResource(R.string.app_updates_checking_title),
-                body = stringResource(R.string.app_updates_checking_body),
-                icon = Icons.Filled.CloudDownload,
-                content = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
-            )
-
-            else -> AppUpdateCard(
-                accent = MaterialTheme.colorScheme.primary,
-                title = stringResource(R.string.app_updates_up_to_date_title),
-                body = null,
-                icon = Icons.Filled.CheckCircle
-            )
+            else -> Unit
         }
     }
 }

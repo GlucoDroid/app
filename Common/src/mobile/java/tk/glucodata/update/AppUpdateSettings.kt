@@ -28,7 +28,7 @@ object AppUpdateSettings {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /**
-     * Whether the one-time "JugglucoNG can check GitHub for updates" card has been answered.
+     * Whether the one-time "JugglucoNG can check for updates" card has been answered.
      * Unanswered means the card is still owed to the user — including to users upgrading from a
      * build that had no updater at all.
      */
@@ -41,7 +41,7 @@ object AppUpdateSettings {
 
     /**
      * Off until the user says yes. An update check is an outbound request that reveals the
-     * device's IP to GitHub, so it is opt-in rather than opt-out.
+     * device's IP to the update source, so it is opt-in rather than opt-out.
      */
     fun isAutoCheckEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_AUTO_CHECK, false)
@@ -53,21 +53,21 @@ object AppUpdateSettings {
             .apply()
     }
 
-    /** `owner/repository` releases are read from. Defaults to this build's own project. */
+    /** The https URL releases are read from. Defaults to this build's own project. */
     fun updateSource(context: Context): String {
         val stored = prefs(context).getString(KEY_SOURCE, null)
         return stored?.takeIf { UpdateSource.isValid(it) } ?: defaultUpdateSource
     }
 
-    val defaultUpdateSource: String get() = BuildConfig.UPDATE_REPO
+    val defaultUpdateSource: String get() = "https://github.com/${BuildConfig.UPDATE_REPO}"
 
     fun isDefaultUpdateSource(context: Context): Boolean =
         updateSource(context) == defaultUpdateSource
 
     /** Pass null to go back to the default. Invalid values are ignored rather than stored. */
-    fun setUpdateSource(context: Context, repository: String?) {
+    fun setUpdateSource(context: Context, url: String?) {
         val editor = prefs(context).edit()
-        val cleaned = repository?.let(UpdateSource::sanitize)
+        val cleaned = url?.let(UpdateSource::sanitize)
         if (cleaned == null || cleaned == defaultUpdateSource) {
             editor.remove(KEY_SOURCE)
         } else if (UpdateSource.isValid(cleaned)) {
@@ -132,8 +132,8 @@ object AppUpdateSettings {
     private fun decode(raw: String): AvailableUpdate? = runCatching {
         val obj = JSONObject(raw)
         val url = obj.getString("downloadUrl")
-        // A cached entry survives app restarts; re-check the host before trusting it again.
-        if (!GithubUpdateSource.isTrustedAssetUrl(url)) return@runCatching null
+        // A cached entry survives app restarts, and the source setting may have changed since.
+        if (!UpdateSourceClient.isDownloadableUrl(url)) return@runCatching null
         AvailableUpdate(
             versionName = obj.getString("versionName"),
             versionCode = if (obj.has("versionCode")) obj.getInt("versionCode") else null,

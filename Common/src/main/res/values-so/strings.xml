@@ -2602,8 +2602,8 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="app_updates_error_install_failed">Rakibaaddu ma dhammaystirmin.</string>
     <string name="app_updates_error_cancelled">Rakibaadda waa la joojiyay.</string>
     <string name="app_updates_source_title">Isha cusboonaysiinta</string>
-    <string name="app_updates_source_help">Noocyada waxaa laga akhriyaa mashruucan GitHub, qaabka milkiile/kayd. Cusboonaysiin waxay rakibmi kartaa oo keliya haddii lagu saxeexay furaha isku mid ah ee dhismahaaga hadda.</string>
-    <string name="app_updates_source_invalid">Isticmaal qaabka milkiile/kayd.</string>
+    <string name="app_updates_source_help">Cinwaan kasta oo https ah: mashruuc GitHub, fargeeto ama muraayad ka mid ah, ama manifesto cusboonaysiin oo aad leedahay. Cusboonaysiin waxay rakibmi kartaa oo keliya haddii lagu saxeexay furaha isku mid ah ee dhismahaaga hadda — taasi ayaa ku ilaalinaysa, ee ma aha meesha ay ka timid.</string>
+    <string name="app_updates_source_invalid">Geli cinwaan https:// ah.</string>
     <string name="app_updates_source_reset">Isticmaal caadiga</string>
     <string name="app_updates_action_save">Kaydi</string>
 </resources>

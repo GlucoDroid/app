@@ -2442,8 +2442,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="app_updates_error_install_failed">De installatie is niet voltooid.</string>
     <string name="app_updates_error_cancelled">Installatie geannuleerd.</string>
     <string name="app_updates_source_title">Updatebron</string>
-    <string name="app_updates_source_help">Releases worden gelezen uit dit GitHub-project, als eigenaar/repository. Een update kan alleen worden geïnstalleerd als die met dezelfde sleutel is ondertekend als je huidige build.</string>
-    <string name="app_updates_source_invalid">Gebruik de vorm eigenaar/repository.</string>
+    <string name="app_updates_source_help">Elk https-adres: een GitHub-project, een fork of mirror daarvan, of je eigen updatemanifest. Een update kan alleen worden geïnstalleerd als die met dezelfde sleutel is ondertekend als je huidige build — dát beschermt je, niet de herkomst.</string>
+    <string name="app_updates_source_invalid">Voer een https://-adres in.</string>
     <string name="app_updates_source_reset">Standaard gebruiken</string>
     <string name="app_updates_action_save">Opslaan</string>
 </resources>

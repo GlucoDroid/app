@@ -2415,8 +2415,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_error_install_failed">安装未能完成。</string>
     <string name="app_updates_error_cancelled">已取消安装。</string>
     <string name="app_updates_source_title">更新源</string>
-    <string name="app_updates_source_help">版本从这个 GitHub 项目读取，格式为 拥有者/仓库。只有使用与当前版本相同的签名密钥，更新才能安装。</string>
-    <string name="app_updates_source_invalid">请使用 拥有者/仓库 的格式。</string>
+    <string name="app_updates_source_help">任意 https 地址：GitHub 项目、它的分支或镜像，或你自己的更新清单。只有使用与当前版本相同的签名密钥，更新才能安装——保护你的是这一点，而不是来源。</string>
+    <string name="app_updates_source_invalid">请输入 https:// 开头的地址。</string>
     <string name="app_updates_source_reset">使用默认值</string>
     <string name="app_updates_action_save">保存</string>
 </resources>

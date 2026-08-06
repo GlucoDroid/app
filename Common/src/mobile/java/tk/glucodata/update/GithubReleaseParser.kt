@@ -47,7 +47,12 @@ object GithubReleaseParser {
     data class ManifestArtifact(
         val fileName: String,
         val sizeBytes: Long,
-        val sha256: String?
+        val sha256: String?,
+        /**
+         * Only used by a self-hosted manifest, which has no asset listing to take URLs from.
+         * May be relative to the manifest's own location. Ignored for a GitHub source.
+         */
+        val url: String? = null
     )
 
     data class UpdateManifest(
@@ -108,7 +113,8 @@ object GithubReleaseParser {
                 artifacts[applicationId] = ManifestArtifact(
                     fileName = file,
                     sizeBytes = entry.optLong("size", 0L),
-                    sha256 = entry.optString("sha256").takeIf { it.length == 64 }?.lowercase()
+                    sha256 = entry.optString("sha256").takeIf { it.length == 64 }?.lowercase(),
+                    url = entry.optString("url").takeIf { it.isNotBlank() && it != "null" }
                 )
             }
         }
@@ -159,6 +165,37 @@ object GithubReleaseParser {
                 // The API's own size wins; a manifest size is only a cross-check.
                 sizeBytes = asset.sizeBytes.takeIf { it > 0 } ?: manifestArtifact?.sizeBytes ?: 0L,
                 sha256 = manifestArtifact?.sha256
+            )
+        )
+    }
+
+    /**
+     * Builds an update from a manifest that is not attached to a GitHub release — a self-hosted
+     * `update-manifest.json`. Artifact URLs come from the manifest itself and are resolved
+     * against [manifestUrl], so a manifest can sit next to its APKs and use relative paths.
+     */
+    fun fromManifest(
+        manifest: UpdateManifest,
+        manifestUrl: String,
+        applicationId: String,
+        deviceSdk: Int
+    ): AvailableUpdate? {
+        val artifact = manifest.artifacts[applicationId] ?: return null
+        if (manifest.minSdk > 0 && deviceSdk < manifest.minSdk) return null
+        val rawUrl = artifact.url ?: artifact.fileName
+        val downloadUrl = UpdateSource.resolveArtifactUrl(manifestUrl, rawUrl) ?: return null
+        return AvailableUpdate(
+            versionName = manifest.versionName,
+            versionCode = manifest.versionCode,
+            tagName = manifest.versionName,
+            notes = manifest.notes.orEmpty(),
+            publishedAtMillis = 0L,
+            prerelease = false,
+            artifact = UpdateArtifact(
+                fileName = artifact.fileName,
+                downloadUrl = downloadUrl,
+                sizeBytes = artifact.sizeBytes,
+                sha256 = artifact.sha256
             )
         )
     }

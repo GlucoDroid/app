@@ -9,7 +9,6 @@ import tk.glucodata.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
-import java.net.URL
 import java.security.MessageDigest
 
 /**
@@ -53,7 +52,7 @@ object UpdateDownloader {
         update: AvailableUpdate,
         onProgress: (Long, Long) -> Unit
     ): Outcome = withContext(Dispatchers.IO) {
-        if (!GithubUpdateSource.isTrustedAssetUrl(update.artifact.downloadUrl)) {
+        if (!UpdateSourceClient.isDownloadableUrl(update.artifact.downloadUrl)) {
             return@withContext Outcome.Failed(UpdateError.NO_ARTIFACT)
         }
 
@@ -69,18 +68,17 @@ object UpdateDownloader {
 
         var connection: HttpURLConnection? = null
         try {
-            connection = GithubUpdateSource.openConnection(update.artifact.downloadUrl)
+            connection = UpdateSourceClient.openConnection(update.artifact.downloadUrl)
             connection.setRequestProperty("Accept", "application/octet-stream")
             val code = connection.responseCode
             if (code != HttpURLConnection.HTTP_OK) {
                 Log.w(LOG_TAG, "update download failed, HTTP $code")
                 return@withContext Outcome.Failed(UpdateError.NETWORK)
             }
-            // instanceFollowRedirects took us to GitHub's asset CDN; make sure that is in fact
-            // where we ended up before writing a single byte to disk.
-            val finalHost = runCatching { URL(connection.url.toString()).host }.getOrNull()
-            if (!GithubUpdateSource.isTrustedDownloadHost(finalHost)) {
-                Log.w(LOG_TAG, "update download redirected off GitHub")
+            // Redirects are expected (GitHub bounces assets to its CDN), but a redirect must
+            // not be allowed to quietly downgrade the transfer to plain HTTP.
+            if (!UpdateSourceClient.isDownloadableUrl(connection.url.toString())) {
+                Log.w(LOG_TAG, "update download redirected to a non-https URL")
                 return@withContext Outcome.Failed(UpdateError.NETWORK)
             }
 

@@ -30,7 +30,7 @@ data class AppUpdateUiState(
     /** The one-time opt-in card has not been answered yet. */
     val introPending: Boolean = false,
     val autoCheckEnabled: Boolean = false,
-    /** `owner/repository` releases are read from. */
+    /** The https URL releases are read from. */
     val updateSource: String = "",
     val isDefaultUpdateSource: Boolean = true,
     val checking: Boolean = false,
@@ -148,10 +148,10 @@ object AppUpdateController {
 
     fun setAutoCheckEnabled(context: Context, enabled: Boolean) = answerIntro(context, enabled)
 
-    /** Points the updater at a different `owner/repository`. */
-    fun setUpdateSource(context: Context, repository: String?) {
+    /** Points the updater at a different https source. Pass null to restore the default. */
+    fun setUpdateSource(context: Context, url: String?) {
         val appContext = context.applicationContext
-        AppUpdateSettings.setUpdateSource(appContext, repository)
+        AppUpdateSettings.setUpdateSource(appContext, url)
         // Whatever the previous source found no longer applies.
         AppUpdateSettings.clearCachedUpdate(appContext)
         AppUpdateSettings.setDismissedIdentity(appContext, null)
@@ -166,7 +166,7 @@ object AppUpdateController {
         if (_state.value.checking || !UpdateEligibility.isSupported(appContext)) return
         _state.update { it.copy(checking = true, error = null) }
         scope.launch {
-            val result = GithubUpdateSource.check(AppUpdateSettings.updateSource(appContext))
+            val result = UpdateSourceClient.check(AppUpdateSettings.updateSource(appContext))
             AppUpdateSettings.recordCheck(appContext, result, System.currentTimeMillis())
             // The dismissal is keyed by release identity, so finding the same release again
             // keeps the card hidden while a genuinely new one still gets to show up once.

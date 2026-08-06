@@ -2514,8 +2514,8 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="app_updates_error_install_failed">Суулгалт дуусаагүй.</string>
     <string name="app_updates_error_cancelled">Суулгалтыг цуцаллаа.</string>
     <string name="app_updates_source_title">Шинэчлэлтийн эх сурвалж</string>
-    <string name="app_updates_source_help">Хувилбаруудыг энэ GitHub төслөөс эзэмшигч/сан хэлбэрээр уншина. Шинэчлэлт нь одоогийн хувилбартай ижил түлхүүрээр гарын үсэг зурагдсан тохиолдолд л суулгагдана.</string>
-    <string name="app_updates_source_invalid">эзэмшигч/сан хэлбэрээр бичнэ үү.</string>
+    <string name="app_updates_source_help">Дурын https хаяг: GitHub төсөл, түүний салбар эсвэл толь, эсвэл өөрийн шинэчлэлтийн манифест. Шинэчлэлт нь одоогийн хувилбартай ижил түлхүүрээр гарын үсэг зурагдсан тохиолдолд л суулгагдана — таныг хамгаалж байгаа нь эх сурвалж биш, энэ юм.</string>
+    <string name="app_updates_source_invalid">https:// -ээр эхэлсэн хаяг оруулна уу.</string>
     <string name="app_updates_source_reset">Өгөгдмөлийг ашиглах</string>
     <string name="app_updates_action_save">Хадгалах</string>
 </resources>
