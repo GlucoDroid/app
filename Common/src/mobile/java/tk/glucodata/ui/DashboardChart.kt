@@ -6,7 +6,9 @@ import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.os.Vibrator
 import android.os.VibrationEffect
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
@@ -23,6 +25,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -116,6 +121,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -147,6 +153,7 @@ import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
 import tk.glucodata.data.prediction.ForecastDoseRecommendation
 import tk.glucodata.data.prediction.ForecastDoseRecommendationKind
 import tk.glucodata.ui.getDisplayValues
+import tk.glucodata.ui.util.ExpressiveMotion
 import tk.glucodata.ui.util.GlucoseFormatter
 import tk.glucodata.ui.viewmodel.SensorColors
 import kotlin.math.abs
@@ -4194,18 +4201,30 @@ fun InteractiveGlucoseChart(
             // --- DATE HEADER OVERLAY ---
             // Show only if NOT today AND not "recent" (to avoid showing date when day just started)
             val now = System.currentTimeMillis()
-            val dayCheckFormat = java.text.SimpleDateFormat("yyyyDDD", java.util.Locale.getDefault())
-            val isToday = dayCheckFormat.format(java.util.Date(now)) == dayCheckFormat.format(java.util.Date(centerTime))
+            // Bucketed to a local day so panning within one day neither reformats the label
+            // nor restarts the transition below — centerTime itself changes every frame.
+            val headerDay = localDayIndex(centerTime)
+            val isToday = headerDay == localDayIndex(now)
             val isRecent = abs(now - centerTime) < 4 * 60 * 60 * 1000L // 4 Hour buffer for "just started" days
             val showHeaderDate = !isToday && !isRecent
-            val headerDate = remember(centerTime) {
+            val headerDate = remember(headerDay) {
                 java.text.SimpleDateFormat("EEEE, d MMMM", java.util.Locale.getDefault()).format(java.util.Date(centerTime))
             }
 
             androidx.compose.animation.AnimatedVisibility(
                 visible = showHeaderDate,
-                enter = fadeIn(),
-                exit = fadeOut(),
+                // Grows out of its own top-right corner, where it is anchored, so it reads
+                // as the chart putting the label up rather than a rectangle materialising.
+                enter = fadeIn(ExpressiveMotion.defaultEffects()) + scaleIn(
+                    animationSpec = ExpressiveMotion.defaultSpatial(),
+                    initialScale = 0.85f,
+                    transformOrigin = TransformOrigin(1f, 0f)
+                ),
+                exit = fadeOut(ExpressiveMotion.fastEffects()) + scaleOut(
+                    animationSpec = ExpressiveMotion.fastSpatial(),
+                    targetScale = 0.85f,
+                    transformOrigin = TransformOrigin(1f, 0f)
+                ),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 16.dp, end = 16.dp)
@@ -4213,18 +4232,40 @@ fun InteractiveGlucoseChart(
                 Box(
                     modifier = Modifier
                         .height(32.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surfaceContainerHigh,
-                            RoundedCornerShape(8.dp)
-                        )
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .padding(horizontal = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = headerDate,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    // Crossing midnight slides the new date in from the side the pan came
+                    // from, so the label moves with the finger instead of blinking. The
+                    // pill itself is outside this, so only the text travels; SizeTransform
+                    // still morphs its width as the day names change length.
+                    AnimatedContent(
+                        targetState = headerDay to headerDate,
+                        transitionSpec = {
+                            val backwards = targetState.first < initialState.first
+                            val entryEdge = if (backwards) -1 else 1
+                            val enter = slideInHorizontally(ExpressiveMotion.defaultSpatial()) {
+                                entryEdge * it / 2
+                            } + fadeIn(ExpressiveMotion.defaultEffects())
+                            val exit = slideOutHorizontally(ExpressiveMotion.defaultSpatial()) {
+                                -entryEdge * it / 2
+                            } + fadeOut(ExpressiveMotion.fastEffects())
+                            enter togetherWith exit using SizeTransform(clip = false) { _, _ ->
+                                ExpressiveMotion.defaultSpatial()
+                            }
+                        },
+                        label = "chartDateHeader"
+                    ) { (_, label) ->
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
                 }
             }
 
@@ -4681,10 +4722,19 @@ private fun formatRemainingDuration(context: android.content.Context, remainingM
 }
 
 /** Shared spring for the active-insulin chip's size and corner morph, so they move as one. */
-private fun <T> activeInsulinMotionSpec() = spring<T>(
-    dampingRatio = 0.85f,
-    stiffness = Spring.StiffnessMediumLow
-)
+private fun <T> activeInsulinMotionSpec() = ExpressiveMotion.defaultSpatial<T>()
+
+/**
+ * Which local calendar day a timestamp falls in, as a day number.
+ *
+ * Cheap enough to call on every pan frame, unlike the `SimpleDateFormat` comparison it
+ * replaced. The DST-shortened day is off by an hour at its boundary, which is invisible
+ * for a header label.
+ */
+private fun localDayIndex(millis: Long): Long {
+    val zone = java.util.TimeZone.getDefault()
+    return Math.floorDiv(millis + zone.getOffset(millis), 86_400_000L)
+}
 
 private fun resolveGraphRangeDefaults(
     requestedLow: Float,
