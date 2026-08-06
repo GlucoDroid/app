@@ -40,6 +40,12 @@ lint/generated/
 # Kotlin
 *.kotlin_module
 
+# Compiled JVM artifacts
+*.class
+
+# Local agent scratch reports
+.claude-scratch-*_report.md
+
 # Crash logs
 hs_err_pid*
 

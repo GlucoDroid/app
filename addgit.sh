@@ -1,5 +1,4 @@
 git add ./LICENSE.txt
-git add ./tasks.txt
 git add ./gradlew.bat
 git add ./gradle.properties.bak
 git add ./settings.gradle.bak
