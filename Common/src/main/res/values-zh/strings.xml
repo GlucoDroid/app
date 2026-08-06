@@ -1581,6 +1581,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">配对胰岛素</string>
     <string name="journal_dose_pair_carbs">配对碳水</string>
     <string name="journal_dose_suggested_insulin">建议 %1$s U</string>
+    <string name="dashboard_forecast_recommendation_carbs">≈ 碳水：%1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≈ 胰岛素：%1$s U</string>
     <string name="journal_dose_covers_carbs">覆盖 %1$s g</string>
     <string name="journal_dose_food_component">餐食 %1$s</string>
     <string name="journal_dose_correction_component">校正 %1$s</string>

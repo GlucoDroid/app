@@ -1593,6 +1593,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="journal_dose_pair_insulin">İnsülini eşleştir</string>
     <string name="journal_dose_pair_carbs">Karbonhidratı eşleştir</string>
     <string name="journal_dose_suggested_insulin">%1$s U önerildi</string>
+    <string name="dashboard_forecast_recommendation_carbs">≈ Karbonhidrat: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≈ İnsülin: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g karşılar</string>
     <string name="journal_dose_food_component">Yemek %1$s</string>
     <string name="journal_dose_correction_component">Düzeltme %1$s</string>

@@ -1640,6 +1640,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Додати інсулін</string>
     <string name="journal_dose_pair_carbs">Додати вуглеводи</string>
     <string name="journal_dose_suggested_insulin">Запропоновано %1$s ОД</string>
+    <string name="dashboard_forecast_recommendation_carbs">≈ Вуглеводи: %1$s г</string>
+    <string name="dashboard_forecast_recommendation_insulin">≈ Інсулін: %1$s ОД</string>
     <string name="journal_dose_covers_carbs">Покриває %1$s г</string>
     <string name="journal_dose_food_component">Їжа %1$s</string>
     <string name="journal_dose_correction_component">Корекція %1$s</string>

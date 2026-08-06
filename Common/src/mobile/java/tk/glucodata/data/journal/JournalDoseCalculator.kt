@@ -64,15 +64,6 @@ object JournalDoseCalculator {
         return roundCarbs((insulin - correction).coerceAtLeast(0f) * carbRatio)
     }
 
-    fun carbEquivalentForInsulin(
-        insulinUnits: Float?,
-        carbRatioGramsPerUnit: Float
-    ): Float? {
-        val insulin = insulinUnits?.takeIf { it.isFinite() && it > 0f } ?: return null
-        val carbRatio = carbRatioGramsPerUnit.takeIf { it.isFinite() && it > 0f } ?: return null
-        return roundCarbs(insulin * carbRatio)
-    }
-
     private fun correctionUnits(
         glucoseMgDl: Float?,
         insulinSensitivityMgDlPerUnit: Float,

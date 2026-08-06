@@ -1565,6 +1565,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Koppla insulin</string>
     <string name="journal_dose_pair_carbs">Koppla kolhydrater</string>
     <string name="journal_dose_suggested_insulin">%1$s U föreslaget</string>
+    <string name="dashboard_forecast_recommendation_carbs">≈ Kolhydrater: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≈ Insulin: %1$s E</string>
     <string name="journal_dose_covers_carbs">%1$s g täcks</string>
     <string name="journal_dose_food_component">Mat %1$s</string>
     <string name="journal_dose_correction_component">Korrigering %1$s</string>

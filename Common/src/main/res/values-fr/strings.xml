@@ -1571,6 +1571,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Associer l\'insuline</string>
     <string name="journal_dose_pair_carbs">Associer les glucides</string>
     <string name="journal_dose_suggested_insulin">%1$s U suggérées</string>
+    <string name="dashboard_forecast_recommendation_carbs">≈ Glucides : %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≈ Insuline : %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g couverts</string>
     <string name="journal_dose_food_component">Repas %1$s</string>
     <string name="journal_dose_correction_component">Correction %1$s</string>

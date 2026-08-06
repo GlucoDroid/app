@@ -1846,6 +1846,8 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="journal_dose_pair_insulin">Isku xidh insulin</string>
     <string name="journal_dose_pair_carbs">Isku xidh karbohaydraytyada</string>
     <string name="journal_dose_suggested_insulin">%1$s U ayaa soo jeedisay</string>
+    <string name="dashboard_forecast_recommendation_carbs">≈ Kaarbohaydrayt: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≈ Insuliin: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g daboolay</string>
     <string name="journal_dose_food_component">Cuntada %1$s</string>
     <string name="journal_dose_correction_component">Sixitaan %1$s</string>

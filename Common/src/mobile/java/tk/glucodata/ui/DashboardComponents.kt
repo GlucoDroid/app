@@ -119,10 +119,13 @@ import tk.glucodata.GlucoseRangeColors
 import tk.glucodata.TrendProjection
 import tk.glucodata.Notify
 import tk.glucodata.UiRefreshBus
+import tk.glucodata.data.prediction.ForecastDoseRecommendation
+import tk.glucodata.data.prediction.ForecastDoseRecommendationKind
 import tk.glucodata.logic.TrendEngine
 import tk.glucodata.ui.util.AdaptiveContentWidthClass
 import tk.glucodata.ui.util.adaptiveContentWidthClass
 import tk.glucodata.ui.util.rememberAdaptiveWindowMetrics
+import java.text.NumberFormat
 
 private data class TrendCornerWeights(
     val topStart: Float,
@@ -280,6 +283,7 @@ fun DashboardCombinedHeader(
     veryHighThreshold: Float = fallbackVeryHighThreshold(isMmol),
     valueRangeColorsEnabled: Boolean = false,
     arrowForecastColorsEnabled: Boolean = false,
+    doseRecommendation: ForecastDoseRecommendation? = null,
     showDelta: Boolean = false,
     deltaIntervalMinutes: Int = tk.glucodata.GlucoseDelta.DEFAULT_INTERVAL_MINUTES,
     peerReadings: List<tk.glucodata.ui.viewmodel.DashboardViewModel.PeerCurrentReading> = emptyList(),
@@ -733,6 +737,14 @@ fun DashboardCombinedHeader(
                             )
                         }
 
+                        doseRecommendation?.let { recommendation ->
+                            DashboardDoseRecommendationLabel(
+                                recommendation = recommendation,
+                                contentColor = glucoseContentColor,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+
                         if (peerReadings.isNotEmpty()) {
                             DashboardHeroPeerStrip(
                                 peerReadings = peerReadings,
@@ -782,6 +794,14 @@ fun DashboardCombinedHeader(
                                 deltaText = heroDeltaText,
                                 contentColor = glucoseContentColor,
                                 iconSize = resolvedTrendIconSize
+                            )
+                        }
+
+                        doseRecommendation?.let { recommendation ->
+                            DashboardDoseRecommendationLabel(
+                                recommendation = recommendation,
+                                contentColor = glucoseContentColor,
+                                modifier = Modifier.padding(top = 4.dp)
                             )
                         }
 
@@ -995,6 +1015,39 @@ fun DashboardCombinedHeader(
             )
         }
     }
+}
+
+@Composable
+private fun DashboardDoseRecommendationLabel(
+    recommendation: ForecastDoseRecommendation,
+    contentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val amountText = remember(recommendation.kind, recommendation.amount) {
+        NumberFormat.getNumberInstance().apply {
+            minimumFractionDigits = if (recommendation.kind == ForecastDoseRecommendationKind.INSULIN) 1 else 0
+            maximumFractionDigits = if (recommendation.kind == ForecastDoseRecommendationKind.INSULIN) 1 else 0
+            isGroupingUsed = false
+        }.format(recommendation.amount)
+    }
+    val text = when (recommendation.kind) {
+        ForecastDoseRecommendationKind.CARBS -> stringResource(
+            R.string.dashboard_forecast_recommendation_carbs,
+            amountText
+        )
+        ForecastDoseRecommendationKind.INSULIN -> stringResource(
+            R.string.dashboard_forecast_recommendation_insulin,
+            amountText
+        )
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+        color = contentColor.copy(alpha = 0.78f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+    )
 }
 
 @Composable

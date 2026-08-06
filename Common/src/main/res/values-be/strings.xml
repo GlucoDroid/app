@@ -1635,6 +1635,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Дадаць інсулін</string>
     <string name="journal_dose_pair_carbs">Дадаць вугляводы</string>
     <string name="journal_dose_suggested_insulin">Прапанавана %1$s АД</string>
+    <string name="dashboard_forecast_recommendation_carbs">≈ Вугляводы: %1$s г</string>
+    <string name="dashboard_forecast_recommendation_insulin">≈ Інсулін: %1$s АД</string>
     <string name="journal_dose_covers_carbs">Пакрывае %1$s г</string>
     <string name="journal_dose_food_component">Ежа %1$s</string>
     <string name="journal_dose_correction_component">Карэкцыя %1$s</string>

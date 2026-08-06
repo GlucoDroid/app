@@ -153,7 +153,8 @@ import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
-import tk.glucodata.data.journal.JournalDoseCalculator
+import tk.glucodata.data.prediction.calculateForecastDoseRecommendation
+import tk.glucodata.data.prediction.ForecastDoseRecommendation
 import tk.glucodata.data.prediction.GlucosePredictionSeries
 import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
 import tk.glucodata.data.prediction.PredictiveSimulationSettings
@@ -432,22 +433,6 @@ fun DashboardScreen(
         }
     }
     val activeInsulinFromRemote = remoteInsulin != null && activeInsulinSummary != null
-    val activeInsulinCarbEquivalentGrams = remember(
-        activeInsulinSummary?.iobUnits,
-        journalDoseCalculatorEnabled,
-        predictionModelProfile,
-        journalNow
-    ) {
-        if (!journalDoseCalculatorEnabled) {
-            null
-        } else {
-            val carbRatio = predictionModelProfile.parametersAt(journalNow).carbRatioGramsPerUnit
-            JournalDoseCalculator.carbEquivalentForInsulin(
-                insulinUnits = activeInsulinSummary?.iobUnits,
-                carbRatioGramsPerUnit = carbRatio
-            )
-        }
-    }
     val predictionSettings = remember(
         predictiveSimulationEnabled,
         predictionTrendMomentumEnabled,
@@ -505,6 +490,41 @@ fun DashboardScreen(
             viewMode = viewMode,
             settings = predictionSettings
         )
+    }
+    val forecastDoseRecommendation: ForecastDoseRecommendation? = remember(
+        journalDoseCalculatorEnabled,
+        predictionSeries,
+        viewMode,
+        unit,
+        targetLow,
+        targetHigh,
+        predictionSettings,
+        journalNow
+    ) {
+        if (!journalDoseCalculatorEnabled) {
+            null
+        } else {
+            val primarySeries = predictionSeries.lastOrNull {
+                it.kind == GlucosePredictionSeriesKind.CALIBRATED
+            } ?: predictionSeries.firstOrNull {
+                it.kind == if (viewMode == 1 || viewMode == 3) {
+                    GlucosePredictionSeriesKind.RAW
+                } else {
+                    GlucosePredictionSeriesKind.AUTO
+                }
+            } ?: predictionSeries.firstOrNull()
+            primarySeries?.let {
+                calculateForecastDoseRecommendation(
+                    predictionPoints = it.points,
+                    unit = unit,
+                    targetLow = targetLow,
+                    targetHigh = targetHigh,
+                    settings = predictionSettings,
+                    nowMillis = journalNow,
+                    maxBaselineAgeMillis = Notify.glucosetimeout
+                )
+            }
+        }
     }
     // Per-peer prediction series so the simulation extends every drawn line,
     // not just the primary. Same journal/settings (same person), each peer's
@@ -1309,6 +1329,7 @@ fun DashboardScreen(
                             showDelta = dashboardShowDelta,
                             deltaIntervalMinutes = deltaIntervalMinutes,
                             arrowForecastColorsEnabled = glucoseArrowForecastEnabled,
+                            doseRecommendation = forecastDoseRecommendation,
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
@@ -1449,7 +1470,6 @@ fun DashboardScreen(
                                     activeInsulinSummary = activeInsulinSummary,
                                     activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
-                                    activeInsulinCarbEquivalentGrams = activeInsulinCarbEquivalentGrams,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,
@@ -1573,6 +1593,7 @@ fun DashboardScreen(
                             showDelta = dashboardShowDelta,
                             deltaIntervalMinutes = deltaIntervalMinutes,
                             arrowForecastColorsEnabled = glucoseArrowForecastEnabled,
+                            doseRecommendation = forecastDoseRecommendation,
                             onHeroClick = {
                                 val autoVal = latestPoint?.value ?: tk.glucodata.GlucoseValueParser.parseFirstOrZero(currentGlucose)
                                 val rawVal = latestPoint?.rawValue ?: autoVal
@@ -1653,7 +1674,6 @@ fun DashboardScreen(
                                     activeInsulinSummary = activeInsulinSummary,
                                     activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
-                                    activeInsulinCarbEquivalentGrams = activeInsulinCarbEquivalentGrams,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,

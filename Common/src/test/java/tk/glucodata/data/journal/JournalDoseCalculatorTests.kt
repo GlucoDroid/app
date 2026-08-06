@@ -44,28 +44,6 @@ class JournalDoseCalculatorTests {
     }
 
     @Test
-    fun insulinAndCarbEquivalentUseReciprocalProfileMath() {
-        val coveredCarbs = JournalDoseCalculator.carbEquivalentForInsulin(
-            insulinUnits = 2f,
-            carbRatioGramsPerUnit = 12f
-        )
-        val suggestion = JournalDoseCalculator.insulinForCarbs(
-            carbsGrams = coveredCarbs,
-            proteinGrams = null,
-            fatGrams = null,
-            macrosEnabled = false,
-            glucoseMgDl = null,
-            carbRatioGramsPerUnit = 12f,
-            insulinSensitivityMgDlPerUnit = 50f,
-            targetHighMgDl = 120f,
-            activeInsulinUnits = 0f
-        )
-
-        assertEquals(25f, coveredCarbs!!, 0f)
-        assertEquals(2f, suggestion!!.totalInsulinUnits, 0f)
-    }
-
-    @Test
     fun correctionIsRemovedBeforeCalculatingCoveredCarbs() {
         val coveredCarbs = JournalDoseCalculator.carbsCoveredByInsulin(
             insulinUnits = 4f,
@@ -81,8 +59,6 @@ class JournalDoseCalculatorTests {
 
     @Test
     fun invalidDoseInputsProduceNoRecommendation() {
-        assertNull(JournalDoseCalculator.carbEquivalentForInsulin(Float.NaN, 10f))
-        assertNull(JournalDoseCalculator.carbEquivalentForInsulin(2f, 0f))
         assertNull(
             JournalDoseCalculator.carbsCoveredByInsulin(
                 insulinUnits = 2f,
