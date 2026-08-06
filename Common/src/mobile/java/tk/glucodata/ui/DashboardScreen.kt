@@ -153,6 +153,7 @@ import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.data.journal.JournalDoseCalculator
 import tk.glucodata.data.prediction.GlucosePredictionSeries
 import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
 import tk.glucodata.data.prediction.PredictiveSimulationSettings
@@ -431,6 +432,22 @@ fun DashboardScreen(
         }
     }
     val activeInsulinFromRemote = remoteInsulin != null && activeInsulinSummary != null
+    val activeInsulinCarbEquivalentGrams = remember(
+        activeInsulinSummary?.iobUnits,
+        journalDoseCalculatorEnabled,
+        predictionModelProfile,
+        journalNow
+    ) {
+        if (!journalDoseCalculatorEnabled) {
+            null
+        } else {
+            val carbRatio = predictionModelProfile.parametersAt(journalNow).carbRatioGramsPerUnit
+            JournalDoseCalculator.carbEquivalentForInsulin(
+                insulinUnits = activeInsulinSummary?.iobUnits,
+                carbRatioGramsPerUnit = carbRatio
+            )
+        }
+    }
     val predictionSettings = remember(
         predictiveSimulationEnabled,
         predictionTrendMomentumEnabled,
@@ -1432,6 +1449,7 @@ fun DashboardScreen(
                                     activeInsulinSummary = activeInsulinSummary,
                                     activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
+                                    activeInsulinCarbEquivalentGrams = activeInsulinCarbEquivalentGrams,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,
@@ -1635,6 +1653,7 @@ fun DashboardScreen(
                                     activeInsulinSummary = activeInsulinSummary,
                                     activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
+                                    activeInsulinCarbEquivalentGrams = activeInsulinCarbEquivalentGrams,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,

@@ -104,6 +104,7 @@ import tk.glucodata.Applic
 import tk.glucodata.R
 import tk.glucodata.data.journal.JournalChartMarker
 import tk.glucodata.data.journal.JournalCurvePoint
+import tk.glucodata.data.journal.JournalDoseCalculator
 import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryInput
 import tk.glucodata.data.journal.JournalEntryType
@@ -113,7 +114,6 @@ import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalIntensity
 import tk.glucodata.data.prediction.PredictionModelProfile
 import tk.glucodata.data.journal.LegacyJournalFoodDatabase
-import tk.glucodata.data.journal.journalFoodDoseCarbs
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.components.CompactSheetDragHandle
 import tk.glucodata.ui.util.ConnectedButtonGroup
@@ -2275,13 +2275,6 @@ private fun JournalDoseMetric(label: String) {
     }
 }
 
-private data class JournalInsulinDoseSuggestion(
-    val foodInsulinUnits: Float,
-    val correctionInsulinUnits: Float,
-    val activeInsulinCreditUnits: Float,
-    val totalInsulinUnits: Float
-)
-
 private fun calculateInsulinForCarbs(
     carbs: Float?,
     protein: Float?,
@@ -2289,24 +2282,17 @@ private fun calculateInsulinForCarbs(
     glucoseMgDl: Float?,
     profile: JournalDoseProfile,
     activeInsulinUnits: Float
-): JournalInsulinDoseSuggestion? {
-    val foodDoseCarbs = journalFoodDoseCarbs(
+): JournalDoseCalculator.InsulinSuggestion? {
+    return JournalDoseCalculator.insulinForCarbs(
         carbsGrams = carbs,
         proteinGrams = protein,
         fatGrams = fat,
-        macrosEnabled = profile.foodMacrosEnabled
-    ) ?: return null
-    val food = foodDoseCarbs / profile.carbRatioGramsPerUnit
-    val rawCorrection = glucoseMgDl
-        ?.let { ((it - profile.targetHighMgDl) / profile.insulinSensitivityMgDlPerUnit).coerceAtLeast(0f) }
-        ?: 0f
-    val activeCredit = minOf(rawCorrection, activeInsulinUnits.coerceAtLeast(0f))
-    val correction = (rawCorrection - activeCredit).coerceAtLeast(0f)
-    return JournalInsulinDoseSuggestion(
-        foodInsulinUnits = food,
-        correctionInsulinUnits = correction,
-        activeInsulinCreditUnits = activeCredit,
-        totalInsulinUnits = roundInsulinDose(food + correction)
+        macrosEnabled = profile.foodMacrosEnabled,
+        glucoseMgDl = glucoseMgDl,
+        carbRatioGramsPerUnit = profile.carbRatioGramsPerUnit,
+        insulinSensitivityMgDlPerUnit = profile.insulinSensitivityMgDlPerUnit,
+        targetHighMgDl = profile.targetHighMgDl,
+        activeInsulinUnits = activeInsulinUnits
     )
 }
 
@@ -2316,14 +2302,14 @@ private fun calculateCoveredCarbsForInsulin(
     profile: JournalDoseProfile,
     activeInsulinUnits: Float
 ): Float? {
-    val insulinValue = insulinUnits?.takeIf { it > 0f } ?: return null
-    val rawCorrection = glucoseMgDl
-        ?.let { ((it - profile.targetHighMgDl) / profile.insulinSensitivityMgDlPerUnit).coerceAtLeast(0f) }
-        ?: 0f
-    val correction = (rawCorrection - minOf(rawCorrection, activeInsulinUnits.coerceAtLeast(0f))).coerceAtLeast(0f)
-    return ((insulinValue - correction).coerceAtLeast(0f) * profile.carbRatioGramsPerUnit)
-        .let { (it / 5f).roundToInt() * 5f }
-        .takeIf { it > 0f }
+    return JournalDoseCalculator.carbsCoveredByInsulin(
+        insulinUnits = insulinUnits,
+        glucoseMgDl = glucoseMgDl,
+        carbRatioGramsPerUnit = profile.carbRatioGramsPerUnit,
+        insulinSensitivityMgDlPerUnit = profile.insulinSensitivityMgDlPerUnit,
+        targetHighMgDl = profile.targetHighMgDl,
+        activeInsulinUnits = activeInsulinUnits
+    )
 }
 
 private fun activeInsulinRemainingUnitsAt(
@@ -2369,11 +2355,7 @@ private fun integrateCurveArea(points: List<JournalCurvePoint>, upToMinute: Floa
     return area
 }
 
-private fun roundInsulinDose(value: Float): Float {
-    return ((value / 0.5f).roundToInt() * 0.5f).coerceAtLeast(0.5f)
-}
-
-private fun formatInsulinDose(value: Float): String = formatFloatForEditor(roundInsulinDose(value))
+private fun formatInsulinDose(value: Float): String = formatFloatForEditor(value)
 
 private fun formatInsulinComponent(value: Float): String {
     return formatFloatForEditor(((value / 0.1f).roundToInt() * 0.1f).coerceAtLeast(0f))

@@ -658,6 +658,7 @@ fun DashboardChartSection(
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
+    activeInsulinCarbEquivalentGrams: Float? = null,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
@@ -702,6 +703,7 @@ fun DashboardChartSection(
                         activeInsulinSummary = activeInsulinSummary,
                         activeInsulinFromRemote = activeInsulinFromRemote,
                         showEiob = showEiob,
+                        activeInsulinCarbEquivalentGrams = activeInsulinCarbEquivalentGrams,
                         appChartRangeColors = appChartRangeColors,
                         predictionPoints = predictionPoints,
                         predictionSeries = predictionSeries,
@@ -776,6 +778,7 @@ fun InteractiveGlucoseChart(
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
+    activeInsulinCarbEquivalentGrams: Float? = null,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
@@ -3703,6 +3706,17 @@ fun InteractiveGlucoseChart(
                                     },
                                     style = MaterialTheme.typography.titleSmall
                                 )
+                                activeInsulinCarbEquivalentGrams?.let { grams ->
+                                    Text(
+                                        text = stringResource(
+                                            R.string.journal_dose_covers_carbs,
+                                            unitsLabel(grams)
+                                        ),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                                 Text(
                                     text = stringResource(
                                         R.string.journal_active_insulin_summary,
