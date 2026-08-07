@@ -789,15 +789,7 @@ public class PhotoScan {
                         MirrorString.makeMirror(normalizedTag, act);
                         return;
                     } else {
-                        if (!looksLikeSibionicsPayload(normalizedTag)) {
-                            // Anything that is not a Sibionics code used to be handed to the
-                            // Sibionics native registrar anyway, which registered it and dropped
-                            // the user into the native subtype dialog. AccuChek, Dexcom and
-                            // CareSens codes all landed there.
-                            Log.i(LOG_ID, "barcode is not a Sibionics payload len=" + normalizedTag.length());
-                            break;
-                        }
-                        if (doLog) {
+                        if (doLog && looksLikeSibionicsPayload(normalizedTag)) {
                             Log.i(LOG_ID, "Sibionics addSIscangetName input len=" + normalizedTag.length()
                                     + " payload=" + printableScanPreview(normalizedTag));
                         }
