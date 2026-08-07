@@ -32,7 +32,9 @@ fun calculateForecastDoseRecommendation(
 
     val low = targetLow.takeIf { it.isFinite() && it > 0f } ?: return null
     val high = targetHigh.takeIf { it.isFinite() && it >= low } ?: return null
-    val predicted = endpoint.value.takeIf { it.isFinite() && it > 0f } ?: return null
+    // Unclamped: the drawn curve bottoms out at the chart floor, so reading `value` here
+    // made every dose past that floor produce the same carb suggestion.
+    val predicted = endpoint.unclampedValue.takeIf { it.isFinite() } ?: return null
     val target = (low + high) * 0.5f
     val displayDifference = kotlin.math.abs(predicted - target)
     val differenceMgDl = if (GlucoseFormatter.isMmol(unit)) {
@@ -67,7 +69,7 @@ fun calculateForecastDoseRecommendation(
             ForecastDoseRecommendation(ForecastDoseRecommendationKind.CARBS, it)
         }
     } else {
-        if (predictionPoints.any { it.value.isFinite() && it.value < low }) return null
+        if (predictionPoints.any { it.unclampedValue.isFinite() && it.unclampedValue < low }) return null
         val units = (((currentUnits + endpointUnits) * 0.5f) * 10f)
             .roundToInt() / 10f
         units.takeIf { it >= 0.1f }?.let {

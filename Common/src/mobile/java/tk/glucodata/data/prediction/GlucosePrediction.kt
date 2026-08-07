@@ -17,7 +17,13 @@ import kotlin.math.sqrt
 data class GlucosePredictionPoint(
     val timestamp: Long,
     val value: Float,
-    val confidence: Float
+    val confidence: Float,
+    /**
+     * [value] before the on-chart clamp, so it may sit below the display floor or even
+     * go negative. Dose maths must read this: the drawn value saturates at the floor,
+     * which made a 6 U and a 16 U dose forecast the same carb suggestion.
+     */
+    val unclampedValue: Float = value
 )
 
 enum class GlucosePredictionSeriesKind {
@@ -121,12 +127,13 @@ fun buildGlucosePrediction(
             val timestamp = baselineTime + minute * 60_000L
             val progress = minute.toFloat() / horizonMinutes.toFloat()
             val confidence = (0.88f - 0.62f * sqrt(progress)).coerceIn(0.18f, 0.88f)
-            val value = (baseline.value + projectedDeltaAt(timestamp)).coerceIn(lowClamp, highClamp)
+            val projected = baseline.value + projectedDeltaAt(timestamp)
             add(
                 GlucosePredictionPoint(
                     timestamp = timestamp,
-                    value = value,
-                    confidence = confidence
+                    value = projected.coerceIn(lowClamp, highClamp),
+                    confidence = confidence,
+                    unclampedValue = projected
                 )
             )
             minute += stepMinutes
