@@ -791,6 +791,19 @@ class SibionicsBleManager(
         }
         if (batteryReadPurpose != null) return false
         if (purpose != BatteryReadPurpose.SETUP && phase != Phase.STREAMING) return false
+        // A GATT connection carries one operation at a time. Reading the battery in the middle
+        // of a history burst leaves the read queued behind the notification stream until it
+        // times out, and the stabilization loop answers a timeout by asking again — three
+        // attempts landed inside the same second before the link dropped. Backfill owns the
+        // connection; battery is not urgent and waits for the stream to catch up.
+        if (purpose != BatteryReadPurpose.SETUP && lastLiveIndexSeen < 0) {
+            if (purpose == BatteryReadPurpose.STABILIZATION) {
+                scheduleBatteryStabilization()
+            } else {
+                schedulePeriodicBatteryRefresh(resetDelay = true)
+            }
+            return false
+        }
         batteryReadPurpose = purpose
         val started = runCatching { gatt.readCharacteristic(characteristic) }
             .onFailure { Log.stack(SibionicsConstants.TAG, "read standard battery level", it) }
