@@ -57,17 +57,25 @@ object AiDexParser {
      *
      * Layout:
      *   byte[0]: opcode
-     *   bytes[1..4]: seconds since sensor start (u32 LE), ÷ 60 = timeOffsetMinutes
+     *   bytes[1..3]: unidentified (observed non-zero and varying per frame)
+     *   bytes[4..5]: timeOffsetMinutes (u16 LE) — minutes since sensor start
      *   bytes[6..7]: glucosePacked (u16 LE), glucose = packed & 0x03FF
      *   bytes[8..9]: i1 raw channel (u16 LE / 100)
      *   bytes[10..11]: i2 raw channel (u16 LE / 100)
      *   bytes[15..16]: CRC-16 (u16 LE)
+     *
+     * The offset used to be read as a u32 LE of *seconds* at bytes[1..4]. That produced values
+     * in the tens of millions of minutes on every firmware, which is why the driver carried a
+     * "garbage timing bytes" workaround that re-derived the offset from session metadata.
+     * The field is really the same u16 LE minute offset that the `0x23`/`0x24`/`0x27` history
+     * and calibration payloads use, and it sits at bytes[4..5]. See
+     * `AiDexParserDataFrameTests` for the evidence this is decoded from.
      */
     fun parseDataFrame(data: ByteArray): GlucoseFrame? {
         if (data.size != AiDexOpcodes.DATA_FRAME_LENGTH) return null
 
         val opcode = data[0].toInt() and 0xFF
-        val timeOffsetMinutes = (u32LE(data, 1) / 60L).toInt()
+        val timeOffsetMinutes = u16LE(data, 4)
         val glucosePacked = u16LE(data, 6)
         val rawGlucose = glucosePacked and AiDexOpcodes.GLUCOSE_MASK
         val i1Raw = u16LE(data, 8)
@@ -390,13 +398,6 @@ object AiDexParser {
     private fun u16LE(data: ByteArray, offset: Int): Int {
         return (data[offset].toInt() and 0xFF) or
                 ((data[offset + 1].toInt() and 0xFF) shl 8)
-    }
-
-    private fun u32LE(data: ByteArray, offset: Int): Long {
-        return (data[offset].toLong() and 0xFFL) or
-                ((data[offset + 1].toLong() and 0xFFL) shl 8) or
-                ((data[offset + 2].toLong() and 0xFFL) shl 16) or
-                ((data[offset + 3].toLong() and 0xFFL) shl 24)
     }
 
     private fun s16LE(data: ByteArray, offset: Int): Int {

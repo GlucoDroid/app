@@ -243,6 +243,26 @@ class AiDexRuntimePolicyTests {
     }
 
     @Test
+    fun shouldRequestRoutineCalibrationRefresh_stopsOnceTheSensorReportsAnEmptyRange() {
+        // A never-calibrated sensor can never populate the record cache, so without this the
+        // routine refresh re-armed on every live reading for the whole sensor life.
+        assertFalse(
+            AiDexRuntimePolicy.shouldRequestRoutineCalibrationRefresh(
+                hasCachedCalibrationRecords = false,
+                calibrationDownloading = false,
+                calibrationRangeKnownEmpty = true,
+            )
+        )
+        assertTrue(
+            AiDexRuntimePolicy.shouldRequestRoutineCalibrationRefresh(
+                hasCachedCalibrationRecords = false,
+                calibrationDownloading = false,
+                calibrationRangeKnownEmpty = false,
+            )
+        )
+    }
+
+    @Test
     fun shouldRunOptionalStreamingSync_onlyAfterDirectLiveIsStable() {
         assertTrue(
             AiDexRuntimePolicy.shouldRunOptionalStreamingSync(
