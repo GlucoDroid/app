@@ -982,6 +982,7 @@ fun OttaiSetupWizard(
                                     lastAutoFetchId = ""
                                     if (shouldRefresh) materialRefresh += 1
                                 }
+                                true
                             },
                         )
                         Button(

@@ -657,9 +657,7 @@ fun ScanSensorStep(
                     .height(if (compact) 320.dp else 380.dp),
                 scannerEnabled = !galleryDecodeInProgress,
                 onScanResult = { raw ->
-                    if (!handledScan) {
-                        handledScan = submitManagedQr(raw)
-                    }
+                    if (handledScan) true else submitManagedQr(raw).also { handledScan = it }
                 },
                 onManualFallback = launchFullscreenScan,
                 manualFallbackLabel = stringResource(R.string.scan_qr_button),
@@ -669,7 +667,13 @@ fun ScanSensorStep(
                 }
             )
             Text(
-                text = stringResource(R.string.scan_sensor_instruction),
+                text = if (selectedType == SibionicsType.SIBIONICS2) {
+                    // The sensor box carries a code the split generation cannot use; pointing at
+                    // it is how a Sibionics 2 ends up set up from the wrong label.
+                    stringResource(R.string.scan_sensor_instruction_sibionics2)
+                } else {
+                    stringResource(R.string.scan_sensor_instruction)
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

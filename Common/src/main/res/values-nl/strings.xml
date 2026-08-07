@@ -511,6 +511,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     
     <string name="scan_sensor_title">Scan QR-code</string>
     <string name="scan_sensor_instruction">Scan de QR-code op je generieke Sibionics-sensordoos.</string>
+    <string name="scan_sensor_instruction_sibionics2">Scan de verbindingscode op de Sibionics 2-zender, of kies de zender hieronder via Bluetooth.</string>
     <string name="scan_qr_button">QR-code scannen</string>
     <string name="select_gallery_button">Selecteer uit galerij</string>
     <string name="skip_fake_sensor">Overslaan (Gebruik nepsensor)</string>

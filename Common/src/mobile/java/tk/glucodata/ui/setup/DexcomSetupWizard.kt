@@ -70,6 +70,7 @@ fun DexcomSetupWizard(
                         handledScan = true
                         onScanResult(raw)
                     }
+                    true
                 },
                 onManualFallback = launchFullscreenScan,
                 manualFallbackLabel = stringResource(R.string.scan_dexcom)
