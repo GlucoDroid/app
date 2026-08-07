@@ -102,6 +102,10 @@ class SibionicsBleManager(
         private const val MAX_FUTURE_DRIFT_MS = 10L * 60L * 1000L
         private const val MIN_REASONABLE_TIME_MS = 946_684_800_000L
         private const val ALGORITHM_REBUILD_DEBOUNCE_MS = 600L
+        // While history is still arriving every batch invalidates the rebuild in flight,
+        // so a 600 ms debounce just restarts it for the length of the backfill. Wait for
+        // the burst to settle instead — nothing displays the result until it ends anyway.
+        private const val ALGORITHM_REBUILD_BACKFILL_DEBOUNCE_MS = 3_000L
         private const val LOCAL_REBUILD_FORMAT_VERSION = 6
         private const val POST_RESET_DISCARD_TIMEOUT_MS = 15_000L
         private const val RESET_COMFORT_RECHECK_MS = 15L * 60L * 1000L
@@ -688,7 +692,10 @@ class SibionicsBleManager(
                 }
                 return
             }
-            requestBatteryRead(BatteryReadPurpose.SETUP)
+            // Battery is not part of bringing the sensor up. Reading it here put a GATT read
+            // ahead of the protocol probe and the history burst behind it; it now waits for a
+            // live sample like every other battery read.
+            startProtocolProbe()
         }
     }
 
@@ -1465,8 +1472,13 @@ class SibionicsBleManager(
     ) {
         if (rebuildExecutor.isShutdown) return
         rebuildGeneration++
+        val effectiveDelayMs = if (lastLiveIndexSeen < 0 && phase == Phase.STREAMING) {
+            delayMs.coerceAtLeast(ALGORITHM_REBUILD_BACKFILL_DEBOUNCE_MS)
+        } else {
+            delayMs.coerceAtLeast(0L)
+        }
         handler.removeCallbacks(rebuildLaunchRunnable)
-        handler.postDelayed(rebuildLaunchRunnable, delayMs.coerceAtLeast(0L))
+        handler.postDelayed(rebuildLaunchRunnable, effectiveDelayMs)
         Log.i(SibionicsConstants.TAG, "algorithm rebuild scheduled: $reason generation=$rebuildGeneration")
     }
 
