@@ -828,6 +828,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                     composable("settings/api-source") { ApiSourceSettingsScreen(navController) }
                     composable("settings/glucose-meters") { GlucoseMeterSettingsScreen(navController) }
+                    composable("settings/insulin-pens") { InsulinPenSettingsScreen(navController) }
                     composable("settings/watch") { WatchSettingsScreen(navController) }
                     // Keep legacy route for backward compatibility.
                     composable("settings/weartransport") { WatchSettingsScreen(navController) }
@@ -981,6 +982,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                 composable("settings/api-source") { ApiSourceSettingsScreen(navController) }
                 composable("settings/glucose-meters") { GlucoseMeterSettingsScreen(navController) }
+                composable("settings/insulin-pens") { InsulinPenSettingsScreen(navController) }
                 composable("settings/watch") { WatchSettingsScreen(navController) }
                 // Keep legacy route for backward compatibility.
                 composable("settings/weartransport") { WatchSettingsScreen(navController) }
@@ -1054,6 +1056,10 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
             }
         }
     }
+
+    // --- INSULIN PEN REVIEW SHEET (Global) ---
+    // A pen is tapped against the phone from any screen, so the review lives here.
+    InsulinPenScanSheetHost()
 
     // --- CALIBRATION BOTTOM SHEET (Global) ---
     CalibrationSheetHost(

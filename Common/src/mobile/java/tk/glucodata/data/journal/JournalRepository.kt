@@ -78,6 +78,12 @@ class JournalRepository {
         return id
     }
 
+    /** Lets an importer skip a record it already wrote instead of overwriting later edits. */
+    suspend fun hasEntryWithSourceRecordId(sourceRecordId: String): Boolean {
+        val id = sourceRecordId.trim().takeIf { it.isNotBlank() } ?: return false
+        return dao.getEntryBySourceRecordId(id) != null
+    }
+
     suspend fun deleteEntriesBySourceRecordIds(sourceRecordIds: List<String>) {
         val ids = sourceRecordIds
             .map { it.trim() }

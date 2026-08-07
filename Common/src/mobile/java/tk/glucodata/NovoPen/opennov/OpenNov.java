@@ -36,6 +36,16 @@ public class OpenNov extends MyByteBuffer {
     private T4Transceiver ts;
     private PHDllHelper ph;
 
+    /**
+     * True once the tag answered the NDEF application select. Every ISO-DEP card in range
+     * reaches this class -- bank cards, transit passes, door badges -- and only a tag that
+     * got this far is worth reporting a read failure about.
+     */
+    private boolean spokeProtocol = false;
+
+    public boolean spokeProtocol() {
+        return spokeProtocol;
+    }
 
     public OpContext processTag(final Tag tag) {
         try {
@@ -48,6 +58,7 @@ public class OpenNov extends MyByteBuffer {
 
             if (ts.doNeededSelection()) {
                 {if(doLog) {Log.d(TAG, "Selection okay");};};
+                spokeProtocol = true;
 
                 int errors = 0;
                 int transactions = 0;
