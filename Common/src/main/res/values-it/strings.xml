@@ -1929,7 +1929,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_possible">Possibile CGM</string>
     <string name="ottai_ble_scan_unknown">Altro CGM</string>
     <string name="ottai_ble_scan_registered">Già aggiunto</string>
-    <string name="ottai_ble_scan_registered_hint">Un sensore già connesso smette di trasmettere annunci, quindi non può comparire nell’elenco qui sopra.</string>
+    <string name="ottai_ble_scan_registered_hint">I sensori già aggiunti restano connessi, quindi smettono di trasmettere annunci e non possono comparire nella ricerca.</string>
+    <string name="ottai_ble_scan_connected">Connesso ora</string>
+    <string name="ottai_ble_scan_weak">Segnale debole</string>
+    <string name="ottai_ble_scan_weak_hint">Più debole dei −70 dBm richiesti dall’app ufficiale. Avvicina il telefono per confermare.</string>
     <string name="ottai_account_hint">E-mail o nome utente</string>
     <string name="ottai_account_note">Accedi con la tua e-mail o il nome utente dell’account.</string>
     <string name="ottai_code_sent_email">Codice inviato a %1$s</string>

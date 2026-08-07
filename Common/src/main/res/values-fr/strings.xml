@@ -1945,7 +1945,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_possible">CGM possible</string>
     <string name="ottai_ble_scan_unknown">Autre CGM</string>
     <string name="ottai_ble_scan_registered">Déjà ajouté</string>
-    <string name="ottai_ble_scan_registered_hint">Un capteur déjà connecté cesse d’émettre des annonces et n’apparaît donc pas dans la liste ci-dessus.</string>
+    <string name="ottai_ble_scan_registered_hint">Les capteurs déjà ajoutés restent connectés : ils cessent d’émettre des annonces et ne peuvent donc pas apparaître dans la recherche.</string>
+    <string name="ottai_ble_scan_connected">Connecté maintenant</string>
+    <string name="ottai_ble_scan_weak">Signal faible</string>
+    <string name="ottai_ble_scan_weak_hint">Plus faible que les −70 dBm exigés par l’application officielle. Rapprochez le téléphone pour confirmer.</string>
     <string name="ottai_account_hint">E-mail ou nom d’utilisateur</string>
     <string name="ottai_account_note">Connectez-vous avec votre e-mail ou votre nom d’utilisateur.</string>
     <string name="ottai_code_sent_email">Code envoyé à %1$s</string>

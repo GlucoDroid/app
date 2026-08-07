@@ -1940,7 +1940,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_possible">Possível CGM</string>
     <string name="ottai_ble_scan_unknown">Outro CGM</string>
     <string name="ottai_ble_scan_registered">Já adicionado</string>
-    <string name="ottai_ble_scan_registered_hint">Um sensor já ligado deixa de anunciar e, por isso, não aparece na lista acima.</string>
+    <string name="ottai_ble_scan_registered_hint">Os sensores já adicionados permanecem ligados, por isso deixam de anunciar e não podem aparecer na pesquisa.</string>
+    <string name="ottai_ble_scan_connected">Ligado agora</string>
+    <string name="ottai_ble_scan_weak">Sinal fraco</string>
+    <string name="ottai_ble_scan_weak_hint">Mais fraco do que os −70 dBm exigidos pela aplicação oficial. Aproxime o telemóvel para confirmar.</string>
     <string name="ottai_account_hint">E-mail ou nome de utilizador</string>
     <string name="ottai_account_note">Inicie sessão com o seu e-mail ou nome de utilizador.</string>
     <string name="ottai_code_sent_email">Código enviado para %1$s</string>

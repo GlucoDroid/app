@@ -1939,7 +1939,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_possible">Möjlig CGM</string>
     <string name="ottai_ble_scan_unknown">Annan CGM</string>
     <string name="ottai_ble_scan_registered">Redan tillagd</string>
-    <string name="ottai_ble_scan_registered_hint">En redan ansluten sensor slutar annonsera och visas därför inte i listan ovan.</string>
+    <string name="ottai_ble_scan_registered_hint">Sensorer du redan lagt till förblir anslutna, slutar därför annonsera och kan inte visas i sökningen.</string>
+    <string name="ottai_ble_scan_connected">Ansluten nu</string>
+    <string name="ottai_ble_scan_weak">Svag signal</string>
+    <string name="ottai_ble_scan_weak_hint">Svagare än de −70 dBm som den officiella appen kräver. Håll telefonen närmare för att bekräfta.</string>
     <string name="ottai_account_hint">E-post eller användarnamn</string>
     <string name="ottai_account_note">Logga in med din e-post eller ditt användarnamn.</string>
     <string name="ottai_code_sent_email">Kod skickad till %1$s</string>

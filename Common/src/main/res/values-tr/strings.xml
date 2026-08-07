@@ -1967,7 +1967,10 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="ottai_ble_scan_possible">Olası CGM</string>
     <string name="ottai_ble_scan_unknown">Diğer CGM</string>
     <string name="ottai_ble_scan_registered">Zaten eklendi</string>
-    <string name="ottai_ble_scan_registered_hint">Bağlı bir sensör yayın yapmayı durdurur ve bu nedenle yukarıdaki listede görünmez.</string>
+    <string name="ottai_ble_scan_registered_hint">Zaten eklenmiş sensörler bağlı kalır, bu yüzden yayın yapmayı durdurur ve aramada görünemez.</string>
+    <string name="ottai_ble_scan_connected">Şu anda bağlı</string>
+    <string name="ottai_ble_scan_weak">Zayıf sinyal</string>
+    <string name="ottai_ble_scan_weak_hint">Resmî uygulamanın istediği −70 dBm değerinden zayıf. Doğrulamak için telefonu yaklaştırın.</string>
     <string name="ottai_account_hint">E-posta veya kullanıcı adı</string>
     <string name="ottai_account_note">E-postanız veya hesap kullanıcı adınızla giriş yapın.</string>
     <string name="ottai_code_sent_email">Kod %1$s adresine gönderildi</string>

@@ -2007,7 +2007,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_possible">Магчымы CGM</string>
     <string name="ottai_ble_scan_unknown">Іншы CGM</string>
     <string name="ottai_ble_scan_registered">Ужо дададзены</string>
-    <string name="ottai_ble_scan_registered_hint">Ужо падключаны датчык перастае перадаваць рэкламныя пакеты, таму ён не з’явіцца ў спісе вышэй.</string>
+    <string name="ottai_ble_scan_registered_hint">Ужо дададзеныя датчыкі застаюцца падключанымі, таму перастаюць перадаваць рэкламныя пакеты і не могуць з’явіцца ў выніках пошуку.</string>
+    <string name="ottai_ble_scan_connected">Падключаны зараз</string>
+    <string name="ottai_ble_scan_weak">Слабы сігнал</string>
+    <string name="ottai_ble_scan_weak_hint">Слабей за −70 дБм, якія патрабуе афіцыйная праграма. Паднясіце тэлефон бліжэй для пацвярджэння.</string>
     <string name="ottai_account_hint">Эл. пошта або імя карыстальніка</string>
     <string name="ottai_account_note">Увайдзіце праз эл. пошту або імя карыстальніка.</string>
     <string name="ottai_code_sent_email">Код адпраўлены на %1$s</string>

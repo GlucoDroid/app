@@ -1034,7 +1034,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_possible">Possible CGM</string>
     <string name="ottai_ble_scan_unknown">Other CGM</string>
     <string name="ottai_ble_scan_registered">Already added</string>
-    <string name="ottai_ble_scan_registered_hint">A sensor that is already connected stops advertising, so it cannot show up in the scan above.</string>
+    <string name="ottai_ble_scan_registered_hint">Sensors you already added stay connected, so they stop advertising and cannot appear in the scan.</string>
+    <string name="ottai_ble_scan_connected">Connected now</string>
+    <string name="ottai_ble_scan_weak">Weak signal</string>
+    <string name="ottai_ble_scan_weak_hint">Weaker than the −70 dBm the official app requires. Move the phone closer to confirm.</string>
     <!-- Ottai wizard: entry / login modes / sensor list / advanced -->
     <string name="ottai_entry_import_title">Import credentials file</string>
     <string name="ottai_entry_import_desc">Use a saved .json — no account or network needed.</string>

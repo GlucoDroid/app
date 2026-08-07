@@ -2064,7 +2064,10 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="ottai_ble_scan_possible">Möglicher CGM</string>
     <string name="ottai_ble_scan_unknown">Anderer CGM</string>
     <string name="ottai_ble_scan_registered">Bereits hinzugefügt</string>
-    <string name="ottai_ble_scan_registered_hint">Ein bereits verbundener Sensor sendet keine Werbepakete mehr und erscheint daher nicht in der Liste oben.</string>
+    <string name="ottai_ble_scan_registered_hint">Bereits hinzugefügte Sensoren bleiben verbunden, senden deshalb keine Werbepakete mehr und können nicht in der Suche erscheinen.</string>
+    <string name="ottai_ble_scan_connected">Jetzt verbunden</string>
+    <string name="ottai_ble_scan_weak">Schwaches Signal</string>
+    <string name="ottai_ble_scan_weak_hint">Schwächer als die −70 dBm, die die offizielle App verlangt. Halte das Telefon näher, um ihn zu bestätigen.</string>
     <string name="ottai_account_hint">E-Mail oder Benutzername</string>
     <string name="ottai_account_note">Melden Sie sich mit Ihrer E-Mail oder Ihrem Benutzernamen an.</string>
     <string name="ottai_code_sent_email">Code gesendet an %1$s</string>

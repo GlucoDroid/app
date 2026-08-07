@@ -1985,7 +1985,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_possible">Возможный CGM</string>
     <string name="ottai_ble_scan_unknown">Другой CGM</string>
     <string name="ottai_ble_scan_registered">Уже добавлен</string>
-    <string name="ottai_ble_scan_registered_hint">Подключённый датчик перестаёт передавать рекламные пакеты, поэтому в списке выше он не появится.</string>
+    <string name="ottai_ble_scan_registered_hint">Уже добавленные датчики остаются подключёнными, поэтому перестают передавать рекламные пакеты и не могут появиться в поиске.</string>
+    <string name="ottai_ble_scan_connected">Подключён сейчас</string>
+    <string name="ottai_ble_scan_weak">Слабый сигнал</string>
+    <string name="ottai_ble_scan_weak_hint">Слабее −70 дБм, которые требует официальное приложение. Поднесите телефон ближе для подтверждения.</string>
     <string name="ottai_account_hint">Эл. почта или имя пользователя</string>
     <string name="ottai_account_note">Войдите по эл. почте или имени пользователя.</string>
     <string name="ottai_code_sent_email">Код отправлен на %1$s</string>

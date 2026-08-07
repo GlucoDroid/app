@@ -1965,7 +1965,10 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="ottai_ble_scan_possible">CGM байж магадгүй</string>
     <string name="ottai_ble_scan_unknown">Бусад CGM</string>
     <string name="ottai_ble_scan_registered">Аль хэдийн нэмсэн</string>
-    <string name="ottai_ble_scan_registered_hint">Холбогдсон мэдрэгч зарлал дамжуулахаа больдог тул дээрх жагсаалтад харагдахгүй.</string>
+    <string name="ottai_ble_scan_registered_hint">Аль хэдийн нэмсэн мэдрэгчүүд холбоотой хэвээр байдаг тул зарлал дамжуулахаа больж, хайлтад харагдахгүй.</string>
+    <string name="ottai_ble_scan_connected">Одоо холбогдсон</string>
+    <string name="ottai_ble_scan_weak">Сул дохио</string>
+    <string name="ottai_ble_scan_weak_hint">Албан ёсны аппын шаарддаг −70 дБм-ээс сул байна. Баталгаажуулахын тулд утсаа ойртуулна уу.</string>
     <string name="ottai_account_hint">Имэйл эсвэл хэрэглэгчийн нэр</string>
     <string name="ottai_account_note">Имэйл эсвэл бүртгэлийн хэрэглэгчийн нэрээрээ нэвтэрнэ үү.</string>
     <string name="ottai_code_sent_email">Код %1$s руу илгээгдсэн</string>

@@ -977,7 +977,10 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="ottai_ble_scan_possible">CGM suurtagal ah</string>
     <string name="ottai_ble_scan_unknown">CGM kale</string>
     <string name="ottai_ble_scan_registered">Hore ayaa loogu daray</string>
-    <string name="ottai_ble_scan_registered_hint">Dareeme hore u xiran wuu joojiyaa baahinta, sidaas darteed kuma muuqan doono liiska kore.</string>
+    <string name="ottai_ble_scan_registered_hint">Dareemayaasha horey loogu daray way xiran yihiin, sidaas darteed way joojiyaan baahinta oo kama muuqan karaan raadinta.</string>
+    <string name="ottai_ble_scan_connected">Hadda wuu xiran yahay</string>
+    <string name="ottai_ble_scan_weak">Calaamad daciif ah</string>
+    <string name="ottai_ble_scan_weak_hint">Ka daciifsan −70 dBm ee uu u baahan yahay abka rasmiga ah. U soo dhoweey taleefanka si aad u xaqiijiso.</string>
     <!-- Ottai wizard: entry / login modes / sensor list / advanced -->
     <string name="ottai_entry_import_title">Soo rar faylka aqoonsiga</string>
     <string name="ottai_entry_import_desc">Isticmaal .json kaydsan - xisaab ama shabakad looma baahna.</string>

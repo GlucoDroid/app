@@ -1974,7 +1974,10 @@
     <string name="ottai_ble_scan_possible">Możliwy CGM</string>
     <string name="ottai_ble_scan_unknown">Inny CGM</string>
     <string name="ottai_ble_scan_registered">Już dodano</string>
-    <string name="ottai_ble_scan_registered_hint">Połączony czujnik przestaje się rozgłaszać, dlatego nie pojawi się na powyższej liście.</string>
+    <string name="ottai_ble_scan_registered_hint">Dodane już czujniki pozostają połączone, więc przestają się rozgłaszać i nie mogą pojawić się w wyszukiwaniu.</string>
+    <string name="ottai_ble_scan_connected">Połączony teraz</string>
+    <string name="ottai_ble_scan_weak">Słaby sygnał</string>
+    <string name="ottai_ble_scan_weak_hint">Słabszy niż −70 dBm wymagane przez oficjalną aplikację. Przybliż telefon, aby potwierdzić.</string>
     <string name="ottai_account_hint">E-mail lub nazwa użytkownika</string>
     <string name="ottai_account_note">Zaloguj się e-mailem lub nazwą użytkownika konta.</string>
     <string name="ottai_code_sent_email">Kod wysłano na %1$s</string>

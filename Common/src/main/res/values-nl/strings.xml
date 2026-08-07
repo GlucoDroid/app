@@ -1982,7 +1982,10 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_ble_scan_possible">Mogelijke CGM</string>
     <string name="ottai_ble_scan_unknown">Andere CGM</string>
     <string name="ottai_ble_scan_registered">Al toegevoegd</string>
-    <string name="ottai_ble_scan_registered_hint">Een al verbonden sensor stopt met adverteren en verschijnt daarom niet in de lijst hierboven.</string>
+    <string name="ottai_ble_scan_registered_hint">Al toegevoegde sensoren blijven verbonden, stoppen daarom met adverteren en kunnen niet in de zoekopdracht verschijnen.</string>
+    <string name="ottai_ble_scan_connected">Nu verbonden</string>
+    <string name="ottai_ble_scan_weak">Zwak signaal</string>
+    <string name="ottai_ble_scan_weak_hint">Zwakker dan de −70 dBm die de officiële app vereist. Houd de telefoon dichterbij om te bevestigen.</string>
     <string name="ottai_account_hint">E-mail of gebruikersnaam</string>
     <string name="ottai_account_note">Meld je aan met je e-mail of je gebruikersnaam.</string>
     <string name="ottai_code_sent_email">Code verzonden naar %1$s</string>

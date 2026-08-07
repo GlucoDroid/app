@@ -2012,7 +2012,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_possible">Можливий CGM</string>
     <string name="ottai_ble_scan_unknown">Інший CGM</string>
     <string name="ottai_ble_scan_registered">Уже додано</string>
-    <string name="ottai_ble_scan_registered_hint">Уже підключений датчик припиняє передавати рекламні пакети, тому не з’явиться у списку вище.</string>
+    <string name="ottai_ble_scan_registered_hint">Уже додані датчики залишаються підключеними, тому припиняють передавати рекламні пакети й не можуть з’явитися в пошуку.</string>
+    <string name="ottai_ble_scan_connected">Підключений зараз</string>
+    <string name="ottai_ble_scan_weak">Слабкий сигнал</string>
+    <string name="ottai_ble_scan_weak_hint">Слабший за −70 дБм, які вимагає офіційний застосунок. Піднесіть телефон ближче для підтвердження.</string>
     <string name="ottai_account_hint">Ел. пошта або ім’я користувача</string>
     <string name="ottai_account_note">Увійдіть за ел. поштою або ім’ям користувача.</string>
     <string name="ottai_code_sent_email">Код надіслано на %1$s</string>
