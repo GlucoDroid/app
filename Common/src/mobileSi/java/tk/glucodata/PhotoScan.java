@@ -70,7 +70,20 @@ public class PhotoScan {
             Pattern.CASE_INSENSITIVE);
 
     private static void wrongtag() {
-        Toaster(R.string.wrongcode);
+        wrongtag(MainActivity.thisone);
+    }
+
+    /**
+     * A toast is not reliably seen here — the scan screen is the only thing on top and the
+     * rejection is the whole result of the action, so show it as a dialog when an activity is
+     * available and fall back to the toast when one is not.
+     */
+    private static void wrongtag(Activity act) {
+        if (act != null && !act.isFinishing()) {
+            act.runOnUiThread(() -> help.help(R.string.wrongcode, act));
+        } else {
+            Toaster(R.string.wrongcode);
+        }
     }
 
     /*
@@ -890,7 +903,7 @@ public class PhotoScan {
                 }
             }
         }
-        wrongtag();
+        wrongtag(act);
     }
 
     static void transmitterScanCancelled(long sensorptr2) {
