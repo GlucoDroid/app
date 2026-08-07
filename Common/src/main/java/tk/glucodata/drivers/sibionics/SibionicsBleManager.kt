@@ -89,6 +89,11 @@ class SibionicsBleManager(
         private const val CHINESE_DATA_TIMEOUT_MS = 30_000L
         private const val HANDSHAKE_TIMEOUT_MS = 15_000L
         private const val BATTERY_READ_TIMEOUT_MS = 3_000L
+        // Upper bound on CONNECTION_PRIORITY_HIGH. The link is raised to a 7.5 ms interval
+        // on connect and only relaxed once a live sample lands, which a long history
+        // transfer defers indefinitely — the connection then dies at roughly nine seconds
+        // with status 147 every cycle, independent of how much work the app is doing.
+        private const val HIGH_PRIORITY_MAX_MS = 3_000L
         private const val BATTERY_STABILIZATION_INTERVAL_MS = 60_000L
         private const val BATTERY_PERIODIC_INTERVAL_MS = 6L * 60L * 60L * 1000L
         private const val STREAMING_TIMEOUT_MS = 180_000L
@@ -161,6 +166,7 @@ class SibionicsBleManager(
     @Volatile private var discardNotificationsUntilResetDisconnect: Boolean = false
     @Volatile private var loggedDiscardedPostResetNotification: Boolean = false
     @Volatile private var connectionPrioritySettled: Boolean = false
+    @Volatile private var highPriorityCapArmed: Boolean = false
     @Volatile private var uiPaused: Boolean = false
     @Volatile private var pendingMatchedBleName: String = ""
     @Volatile private var autoResetDays: Int = 300
@@ -585,6 +591,8 @@ class SibionicsBleManager(
                 mActiveBluetoothDevice = gatt.device
                 resetKeyGroupRotation()
                 connectionPrioritySettled = false
+                highPriorityCapArmed = false
+                handler.removeCallbacks(highPriorityCapRunnable)
                 gatt.device?.address?.let { setDeviceAddress(it) }
                 connectTime = System.currentTimeMillis()
                 phase = Phase.DISCOVERING
@@ -617,6 +625,7 @@ class SibionicsBleManager(
                 handler.removeCallbacks(authTimeoutRunnable)
                 handler.removeCallbacks(chineseProbeTimeoutRunnable)
                 handler.removeCallbacks(chineseDataTimeoutRunnable)
+                handler.removeCallbacks(highPriorityCapRunnable)
                 if (!stop && !uiPaused) {
                     if (!beginAdvertisementRecovery(
                             reason = "connect failed status=$status",
@@ -961,6 +970,7 @@ class SibionicsBleManager(
                 confirmProtocolMode(SibionicsConstants.ProtocolMode.V120)
                 handler.removeCallbacks(handshakeTimeoutRunnable)
                 phase = Phase.STREAMING
+                armHighPriorityCap()
                 updateV120HistoryProgress(result.entries)
                 processV120Entries(result.entries)
                 scheduleStreamingTimeout()
@@ -2406,7 +2416,21 @@ class SibionicsBleManager(
         handler.postDelayed(setupStageTimeoutRunnable, SETUP_STAGE_TIMEOUT_MS)
     }
 
+    /** Relax the link even when history keeps arriving and no live sample has landed yet. */
+    private fun armHighPriorityCap() {
+        if (connectionPrioritySettled || highPriorityCapArmed) return
+        highPriorityCapArmed = true
+        handler.postDelayed(highPriorityCapRunnable, HIGH_PRIORITY_MAX_MS)
+    }
+
+    private val highPriorityCapRunnable = Runnable {
+        if (!stop && !uiPaused && phase == Phase.STREAMING) {
+            settleConnectionPriority()
+        }
+    }
+
     private fun settleConnectionPriority() {
+        handler.removeCallbacks(highPriorityCapRunnable)
         if (connectionPrioritySettled) return
         connectionPrioritySettled = true
         val connectedGatt = mBluetoothGatt ?: return
