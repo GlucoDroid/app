@@ -1116,6 +1116,8 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="dash">-</string>
     <string name="data_mode">Өгөгдлийн горим</string>
     <string name="days_hours_remaining">%1$d хоног %2$d цаг</string>
+    <string name="sensor_age_days_hours">%1$d хоног %2$d цаг</string>
+    <string name="sensor_age_hours">%1$d цаг</string>
     <string name="delete_calibrations_count">%1$d каллибрацийг устгах</string>
     <string name="deselect_all">Бүгдийг болиулах</string>
     <string name="disabled_calibrations_cleared">%1$d идэвхгүй каллибрацийг цэвэрлэлээ</string>

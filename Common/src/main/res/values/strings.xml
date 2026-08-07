@@ -1440,6 +1440,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dash">-</string>
     <string name="data_mode">Data mode</string>
     <string name="days_hours_remaining">%1$d days %2$d hours</string>
+    <string name="sensor_age_days_hours">%1$d days %2$d hours</string>
+    <string name="sensor_age_hours">%1$d hours</string>
     <string name="delete_calibrations_count">Delete %1$d calibrations</string>
     <string name="deselect_all">Deselect all</string>
     <string name="disabled_calibrations_cleared">Cleared %1$d disabled calibrations</string>

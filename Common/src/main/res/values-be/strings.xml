@@ -1119,6 +1119,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dash">-</string>
     <string name="data_mode">Рэжым дадзеных</string>
     <string name="days_hours_remaining">%1$d дзён %2$d гадзін</string>
+    <string name="sensor_age_days_hours">%1$d дзён %2$d гадзін</string>
+    <string name="sensor_age_hours">%1$d гадзін</string>
     <string name="deselect_all">Зняць выбар з усіх</string>
     <string name="display_secondary_values">Адлюстраванне другасных значэнняў</string>
     <string name="display_secondary_values_desc">Паказаць другарадныя значэнні побач з асноўнымі паказаннямі</string>

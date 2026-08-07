@@ -1136,6 +1136,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dash">-</string>
     <string name="data_mode">数据模式</string>
     <string name="days_hours_remaining">剩余 %1$d 天 %2$d 小时</string>
+    <string name="sensor_age_days_hours">%1$d 天 %2$d 小时</string>
+    <string name="sensor_age_hours">%1$d 小时</string>
     <string name="deselect_all">取消全选</string>
     <string name="display_secondary_values">显示次要值</string>
     <string name="display_secondary_values_desc">在主要阅读内容旁边显示次要值</string>

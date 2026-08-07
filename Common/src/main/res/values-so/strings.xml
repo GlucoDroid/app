@@ -1379,6 +1379,8 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="dash">-</string>
     <string name="data_mode">Habka xogta</string>
     <string name="days_hours_remaining">%1$d maalmood %2$d saacadood</string>
+    <string name="sensor_age_days_hours">%1$d maalmood %2$d saacadood</string>
+    <string name="sensor_age_hours">%1$d saacadood</string>
     <string name="delete_calibrations_count">Tirtir qiyaasaha %1$d</string>
     <string name="deselect_all">Dhammaan ha dooran</string>
     <string name="disabled_calibrations_cleared">%1$d qalabayn oo la damiyay waa la nadiifiyey</string>

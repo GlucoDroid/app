@@ -1120,6 +1120,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dash">-</string>
     <string name="data_mode">Dataläge</string>
     <string name="days_hours_remaining">%1$d dagar %2$d timmar kvar</string>
+    <string name="sensor_age_days_hours">%1$d dagar %2$d timmar</string>
+    <string name="sensor_age_hours">%1$d timmar</string>
     <string name="deselect_all">Avmarkera alla</string>
     <string name="display_secondary_values">Visa sekundära värden</string>
     <string name="display_secondary_values_desc">Visa sekundära värden vid sidan av huvudavläsningen</string>

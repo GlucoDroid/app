@@ -1148,6 +1148,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="dash">-</string>
     <string name="data_mode">Veri modu</string>
     <string name="days_hours_remaining">%1$d gün %2$d saat kaldı</string>
+    <string name="sensor_age_days_hours">%1$d gün %2$d saat</string>
+    <string name="sensor_age_hours">%1$d saat</string>
     <string name="deselect_all">Tümünün seçimini kaldır</string>
     <string name="display_secondary_values">İkincil değerleri görüntüle</string>
     <string name="display_secondary_values_desc">Ana okumanın yanında ikincil değerleri göster</string>

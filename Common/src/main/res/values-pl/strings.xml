@@ -1155,6 +1155,8 @@
     <string name="dash">-</string>
     <string name="data_mode">Tryb danych</string>
     <string name="days_hours_remaining">%1$d dni %2$d godzin</string>
+    <string name="sensor_age_days_hours">%1$d dni %2$d godzin</string>
+    <string name="sensor_age_hours">%1$d godzin</string>
     <string name="deselect_all">Odznacz wszystko</string>
     <string name="display_secondary_values">Wyświetl wartości drugorzędne</string>
     <string name="display_secondary_values_desc">Pokaż wartości drugorzędne obok głównego odczytu</string>

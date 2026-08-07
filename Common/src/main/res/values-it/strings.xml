@@ -1110,6 +1110,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dash">-</string>
     <string name="data_mode">Modalità dati</string>
     <string name="days_hours_remaining">%1$d giorni %2$d ore</string>
+    <string name="sensor_age_days_hours">%1$d giorni %2$d ore</string>
+    <string name="sensor_age_hours">%1$d ore</string>
     <string name="deselect_all">Deseleziona tutto</string>
     <string name="display_secondary_values">Visualizza i valori secondari</string>
     <string name="display_secondary_values_desc">Mostra i valori secondari accanto alla lettura principale</string>

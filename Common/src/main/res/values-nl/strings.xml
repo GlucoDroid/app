@@ -1163,6 +1163,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="dash">-</string>
     <string name="data_mode">Gegevensmodus</string>
     <string name="days_hours_remaining">%1$d dagen %2$d uur</string>
+    <string name="sensor_age_days_hours">%1$d dagen %2$d uur</string>
+    <string name="sensor_age_hours">%1$d uur</string>
     <string name="deselect_all">Deselecteer alles</string>
     <string name="display_secondary_values">Secundaire waarden weergeven</string>
     <string name="display_secondary_values_desc">Toon secundaire waarden naast de hoofdwaarde</string>

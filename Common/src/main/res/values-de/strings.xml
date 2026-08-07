@@ -1190,6 +1190,8 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="dash">-</string>
     <string name="data_mode">Datenmodus</string>
     <string name="days_hours_remaining">%1$d Tage, %2$d Stunden</string>
+    <string name="sensor_age_days_hours">%1$d Tage, %2$d Stunden</string>
+    <string name="sensor_age_hours">%1$d Stunden</string>
     <string name="deselect_all">Alle abwählen</string>
     <string name="display_secondary_values">Sekundärwerte anzeigen</string>
     <string name="display_secondary_values_desc">Sekundärwerte neben dem Hauptmesswert anzeigen</string>
