@@ -374,6 +374,7 @@
     <string name="transmitter_id_supporting">8-12 сімвалаў з этыкеткі перадатчыка</string>
     <string name="scan_sensor_title">Сканаваць QR-код</string>
     <string name="scan_sensor_instruction">Скайнуйце QR-код на скрынцы вашага сэнсара Sibionics.</string>
+    <string name="scan_sensor_instruction_sibionics2">Адсканіруйце код падлучэння на перадатчыку Sibionics 2 або выберыце перадатчык праз Bluetooth ніжэй.</string>
     <string name="scan_qr_button">Сканаваць QR</string>
     <string name="select_gallery_button">Выбраць з Галерэі</string>
     <string name="skip_fake_sensor">Прапусціць (Вык. фіктыўны сэнсар)</string>

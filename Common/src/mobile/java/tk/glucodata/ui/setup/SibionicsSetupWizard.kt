@@ -668,7 +668,14 @@ fun ScanSensorStep(
                 }
             )
             Text(
-                text = scanRejection ?: stringResource(R.string.scan_sensor_instruction),
+                text = scanRejection
+                    // The split generation needs the transmitter connection code; the generic
+                    // text sends the user to the sensor box, whose code is then rejected.
+                    ?: if (selectedType == SibionicsType.SIBIONICS2) {
+                        stringResource(R.string.scan_sensor_instruction_sibionics2)
+                    } else {
+                        stringResource(R.string.scan_sensor_instruction)
+                    },
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = if (scanRejection != null) {

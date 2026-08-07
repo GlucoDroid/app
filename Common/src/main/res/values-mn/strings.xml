@@ -772,6 +772,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="transmitter_id_supporting">Дамжуулагчийн шошгон дээрх 8-12 тэмдэгт</string>
     <string name="scan_sensor_title">QR код уншуулах</string>
     <string name="scan_sensor_instruction">Sibionics мэдрэгчийн хайрцаг дээрх QR кодыг уншуулна уу.</string>
+    <string name="scan_sensor_instruction_sibionics2">Sibionics 2 дамжуулагч дээрх холболтын кодыг уншуулна уу, эсвэл доорх Bluetooth-оос дамжуулагчаа сонгоно уу.</string>
     <string name="scan_qr_button">QR код уншуулах</string>
     <string name="select_gallery_button">Галлерейгаас сонгох</string>
     <string name="skip_fake_sensor">Алгасах (Хуурамч мэдрэгч ашиглах)</string>

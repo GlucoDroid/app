@@ -388,6 +388,7 @@
     <string name="transmitter_id_label">ID Transmetteur</string>
     <string name="scan_sensor_title">Scanner le code QR</string>
     <string name="scan_sensor_instruction">Scannez le code QR sur votre boîte de capteur Sibionics générique.</string>
+    <string name="scan_sensor_instruction_sibionics2">Scannez le code de connexion sur le transmetteur Sibionics 2, ou choisissez le transmetteur via Bluetooth ci-dessous.</string>
     <string name="scan_qr_button">Scanner Code QR</string>
     <string name="select_gallery_button">Sélectionner depuis la Galerie</string>
     <string name="skip_fake_sensor">Ignorer (Utiliser faux capteur)</string>

@@ -331,6 +331,7 @@
     <string name="transmitter_id_supporting">8-12 caracteres da etiqueta do transmissor</string>
     <string name="scan_sensor_title">Escanear Código QR</string>
     <string name="scan_sensor_instruction">Escaneie o código QR na caixa do sensor Sibionics genérico.</string>
+    <string name="scan_sensor_instruction_sibionics2">Digitalize o código de ligação no transmissor Sibionics 2 ou escolha o transmissor por Bluetooth abaixo.</string>
     <string name="scan_qr_button">Escanear QR</string>
     <string name="select_gallery_button">Selecionar da Galeria</string>
     <string name="skip_fake_sensor">Pular (Usar sensor falso)</string>
