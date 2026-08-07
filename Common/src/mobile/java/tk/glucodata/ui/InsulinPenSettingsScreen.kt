@@ -93,7 +93,7 @@ fun InsulinPenSettingsScreen(navController: NavController) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             item("pen_master") {
                 MasterSwitchCard(
@@ -119,9 +119,15 @@ fun InsulinPenSettingsScreen(navController: NavController) {
             }
 
             if (enabled) {
-                item("pen_how") { HowToScanCard() }
+                item("pen_how") {
+                    Spacer(Modifier.size(16.dp))
+                    HowToScanCard()
+                }
 
-                item("pen_list_label") { SectionLabel(stringResource(R.string.insulin_pens_paired)) }
+                item("pen_list_label") {
+                    Spacer(Modifier.size(16.dp))
+                    SectionLabel(stringResource(R.string.insulin_pens_paired))
+                }
 
                 if (pens.isEmpty()) {
                     item("pen_list_empty") {
@@ -193,19 +199,19 @@ private fun HowToScanCard() {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
                 color = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(18.dp),
             ) {
                 Icon(
                     Icons.Default.Contactless,
                     contentDescription = null,
-                    modifier = Modifier.padding(8.dp).size(24.dp),
+                    modifier = Modifier.padding(14.dp).size(28.dp),
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
