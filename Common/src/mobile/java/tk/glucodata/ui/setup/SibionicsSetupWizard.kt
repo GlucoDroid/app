@@ -159,7 +159,6 @@ fun ManualSensorEntryDialog(
     var batch by remember { mutableStateOf("") }
     var serial by remember { mutableStateOf("") }
     var batchValid by remember { mutableStateOf(false) }
-    var serialValid by remember { mutableStateOf(false) }
 
     // Set examples based on sensor type
     val (batchExample, serialExample) = if (type == SibionicsType.SIBIONICS2) {
@@ -167,6 +166,11 @@ fun ManualSensorEntryDialog(
     } else {
         "LT41250946H" to "250946432T452CBZ43"
     }
+
+    // The QR path refuses a code whose serial form belongs to another sensor type; typing the
+    // code by hand must not be the way around that check.
+    val serialValid = SibionicsRegistry.isManualSerialForVariant(serial, type.toManagedVariant())
+    val serialTypeMismatch = serial.length in 10..20 && !serialValid
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -197,11 +201,21 @@ fun ManualSensorEntryDialog(
                     value = serial,
                     onValueChange = {
                         serial = it.uppercase().filter { c -> c.isLetterOrDigit() }
-                        serialValid = serial.length in 10..20
                     },
                     label = { Text(stringResource(R.string.serial_number_label)) },
                     placeholder = { Text(serialExample, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                    supportingText = { Text(stringResource(R.string.serial_number_supporting, serialExample)) },
+                    supportingText = {
+                        if (serialTypeMismatch) {
+                            Text(
+                                stringResource(
+                                    R.string.sibionics_serial_wrong_type,
+                                    stringResource(type.displayNameRes),
+                                ),
+                            )
+                        } else {
+                            Text(stringResource(R.string.serial_number_supporting, serialExample))
+                        }
+                    },
                     singleLine = true,
                     isError = serial.isNotEmpty() && !serialValid,
                     modifier = Modifier.fillMaxWidth()
@@ -537,13 +551,22 @@ fun ScanSensorStep(
     val selectedBleDevice = remember(matchingBleDevices, selectedBleAddress) {
         matchingBleDevices.firstOrNull { it.address == selectedBleAddress }
     }
+    val sibionics2Label = stringResource(SibionicsType.SIBIONICS2.displayNameRes)
+    val selectedTypeLabel = stringResource(selectedType.displayNameRes)
     val submitManagedQr: (String) -> Boolean = { raw ->
         if (SibionicsRegistry.isSupportedQrPayload(raw, selectedType.toManagedVariant())) {
             onManagedEntry(raw, selectedBleDevice)
             true
         } else {
+            // A Sibionics code rejected here is the right code under the wrong sensor type. Say
+            // so, instead of leaving the user to conclude the scanner is broken.
+            val isSibionics2Code = SibionicsRegistry.qrPayloadIsV120Identity(raw)
             tk.glucodata.Applic.Toaster(
-                context.getString(R.string.invalid_code_format),
+                when (isSibionics2Code) {
+                    null -> context.getString(R.string.invalid_code_format)
+                    true -> context.getString(R.string.sibionics_code_wrong_type, sibionics2Label)
+                    false -> context.getString(R.string.sibionics_code_not_for_type, selectedTypeLabel)
+                },
             )
             false
         }

@@ -26,6 +26,7 @@ object SibionicsRegistry {
     private const val PREF_START_TIME_PREFIX = "sibionics_managed_start_time_"
     private const val PREF_PROTOCOL_PREFIX = "sibionics_managed_protocol_"
     private const val PREF_VARIANT_PREFIX = "sibionics_managed_variant_"
+    private const val PREF_AUTH_KEY_HINT_PREFIX = "sibionics_managed_auth_key_hint_"
     private const val PREF_SHORT_CODE_PREFIX = "sibionics_managed_short_code_"
     private const val PREF_LAST_GLUCOSE_MGDL_PREFIX = "sibionics_managed_last_glucose_mgdl_"
     private const val PREF_LAST_RAW_MGDL_PREFIX = "sibionics_managed_last_raw_mgdl_"
@@ -86,15 +87,44 @@ object SibionicsRegistry {
         source: String?,
         variant: SibionicsConstants.Variant,
     ): Boolean {
-        val match = supportedQrMatch(source) ?: return false
-        val ai21 = match.groupValues[2]
-        val isV120Identity = ai21.startsWith("P") || ai21.startsWith("XPT")
-        return when (variant) {
+        val v120 = qrPayloadIsV120Identity(source) ?: return false
+        return acceptsIdentityForm(variant, v120)
+    }
+
+    /**
+     * Whether a supported QR payload carries the V120 (Sibionics 2) serial form, or null when the
+     * payload is not a Sibionics sensor code at all. Lets setup tell "wrong sensor type selected"
+     * apart from "this is not a Sibionics code".
+     */
+    internal fun qrPayloadIsV120Identity(source: String?): Boolean? {
+        val ai21 = supportedQrMatch(source)?.groupValues?.get(2) ?: return null
+        return isV120IdentityToken(ai21)
+    }
+
+    /**
+     * Same family check for a hand-typed serial, which never carries the GS1 framing the QR gate
+     * validates. Without it, typing a Sibionics 2 serial under a single-piece sensor type (or the
+     * reverse) registers the sensor under the wrong variant, and nothing downstream disagrees.
+     */
+    @JvmStatic
+    fun isManualSerialForVariant(serial: String?, variant: SibionicsConstants.Variant): Boolean {
+        val normalized = SibionicsConstants.normalizeBleName(serial)
+        if (normalized.length !in 10..20) return false
+        return acceptsIdentityForm(variant, isV120IdentityToken(normalized))
+    }
+
+    private fun acceptsIdentityForm(
+        variant: SibionicsConstants.Variant,
+        isV120Identity: Boolean,
+    ): Boolean =
+        when (variant) {
             SibionicsConstants.Variant.SIBIONICS2 -> isV120Identity
             SibionicsConstants.Variant.GS3 -> false
             else -> !isV120Identity
         }
-    }
+
+    private fun isV120IdentityToken(value: String): Boolean =
+        value.startsWith("P") || value.startsWith("XPT")
 
     private fun supportedQrMatch(source: String?): MatchResult? {
         val match = SENSOR_QR_PATTERN.matchEntire(cleanQrPayload(source)) ?: return null
@@ -669,6 +699,21 @@ object SibionicsRegistry {
 
     fun saveVariant(context: Context, sensorId: String, variant: SibionicsConstants.Variant) {
         prefs(context).edit().putString(PREF_VARIANT_PREFIX + sensorId, variant.id).apply()
+    }
+
+    /**
+     * Key group that last authenticated this sensor. Only an ordering hint for the next
+     * connection — never identity. See [SibionicsVariantAttribution].
+     */
+    fun loadAuthKeyHint(context: Context, sensorId: String): SibionicsConstants.Variant? {
+        val raw = prefs(context).getString(PREF_AUTH_KEY_HINT_PREFIX + sensorId, null)
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+        return SibionicsConstants.Variant.entries.firstOrNull { it.id == raw }
+    }
+
+    fun saveAuthKeyHint(context: Context, sensorId: String, variant: SibionicsConstants.Variant) {
+        prefs(context).edit().putString(PREF_AUTH_KEY_HINT_PREFIX + sensorId, variant.id).apply()
     }
 
     /**

@@ -783,6 +783,9 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="failed_to_connect">"Холбогдож чадсангүй: "</string>
     <string name="sensor_not_init">Мэдрэгч эхлээгүй байна. Эхлээд Мэдрэгч уншуулах-ыг ашиглана уу.</string>
     <string name="invalid_code_format">Кодын формат буруу байна. Дахин оролдоно уу.</string>
+    <string name="sibionics_code_wrong_type">Энэ бол %1$s код. Буцаж очоод %1$s-г сонгоно уу.</string>
+    <string name="sibionics_code_not_for_type">Энэ код %1$s-д хамаарахгүй. Буцаж очоод тохирох мэдрэгчийн төрлийг сонгоно уу.</string>
+    <string name="sibionics_serial_wrong_type">Энэ сериал дугаар %1$s-тай тохирохгүй байна. Буцаж очоод тохирох мэдрэгчийн төрлийг сонгоно уу.</string>
     <string name="no_qr_found">Зурагнаас QR код олдсонгүй</string>
     <string name="choose_sibionics_variant">Савлагаан дээрх загварыг сонгоно уу.</string>
       <!-- ComposeHost Strings -->

@@ -155,6 +155,8 @@ class SibionicsBleManager(
     @Volatile private var sessionKey: ByteArray? = null
     @Volatile private var keyGroupIndex: Int = 0
     @Volatile private var authCandidateVariant: SibionicsConstants.Variant? = null
+    @Volatile private var authKeyHint: SibionicsConstants.Variant? = null
+    @Volatile private var connectionKeyGroups: List<SibionicsConstants.Variant> = emptyList()
     @Volatile private var pendingResetCommand: Boolean = false
     @Volatile private var discardNotificationsUntilResetDisconnect: Boolean = false
     @Volatile private var loggedDiscardedPostResetNotification: Boolean = false
@@ -269,6 +271,7 @@ class SibionicsBleManager(
             mActiveDeviceAddress = it.address.ifBlank { null }
         }
         variant = SibionicsRegistry.loadVariant(context, SerialNumber)
+        authKeyHint = SibionicsRegistry.loadAuthKeyHint(context, SerialNumber)
         protocolMode = SibionicsConstants.initialProtocolMode(
             variant,
             SibionicsRegistry.loadProtocolMode(context, SerialNumber),
@@ -580,8 +583,7 @@ class SibionicsBleManager(
                 handler.removeCallbacks(connectCallbackTimeoutRunnable)
                 mBluetoothGatt = gatt
                 mActiveBluetoothDevice = gatt.device
-                keyGroupIndex = 0
-                authCandidateVariant = null
+                resetKeyGroupRotation()
                 connectionPrioritySettled = false
                 gatt.device?.address?.let { setDeviceAddress(it) }
                 connectTime = System.currentTimeMillis()
@@ -942,14 +944,10 @@ class SibionicsBleManager(
 
     private fun confirmChineseVariant() {
         if (variant == SibionicsConstants.Variant.CHINESE) return
-        variant = SibionicsConstants.Variant.CHINESE
+        // Protocol-level evidence, not a key guess: only Chinese firmware speaks AA55.
         Applic.app?.let { context ->
-            record = SibionicsRegistry.confirmAuthenticatedVariant(
-                context,
-                SerialNumber,
-                SibionicsConstants.Variant.CHINESE,
-            ) ?: record
-        }
+            applyConfirmedVariant(context, SibionicsConstants.Variant.CHINESE)
+        } ?: run { variant = SibionicsConstants.Variant.CHINESE }
         synchronized(algorithmLock) {
             algorithm.configure(shortCode, sensitivity, variant, algorithmSelection)
         }
@@ -988,20 +986,27 @@ class SibionicsBleManager(
                 clearV120StepTimeouts()
                 protocolMode = SibionicsConstants.ProtocolMode.V120
                 val authenticatedVariant = authCandidateVariant ?: variant
-                if (variant != authenticatedVariant) {
-                    Log.i(
-                        SibionicsConstants.TAG,
-                        "confirmed variant ${authenticatedVariant.id} (was ${variant.id}) serial=$SerialNumber",
-                    )
-                }
-                variant = authenticatedVariant
+                val attribution = SibionicsVariantAttribution.attribute(
+                    recordedVariant = variant,
+                    acceptedVariant = authenticatedVariant,
+                    attemptIndex = keyGroupIndex,
+                )
+                authKeyHint = attribution.keyHint
                 Applic.app?.let { context ->
                     SibionicsRegistry.saveProtocolMode(context, SerialNumber, protocolMode)
-                    record = SibionicsRegistry.confirmAuthenticatedVariant(
-                        context,
-                        SerialNumber,
-                        authenticatedVariant,
-                    ) ?: record
+                    SibionicsRegistry.saveAuthKeyHint(context, SerialNumber, attribution.keyHint)
+                    if (attribution.persistVariant) {
+                        applyConfirmedVariant(context, authenticatedVariant)
+                    } else if (authenticatedVariant != variant) {
+                        // Credited positionally after a retry, so this ACK may belong to the key
+                        // that timed out. Lead with it next connection and let a first-attempt
+                        // ACK decide the identity.
+                        Log.w(
+                            SibionicsConstants.TAG,
+                            "auth accepted as ${authenticatedVariant.id} on retry $keyGroupIndex; " +
+                                "keeping recorded variant ${variant.id} serial=$SerialNumber",
+                        )
+                    }
                 }
                 synchronized(algorithmLock) {
                     algorithm.configure(shortCode, sensitivity, variant, algorithmSelection)
@@ -1054,11 +1059,39 @@ class SibionicsBleManager(
         handler.removeCallbacks(chineseDataTimeoutRunnable)
         handler.removeCallbacks(authTimeoutRunnable)
         protocolMode = SibionicsConstants.ProtocolMode.V120
-        keyGroupIndex = 0
-        authCandidateVariant = null
+        resetKeyGroupRotation()
         Applic.app?.let { SibionicsRegistry.saveProtocolMode(it, SerialNumber, protocolMode) }
         Log.i(SibionicsConstants.TAG, "switching to V120: $reason")
         sendAuthPacket()
+    }
+
+    /**
+     * Adopt a variant proven by an unambiguous authentication. The reset window rides on the
+     * variant, so a sensor that was recorded as something else has to pick up its real one here
+     * rather than waiting for the next process start.
+     */
+    private fun applyConfirmedVariant(context: Context, confirmed: SibionicsConstants.Variant) {
+        val previous = variant
+        if (previous != confirmed) {
+            Log.i(
+                SibionicsConstants.TAG,
+                "confirmed variant ${confirmed.id} (was ${previous.id}) serial=$SerialNumber",
+            )
+        }
+        variant = confirmed
+        record = SibionicsRegistry.confirmAuthenticatedVariant(context, SerialNumber, confirmed) ?: record
+        if (previous == confirmed) return
+        automaticSensitivity = SibionicsSensitivity.sensitivityFor(shortCode, confirmed)
+        sensitivity = sensitivityOverride ?: automaticSensitivity
+        val normalizedDays = SibionicsResetPolicy.normalizedDays(
+            variant = confirmed,
+            persistedDays = SibionicsRegistry.loadAutoResetDays(context, SerialNumber),
+            hasPersistedSetting = SibionicsRegistry.hasAutoResetSetting(context, SerialNumber),
+        )
+        if (normalizedDays != autoResetDays) {
+            autoResetDays = normalizedDays
+            SibionicsRegistry.saveAutoResetDays(context, SerialNumber, normalizedDays)
+        }
     }
 
     private fun confirmProtocolMode(mode: SibionicsConstants.ProtocolMode) {
@@ -1092,7 +1125,7 @@ class SibionicsBleManager(
         val groups = keyGroups()
         keyGroupIndex++
         if (keyGroupIndex >= groups.size) {
-            keyGroupIndex = 0
+            resetKeyGroupRotation()
             phase = Phase.ERROR
             setStatus("Auth failed")
             Log.w(SibionicsConstants.TAG, "V120 auth failed: $reason")
@@ -1103,15 +1136,20 @@ class SibionicsBleManager(
         sendAuthPacket()
     }
 
-    private fun keyGroups(): List<SibionicsConstants.Variant> {
-        val preferred = variant
-        return listOf(
-            preferred,
-            SibionicsConstants.Variant.EU,
-            SibionicsConstants.Variant.HEMATONIX,
-            SibionicsConstants.Variant.SIBIONICS2,
-            SibionicsConstants.Variant.GS3,
-        ).distinctBy { it.appId + it.registrationKeyHex }
+    /**
+     * Frozen for the life of the connection: [keyGroupIndex] indexes into this list, so confirming
+     * a variant or moving the hint mid-connection must not renumber the groups underneath it.
+     */
+    private fun keyGroups(): List<SibionicsConstants.Variant> =
+        connectionKeyGroups.ifEmpty {
+            SibionicsVariantAttribution.keyOrder(variant, authKeyHint)
+                .also { connectionKeyGroups = it }
+        }
+
+    private fun resetKeyGroupRotation() {
+        keyGroupIndex = 0
+        authCandidateVariant = null
+        connectionKeyGroups = emptyList()
     }
 
     private fun sendChineseDataRequest(probing: Boolean) {

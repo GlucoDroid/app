@@ -527,6 +527,9 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="failed_to_connect">Verbindung fehlgeschlagen zu </string>
     <string name="sensor_not_init">Sensor nicht initialisiert. Verwenden Sie zuerst \'Sensor scannen\'.</string>
     <string name="invalid_code_format">Ungültiges Code-Format. Bitte erneut versuchen.</string>
+    <string name="sibionics_code_wrong_type">Das ist ein %1$s-Code. Gehen Sie zurück und wählen Sie %1$s.</string>
+    <string name="sibionics_code_not_for_type">Dieser Code gehört nicht zu %1$s. Gehen Sie zurück und wählen Sie den passenden Sensortyp.</string>
+    <string name="sibionics_serial_wrong_type">Diese Seriennummer passt nicht zu %1$s. Gehen Sie zurück und wählen Sie den passenden Sensortyp.</string>
     <string name="no_qr_found">Kein QR-Code im Bild gefunden</string>
     <string name="go">Los</string>
     <string name="filter_by_date">Nach Datum filtern</string>
