@@ -70,7 +70,7 @@ object WearSync2 {
     /** Tell the watch a sensor was removed on the phone. */
     @JvmStatic
     fun pushRemoval(serial: String?) {
-        if (Applic.isWearable || serial.isNullOrBlank()) return
+        if (Applic.isWearable || serial.isNullOrBlank() || !wearCompanionEnabled()) return
         executor.execute {
             runCatching {
                 val serialBytes = serial.toByteArray(Charsets.UTF_8)
@@ -183,7 +183,21 @@ object WearSync2 {
         return true
     }
 
+    /**
+     * Whether there is a companion to serve at all.
+     *
+     * A serve is not cheap: a Room history read over the whole horizon, a calibration pass across
+     * every point, then up to 56 chunk messages spaced 400 ms apart. All of it ran on every
+     * reading dispatch regardless of whether Wear OS was switched on, because the only thing that
+     * knew — [MessageSender.sendSyncMessage] returning false with no transport — is the last call
+     * made. A 2026-08-07 trace on a phone that never enabled the companion has 71 serves, one of
+     * them 20145 triples: about 22 s of executor work and 56 dropped messages, once a minute.
+     */
+    private fun wearCompanionEnabled(): Boolean =
+        runCatching { Applic.useWearos() }.getOrDefault(false)
+
     private fun serveSince(fromSec: Long) {
+        if (!wearCompanionEnabled()) return
         val serial = runCatching { SensorIdentity.resolveMainSensor() }.getOrNull()
             ?: runCatching { Natives.lastsensorname() }.getOrNull().takeUnless { it.isNullOrEmpty() }
             ?: return

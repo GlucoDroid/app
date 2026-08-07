@@ -2705,11 +2705,23 @@ class OttaiBleManager(
 
     private fun rememberAcceptedReading(r: OttaiReading, mmol: Float, sampleMs: Long) {
         recentlyRejectedSamples.remove(r.record.dataNo)
+        noteContinuityEvaluated(r.record.dataNo, sampleMs)
+        // The excursion baseline only ever moves forward, for the same reason the adjacency
+        // anchor above does. History is accepted on this path too, and a backfill can be
+        // arbitrarily old: on 2026-08-07 a hole retry for [0,1) returned dataNo=0 — 7.70 mmol,
+        // raw 19091, the sensor's first minute two weeks earlier — which replaced a 5.00 mmol
+        // baseline. Every live sample after it then read as a 2.7 mmol one-minute excursion, and
+        // 20:02 through 20:04 was refused until the yield valve re-baselined the gate.
+        //
+        // Freezing the baseline costs history nothing: continuity-prev is already unreachable for
+        // an old record (its adjacency anchor cannot move back either), and the backward-looking
+        // checks — continuity-next and historyIsolatedSpikeReason — want a baseline that is
+        // NEWER than the record under test, which is exactly what this preserves.
+        if (lastAcceptedDataNo >= 0 && r.record.dataNo < lastAcceptedDataNo) return
         lastAcceptedDataNo = r.record.dataNo
         lastAcceptedSampleMs = sampleMs
         lastAcceptedMmol = mmol
         lastAcceptedRawCurrent = r.record.rawCurrent
-        noteContinuityEvaluated(r.record.dataNo, sampleMs)
         consecutiveContinuityRejects = 0
         Applic.app?.let {
             OttaiRegistry.saveContinuityBaseline(it, SerialNumber.orEmpty(), r.record.dataNo, sampleMs, mmol, r.record.rawCurrent)
