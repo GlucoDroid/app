@@ -148,6 +148,24 @@ public final class NightscoutCalibration {
         return resolveExportedValueMgdl(sensorId, viewMode, autoMgdl, rawCurrent, timestampMillis);
     }
 
+    /**
+     * Averaging window the native Nightscout uploader has to apply to the values it
+     * builds from stored polls, so its entries match the smoothed values every other
+     * exchange output already sends. 0 keeps the uploader on the stored values.
+     */
+    @Keep
+    public static int getExchangeSmoothingSeconds() {
+        try {
+            if (Applic.app == null) {
+                return 0;
+            }
+            final int minutes = DataSmoothing.exchangeSmoothingMinutes(Applic.app);
+            return minutes > 0 ? minutes * 60 : 0;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
     @Keep
     public static int getExchangeOutputIntervalSeconds() {
         try {

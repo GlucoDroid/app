@@ -97,6 +97,28 @@ const ScanData *makeExportedScan(const SensorGlucoseData *sens,
     return &storage;
     }
 
+int getExchangeSmoothingSeconds() {
+    auto env=getenv();
+    if(env==nullptr||!ensureexportvalueclass(env))
+        return 0;
+    const static jmethodID smoothingMethod = env->GetStaticMethodID(
+        exportvalueclass,
+        "getExchangeSmoothingSeconds",
+        "()I"
+    );
+    if(smoothingMethod==nullptr) {
+        if(env->ExceptionCheck())
+            env->ExceptionClear();
+        return 0;
+        }
+    const int seconds=env->CallStaticIntMethod(exportvalueclass,smoothingMethod);
+    if(env->ExceptionCheck()) {
+        env->ExceptionClear();
+        return 0;
+        }
+    return seconds>0?seconds:0;
+    }
+
 int getExchangeOutputIntervalSeconds() {
     auto env=getenv();
     if(env==nullptr||!ensureexportvalueclass(env))

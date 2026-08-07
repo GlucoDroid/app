@@ -89,6 +89,22 @@ object DataSmoothing {
         )
     }
 
+    /**
+     * Averaging window, in minutes, that every outgoing reading must carry — 0 when
+     * exchange outputs are configured to stay unsmoothed. Java-side outputs get this
+     * applied for them by [CurrentDisplaySource.resolveCurrentForExchange]; the native
+     * Nightscout uploader builds its entries straight from stored polls and has to ask
+     * for the window itself (see NightscoutCalibration.getExchangeSmoothingSeconds).
+     */
+    @JvmStatic
+    fun exchangeSmoothingMinutes(context: Context): Int {
+        return exchangeSmoothingMinutes(
+            smoothingMinutes = getMinutes(context),
+            graphOnly = isGraphOnly(context),
+            exchangeOutputsOnly = smoothOnlyExchangeOutputs(context)
+        )
+    }
+
     @JvmStatic
     fun shouldCollapseExchangeOutputs(context: Context): Boolean {
         return shouldCollapseExchangeOutputs(
@@ -287,6 +303,15 @@ object DataSmoothing {
         exchangeOutputsOnly: Boolean
     ): Boolean {
         return sanitizeMinutes(smoothingMinutes) > 0 && (exchangeOutputsOnly || !graphOnly)
+    }
+
+    internal fun exchangeSmoothingMinutes(
+        smoothingMinutes: Int,
+        graphOnly: Boolean,
+        exchangeOutputsOnly: Boolean
+    ): Int {
+        val sanitized = sanitizeMinutes(smoothingMinutes)
+        return if (shouldSmoothExchangeOutputs(sanitized, graphOnly, exchangeOutputsOnly)) sanitized else 0
     }
 
     internal fun shouldCollapseExchangeOutputs(

@@ -517,6 +517,68 @@ extern double getdelta(float change);
 extern std::string_view getdeltaname(float change);
 extern int mkv1streamid(char *outiter,const sensorname_t *name,int num);
 
+//Every other exchange output gets the data-smoothing average applied in Java, by
+//CurrentDisplaySource.resolveCurrentForExchange. The Nightscout uploader builds its
+//entries here, straight from the stored polls, so it has to run the same average
+//itself or Nightscout stays the one destination carrying unsmoothed values.
+//Read/written by the uploader thread only, refreshed once per upload pass so a
+//120-item backfill chunk does not cross into Java per sample.
+static int uploadSmoothingSeconds=0;
+
+//Mirrors DataSmoothing.smoothNativePoints: an unweighted mean of every stored
+//sample within +/-window/2 of the sample's own timestamp. Returns 0 (meaning
+//"keep the stored value") when smoothing is off or nothing else falls in the
+//window. The newest sample therefore only averages older neighbours, exactly as
+//the live value does on the Java side. Polls are time-ordered, so an empty slot
+//or a sample past the window ends the walk.
+template <class Getvalue>
+static int smoothPollWindow(std::span<const ScanData> gdata,const int pos,Getvalue getvalue) {
+    if(uploadSmoothingSeconds<=0||pos<0||pos>=(int)gdata.size())
+        return 0;
+    const uint32_t tim=gdata[pos].gettime();
+    const uint32_t half=(uint32_t)uploadSmoothingSeconds/2;
+    if(!tim||!half||getvalue(pos)<=0)
+        return 0;
+    double sum=0.0;
+    int count=0;
+    for(int i=pos;i>=0;--i) {
+        const uint32_t eltime=gdata[i].gettime();
+        if(!eltime||eltime+half<tim)
+            break;
+        if(const int val=getvalue(i);val>0) {
+            sum+=val;
+            ++count;
+            }
+        }
+    for(int i=pos+1;i<(int)gdata.size();++i) {
+        const uint32_t eltime=gdata[i].gettime();
+        if(!eltime||eltime>tim+half)
+            break;
+        if(const int val=getvalue(i);val>0) {
+            sum+=val;
+            ++count;
+            }
+        }
+    return count>1?(int)lround(sum/count):0;
+    }
+
+//Deliberately never calls ScanData::valid(): that patches a zero timestamp from the
+//preceding entry as a side effect, which a read-only averaging pass must not do.
+static int smoothedUploadMgdl(std::span<const ScanData> gdata,const int pos) {
+    return smoothPollWindow(gdata,pos,[gdata](const int i) {
+        const int g=gdata[i].getmgdL();
+        return (g>0&&g<552)?g:0;
+        });
+    }
+
+//getRawForPoll indexes by pointer offset into the polls array, which is exactly what
+//gdata spans here, so neighbouring raw values line up with their auto counterparts.
+static int smoothedUploadRaw(const SensorGlucoseData *sens,std::span<const ScanData> gdata,const int pos) {
+    return smoothPollWindow(gdata,pos,[sens,gdata](const int i) {
+        return (int)sens->getRawForPoll(&gdata[i]);
+        });
+    }
+
 //gdata/pos locate item inside the poll series so a rate can be derived when the driver reported
 //none (AiDex, Libre 3 backfill). Without it those sensors upload direction:"" and delta:0 forever.
 template <class T> int mkuploaditem(SensorGlucoseData *sens,char *buf,const sensorname_t *sensorname,const T &item,std::span<const ScanData> gdata,const int pos,const bool includeId=false,const bool trailingComma=true) {
@@ -524,9 +586,15 @@ template <class T> int mkuploaditem(SensorGlucoseData *sens,char *buf,const sens
     const std::string_view sensornameView=fixedsensorview(sensorname);
     char sensornameStr[64];
     copyfixedsensorname(sensornameStr,sizeof(sensornameStr),sensorname);
-    const int rawCurrent=sens->getRawForPoll(&item);
-    int autoMgdl=item.getmgdL();
-    if(double calibrated=calibrateONEtest(sens,item);!isnan(calibrated))
+    const int rawSmoothed=smoothedUploadRaw(sens,gdata,pos);
+    const int rawCurrent=rawSmoothed>0?rawSmoothed:sens->getRawForPoll(&item);
+    //Average before calibrating, not after: calibrateONE is affine in the value, so
+    //this yields the same series the app's own smoothed display and broadcasts carry.
+    ScanData smoothed=item;
+    if(const int avg=smoothedUploadMgdl(gdata,pos);avg>0)
+        smoothed.g=avg;
+    int autoMgdl=smoothed.getmgdL();
+    if(double calibrated=calibrateONEtest(sens,smoothed);!isnan(calibrated))
         autoMgdl=(int)round(calibrated);
     int mgdL=getNightscoutCalibrationOverrideForItem(sens,sensornameStr,autoMgdl,rawCurrent,tim*1000LL);
     if(mgdL<=0)
@@ -637,16 +705,22 @@ static const char *writeNightscoutV3UploadEntry(char *buf,SensorGlucoseData *sen
 extern char * writev3entry(char *outin,const ScanData *val, const sensorname_t *sensorname,bool server=true);
     char sensornameStr[64];
     copyfixedsensorname(sensornameStr,sizeof(sensornameStr),sensorname);
-    int autoMgdl=el->getmgdL();
-    if(double calibrated=calibrateONEtest(sens,*el);!isnan(calibrated))
+    //Average before calibrating, not after: calibrateONE is affine in the value, so
+    //this yields the same series the app's own smoothed display and broadcasts carry.
+    ScanData smoothed=*el;
+    if(const int avg=smoothedUploadMgdl(gdata,pos);avg>0)
+        smoothed.g=avg;
+    int autoMgdl=smoothed.getmgdL();
+    if(double calibrated=calibrateONEtest(sens,smoothed);!isnan(calibrated))
         autoMgdl=(int)round(calibrated);
     //getRawForPoll indexes by pointer offset from the polls base, so it must see the original el,
-    //never the patched copy below.
+    //never the patched copy above or below.
+    const int rawSmoothed=smoothedUploadRaw(sens,gdata,pos);
     const int overrideValue=getNightscoutCalibrationOverrideForItem(
         sens,
         sensornameStr,
         autoMgdl,
-        sens->getRawForPoll(el),
+        rawSmoothed>0?rawSmoothed:sens->getRawForPoll(el),
         el->gettime()*1000LL
     );
     ScanData outel=*el;
@@ -684,6 +758,7 @@ static bool uploadRecentV3(const int sensorid,SensorGlucoseData *sens,const sens
 
 static bool uploadCGM3(const bool prioritizeRecent=false) {
     LOGSTRING("upload\n");
+    uploadSmoothingSeconds=getExchangeSmoothingSeconds();
     int last=sensors->last();
     if(last<0) {
         LOGAR("No sensors");
@@ -763,6 +838,7 @@ static bool uploadCGM3(const bool prioritizeRecent=false) {
     }
 static bool uploadCGM(const bool prioritizeRecent=false) {
     LOGSTRING("upload\n");
+    uploadSmoothingSeconds=getExchangeSmoothingSeconds();
     int last=sensors->last();
     if(last<0) {
         LOGAR("No sensors");
