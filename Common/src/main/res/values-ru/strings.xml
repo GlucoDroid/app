@@ -1157,6 +1157,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dash">-</string>
     <string name="data_mode">Режим данных</string>
     <string name="days_hours_remaining">%1$d дней %2$d часов</string>
+    <string name="sensor_age_days_hours">%1$d дней %2$d часов</string>
+    <string name="sensor_age_hours">%1$d часов</string>
     <string name="deselect_all">Отменить выбор всех</string>
     <string name="display_secondary_values">Отображать второстепенные значения</string>
     <string name="display_secondary_values_desc">Показывать второстепенные ценности рядом с основным чтением</string>
@@ -1608,6 +1610,15 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Добавить инсулин</string>
     <string name="journal_dose_pair_carbs">Добавить углеводы</string>
     <string name="journal_dose_suggested_insulin">Предложено %1$s ЕД</string>
+    <string name="unit_insulin_value">%1$s ЕД</string>
+    <string name="unit_carbs_value">%1$s г</string>
+    <string name="dashboard_iob_short">IoB %1$s</string>
+    <string name="dashboard_eiob_short">eIoB %1$s</string>
+    <string name="dashboard_iob_full">Активный инсулин %1$s</string>
+    <string name="dashboard_eiob_full">Действует сейчас %1$s</string>
+    <string name="dashboard_forecast_recommendation_short">≏ %1$s</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Углеводы: %1$s г</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Инсулин: %1$s ЕД</string>
     <string name="journal_dose_covers_carbs">Покрывает %1$s г</string>
     <string name="journal_dose_food_component">Еда %1$s</string>
     <string name="journal_dose_correction_component">Коррекция %1$s</string>
@@ -1626,8 +1637,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_eiob">eIOB %1$s ЕД</string>
     <string name="journal_eiob_display_title">Показывать эффективный IOB (eIOB)</string>
     <string name="journal_eiob_display_desc">Показывать инсулин с поправкой на активность рядом с IOB</string>
-    <string name="journal_iob_expanded">Остаточный IOB: %1$s ЕД</string>
-    <string name="journal_eiob_expanded">Действующий eIOB: %1$s ЕД</string>
+    <string name="journal_iob_expanded">Остаточный IoB: %1$s ЕД</string>
+    <string name="journal_eiob_expanded">Действующий eIoB: %1$s ЕД</string>
     <string name="journal_dashboard_quickadd_title">Быстрое добавление на главной</string>
     <string name="journal_dashboard_quickadd_desc">Показывать кнопку + журнала</string>
     <string name="journal_quickadd_always_now_title">Использовать текущее время</string>

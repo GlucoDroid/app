@@ -1116,6 +1116,8 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="dash">-</string>
     <string name="data_mode">Өгөгдлийн горим</string>
     <string name="days_hours_remaining">%1$d хоног %2$d цаг</string>
+    <string name="sensor_age_days_hours">%1$d хоног %2$d цаг</string>
+    <string name="sensor_age_hours">%1$d цаг</string>
     <string name="delete_calibrations_count">%1$d каллибрацийг устгах</string>
     <string name="deselect_all">Бүгдийг болиулах</string>
     <string name="disabled_calibrations_cleared">%1$d идэвхгүй каллибрацийг цэвэрлэлээ</string>
@@ -1579,6 +1581,15 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="journal_dose_pair_insulin">Pair insulin</string>
     <string name="journal_dose_pair_carbs">Pair carbs</string>
     <string name="journal_dose_suggested_insulin">%1$s U suggested</string>
+    <string name="unit_insulin_value">%1$s U</string>
+    <string name="unit_carbs_value">%1$s г</string>
+    <string name="dashboard_iob_short">IoB %1$s</string>
+    <string name="dashboard_eiob_short">eIoB %1$s</string>
+    <string name="dashboard_iob_full">Идэвхтэй инсулин %1$s</string>
+    <string name="dashboard_eiob_full">Одоо үйлчилж буй %1$s</string>
+    <string name="dashboard_forecast_recommendation_short">≏ %1$s</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Нүүрс ус: %1$s г</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Инсулин: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g covered</string>
     <string name="journal_dose_food_component">Food %1$s</string>
     <string name="journal_dose_correction_component">Correction %1$s</string>
@@ -1599,8 +1610,8 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Үр дүнтэй IOB (eIOB)-г харуулах</string>
     <string name="journal_eiob_display_desc">Идэвхээр тохируулсан инсулиныг IOB-ийн хажууд харуулах</string>
-    <string name="journal_iob_expanded">IOB %1$s U үлдсэн</string>
-    <string name="journal_eiob_expanded">eIOB %1$s U үйлчилж байна</string>
+    <string name="journal_iob_expanded">IoB %1$s U үлдсэн</string>
+    <string name="journal_eiob_expanded">eIoB %1$s U үйлчилж байна</string>
     <string name="journal_dashboard_quickadd_title">Хяналтын самбарт хурдан нэмэх</string>
     <string name="journal_dashboard_quickadd_desc">Журналын + товчийг харуулах</string>
     <string name="journal_quickadd_always_now_title">Одоогийн цагийг ашиглах</string>
@@ -1635,7 +1646,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="journal_disable_preset">Disable</string>
     <string name="journal_active_insulin">Active insulin</string>
     <string name="journal_active_insulin_subtitle">Counts toward IOB and predictions</string>
-    <string name="journal_active_insulin_summary">%1$d doses · %2$sU · %3$d%% now</string>
+    <string name="journal_active_insulin_summary">%1$d doses · %2$s U · %3$d%% now</string>
     <string name="journal_active_insulin_until">Running until %1$s</string>
     <string name="journal_preset_nph">Intermediate / NPH</string>
     <string name="journal_preset_ultra_long_basal">Ultra long basal</string>

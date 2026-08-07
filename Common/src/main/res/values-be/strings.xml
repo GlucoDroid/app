@@ -1119,6 +1119,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dash">-</string>
     <string name="data_mode">Рэжым дадзеных</string>
     <string name="days_hours_remaining">%1$d дзён %2$d гадзін</string>
+    <string name="sensor_age_days_hours">%1$d дзён %2$d гадзін</string>
+    <string name="sensor_age_hours">%1$d гадзін</string>
     <string name="deselect_all">Зняць выбар з усіх</string>
     <string name="display_secondary_values">Адлюстраванне другасных значэнняў</string>
     <string name="display_secondary_values_desc">Паказаць другарадныя значэнні побач з асноўнымі паказаннямі</string>
@@ -1635,6 +1637,15 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Дадаць інсулін</string>
     <string name="journal_dose_pair_carbs">Дадаць вугляводы</string>
     <string name="journal_dose_suggested_insulin">Прапанавана %1$s АД</string>
+    <string name="unit_insulin_value">%1$s АД</string>
+    <string name="unit_carbs_value">%1$s г</string>
+    <string name="dashboard_iob_short">IoB %1$s</string>
+    <string name="dashboard_eiob_short">eIoB %1$s</string>
+    <string name="dashboard_iob_full">Актыўны інсулін %1$s</string>
+    <string name="dashboard_eiob_full">Дзейнічае зараз %1$s</string>
+    <string name="dashboard_forecast_recommendation_short">≏ %1$s</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Вугляводы: %1$s г</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Інсулін: %1$s АД</string>
     <string name="journal_dose_covers_carbs">Пакрывае %1$s г</string>
     <string name="journal_dose_food_component">Ежа %1$s</string>
     <string name="journal_dose_correction_component">Карэкцыя %1$s</string>
@@ -1653,8 +1664,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_eiob">eIOB %1$s АД</string>
     <string name="journal_eiob_display_title">Паказваць эфектыўны IOB (eIOB)</string>
     <string name="journal_eiob_display_desc">Паказваць інсулін з улікам актыўнасці побач з IOB</string>
-    <string name="journal_iob_expanded">Засталося IOB: %1$s АД</string>
-    <string name="journal_eiob_expanded">Дзейнічае eIOB: %1$s АД</string>
+    <string name="journal_iob_expanded">Засталося IoB: %1$s АД</string>
+    <string name="journal_eiob_expanded">Дзейнічае eIoB: %1$s АД</string>
     <string name="journal_dashboard_quickadd_title">Хуткае даданне на галоўнай</string>
     <string name="journal_dashboard_quickadd_desc">Паказваць кнопку + журнала</string>
     <string name="journal_quickadd_always_now_title">Выкарыстоўваць бягучы час</string>
@@ -1838,7 +1849,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="mirror_security">Бяспека</string>
     <string name="mirror_password_desc">Павінен супадаць на абедзвюх прыладах</string>
     <string name="journal_active_insulin">Актыўны інсулін</string>
-    <string name="journal_active_insulin_summary">%1$d доз · %2$s Ад · зараз %3$d%%</string>
+    <string name="journal_active_insulin_summary">%1$d доз · %2$s АД · зараз %3$d%%</string>
     <string name="journal_active_insulin_until">Дзейнічае да %1$s</string>
     <string name="alert_delivery_notification">Апавяшчэнне</string>
     <string name="alert_delivery_alarm">Будзільнік</string>

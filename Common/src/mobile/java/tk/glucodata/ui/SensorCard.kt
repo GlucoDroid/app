@@ -1555,12 +1555,11 @@ fun SensorCard(
 
                     if (sensor.sensorAgeHours >= 0) {
                         val ageText = if (sensor.sensorAgeHours < 24) {
-                            stringResource(R.string.sensor_age_hours_compact, sensor.sensorAgeHours)
+                            stringResource(R.string.sensor_age_hours, sensor.sensorAgeHours)
                         } else {
                             val days = sensor.sensorAgeHours / 24
                             val hours = sensor.sensorAgeHours % 24
-                            "${stringResource(R.string.sensor_age_days_compact, days)} " +
-                                stringResource(R.string.sensor_age_hours_compact, hours)
+                            stringResource(R.string.sensor_age_days_hours, days, hours)
                         }
                         DataRow(stringResource(R.string.sensor_age), ageText)
                     }

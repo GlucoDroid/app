@@ -1126,6 +1126,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dash">-</string>
     <string name="data_mode">Mode données</string>
     <string name="days_hours_remaining">%1$d jours %2$d heures</string>
+    <string name="sensor_age_days_hours">%1$d jours %2$d heures</string>
+    <string name="sensor_age_hours">%1$d heures</string>
     <string name="deselect_all">Tout désélectionner</string>
     <string name="display_secondary_values">Afficher les valeurs secondaires</string>
     <string name="display_secondary_values_desc">Afficher les valeurs secondaires à côté de la lecture principale</string>
@@ -1571,6 +1573,15 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Associer l\'insuline</string>
     <string name="journal_dose_pair_carbs">Associer les glucides</string>
     <string name="journal_dose_suggested_insulin">%1$s U suggérées</string>
+    <string name="unit_insulin_value">%1$s U</string>
+    <string name="unit_carbs_value">%1$s g</string>
+    <string name="dashboard_iob_short">IoB %1$s</string>
+    <string name="dashboard_eiob_short">eIoB %1$s</string>
+    <string name="dashboard_iob_full">Insuline active %1$s</string>
+    <string name="dashboard_eiob_full">Effet actuel %1$s</string>
+    <string name="dashboard_forecast_recommendation_short">≏ %1$s</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Glucides : %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Insuline : %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g couverts</string>
     <string name="journal_dose_food_component">Repas %1$s</string>
     <string name="journal_dose_correction_component">Correction %1$s</string>
@@ -1589,8 +1600,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_metric_eiob">eIOB %1$s U</string>
     <string name="journal_eiob_display_title">Afficher l’IOB effectif (eIOB)</string>
     <string name="journal_eiob_display_desc">Afficher l’insuline ajustée à l’activité à côté de l’IOB</string>
-    <string name="journal_iob_expanded">IOB restant : %1$s U</string>
-    <string name="journal_eiob_expanded">eIOB actif : %1$s U</string>
+    <string name="journal_iob_expanded">IoB restant : %1$s U</string>
+    <string name="journal_eiob_expanded">eIoB actif : %1$s U</string>
     <string name="journal_dashboard_quickadd_title">Ajout rapide sur le tableau de bord</string>
     <string name="journal_dashboard_quickadd_desc">Afficher le bouton + du journal</string>
     <string name="journal_quickadd_always_now_title">Utiliser l’heure actuelle</string>

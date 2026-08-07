@@ -1379,6 +1379,8 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="dash">-</string>
     <string name="data_mode">Habka xogta</string>
     <string name="days_hours_remaining">%1$d maalmood %2$d saacadood</string>
+    <string name="sensor_age_days_hours">%1$d maalmood %2$d saacadood</string>
+    <string name="sensor_age_hours">%1$d saacadood</string>
     <string name="delete_calibrations_count">Tirtir qiyaasaha %1$d</string>
     <string name="deselect_all">Dhammaan ha dooran</string>
     <string name="disabled_calibrations_cleared">%1$d qalabayn oo la damiyay waa la nadiifiyey</string>
@@ -1846,6 +1848,15 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="journal_dose_pair_insulin">Isku xidh insulin</string>
     <string name="journal_dose_pair_carbs">Isku xidh karbohaydraytyada</string>
     <string name="journal_dose_suggested_insulin">%1$s U ayaa soo jeedisay</string>
+    <string name="unit_insulin_value">%1$s U</string>
+    <string name="unit_carbs_value">%1$s g</string>
+    <string name="dashboard_iob_short">IoB %1$s</string>
+    <string name="dashboard_eiob_short">eIoB %1$s</string>
+    <string name="dashboard_iob_full">Insuliin firfircoon %1$s</string>
+    <string name="dashboard_eiob_full">Hadda shaqaynaya %1$s</string>
+    <string name="dashboard_forecast_recommendation_short">≏ %1$s</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Kaarbohaydrayt: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Insuliin: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g daboolay</string>
     <string name="journal_dose_food_component">Cuntada %1$s</string>
     <string name="journal_dose_correction_component">Sixitaan %1$s</string>
@@ -1888,8 +1899,8 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="notification_iob_cob_risk_desc">Midabee IOB/COB marka la saadaaliyo in insuliinta 30-ka daqiiqo ee soo socda ay gulukooska ka hoos dhigi doonto bartilmaameedka</string>
     <string name="notification_iob_risk_without_cob_title">Digniin marka COB maqan yahay</string>
     <string name="notification_iob_risk_without_cob_desc">Sidoo kale midabee marka aan karbohaydrayt la diiwaangelin, markaas insuliinta dhow waxay u xisaabtamaysaa mid aan wax daboolin</string>
-    <string name="journal_iob_expanded">IOB %1$sU ayaa hadhay</string>
-    <string name="journal_eiob_expanded">eIOB %1$sU ayaa shaqaynaya</string>
+    <string name="journal_iob_expanded">IoB %1$s U ayaa hadhay</string>
+    <string name="journal_eiob_expanded">eIoB %1$s U ayaa shaqaynaya</string>
     <string name="journal_no_active_insulin">Ma jiro insulin firfircoon</string>
     <string name="journal_active_now_percent">%1$d%% firfircoon</string>
     <string name="journal_visible_events">Dhacdooyinka muuqda</string>
@@ -1922,7 +1933,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="journal_disable_preset">Dami</string>
     <string name="journal_active_insulin">Insuliin firfircoon</string>
     <string name="journal_active_insulin_subtitle">Waxay ku xisaabtantaa dhinaca IOB iyo saadaasha</string>
-    <string name="journal_active_insulin_summary">Qiyaasaha %1$d · %2$sU · %3$d%% hadda</string>
+    <string name="journal_active_insulin_summary">Qiyaasaha %1$d · %2$s U · %3$d%% hadda</string>
     <string name="journal_active_insulin_until">Soconaya ilaa %1$s</string>
     <string name="journal_preset_nph">Dhexdhexaad / NPH</string>
     <string name="journal_preset_ultra_long_basal">Basal dheer oo dheer</string>
