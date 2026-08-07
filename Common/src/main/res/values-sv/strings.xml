@@ -432,7 +432,6 @@
     <string name="transmitter_id_supporting">8-12 tecken från sändaretiketten</string>
     <string name="scan_sensor_title">Skanna QR-kod</string>
     <string name="scan_sensor_instruction">Skanna QR-koden på förpackningen till din Sibionics-sensor.</string>
-    <string name="scan_sensor_instruction_sibionics2">Skanna anslutningskoden på Sibionics 2-sändaren, eller välj sändaren via Bluetooth nedan.</string>
     <string name="scan_qr_button">Skanna QR</string>
     <string name="select_gallery_button">Välj från Galleri</string>
     <string name="skip_fake_sensor">Hoppa över (Använd falsk sensor)</string>

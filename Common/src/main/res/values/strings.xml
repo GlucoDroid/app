@@ -896,7 +896,6 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     
     <string name="scan_sensor_title">Scan QR Code</string>
     <string name="scan_sensor_instruction">Scan the QR code on your generic Sibionics sensor box.</string>
-    <string name="scan_sensor_instruction_sibionics2">Scan the connection code on the Sibionics 2 transmitter, or pick the transmitter from Bluetooth below.</string>
     <string name="scan_qr_button">Scan QR Code</string>
     <string name="select_gallery_button">Select from Gallery</string>
     <string name="skip_fake_sensor">Skip (Use Fake Sensor)</string>

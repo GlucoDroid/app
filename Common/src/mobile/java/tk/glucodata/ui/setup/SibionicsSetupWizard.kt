@@ -538,6 +538,7 @@ fun ScanSensorStep(
     val buttonHeight = if (compact) 46.dp else 48.dp
     var showManualEntry by remember { mutableStateOf(false) }
     var handledScan by remember { mutableStateOf(false) }
+    var scanRejection by remember { mutableStateOf<String?>(null) }
     var scannerTouchActive by remember { mutableStateOf(false) }
     var bleProbeScanning by remember { mutableStateOf(true) }
     var bleProbeDevices by remember { mutableStateOf(listOf<BleDeviceScanner.SibionicsBleDevice>()) }
@@ -555,19 +556,19 @@ fun ScanSensorStep(
     val selectedTypeLabel = stringResource(selectedType.displayNameRes)
     val submitManagedQr: (String) -> Boolean = { raw ->
         if (SibionicsRegistry.isSupportedQrPayload(raw, selectedType.toManagedVariant())) {
+            scanRejection = null
             onManagedEntry(raw, selectedBleDevice)
             true
         } else {
-            // A Sibionics code rejected here is the right code under the wrong sensor type. Say
-            // so, instead of leaving the user to conclude the scanner is broken.
+            // Rendered in place of the instruction line, not toasted: a toast is not guaranteed
+            // to be seen (or shown at all) and this is the only feedback a rejected scan has.
             val isSibionics2Code = SibionicsRegistry.qrPayloadIsV120Identity(raw)
-            tk.glucodata.Applic.Toaster(
-                when (isSibionics2Code) {
-                    null -> context.getString(R.string.invalid_code_format)
-                    true -> context.getString(R.string.sibionics_code_wrong_type, sibionics2Label)
-                    false -> context.getString(R.string.sibionics_code_not_for_type, selectedTypeLabel)
-                },
-            )
+            scanRejection = when (isSibionics2Code) {
+                null -> context.getString(R.string.invalid_code_format)
+                true -> context.getString(R.string.sibionics_code_wrong_type, sibionics2Label)
+                false -> context.getString(R.string.sibionics_code_not_for_type, selectedTypeLabel)
+            }
+            tk.glucodata.Log.i("SibionicsSetup", "rejected scan for ${selectedType.name}: $scanRejection")
             false
         }
     }
@@ -667,16 +668,14 @@ fun ScanSensorStep(
                 }
             )
             Text(
-                text = if (selectedType == SibionicsType.SIBIONICS2) {
-                    // The sensor box carries a code the split generation cannot use; pointing at
-                    // it is how a Sibionics 2 ends up set up from the wrong label.
-                    stringResource(R.string.scan_sensor_instruction_sibionics2)
-                } else {
-                    stringResource(R.string.scan_sensor_instruction)
-                },
+                text = scanRejection ?: stringResource(R.string.scan_sensor_instruction),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (scanRejection != null) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.padding(top = if (compact) 10.dp else 12.dp, bottom = if (compact) 16.dp else 20.dp)
             )
 

@@ -438,7 +438,6 @@
     <string name="transmitter_id_supporting">发射器标签上的 8-12 个字符</string>
     <string name="scan_sensor_title">扫描二维码</string>
     <string name="scan_sensor_instruction">扫描 Sibionics 传感器包装盒上的二维码。</string>
-    <string name="scan_sensor_instruction_sibionics2">扫描 Sibionics 2 发射器上的连接码，或在下方通过蓝牙选择发射器。</string>
     <string name="scan_qr_button">扫描二维码</string>
     <string name="select_gallery_button">从图库选择</string>
     <string name="skip_fake_sensor">跳过 (使用模拟传感器)</string>

@@ -515,7 +515,6 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="transmitter_id_supporting">8-12 Zeichen vom Transmitter-Etikett</string>
     <string name="scan_sensor_title">QR-Code scannen</string>
     <string name="scan_sensor_instruction">Scannen Sie den QR-Code auf Ihrer generischen Sibionics-Sensorbox.</string>
-    <string name="scan_sensor_instruction_sibionics2">Scannen Sie den Verbindungscode auf dem Sibionics 2 Transmitter oder wählen Sie den Transmitter unten über Bluetooth.</string>
     <string name="scan_qr_button">QR-Code scannen</string>
     <string name="select_gallery_button">Aus Galerie auswählen</string>
     <string name="skip_fake_sensor">Überspringen (Fake-Sensor verwenden)</string>
