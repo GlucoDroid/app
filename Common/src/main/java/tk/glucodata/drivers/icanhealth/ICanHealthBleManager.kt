@@ -77,9 +77,18 @@ class ICanHealthBleManager(
         private const val LIVE_SEQUENCE_LAG_ALLOWANCE = 3
         private const val MAX_SESSION_TIMESTAMP_PAST_DRIFT_MS = 6 * 60 * 60 * 1000L
         private const val MAX_SESSION_TIMESTAMP_FUTURE_DRIFT_MS = 2 * 60 * 1000L
+        // Generous enough for sensor-vs-phone clock drift over a full wear period, far tighter
+        // than the smallest real UTC offset (15 minutes granularity, one hour in practice).
+        private const val MAX_SESSION_TIMELINE_SEQUENCE_DRIFT_MS = 30 * 60 * 1000L
+        // Live timestamps are allowed to sit a hair ahead of the clock we compare them against;
+        // the anchor is sampled a few milliseconds after `now` on a busy handler thread.
+        private const val MAX_LIVE_TIMESTAMP_FUTURE_SKEW_MS = 5_000L
         private const val RECENT_GLUCOSE_WINDOW_SIZE = 24
         private const val NATIVE_MIRROR_STREAM_WINDOW_SEC = 15L * 24L * 60L * 60L
         private const val HISTORY_SYNC_STATUS_STEP = 500
+        private const val LIVE_GAP_BACKFILL_MIN_INTERVAL_MS = 10 * 60 * 1000L
+        private const val MIN_TZ_REPAIR_BATCH_RECORDS = 20
+        private const val MIN_TZ_REPAIR_BATCH_SPAN_MS = 60 * 60 * 1000L
     }
 
     enum class Phase {
@@ -173,6 +182,7 @@ class ICanHealthBleManager(
     @Volatile private var receivedGlucoseThisConnection = false
     @Volatile private var lastGlucoseReceiptRealtimeMs = 0L
     @Volatile private var sessionStartEpochMs = 0L
+    @Volatile private var loggedSessionTimelineDriftMs = 0L
     @Volatile private var currentSequenceNumber = -1
     @Volatile private var currentSequenceObservedAtMs = 0L
     @Volatile private var launcherState = -1
@@ -185,6 +195,9 @@ class ICanHealthBleManager(
     @Volatile private var authRetryCount = 0
     @Volatile private var lastHandledLiveSequence = -1
     @Volatile private var lastHandledLiveTimestampMs = 0L
+    @Volatile private var lastLiveGapBackfillAtMs = 0L
+    @Volatile private var historyTzRepairLoadedSensorId: String? = null
+    @Volatile private var historyTzRepairPending = false
     @Volatile private var persistedHistoryTailTimestampMs = 0L
     @Volatile private var persistedCoveredSequence = -1
     @Volatile private var persistedCoveredTimestampMs = 0L
@@ -1696,12 +1709,14 @@ class ICanHealthBleManager(
             setUiStatus(UiStatusKind.CONNECTED)
             val packed = packGlucoseResult(reading.glucoseMgdl)
             handleGlucoseResult(packed, sampleTimeMs, resolveRawLaneValue(reading.currentValue, reading.glucoseMgdl))
+            val previousLiveSequence = lastHandledLiveSequence
             lastHandledLiveSequence = reading.sequenceNumber
             lastHandledLiveTimestampMs = sampleTimeMs
             rememberRecentGlucose(reading.glucoseMgdl)
             updatePersistedHistoryTailTimestamp(sampleTimeMs)
             rememberCoveredEdge(reading.sequenceNumber, sampleTimeMs)
             scheduleForegroundNotificationRefresh()
+            rearmHistoryBackfillForLiveGap(previousLiveSequence, reading.sequenceNumber, nowMs)
             if (isAuthenticated && shouldRequestAuthenticatedHistoryBackfill && !historyBackfillRequested) {
                 requestHistoryBackfill()
             }
@@ -1936,6 +1951,12 @@ class ICanHealthBleManager(
         if (resolved != null) {
             if (resolved <= fallbackNowMs) {
                 return resolved
+            }
+            // The anchor is read a moment after `now`, so a candidate can land a few milliseconds
+            // ahead of it without being wrong. Clamp that away instead of throwing a perfectly
+            // good anchored timestamp back to the wall clock.
+            if (resolved - fallbackNowMs <= MAX_LIVE_TIMESTAMP_FUTURE_SKEW_MS) {
+                return fallbackNowMs
             }
             Log.w(
                 TAG,
@@ -2246,7 +2267,15 @@ class ICanHealthBleManager(
         val nowMs = System.currentTimeMillis()
         val readingInterval = readingIntervalMinutes()
         if (canUseHistoryPastEndedStatusCap()) {
+            // Ended sessions keep their own capped windowing; the repair is not worth
+            // second-guessing a sequence cap on a sensor that has stopped producing data.
             return resolveCappedEndedHistoryStartSequence(nowMs, readingInterval)
+        }
+        if (historyTimezoneRepairPending()) {
+            // Ask for the whole session: the stored tail cannot be trusted to mark real coverage
+            // while skew-era records are still mixed into it.
+            Log.i(TAG, "Requesting full iCan glucose history from first slot for timezone repair")
+            return readingInterval
         }
         val anchorTimeMs = resolveSequenceAnchorTimeMs(nowMs)
         val persistedTailSequence = estimatePersistedTailSequence(anchorTimeMs)
@@ -2606,6 +2635,55 @@ class ICanHealthBleManager(
         }
     }
 
+    /**
+     * Re-arm the RACP backfill when the live sequence shows readings were missed mid-session.
+     *
+     * Backfill is otherwise a connection-setup-only affair: [requestHistoryBackfill] latches
+     * `historyBackfillAttemptedThisConnection` after its single run, so a gap opened while the
+     * link stayed up sat unfilled until the user forced a reconnect. Only the gap itself re-arms
+     * it, and only once per [LIVE_GAP_BACKFILL_MIN_INTERVAL_MS], so a sensor that drops readings
+     * constantly cannot turn this into an RACP loop.
+     */
+    private fun rearmHistoryBackfillForLiveGap(
+        previousSequence: Int,
+        currentSequence: Int,
+        nowMs: Long,
+    ) {
+        if (previousSequence < 0 || currentSequence <= previousSequence) {
+            return
+        }
+        if (!isAuthenticated || charRacp == null) {
+            return
+        }
+        if (suppressAutomaticHistoryBackfill || historyBackfillRequested) {
+            return
+        }
+        val missedReadings = ICanHealthConstants.missedReadingsBetween(
+            previousSequence = previousSequence,
+            currentSequence = currentSequence,
+            readingIntervalMinutes = readingIntervalMinutes(),
+        )
+        if (missedReadings < 1) {
+            return
+        }
+        val sinceLastMs = nowMs - lastLiveGapBackfillAtMs
+        if (lastLiveGapBackfillAtMs > 0L && sinceLastMs < LIVE_GAP_BACKFILL_MIN_INTERVAL_MS) {
+            logd(TAG) {
+                "Live gap of $missedReadings reading(s) at seq=$currentSequence; " +
+                    "backfill re-arm throttled for another ${(LIVE_GAP_BACKFILL_MIN_INTERVAL_MS - sinceLastMs) / 1000L}s"
+            }
+            return
+        }
+        lastLiveGapBackfillAtMs = nowMs
+        historyBackfillAttemptedThisConnection = false
+        shouldRequestAuthenticatedHistoryBackfill = true
+        Log.i(
+            TAG,
+            "Live sequence jumped $previousSequence->$currentSequence ($missedReadings reading(s) missed); " +
+                "re-arming history backfill without waiting for a reconnect"
+        )
+    }
+
     private fun requestHistoryBackfill() {
         if (!isAuthenticated) {
             Log.i(TAG, "Skipping RACP history fetch without vendor auth")
@@ -2739,15 +2817,28 @@ class ICanHealthBleManager(
         Log.i(TAG, "Persisting ${timestamps.size} direct RACP history readings to Room")
         val stored = HistorySyncAccess.storeSensorHistoryBatchBlocking(SerialNumber, timestamps, values, rawValues)
         if (stored) {
+            // Only now, with the corrected records demonstrably written, is it safe to drop the
+            // skewed ones. Deleting first would risk clearing history for a store that then
+            // failed — the batch goes back in immediately afterwards.
+            val repairing = historyTimezoneRepairPending() && purgeHistoryForTimezoneRepair(ordered)
+            if (repairing) {
+                HistorySyncAccess.storeSensorHistoryBatchBlocking(SerialNumber, timestamps, values, rawValues)
+            }
             updatePersistedHistoryTailTimestamp(timestamps.last())
             val lastRecord = ordered.last()
             rememberCoveredEdge(lastRecord.sequenceNumber, lastRecord.timestampMs)
-            mirrorHistoryBatchIntoNative(ordered)
+            mirrorHistoryBatchIntoNative(ordered, repairing)
+            if (repairing) {
+                markHistoryTimezoneRepairApplied()
+            }
         }
         return stored
     }
 
-    private fun mirrorHistoryBatchIntoNative(ordered: List<PendingHistoryReading>) {
+    private fun mirrorHistoryBatchIntoNative(
+        ordered: List<PendingHistoryReading>,
+        repairing: Boolean = false,
+    ) {
         if (ordered.isEmpty() || SerialNumber.isBlank()) {
             return
         }
@@ -2757,7 +2848,17 @@ class ICanHealthBleManager(
             val nativeWriteName = resolveExistingNativeSensorName(SerialNumber)
                 ?: nativeCreationSensorName(SerialNumber)
             val newestTimestampSec = ordered.last().timestampMs / 1000L
-            val windowStartSec = prepareNativeMirrorWindow(nativeWriteName, newestTimestampSec)
+            val windowStartSec = if (repairing) {
+                // The native stream holds mirrored ghosts at skewed timestamps that no corrected
+                // record will overwrite, so restart the window at the batch's first record. This
+                // zeroes the sensor's poll array; every record below is then replayed into it.
+                val repairStartSec = ordered.first().timestampMs / 1000L
+                Log.i(TAG, "Timezone repair: rebasing native mirror window for $nativeWriteName to $repairStartSec")
+                Natives.rebaseDirectStreamWindow(nativeWriteName, repairStartSec)
+                repairStartSec
+            } else {
+                prepareNativeMirrorWindow(nativeWriteName, newestTimestampSec)
+            }
             val replayable = if (windowStartSec > 0L) {
                 ordered.filter { (it.timestampMs / 1000L) >= windowStartSec }
             } else {
@@ -2793,7 +2894,12 @@ class ICanHealthBleManager(
             return null
         }
         val anchorTimeMs = resolveSequenceAnchorTimeMs(fallbackNowMs)
-        val useSessionTimeline = when {
+        // The session timeline is only usable while it still agrees with the sensor's own
+        // sequence counter. A session start that is off by a whole UTC offset stays internally
+        // consistent, so the per-candidate bounds below cannot catch it on their own: recent
+        // records get rejected for landing in the future while records older than the offset
+        // sail through and get stored one offset late. That is what drew the ghost curve.
+        val useSessionTimeline = sessionTimelineMatchesSequenceCounter(fallbackNowMs) && when {
             requireRecentCandidate -> canUseSessionTimeline(anchorTimeMs)
             canUseHistoryPastEndedStatusCap() && hasRecentOperationalData(fallbackNowMs) -> false
             else -> sessionStartEpochMs > 0L
@@ -2879,6 +2985,85 @@ class ICanHealthBleManager(
         val earliestAllowed = earliestObservedHistoryTimeMs(anchorTimeMs)
         val tailTimeMs = anchorTimeMs - deltaMs
         return tailTimeMs >= earliestAllowed
+    }
+
+    /**
+     * True while this sensor still holds history written against a timezone-skewed session start.
+     *
+     * See [ICanHealthConstants.HISTORY_TIMEZONE_REPAIR_GENERATION]. The flag is cleared only once a
+     * replacement batch has actually been stored, so a sensor whose RACP transfer fails keeps the
+     * history it has rather than losing it to a repair that never delivered.
+     */
+    private fun historyTimezoneRepairPending(): Boolean {
+        val sensorId = SerialNumber.takeIf {
+            it.isNotBlank() && !ICanHealthConstants.isProvisionalSensorId(it)
+        } ?: return false
+        if (suppressAutomaticHistoryBackfill) {
+            // RACP is not going to answer on this sensor, so a repair pull would only cost
+            // connections without ever delivering the replacement records.
+            return false
+        }
+        if (historyTzRepairLoadedSensorId == sensorId) {
+            return historyTzRepairPending
+        }
+        val context = Applic.app ?: return false
+        val applied = context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+            .getInt("${ICanHealthConstants.PREF_HISTORY_TZ_REPAIR_PREFIX}$sensorId", 0)
+        historyTzRepairLoadedSensorId = sensorId
+        historyTzRepairPending = applied < ICanHealthConstants.HISTORY_TIMEZONE_REPAIR_GENERATION
+        if (historyTzRepairPending) {
+            Log.i(
+                TAG,
+                "iCan history for $sensorId predates timezone repair generation " +
+                    "${ICanHealthConstants.HISTORY_TIMEZONE_REPAIR_GENERATION} (applied=$applied); " +
+                    "scheduling a full re-pull to replace it"
+            )
+        }
+        return historyTzRepairPending
+    }
+
+    private fun markHistoryTimezoneRepairApplied() {
+        val sensorId = SerialNumber.takeIf {
+            it.isNotBlank() && !ICanHealthConstants.isProvisionalSensorId(it)
+        } ?: return
+        historyTzRepairLoadedSensorId = sensorId
+        historyTzRepairPending = false
+        val context = Applic.app ?: return
+        context.getSharedPreferences("tk.glucodata_preferences", Context.MODE_PRIVATE)
+            .edit()
+            .putInt(
+                "${ICanHealthConstants.PREF_HISTORY_TZ_REPAIR_PREFIX}$sensorId",
+                ICanHealthConstants.HISTORY_TIMEZONE_REPAIR_GENERATION
+            )
+            .commit()
+        Log.i(TAG, "Timezone repair complete for $sensorId")
+    }
+
+    /**
+     * Drop stored readings that the corrected batch is about to replace.
+     *
+     * Only the window the batch actually covers is cleared, and only once the replacement records
+     * are already in hand, so this can never leave a hole it does not immediately refill. Batches
+     * too small to be a session re-pull are left alone and the repair waits for a better one.
+     */
+    private fun purgeHistoryForTimezoneRepair(ordered: List<PendingHistoryReading>): Boolean {
+        val earliestMs = ordered.first().timestampMs
+        val latestMs = ordered.last().timestampMs
+        if (ordered.size < MIN_TZ_REPAIR_BATCH_RECORDS || latestMs - earliestMs < MIN_TZ_REPAIR_BATCH_SPAN_MS) {
+            Log.i(
+                TAG,
+                "Deferring timezone repair; batch of ${ordered.size} record(s) spanning " +
+                    "${(latestMs - earliestMs) / 60000L}min is too small to replace stored history"
+            )
+            return false
+        }
+        val removed = HistorySyncAccess.deleteReadingsForSensorAfter(SerialNumber, earliestMs - 1)
+        Log.i(
+            TAG,
+            "Timezone repair: dropped $removed stored reading(s) from $earliestMs onward, " +
+                "replacing them with ${ordered.size} re-pulled record(s)"
+        )
+        return true
     }
 
     private fun invalidatePersistedCoveredEdge(reason: String) {
@@ -3075,6 +3260,56 @@ class ICanHealthBleManager(
         val deltaIntervals = round(deltaMs.toDouble() / readingIntervalMs().toDouble()).toInt()
         val estimatedSequence = currentSequenceNumber - deltaIntervals * readingInterval
         return estimatedSequence.takeIf { it >= readingInterval }
+    }
+
+    /**
+     * True while the parsed session start still explains the sensor's own sequence counter.
+     *
+     * The counter ticks once a minute from session start, so `sessionStart + sequence` should
+     * land on the moment the counter was read. When the two disagree by more than
+     * [MAX_SESSION_TIMELINE_SEQUENCE_DRIFT_MS] the session start is wrong — most often by a whole
+     * UTC offset — and every timestamp derived from it would be wrong by the same amount. The
+     * driver then falls back to anchoring off the live sequence, which is what it already does
+     * for sensors that never report a session start at all.
+     *
+     * Deliberately symmetric: a negative UTC offset pushes the session start into the past, and
+     * the asymmetric window in [canUseSessionTimeline] would wave that through.
+     */
+    private fun sessionTimelineMatchesSequenceCounter(fallbackNowMs: Long): Boolean {
+        if (sessionStartEpochMs <= 0L) {
+            return false
+        }
+        if (currentSequenceNumber < 0) {
+            // Nothing to cross-check against yet; the per-candidate bounds still apply.
+            return true
+        }
+        val observedAtMs = currentSequenceObservedAtMs.takeIf { it > 0L } ?: fallbackNowMs
+        val expectedObservedAtMs = sessionStartEpochMs + currentSequenceNumber.toLong() * SEQUENCE_UNIT_MS
+        val driftMs = abs(expectedObservedAtMs - observedAtMs)
+        if (ICanHealthConstants.sessionTimelineMatchesSequenceCounter(
+                sessionStartEpochMs = sessionStartEpochMs,
+                sequenceNumber = currentSequenceNumber,
+                sequenceObservedAtMs = observedAtMs,
+                sequenceUnitMs = SEQUENCE_UNIT_MS,
+                toleranceMs = MAX_SESSION_TIMELINE_SEQUENCE_DRIFT_MS,
+            )
+        ) {
+            if (loggedSessionTimelineDriftMs != 0L) {
+                Log.i(TAG, "Session timeline agrees with sequence counter again; resuming session-derived timestamps")
+                loggedSessionTimelineDriftMs = 0L
+            }
+            return true
+        }
+        if (loggedSessionTimelineDriftMs != driftMs) {
+            loggedSessionTimelineDriftMs = driftMs
+            Log.w(
+                TAG,
+                "Distrusting session timeline: start=$sessionStartEpochMs seq=$currentSequenceNumber " +
+                    "implies $expectedObservedAtMs but the counter was read at $observedAtMs " +
+                    "(drift=${driftMs / 60000L}min); anchoring off the live sequence instead"
+            )
+        }
+        return false
     }
 
     private fun canUseSessionTimeline(anchorTimeMs: Long): Boolean {
