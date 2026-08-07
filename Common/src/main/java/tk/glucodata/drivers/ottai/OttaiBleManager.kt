@@ -3031,6 +3031,10 @@ class OttaiBleManager(
      * shell that already exists at the smaller size (pollStorageSize picks the negotiated
      * duration up on the next construction).
      */
+    // This runs on every mirrored reading, so the capacity complaint below is reported once per
+    // sensor rather than once a minute.
+    @Volatile private var nativeCapacityCheckedFor: String? = null
+
     private fun ensureNativePresenceShell(reason: String) {
         val id = SerialNumber ?: return
         val startMs = nativePresenceStartTimeMs()
@@ -3042,9 +3046,12 @@ class OttaiBleManager(
                 Natives.ensureSensorShell(id, startSec)
             }
             applyActivatedWearToNative(id)
-            if (!Natives.hasSensorStreamCapacity(id, minimumRecords)) {
-                Log.e(TAG, "native poll capacity below $minimumRecords for $id ($reason); " +
-                    "live readings past the mapped window will not reach Nightscout")
+            if (nativeCapacityCheckedFor != id) {
+                if (!Natives.hasSensorStreamCapacity(id, minimumRecords)) {
+                    Log.e(TAG, "native poll capacity below $minimumRecords for $id ($reason); " +
+                        "live readings past the mapped window will not reach Nightscout")
+                }
+                nativeCapacityCheckedFor = id
             }
         }.onFailure { Log.stack(TAG, "ensureNativePresenceShell($reason)", it) }
     }
