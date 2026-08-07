@@ -53,6 +53,11 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
+    <!-- In-app updater. JugglucoNG is distributed as a direct APK from GitHub Releases, so it
+         has to be able to ask the platform installer to replace itself. The user still grants
+         "install unknown apps" once, and Android still shows its own confirmation every time. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:name=".Applic"
         android:icon="@mipmap/ic_launcher"
@@ -155,6 +160,12 @@
             </intent-filter>
         </service>
 
+        <!-- PackageInstaller session status for the in-app updater. Never exported: the commit
+             PendingIntent targets this component explicitly. -->
+        <receiver
+            android:name="tk.glucodata.update.AppUpdateInstallReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
     </application>
 

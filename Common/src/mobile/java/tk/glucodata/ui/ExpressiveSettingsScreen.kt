@@ -620,12 +620,18 @@ fun ExpressiveSettingsScreen(
                 }
             )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                AppUpdatesSettingsItem(
+                    iconTint = dataColor,
+                    position = CardPosition.TOP,
+                    onOpen = { navController.navigate("settings/app-updates") }
+                )
+
                 SettingsItem(
                     title = stringResource(R.string.export_data_settings),
                     subtitle = stringResource(R.string.export_data_settings_desc),
                     icon = androidx.compose.material.icons.Icons.Default.CloudUpload,
                     iconTint = dataColor,
-                    position = CardPosition.TOP,
+                    position = CardPosition.MIDDLE,
                     onClick = { showExportDialog = true }
                 )
 
