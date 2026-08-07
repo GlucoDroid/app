@@ -1560,6 +1560,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Усвоение углеводов</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">Целевое значение для дозы</string>
+    <string name="predictive_dose_target_explanation">Рекомендации по инсулину и углеводам корректируют до этого значения. Оно не связано с целевым диапазоном на графике.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Горизонт прогноза</string>
     <string name="predictive_horizon_value">%1$d мин</string>
     <string name="journal_dose_math_title">Калькулятор дозы</string>

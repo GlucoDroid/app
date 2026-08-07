@@ -1518,6 +1518,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Absorção de carboidratos</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">Alvo de dose</string>
+    <string name="predictive_dose_target_explanation">As sugestões de insulina e hidratos de carbono corrigem para este valor. É separado do intervalo alvo mostrado no gráfico.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Horizonte da previsão</string>
     <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_dose_math_title">Calculadora de dose</string>

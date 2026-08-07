@@ -157,7 +157,7 @@ data class JournalDoseProfile(
     val carbRatioGramsPerUnit: Float,
     val insulinSensitivityMgDlPerUnit: Float,
     val foodMacrosEnabled: Boolean = false,
-    val targetHighMgDl: Float,
+    val targetMgDl: Float,
     val modelProfile: PredictionModelProfile? = null
 ) {
     fun at(timestamp: Long): JournalDoseProfile {
@@ -2291,7 +2291,7 @@ private fun calculateInsulinForCarbs(
         glucoseMgDl = glucoseMgDl,
         carbRatioGramsPerUnit = profile.carbRatioGramsPerUnit,
         insulinSensitivityMgDlPerUnit = profile.insulinSensitivityMgDlPerUnit,
-        targetHighMgDl = profile.targetHighMgDl,
+        targetMgDl = profile.targetMgDl,
         activeInsulinUnits = activeInsulinUnits
     )
 }
@@ -2307,7 +2307,7 @@ private fun calculateCoveredCarbsForInsulin(
         glucoseMgDl = glucoseMgDl,
         carbRatioGramsPerUnit = profile.carbRatioGramsPerUnit,
         insulinSensitivityMgDlPerUnit = profile.insulinSensitivityMgDlPerUnit,
-        targetHighMgDl = profile.targetHighMgDl,
+        targetMgDl = profile.targetMgDl,
         activeInsulinUnits = activeInsulinUnits
     )
 }

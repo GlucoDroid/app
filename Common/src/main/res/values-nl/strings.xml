@@ -1560,6 +1560,10 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Koolhydraatabsorptie</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">Doelwaarde voor dosering</string>
+    <string name="predictive_dose_target_explanation">Insuline- en koolhydraatsuggesties corrigeren naar deze waarde. Die staat los van het streefbereik op de grafiek.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Voorspellingshorizon</string>
     <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_dose_math_title">Dosiscalculator</string>

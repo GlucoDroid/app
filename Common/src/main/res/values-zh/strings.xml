@@ -1533,6 +1533,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">碳水吸收</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">剂量目标</string>
+    <string name="predictive_dose_target_explanation">胰岛素和碳水化合物建议以此数值为校正目标。它与图表上显示的目标范围无关。</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">预测时长</string>
     <string name="predictive_horizon_value">%1$d 分钟</string>
     <string name="journal_dose_math_title">剂量计算器</string>

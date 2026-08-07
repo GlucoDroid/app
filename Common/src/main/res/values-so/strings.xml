@@ -1802,6 +1802,10 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">nuugista karbohaydraytyada</string>
     <string name="predictive_absorption_value">%1$.0f g/saacaddii</string>
+    <string name="predictive_dose_target">Bartilmaameedka qiyaasta</string>
+    <string name="predictive_dose_target_explanation">Talooyinka insuliinta iyo kaarbohaydraytka waxay saxaan ilaa qiimahan. Wuu ka duwan yahay xadka bartilmaameedka ee garaafka lagu muujiyay.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Saadaasha hawada sare</string>
     <string name="predictive_horizon_value">%1$d daq</string>
     <string name="journal_dose_math_title">Xisaabiyaha qiyaasta</string>

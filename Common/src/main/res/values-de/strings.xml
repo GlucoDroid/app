@@ -1591,6 +1591,10 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Kohlenhydrataufnahme</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">Zielwert für Dosierung</string>
+    <string name="predictive_dose_target_explanation">Insulin- und Kohlenhydratvorschläge korrigieren auf diesen Wert. Er ist unabhängig vom Zielbereich im Diagramm.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Prognosehorizont</string>
     <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_dose_math_title">Dosisrechner</string>

@@ -19,6 +19,9 @@ import org.junit.Test
 class ForecastDoseClampTests {
 
     private val now = 1_700_000_000_000L
+
+    /** The shipped default: 90 mg/dL ≈ 5.0 mmol/L. */
+    private val defaultDoseTargetMgDl = 90f
     private val settings = PredictiveSimulationSettings(
         enabled = true,
         trendMomentumEnabled = false,
@@ -80,12 +83,15 @@ class ForecastDoseClampTests {
         settings = settings
     )
 
-    private fun recommendationFor(units: Float): ForecastDoseRecommendation? =
+    private fun recommendationFor(
+        units: Float,
+        doseTargetMgDl: Float = defaultDoseTargetMgDl
+    ): ForecastDoseRecommendation? =
         calculateForecastDoseRecommendation(
             predictionPoints = predictionFor(units),
             unit = "mmol/L",
             targetLow = 3.9f,
-            targetHigh = 10f,
+            doseTargetMgDl = doseTargetMgDl,
             settings = settings,
             nowMillis = now,
             maxBaselineAgeMillis = 15 * 60_000L
@@ -118,9 +124,23 @@ class ForecastDoseClampTests {
     }
 
     @Test
+    fun aHigherDoseTargetAsksForMoreCarbs() {
+        // 5.0 mmol/L vs 7.0 mmol/L: the same forecast has further to climb, so more carbs.
+        val atFive = recommendationFor(6.5f, doseTargetMgDl = 90f)
+        val atSeven = recommendationFor(6.5f, doseTargetMgDl = 126f)
+
+        assertNotNull(atFive)
+        assertNotNull(atSeven)
+        assertTrue(
+            "target must move the suggestion, got ${atFive!!.amount} vs ${atSeven!!.amount}",
+            atSeven.amount > atFive.amount
+        )
+    }
+
+    @Test
     fun carbSuggestionTracksTheCarbRatio() {
-        // 6.5 U on a flat 4.9 mmol/L line: the shortfall against the 6.95 target is the
-        // insulin the dose still has to act out, converted through ISF and the carb ratio.
+        // 6.5 U on a flat 4.9 mmol/L line: the shortfall against the 5.0 mmol/L target is
+        // the insulin the dose still has to act out, converted through ISF and carb ratio.
         val recommendation = recommendationFor(6.5f)
         assertNotNull(recommendation)
         assertEquals(ForecastDoseRecommendationKind.CARBS, recommendation!!.kind)

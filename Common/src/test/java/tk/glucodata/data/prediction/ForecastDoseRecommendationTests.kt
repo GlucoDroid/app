@@ -28,7 +28,7 @@ class ForecastDoseRecommendationTests {
             predictionPoints = predictionEndingAt(82f),
             unit = "mg/dL",
             targetLow = 90f,
-            targetHigh = 110f,
+            doseTargetMgDl = 100f,
             settings = settings,
             nowMillis = now,
             maxBaselineAgeMillis = 15 * 60_000L
@@ -44,7 +44,7 @@ class ForecastDoseRecommendationTests {
             predictionPoints = predictionEndingAt(136f),
             unit = "mg/dL",
             targetLow = 90f,
-            targetHigh = 110f,
+            doseTargetMgDl = 100f,
             settings = settings,
             nowMillis = now,
             maxBaselineAgeMillis = 15 * 60_000L
@@ -63,7 +63,7 @@ class ForecastDoseRecommendationTests {
             predictionPoints = predictionEndingAt(4f),
             unit = "mmol/L",
             targetLow = 5f,
-            targetHigh = 6f,
+            doseTargetMgDl = 99.1f,
             settings = mmolSettings,
             nowMillis = now,
             maxBaselineAgeMillis = 15 * 60_000L
@@ -80,7 +80,7 @@ class ForecastDoseRecommendationTests {
                 predictionPoints = predictionEndingAt(136f),
                 unit = "mg/dL",
                 targetLow = 90f,
-                targetHigh = 110f,
+                doseTargetMgDl = 100f,
                 settings = settings,
                 nowMillis = now + 20 * 60_000L,
                 maxBaselineAgeMillis = 15 * 60_000L
@@ -99,7 +99,7 @@ class ForecastDoseRecommendationTests {
                 ),
                 unit = "mg/dL",
                 targetLow = 90f,
-                targetHigh = 110f,
+                doseTargetMgDl = 100f,
                 settings = settings,
                 nowMillis = now,
                 maxBaselineAgeMillis = 15 * 60_000L

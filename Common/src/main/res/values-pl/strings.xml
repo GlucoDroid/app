@@ -1552,6 +1552,10 @@
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Wchłanianie węglowodanów</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">Cel dawkowania</string>
+    <string name="predictive_dose_target_explanation">Sugestie insuliny i węglowodanów korygują do tej wartości. Jest niezależna od zakresu docelowego na wykresie.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Horyzont prognozy</string>
     <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_dose_math_title">Kalkulator dawki</string>

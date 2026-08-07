@@ -1532,6 +1532,10 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Carb absorption</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">Тунгийн зорилтот утга</string>
+    <string name="predictive_dose_target_explanation">Инсулин болон нүүрс усны зөвлөмж энэ утга руу залруулна. Энэ нь графикт харуулсан зорилтот мужаас тусдаа.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Forecast horizon</string>
     <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_dose_math_title">Dose calculator</string>
