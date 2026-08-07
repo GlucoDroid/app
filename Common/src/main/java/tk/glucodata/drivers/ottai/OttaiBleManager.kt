@@ -2898,10 +2898,35 @@ class OttaiBleManager(
             // Ottai rawCurrent is an electrode/current diagnostic, not raw glucose mg/dL.
             val rawValues = FloatArray(toPersist.size) { 0f }
             HistorySyncAccess.storeSensorHistoryBatchAsync(id, timestamps, values, rawValues)
+            mirrorHistoryIntoNative(id, toPersist)
         }
         if (live) readings.lastOrNull { it.publishCurrent }?.let {
             mirrorLiveReadingIntoNative(id, it)
         }
+    }
+
+    /**
+     * Room is not enough: Nightscout and the rest of the exchange paths read the native poll
+     * stream, so backfill that only lands in Room is invisible to them. Every other managed
+     * driver mirrors its batch; Ottai did not, which is why a sensor's stored history never
+     * reached Nightscout no matter how long it had been running.
+     */
+    private fun mirrorHistoryIntoNative(id: String, readings: List<EmittedReading>) {
+        if (readings.isEmpty()) return
+        runCatching {
+            ensureNativePresenceShell("history-mirror")
+            val stored = nativeGlucoseMirror.mirrorHistory(
+                id,
+                LongArray(readings.size) { readings[it].sampleMs },
+                FloatArray(readings.size) { readings[it].mgdl },
+                FloatArray(readings.size) { readings[it].temperatureC },
+            )
+            if (stored > 0) {
+                applyActivatedWearToNative(id)
+                Natives.wakebackup()
+                Log.i(TAG, "mirrored $stored/${readings.size} history readings into native")
+            }
+        }.onFailure { Log.stack(TAG, "mirrorHistoryIntoNative", it) }
     }
 
     private fun mirrorLiveReadingIntoNative(
