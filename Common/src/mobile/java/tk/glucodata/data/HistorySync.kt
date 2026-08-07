@@ -46,9 +46,6 @@ object HistorySync {
     private val sensorSyncInProgress = ConcurrentHashMap.newKeySet<String>()
     private val sensorRecentSyncInProgress = ConcurrentHashMap.newKeySet<String>()
     private val sensorLastRecentSyncBucketMs = ConcurrentHashMap<String, Long>()
-    private val sensorLastRecentSyncRunMs = ConcurrentHashMap<String, Long>()
-    private val sensorPendingRecentAnchorMs = ConcurrentHashMap<String, Long>()
-    private val sensorTrailingRecentSyncScheduled = ConcurrentHashMap.newKeySet<String>()
     private val sensorLastFullMergeTimeMs = ConcurrentHashMap<String, Long>()
     private val sensorDelayedFullMergePending = ConcurrentHashMap.newKeySet<String>()
     private val sensorResetPreserveUntilMs = ConcurrentHashMap<String, Long>()
@@ -76,13 +73,6 @@ object HistorySync {
     private const val RECENT_SYNC_BUCKET_MS = 60_000L
     private const val RECENT_SYNC_DEFAULT_LOOKBACK_MS = 5 * 60 * 1000L
     private const val RECENT_SYNC_MAX_LOOKBACK_MS = 30 * 60 * 1000L
-    // Coalescing window for the per-bucket recent sync. History replay walks forward one
-    // minute bucket at a time and each bucket clears the bucket guard, so a backfill opened
-    // one Room transaction per replayed minute over a lookback window that overlapped the
-    // previous one almost completely. Folding those into one trailing run keeps the same rows
-    // and writes them once. Must stay well under RECENT_SYNC_MAX_LOOKBACK_MS so the deferred
-    // run's window still reaches back over every bucket it skipped.
-    private const val RECENT_SYNC_COALESCE_MS = 1_500L
     private const val DESTRUCTIVE_RESYNC_RESET_GAP_MS = 60 * 60 * 1000L
     private const val RESET_PRESERVE_WINDOW_MS = 10 * 60 * 1000L
     private const val NATIVE_SYNC_INSERT_CHUNK = 1_000
@@ -161,21 +151,7 @@ object HistorySync {
         if (previousBucket != null && previousBucket >= currentBucket) {
             return
         }
-        val nowMs = System.currentTimeMillis()
-        val lastRunMs = sensorLastRecentSyncRunMs[canonicalSerial] ?: 0L
-        val sinceLastRunMs = nowMs - lastRunMs
-        if (lastRunMs > 0L && sinceLastRunMs in 0 until RECENT_SYNC_COALESCE_MS) {
-            // Nothing is dropped: the committed bucket is left untouched, so whenever this
-            // does run resolveRecentSyncStartMs still spans every bucket folded in here.
-            sensorPendingRecentAnchorMs.merge(canonicalSerial, anchorTimeMs, ::maxOf)
-            scheduleTrailingRecentSync(canonicalSerial, RECENT_SYNC_COALESCE_MS - sinceLastRunMs)
-            return
-        }
         if (!sensorRecentSyncInProgress.add(canonicalSerial)) {
-            // A run is already under way for this sensor; let it finish and carry this anchor
-            // into the trailing run rather than dropping the bucket.
-            sensorPendingRecentAnchorMs.merge(canonicalSerial, anchorTimeMs, ::maxOf)
-            scheduleTrailingRecentSync(canonicalSerial, RECENT_SYNC_COALESCE_MS)
             return
         }
 
@@ -195,23 +171,8 @@ object HistorySync {
                     }
                 }
             } finally {
-                sensorLastRecentSyncRunMs[canonicalSerial] = System.currentTimeMillis()
                 sensorRecentSyncInProgress.remove(canonicalSerial)
             }
-        }
-    }
-
-    /** Runs one recent sync for the newest anchor folded in during [RECENT_SYNC_COALESCE_MS]. */
-    private fun scheduleTrailingRecentSync(canonicalSerial: String, delayMs: Long) {
-        if (!sensorTrailingRecentSyncScheduled.add(canonicalSerial)) return
-        scope.launch {
-            try {
-                delay(delayMs.coerceIn(0L, RECENT_SYNC_COALESCE_MS))
-            } finally {
-                sensorTrailingRecentSyncScheduled.remove(canonicalSerial)
-            }
-            val anchorMs = sensorPendingRecentAnchorMs.remove(canonicalSerial) ?: return@launch
-            syncRecentSensorFromNative(canonicalSerial, anchorMs)
         }
     }
 
