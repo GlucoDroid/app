@@ -2251,7 +2251,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_modd_description">Medelvärde av dagliga skillnader: hur mycket samma klockslag skiljer sig från en dag till nästa. Ett lågt värde betyder att dina dygn upprepar sig, vilket är det som gör en rutin justerbar.</string>
     <string name="stats_metric_streak">Bästa svit</string>
     <string name="stats_metric_streak_description">Längsta följd av dagar i rad med 70%% eller mer i målområdet.</string>
-    <string name="stats_metric_streak_meta">dagar på 70%%+</string>
+    <string name="stats_metric_streak_meta">dagar på 70%+</string>
     <string name="stats_pinned_add">Lägg till</string>
     <string name="stats_pinned_pick_title">Visa på Översikt</string>
     <string name="stats_pinned_remove">Ta bort från Översikt</string>

@@ -2257,7 +2257,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_modd_description">Moyenne des différences quotidiennes : l\'écart d\'une même heure d\'un jour au suivant. Une valeur basse signifie que vos journées se répètent, ce qui rend une routine ajustable.</string>
     <string name="stats_metric_streak">Meilleure série</string>
     <string name="stats_metric_streak_description">Plus longue suite de jours consécutifs à 70%% ou plus dans la cible.</string>
-    <string name="stats_metric_streak_meta">jours à 70%%+</string>
+    <string name="stats_metric_streak_meta">jours à 70%+</string>
     <string name="stats_pinned_add">Ajouter</string>
     <string name="stats_pinned_pick_title">Afficher sur le Tableau de bord</string>
     <string name="stats_pinned_remove">Retirer du Tableau de bord</string>

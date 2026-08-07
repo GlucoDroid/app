@@ -2267,7 +2267,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_modd_description">日间差异均值：同一时刻在相邻两天之间相差多少。数值低说明你的每天都在重复，而这正是作息可调的前提。</string>
     <string name="stats_metric_streak">最佳连续</string>
     <string name="stats_metric_streak_description">目标范围内达到 70%% 及以上的最长连续天数。</string>
-    <string name="stats_metric_streak_meta">天达到 70%%+</string>
+    <string name="stats_metric_streak_meta">天达到 70%+</string>
     <string name="stats_pinned_add">添加</string>
     <string name="stats_pinned_pick_title">显示在主页</string>
     <string name="stats_pinned_remove">从主页移除</string>

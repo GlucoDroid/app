@@ -2252,7 +2252,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_modd_description">Média das diferenças diárias: o quanto a mesma hora difere de um dia para o outro. Um valor baixo significa que os seus dias se repetem, e é isso que torna uma rotina ajustável.</string>
     <string name="stats_metric_streak">Melhor sequência</string>
     <string name="stats_metric_streak_description">Sequência mais longa de dias consecutivos com 70%% ou mais no intervalo.</string>
-    <string name="stats_metric_streak_meta">dias com 70%%+</string>
+    <string name="stats_metric_streak_meta">dias com 70%+</string>
     <string name="stats_pinned_add">Adicionar</string>
     <string name="stats_pinned_pick_title">Mostrar no Painel</string>
     <string name="stats_pinned_remove">Remover do Painel</string>

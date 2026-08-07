@@ -2285,7 +2285,7 @@
     <string name="stats_metric_modd_description">Średnia różnic dobowych: jak bardzo ta sama godzina różni się z dnia na dzień. Niska wartość oznacza, że doby się powtarzają, a to właśnie pozwala regulować rutynę.</string>
     <string name="stats_metric_streak">Najlepsza seria</string>
     <string name="stats_metric_streak_description">Najdłuższa seria kolejnych dni z 70%% lub więcej w zakresie.</string>
-    <string name="stats_metric_streak_meta">dni po 70%%+</string>
+    <string name="stats_metric_streak_meta">dni po 70%+</string>
     <string name="stats_pinned_add">Dodaj</string>
     <string name="stats_pinned_pick_title">Pokaż na Pulpicie</string>
     <string name="stats_pinned_remove">Usuń z Pulpitu</string>

@@ -2293,7 +2293,7 @@ Durch Drücken von „OK“ wird eine Verbindung auf diesem Telefon hergestellt 
     <string name="stats_metric_modd_description">Mittelwert der Tagesunterschiede: wie weit dieselbe Uhrzeit von einem Tag zum nächsten abweicht. Ein niedriger Wert heißt, Ihre Tage wiederholen sich — erst das macht eine Routine anpassbar.</string>
     <string name="stats_metric_streak">Beste Serie</string>
     <string name="stats_metric_streak_description">Längste Folge aufeinanderfolgender Tage mit 70%% oder mehr im Zielbereich.</string>
-    <string name="stats_metric_streak_meta">Tage mit 70%%+</string>
+    <string name="stats_metric_streak_meta">Tage mit 70%+</string>
     <string name="stats_pinned_add">Hinzufügen</string>
     <string name="stats_pinned_pick_title">Auf dem Dashboard zeigen</string>
     <string name="stats_pinned_remove">Vom Dashboard entfernen</string>

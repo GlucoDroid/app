@@ -2294,7 +2294,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_metric_modd_description">Gemiddelde van dagelijkse verschillen: hoe ver hetzelfde klokuur van de ene dag op de andere verschilt. Een lage waarde betekent dat je dagen zich herhalen, en dat maakt een routine bij te sturen.</string>
     <string name="stats_metric_streak">Beste reeks</string>
     <string name="stats_metric_streak_description">Langste reeks opeenvolgende dagen met 70%% of meer in bereik.</string>
-    <string name="stats_metric_streak_meta">dagen op 70%%+</string>
+    <string name="stats_metric_streak_meta">dagen op 70%+</string>
     <string name="stats_pinned_add">Toevoegen</string>
     <string name="stats_pinned_pick_title">Op Dashboard tonen</string>
     <string name="stats_pinned_remove">Van Dashboard verwijderen</string>
