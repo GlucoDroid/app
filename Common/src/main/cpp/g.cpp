@@ -1434,6 +1434,15 @@ static bool addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
           hist->backstream(lifeCount);
           hist->backhistory(lifeCount);
         }
+      } else {
+        // Dropping a live reading here used to be completely silent: the caller
+        // saw only stored=false, so an Ottai that outgrew its 15-day poll map on
+        // entering extended wear stopped feeding native storage — and therefore
+        // Nightscout — with nothing in the log to say so. Never fail quietly.
+        LOGGER("%s: live reading at %lld DROPPED, lifeCount=%lld outside poll "
+               "capacity=%zu (starttime=%u)\n",
+               str, (long long)timestamp, (long long)lifeCount,
+               hist->pollStorageCapacity(), start);
       }
       setstreaming(hist);
     }

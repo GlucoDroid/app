@@ -3022,13 +3022,30 @@ class OttaiBleManager(
     private fun floorToRecordMinute(timestampMs: Long): Long =
         (timestampMs / RECORD_INTERVAL_MS) * RECORD_INTERVAL_MS
 
+    /**
+     * A shell created without a capacity floor is sized for the 15-day rating, and an Ottai
+     * routinely runs to 28-30. Past day 15 the native poll index leaves the mapping and every
+     * live write is refused, which silently cuts Nightscout off — the exact regression left
+     * behind when runtime stream resizing was removed. Ask for the extended lifetime up front;
+     * geometry may only be chosen at creation, so the [ensureSensorShell] fallback covers a
+     * shell that already exists at the smaller size (pollStorageSize picks the negotiated
+     * duration up on the next construction).
+     */
     private fun ensureNativePresenceShell(reason: String) {
         val id = SerialNumber ?: return
         val startMs = nativePresenceStartTimeMs()
         if (id.isBlank() || startMs <= 0L) return
         runCatching {
-            Natives.ensureSensorShell(id, (startMs / 1000L).coerceAtLeast(1L))
+            val startSec = (startMs / 1000L).coerceAtLeast(1L)
+            val minimumRecords = OttaiConstants.EXTENDED_LIFETIME_DAYS * 24 * 60
+            if (Natives.ensureSensorShellWithCapacity(id, startSec, minimumRecords) == 0L) {
+                Natives.ensureSensorShell(id, startSec)
+            }
             applyActivatedWearToNative(id)
+            if (!Natives.hasSensorStreamCapacity(id, minimumRecords)) {
+                Log.e(TAG, "native poll capacity below $minimumRecords for $id ($reason); " +
+                    "live readings past the mapped window will not reach Nightscout")
+            }
         }.onFailure { Log.stack(TAG, "ensureNativePresenceShell($reason)", it) }
     }
 
