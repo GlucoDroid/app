@@ -692,10 +692,11 @@ class SibionicsBleManager(
                 }
                 return
             }
-            // Battery is not part of bringing the sensor up. Reading it here put a GATT read
-            // ahead of the protocol probe and the history burst behind it; it now waits for a
-            // live sample like every other battery read.
-            startProtocolProbe()
+            // One read here, before any notification is flowing, and it completes cleanly —
+            // it was the stabilization retries fired into the history burst that collided, and
+            // those now wait for a live sample. Without this the card shows 0% until backfill
+            // ends, because the snapshot reports 0 rather than the -1 the UI treats as unknown.
+            requestBatteryRead(BatteryReadPurpose.SETUP)
         }
     }
 
