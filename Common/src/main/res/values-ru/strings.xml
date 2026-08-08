@@ -305,7 +305,7 @@
     <string name="wakelock">Пробуждение</string>
     <string name="watches">Часы</string>
     <string name="watchappinstalled">Установлено приложение для часов</string>
-    <string name="webserver">Web - сервер</string>
+    <string name="webserver">Web-сервер</string>
     <string name="week_back">Неделя назад</string>
     <string name="week_later">Неделя вперед</string>
     <string name="weight">"Вес: "</string>
@@ -865,7 +865,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="max">Макс</string>
     <string name="max_glucose">Макс</string>
     <string name="median">Медиана</string>
-    <string name="meterlist">"Glucose Meters"</string>
+    <string name="meterlist">"Глюкометры"</string>
     <string name="glucose_meters_desc">Подключение Bluetooth-глюкометров</string>
     <string name="glucose_meters_journal_desc">Измерения сохраняются в журнале как значения глюкозы крови и могут отправляться в Nightscout.</string>
     <string name="glucose_meters_configured">Настроенные глюкометры</string>
