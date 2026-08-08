@@ -30,6 +30,7 @@ import java.security.interfaces.ECPublicKey
 import java.util.UUID
 import kotlin.math.abs
 import tk.glucodata.Applic
+import tk.glucodata.HistoryRepositoryAccess
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
 import tk.glucodata.logd
@@ -2944,8 +2945,59 @@ class OttaiBleManager(
             if (stored) {
                 applyActivatedWearToNative(id)
                 Natives.wakebackup()
+                // The shell is sized and the start is known by the time a live write lands, so
+                // this is the first safe moment to close whatever native is missing.
+                handler.post { reconcileNativeFromRoom(id) }
             }
         }.onFailure { Log.stack(TAG, "mirrorLiveReadingIntoNative", it) }
+    }
+
+    // Once per sensor per process. See reconcileNativeFromRoom.
+    @Volatile private var nativeReconciledFor: String? = null
+
+    /**
+     * Fill native poll storage from Room.
+     *
+     * Room is the authoritative local store and native polls are the transport cache the
+     * exchange paths read, so anything Room holds and native does not is invisible to
+     * Nightscout. Re-reading it from the sensor cannot recover it either:
+     * [requestRoomBackfillAfterLive] diffs against Room, so a window Room already covers is
+     * reported complete and never requested. That is exactly the shape of a gap left by a
+     * stretch where the app was connected and storing to Room while native writes were being
+     * refused — nothing else will ever close it.
+     *
+     * Writes landing on a poll slot that already holds a value are no-ops that cannot move the
+     * Nightscout cursor (the cursor only rewinds on empty->filled), so a run with nothing
+     * missing costs some writes and produces no resend.
+     */
+    private fun reconcileNativeFromRoom(id: String) {
+        if (nativeReconciledFor == id) return
+        val startMs = nativePresenceStartTimeMs()
+        if (startMs <= 0L) return
+        nativeReconciledFor = id
+        runCatching {
+            val history = HistoryRepositoryAccess.getHistoryForSensor(id, startMs, false)
+            if (history == null) {
+                // "Could not ask" must not be recorded as "done" — retry on the next reading.
+                nativeReconciledFor = null
+                return@runCatching
+            }
+            val usable = history.filter {
+                it.timestamp > 0L && it.value.isFinite() && it.value > 0f
+            }
+            if (usable.isEmpty()) return@runCatching
+            ensureNativePresenceShell("room-reconcile")
+            val written = nativeGlucoseMirror.mirrorHistory(
+                id,
+                LongArray(usable.size) { usable[it].timestamp },
+                FloatArray(usable.size) { usable[it].value },
+                FloatArray(usable.size) { 0f },
+            )
+            Log.i(TAG, "reconciled native from Room for $id: wrote $written/${usable.size}")
+        }.onFailure {
+            nativeReconciledFor = null
+            Log.stack(TAG, "reconcileNativeFromRoom", it)
+        }
     }
 
     /** Keeps the per-sample skin temperature so the stats screen can chart it. */
