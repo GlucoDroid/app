@@ -37,7 +37,6 @@ class NightscoutFollowerManager(
         private const val POLL_INTERVAL_MS = 60_000L
         private const val RETRY_INTERVAL_MS = 30_000L
         private const val PROBE_INTERVAL_MS = 59_000L
-        private const val TREATMENT_COUNT = 512
         private const val DEVICE_STATUS_COUNT = 5
         private const val MMOL_TO_MGDL = 18.0182f
     }
@@ -380,23 +379,34 @@ class NightscoutFollowerManager(
         }
     }
 
-    private fun importRemoteTreatments(): Int =
-        runCatching {
-            val body = fetchTreatmentsJson()
-            if (body.isBlank() || body == "[]") return@runCatching 0
+    private fun importRemoteTreatments(): Int {
+        val method = runCatching {
             val type = Class.forName("tk.glucodata.data.journal.NightscoutJournalFollowerImporter")
-            val method = type.getMethod("importTreatments", String::class.java, String::class.java)
-            val imported = method.invoke(null, SerialNumber, body) as? Int ?: 0
-            if (imported > 0) {
-                UiRefreshBus.requestDataRefresh()
-            }
-            imported
+            type.getMethod("importTreatments", String::class.java, String::class.java)
         }.getOrElse { error ->
             if (error !is ClassNotFoundException) {
-                Log.w(TAG, "Nightscout treatment import ignored: ${error.message}")
+                Log.w(TAG, "Nightscout journal importer unavailable: ${error.message}")
             }
-            0
+            return 0
         }
+
+        fun importBatch(label: String, body: () -> String): Int =
+            runCatching {
+                val json = body()
+                if (json.isBlank() || json == "[]") 0
+                else method.invoke(null, SerialNumber, json) as? Int ?: 0
+            }.getOrElse { error ->
+                Log.w(TAG, "Nightscout $label import ignored: ${error.message}")
+                0
+            }
+
+        val imported = importBatch("treatment", ::fetchTreatmentsJson) +
+            importBatch("finger-stick", ::fetchFingersticksJson)
+        if (imported > 0) {
+            UiRefreshBus.requestDataRefresh()
+        }
+        return imported
+    }
 
     // Devicestatus is optional enrichment on top of entries/treatments: a
     // failing endpoint (404 on old servers, 401, malformed body) must never
@@ -438,7 +448,24 @@ class NightscoutFollowerManager(
     }
 
     private fun fetchTreatmentsJson(): String {
-        val endpoint = "${NightscoutFollowerRegistry.normalizeUrl(url)}/api/v1/treatments.json?count=$TREATMENT_COUNT"
+        return fetchJournalJson(
+            endpoint = NightscoutFollowerJournalEndpoints.treatments(
+                NightscoutFollowerRegistry.normalizeUrl(url),
+            ),
+            label = "treatments",
+        )
+    }
+
+    private fun fetchFingersticksJson(): String {
+        return fetchJournalJson(
+            endpoint = NightscoutFollowerJournalEndpoints.fingersticks(
+                NightscoutFollowerRegistry.normalizeUrl(url),
+            ),
+            label = "finger-stick entries",
+        )
+    }
+
+    private fun fetchJournalJson(endpoint: String, label: String): String {
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 30_000
@@ -455,7 +482,7 @@ class NightscoutFollowerManager(
                 .orEmpty()
             if (code == 404) return "[]"
             if (code !in 200..299) {
-                throw IllegalStateException("Nightscout treatments HTTP $code: ${body.take(160)}")
+                throw IllegalStateException("Nightscout $label HTTP $code: ${body.take(160)}")
             }
             return body
         } finally {
@@ -495,6 +522,16 @@ class NightscoutFollowerManager(
         )
     }
 
+}
+
+internal object NightscoutFollowerJournalEndpoints {
+    private const val JOURNAL_COUNT = 512
+
+    fun treatments(baseUrl: String): String =
+        "$baseUrl/api/v1/treatments.json?count=$JOURNAL_COUNT"
+
+    fun fingersticks(baseUrl: String): String =
+        "$baseUrl/api/v1/entries/mbg.json?count=$JOURNAL_COUNT"
 }
 
 internal object NightscoutFollowerHistoryPaging {

@@ -153,6 +153,8 @@ import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.data.prediction.calculateForecastDoseRecommendation
+import tk.glucodata.data.prediction.ForecastDoseRecommendation
 import tk.glucodata.data.prediction.GlucosePredictionSeries
 import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
 import tk.glucodata.data.prediction.PredictiveSimulationSettings
@@ -279,8 +281,13 @@ fun DashboardScreen(
     onNavigateToHistory: () -> Unit = {},
     onNavigateToMqAccount: () -> Unit = {},
     onNavigateToReadiness: () -> Unit = {},
+    onNavigateToAppUpdates: () -> Unit = {},
     onTriggerCalibration: (CalibrationSheetState) -> Unit = {}
 ) {
+    // Read once here: the LazyColumns below use Arrangement.spacedBy, which reserves its gap
+    // around an item even when that item renders nothing. An always-emitted banner item would
+    // push the whole dashboard down by one gap whenever there is no update to announce.
+    val appUpdateBannerVisible = rememberAppUpdateBannerVisible()
     val context = LocalContext.current
     val view = LocalView.current
     val dashboardPrefs = remember(context) {
@@ -488,6 +495,41 @@ fun DashboardScreen(
             viewMode = viewMode,
             settings = predictionSettings
         )
+    }
+    val forecastDoseRecommendation: ForecastDoseRecommendation? = remember(
+        journalDoseCalculatorEnabled,
+        predictionSeries,
+        viewMode,
+        unit,
+        targetLow,
+        targetHigh,
+        predictionSettings,
+        journalNow
+    ) {
+        if (!journalDoseCalculatorEnabled) {
+            null
+        } else {
+            val primarySeries = predictionSeries.lastOrNull {
+                it.kind == GlucosePredictionSeriesKind.CALIBRATED
+            } ?: predictionSeries.firstOrNull {
+                it.kind == if (viewMode == 1 || viewMode == 3) {
+                    GlucosePredictionSeriesKind.RAW
+                } else {
+                    GlucosePredictionSeriesKind.AUTO
+                }
+            } ?: predictionSeries.firstOrNull()
+            primarySeries?.let {
+                calculateForecastDoseRecommendation(
+                    predictionPoints = it.points,
+                    unit = unit,
+                    targetLow = targetLow,
+                    targetHigh = targetHigh,
+                    settings = predictionSettings,
+                    nowMillis = journalNow,
+                    maxBaselineAgeMillis = Notify.glucosetimeout
+                )
+            }
+        }
     }
     // Per-peer prediction series so the simulation extends every drawn line,
     // not just the primary. Same journal/settings (same person), each peer's
@@ -1246,6 +1288,12 @@ fun DashboardScreen(
                     .padding(padding),
                 readinessContent = {
                     DashboardCgmReadinessBanner(onOpenReadiness = onNavigateToReadiness)
+                    if (appUpdateBannerVisible) {
+                        DashboardAppUpdateBanner(
+                            modifier = Modifier.padding(top = 12.dp),
+                            onOpenAppUpdates = onNavigateToAppUpdates
+                        )
+                    }
                 }
             )
             } else if (isLandscape) {
@@ -1322,6 +1370,12 @@ fun DashboardScreen(
 
                     item {
                         DashboardCgmReadinessBanner(onOpenReadiness = onNavigateToReadiness)
+                    }
+
+                    if (appUpdateBannerVisible) {
+                        item {
+                            DashboardAppUpdateBanner(onOpenAppUpdates = onNavigateToAppUpdates)
+                        }
                     }
 
                     item {
@@ -1433,6 +1487,7 @@ fun DashboardScreen(
                                     activeInsulinSummary = activeInsulinSummary,
                                     activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
+                                    forecastDoseRecommendation = forecastDoseRecommendation,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,
@@ -1579,6 +1634,15 @@ fun DashboardScreen(
                     )
                 }
 
+                if (appUpdateBannerVisible) {
+                    item {
+                        DashboardAppUpdateBanner(
+                            modifier = Modifier.padding(horizontal = contentHorizontalPadding),
+                            onOpenAppUpdates = onNavigateToAppUpdates
+                        )
+                    }
+                }
+
                 item {
                     // Every scroll-driven value is read here rather than in the screen
                     // body, so a scroll invalidates this item and nothing else.
@@ -1636,6 +1700,7 @@ fun DashboardScreen(
                                     activeInsulinSummary = activeInsulinSummary,
                                     activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
+                                    forecastDoseRecommendation = forecastDoseRecommendation,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
                                     graphSmoothingMinutes = visualSmoothingMinutes,

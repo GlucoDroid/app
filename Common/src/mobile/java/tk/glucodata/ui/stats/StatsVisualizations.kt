@@ -47,6 +47,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import tk.glucodata.GlucoseRangeColors
+import tk.glucodata.ui.util.ExpressiveMotion
 import java.time.LocalDate
 import java.util.Locale
 
@@ -127,12 +128,19 @@ internal fun TirVerticalBar(
     width: Dp = 4.dp
 ) {
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    // Animated so that changing the strip's window redistributes the bands instead of
+    // redrawing them, which at this size was indistinguishable from a flicker.
+    val veryHigh by animateFloatAsState(tir.veryHighPercent, ExpressiveMotion.slowSpatial(), label = "tirVeryHigh")
+    val high by animateFloatAsState(tir.highPercent, ExpressiveMotion.slowSpatial(), label = "tirHigh")
+    val inRange by animateFloatAsState(tir.inRangePercent, ExpressiveMotion.slowSpatial(), label = "tirInRange")
+    val low by animateFloatAsState(tir.lowPercent, ExpressiveMotion.slowSpatial(), label = "tirLow")
+    val veryLow by animateFloatAsState(tir.veryLowPercent, ExpressiveMotion.slowSpatial(), label = "tirVeryLow")
     val segments = listOf(
-        tir.veryHighPercent to TirVeryHighColor,
-        tir.highPercent to TirHighColor,
-        tir.inRangePercent to TirInRangeColor,
-        tir.lowPercent to TirLowColor,
-        tir.veryLowPercent to TirVeryLowColor
+        veryHigh to TirVeryHighColor,
+        high to TirHighColor,
+        inRange to TirInRangeColor,
+        low to TirLowColor,
+        veryLow to TirVeryLowColor
     )
     Canvas(
         modifier = modifier

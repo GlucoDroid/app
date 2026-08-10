@@ -6,8 +6,11 @@ import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.os.Vibrator
 import android.os.VibrationEffect
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -22,6 +25,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -115,6 +121,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -143,17 +150,23 @@ import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.prediction.GlucosePredictionPoint
 import tk.glucodata.data.prediction.GlucosePredictionSeries
 import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
+import tk.glucodata.data.prediction.ForecastDoseRecommendation
+import tk.glucodata.data.prediction.ForecastDoseRecommendationKind
 import tk.glucodata.ui.getDisplayValues
+import tk.glucodata.ui.util.ExpressiveMotion
 import tk.glucodata.ui.util.GlucoseFormatter
 import tk.glucodata.ui.viewmodel.SensorColors
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.roundToInt
+import java.text.NumberFormat
 
 private const val PREVIEW_WINDOW_MODE_EXPANDED_ONLY = 0
 private const val PREVIEW_WINDOW_MODE_ALWAYS = 1
 private const val PREVIEW_WINDOW_MODE_NEVER = 2
 private const val PREVIEW_WINDOW_DURATION_MS = 24L * 60L * 60L * 1000L
+private const val ACTIVE_INSULIN_MAX_WIDTH_FRACTION = 0.46f
+private const val ACTIVE_INSULIN_EXPANDED_MAX_WIDTH_FRACTION = 0.58f
 private val PreviewWindowHeight = 58.dp
 private val PreviewWindowOuterPadding = 12.dp
 
@@ -658,6 +671,7 @@ fun DashboardChartSection(
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
+    forecastDoseRecommendation: ForecastDoseRecommendation? = null,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
@@ -702,6 +716,7 @@ fun DashboardChartSection(
                         activeInsulinSummary = activeInsulinSummary,
                         activeInsulinFromRemote = activeInsulinFromRemote,
                         showEiob = showEiob,
+                        forecastDoseRecommendation = forecastDoseRecommendation,
                         appChartRangeColors = appChartRangeColors,
                         predictionPoints = predictionPoints,
                         predictionSeries = predictionSeries,
@@ -766,7 +781,6 @@ fun DashboardChartSection(
     }
 }
 
-@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun InteractiveGlucoseChart(
     fullData: List<GlucosePoint>,
@@ -776,6 +790,7 @@ fun InteractiveGlucoseChart(
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
     activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
+    forecastDoseRecommendation: ForecastDoseRecommendation? = null,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
     predictionSeries: List<GlucosePredictionSeries> = emptyList(),
@@ -3633,16 +3648,75 @@ fun InteractiveGlucoseChart(
                         String.format(java.util.Locale.getDefault(), "%.1f", units)
                     }
                 }
+                val iobValue = stringResource(R.string.unit_insulin_value, unitsLabel(summary.iobUnits))
+                val eiobValue = stringResource(R.string.unit_insulin_value, unitsLabel(summary.eiobUnits))
                 val totalUnitsLabel = unitsLabel(summary.totalUnits)
-                val remainingLabel = summary.nextEndingAt
-                    ?.let { formatRemainingDuration(it - System.currentTimeMillis()) }
-                    ?.takeIf { it.isNotBlank() }
-                val activeInsulinShape =
-                    if (isActiveInsulinExpanded) RoundedCornerShape(18.dp) else CircleShape
+                val remainingLabel = formatRemainingDuration(
+                    LocalContext.current,
+                    summary.nextEndingAt?.minus(System.currentTimeMillis())
+                )
+                val forecastRecommendationAmount = remember(
+                    forecastDoseRecommendation?.kind,
+                    forecastDoseRecommendation?.amount
+                ) {
+                    forecastDoseRecommendation?.let { recommendation ->
+                        NumberFormat.getNumberInstance().apply {
+                            minimumFractionDigits = if (
+                                recommendation.kind == ForecastDoseRecommendationKind.INSULIN
+                            ) 1 else 0
+                            maximumFractionDigits = minimumFractionDigits
+                            isGroupingUsed = false
+                        }.format(recommendation.amount)
+                    }
+                }
+                // Collapsed shows the bare amount ("≏ 17 g" — the unit already says which);
+                // expanded has room to name what is being suggested.
+                val forecastRecommendationLabel = if (
+                    forecastDoseRecommendation != null && forecastRecommendationAmount != null
+                ) {
+                    when (forecastDoseRecommendation.kind) {
+                        ForecastDoseRecommendationKind.CARBS -> if (isActiveInsulinExpanded) {
+                            stringResource(
+                                R.string.dashboard_forecast_recommendation_carbs,
+                                forecastRecommendationAmount
+                            )
+                        } else {
+                            stringResource(
+                                R.string.dashboard_forecast_recommendation_short,
+                                stringResource(R.string.unit_carbs_value, forecastRecommendationAmount)
+                            )
+                        }
+                        ForecastDoseRecommendationKind.INSULIN -> if (isActiveInsulinExpanded) {
+                            stringResource(
+                                R.string.dashboard_forecast_recommendation_insulin,
+                                forecastRecommendationAmount
+                            )
+                        } else {
+                            stringResource(
+                                R.string.dashboard_forecast_recommendation_short,
+                                stringResource(R.string.unit_insulin_value, forecastRecommendationAmount)
+                            )
+                        }
+                    }
+                } else null
+                val activeInsulinCorner by animateDpAsState(
+                    targetValue = if (isActiveInsulinExpanded) 24.dp else 16.dp,
+                    animationSpec = activeInsulinMotionSpec(),
+                    label = "activeInsulinCorner"
+                )
+                val activeInsulinShape = RoundedCornerShape(activeInsulinCorner)
+                // Collapsed stays under half the chart so it never reaches the date chip;
+                // expanded is allowed a little more room but still stops short of it.
+                val activeInsulinMaxWidth = maxWidth * if (isActiveInsulinExpanded) {
+                    ACTIVE_INSULIN_EXPANDED_MAX_WIDTH_FRACTION
+                } else {
+                    ACTIVE_INSULIN_MAX_WIDTH_FRACTION
+                }
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(start = 12.dp, top = 12.dp)
+                        .widthIn(max = activeInsulinMaxWidth)
                         .zIndex(1.6f)
                         .clip(activeInsulinShape)
                         .clickable { isActiveInsulinExpanded = !isActiveInsulinExpanded },
@@ -3652,84 +3726,113 @@ fun InteractiveGlucoseChart(
                     shadowElevation = 0.dp
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .animateContentSize(animationSpec = activeInsulinMotionSpec())
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Expanding spells the abbreviations out in place instead of
+                        // repeating the same two numbers in a second block below.
+                        if (isActiveInsulinExpanded) {
                             Text(
-                                text = "IOB ${unitsLabel(summary.iobUnits)}U",
+                                text = stringResource(R.string.dashboard_iob_full, iobValue),
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold
                             )
                             if (showEiob) {
-                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "eIOB ${unitsLabel(summary.eiobUnits)}U",
+                                    text = stringResource(R.string.dashboard_eiob_full, eiobValue),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            remainingLabel?.let { label ->
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Icon(
-                                    imageVector = Icons.Default.AccessTime,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+                        } else {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Bottom
+                            ) {
                                 Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        AnimatedVisibility(visible = isActiveInsulinExpanded) {
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    text = stringResource(R.string.journal_active_insulin),
+                                    text = stringResource(R.string.dashboard_iob_short, iobValue),
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    maxLines = 1
                                 )
-                                Text(
-                                    text = buildString {
-                                        append(stringResource(R.string.journal_iob_expanded, unitsLabel(summary.iobUnits)))
-                                        if (showEiob) {
-                                            append(" · ")
-                                            append(stringResource(R.string.journal_eiob_expanded, unitsLabel(summary.eiobUnits)))
+                                if (showEiob) {
+                                    Text(
+                                        text = stringResource(R.string.dashboard_eiob_short, eiobValue),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                        // Secondary line: the suggestion and, while collapsed, how long the
+                        // insulin still runs. Expanded states the end time in full below.
+                        if (forecastRecommendationLabel != null ||
+                            (remainingLabel != null && !isActiveInsulinExpanded)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                forecastRecommendationLabel?.let { label ->
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = if (isActiveInsulinExpanded) 2 else 1
+                                    )
+                                }
+                                if (!isActiveInsulinExpanded) {
+                                    remainingLabel?.let { label ->
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.AccessTime,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = label,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1
+                                            )
                                         }
-                                    },
-                                    style = MaterialTheme.typography.titleSmall
-                                )
+                                    }
+                                }
+                            }
+                        }
+                        if (isActiveInsulinExpanded) {
+                            Text(
+                                text = stringResource(
+                                    R.string.journal_active_insulin_summary,
+                                    summary.activeEntryCount,
+                                    totalUnitsLabel,
+                                    summary.weightedActivityPercent
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            summary.nextEndingAt?.let { nextEndingAt ->
                                 Text(
                                     text = stringResource(
-                                        R.string.journal_active_insulin_summary,
-                                        summary.activeEntryCount,
-                                        totalUnitsLabel,
-                                        summary.weightedActivityPercent
+                                        R.string.journal_active_insulin_until,
+                                        java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+                                            .format(java.util.Date(nextEndingAt))
                                     ),
-                                    style = MaterialTheme.typography.titleSmall
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                summary.nextEndingAt?.let { nextEndingAt ->
-                                    Text(
-                                        text = stringResource(
-                                            R.string.journal_active_insulin_until,
-                                            java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
-                                                .format(java.util.Date(nextEndingAt))
-                                        ),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (activeInsulinFromRemote) {
-                                    Text(
-                                        text = stringResource(R.string.journal_iob_source_remote),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            }
+                            if (activeInsulinFromRemote) {
+                                Text(
+                                    text = stringResource(R.string.journal_iob_source_remote),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -4098,18 +4201,30 @@ fun InteractiveGlucoseChart(
             // --- DATE HEADER OVERLAY ---
             // Show only if NOT today AND not "recent" (to avoid showing date when day just started)
             val now = System.currentTimeMillis()
-            val dayCheckFormat = java.text.SimpleDateFormat("yyyyDDD", java.util.Locale.getDefault())
-            val isToday = dayCheckFormat.format(java.util.Date(now)) == dayCheckFormat.format(java.util.Date(centerTime))
+            // Bucketed to a local day so panning within one day neither reformats the label
+            // nor restarts the transition below — centerTime itself changes every frame.
+            val headerDay = localDayIndex(centerTime)
+            val isToday = headerDay == localDayIndex(now)
             val isRecent = abs(now - centerTime) < 4 * 60 * 60 * 1000L // 4 Hour buffer for "just started" days
             val showHeaderDate = !isToday && !isRecent
-            val headerDate = remember(centerTime) {
+            val headerDate = remember(headerDay) {
                 java.text.SimpleDateFormat("EEEE, d MMMM", java.util.Locale.getDefault()).format(java.util.Date(centerTime))
             }
 
             androidx.compose.animation.AnimatedVisibility(
                 visible = showHeaderDate,
-                enter = fadeIn(),
-                exit = fadeOut(),
+                // Grows out of its own top-right corner, where it is anchored, so it reads
+                // as the chart putting the label up rather than a rectangle materialising.
+                enter = fadeIn(ExpressiveMotion.defaultEffects()) + scaleIn(
+                    animationSpec = ExpressiveMotion.defaultSpatial(),
+                    initialScale = 0.85f,
+                    transformOrigin = TransformOrigin(1f, 0f)
+                ),
+                exit = fadeOut(ExpressiveMotion.fastEffects()) + scaleOut(
+                    animationSpec = ExpressiveMotion.fastSpatial(),
+                    targetScale = 0.85f,
+                    transformOrigin = TransformOrigin(1f, 0f)
+                ),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 16.dp, end = 16.dp)
@@ -4117,18 +4232,40 @@ fun InteractiveGlucoseChart(
                 Box(
                     modifier = Modifier
                         .height(32.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surfaceContainerHigh,
-                            RoundedCornerShape(8.dp)
-                        )
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .padding(horizontal = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = headerDate,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    // Crossing midnight slides the new date in from the side the pan came
+                    // from, so the label moves with the finger instead of blinking. The
+                    // pill itself is outside this, so only the text travels; SizeTransform
+                    // still morphs its width as the day names change length.
+                    AnimatedContent(
+                        targetState = headerDay to headerDate,
+                        transitionSpec = {
+                            val backwards = targetState.first < initialState.first
+                            val entryEdge = if (backwards) -1 else 1
+                            val enter = slideInHorizontally(ExpressiveMotion.defaultSpatial()) {
+                                entryEdge * it / 2
+                            } + fadeIn(ExpressiveMotion.defaultEffects())
+                            val exit = slideOutHorizontally(ExpressiveMotion.defaultSpatial()) {
+                                -entryEdge * it / 2
+                            } + fadeOut(ExpressiveMotion.fastEffects())
+                            enter togetherWith exit using SizeTransform(clip = false) { _, _ ->
+                                ExpressiveMotion.defaultSpatial()
+                            }
+                        },
+                        label = "chartDateHeader"
+                    ) { (_, label) ->
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
                 }
             }
 
@@ -4568,12 +4705,35 @@ private fun JournalMarkerChip(
     }
 }
 
-private fun formatRemainingDuration(remainingMillis: Long): String {
-    if (remainingMillis <= 0L) return ""
-    val totalMinutes = (remainingMillis / 60_000L).coerceAtLeast(0L)
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-    return String.format(java.util.Locale.getDefault(), "%02d:%02d", hours, minutes)
+/**
+ * Countdown next to the clock glyph on the active-insulin chip. Rendered as "2 h 40 min"
+ * rather than "02:40" so it cannot be mistaken for a wall-clock time.
+ */
+private fun formatRemainingDuration(context: android.content.Context, remainingMillis: Long?): String? {
+    if (remainingMillis == null || remainingMillis <= 0L) return null
+    val totalMinutes = (remainingMillis / 60_000L).toInt()
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours == 0 -> context.getString(R.string.stats_duration_minutes, minutes)
+        minutes == 0 -> context.getString(R.string.stats_duration_hours, hours)
+        else -> context.getString(R.string.stats_duration_hours_minutes, hours, minutes)
+    }
+}
+
+/** Shared spring for the active-insulin chip's size and corner morph, so they move as one. */
+private fun <T> activeInsulinMotionSpec() = ExpressiveMotion.defaultSpatial<T>()
+
+/**
+ * Which local calendar day a timestamp falls in, as a day number.
+ *
+ * Cheap enough to call on every pan frame, unlike the `SimpleDateFormat` comparison it
+ * replaced. The DST-shortened day is off by an hour at its boundary, which is invisible
+ * for a header label.
+ */
+private fun localDayIndex(millis: Long): Long {
+    val zone = java.util.TimeZone.getDefault()
+    return Math.floorDiv(millis + zone.getOffset(millis), 86_400_000L)
 }
 
 private fun resolveGraphRangeDefaults(

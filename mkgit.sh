@@ -1,5 +1,4 @@
 git add ./LICENSE.txt
-git add ./tasks.txt
 git add ./gradlew.bat
 git add ./nohup.out
 git add ./Makefile
@@ -19,7 +18,6 @@ git add ./debug.sh
 git add ./build.gradle.bak4
 git add ./build.gradle.werktniet
 git add ./settings.gradle
-git add ./over.sh
 git add ./local.properties
 git add ./Common/proguard-rules.my
 git add ./Common/printmappingout.txt

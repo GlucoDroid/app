@@ -1444,6 +1444,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="dash">-</string>
     <string name="data_mode">Data mode</string>
     <string name="days_hours_remaining">%1$d days %2$d hours</string>
+    <string name="sensor_age_days_hours">%1$d days %2$d hours</string>
+    <string name="sensor_age_hours">%1$d hours</string>
     <string name="delete_calibrations_count">Delete %1$d calibrations</string>
     <string name="deselect_all">Deselect all</string>
     <string name="disabled_calibrations_cleared">Cleared %1$d disabled calibrations</string>
@@ -2063,6 +2065,15 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_dose_pair_insulin">Pair insulin</string>
     <string name="journal_dose_pair_carbs">Pair carbs</string>
     <string name="journal_dose_suggested_insulin">%1$s U suggested</string>
+    <string name="unit_insulin_value">%1$s U</string>
+    <string name="unit_carbs_value">%1$s g</string>
+    <string name="dashboard_iob_short">IoB %1$s</string>
+    <string name="dashboard_eiob_short">eIoB %1$s</string>
+    <string name="dashboard_iob_full">Insulin on board %1$s</string>
+    <string name="dashboard_eiob_full">Effective now %1$s</string>
+    <string name="dashboard_forecast_recommendation_short">≏ %1$s</string>
+    <string name="dashboard_forecast_recommendation_carbs">≏ Carbs: %1$s g</string>
+    <string name="dashboard_forecast_recommendation_insulin">≏ Insulin: %1$s U</string>
     <string name="journal_dose_covers_carbs">%1$s g covered</string>
     <string name="journal_dose_food_component">Food %1$s</string>
     <string name="journal_dose_correction_component">Correction %1$s</string>
@@ -2141,8 +2152,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="notification_iob_cob_risk_desc">Warn when near-term insulin may push glucose below target</string>
     <string name="notification_iob_risk_without_cob_title">Include missing COB</string>
     <string name="notification_iob_risk_without_cob_desc">Treat insulin as uncovered when no carbs are logged</string>
-    <string name="journal_iob_expanded">IOB %1$sU remaining</string>
-    <string name="journal_eiob_expanded">eIOB %1$sU acting</string>
+    <string name="journal_iob_expanded">IoB %1$s U remaining</string>
+    <string name="journal_eiob_expanded">eIoB %1$s U acting</string>
     <string name="journal_iob_source_remote">Values from the uploading device (Nightscout)</string>
     <string name="journal_visible_events">Visible events</string>
     <string name="journal_empty">No journal events in this window yet</string>
@@ -2174,7 +2185,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="journal_disable_preset" tools:ignore="MissingTranslation">Disable</string>
     <string name="journal_active_insulin">Active insulin</string>
     <string name="journal_active_insulin_subtitle">Counts toward IOB and predictions</string>
-    <string name="journal_active_insulin_summary">%1$d doses · %2$sU · %3$d%% now</string>
+    <string name="journal_active_insulin_summary">%1$d doses · %2$s U · %3$d%% now</string>
     <string name="journal_active_insulin_until">Running until %1$s</string>
     <string name="journal_preset_nph" tools:ignore="MissingTranslation">Intermediate / NPH</string>
     <string name="journal_preset_ultra_long_basal" tools:ignore="MissingTranslation">Ultra long basal</string>
@@ -2585,4 +2596,71 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="sms_event_relay">Update (no data connection)</string>
     <string name="sms_event_test">Test message from JugglucoNG</string>
     <string name="sms_body_no_reading">No reading yet</string>
+
+    <!-- In-app updates (GitHub releases) -->
+    <string name="app_updates_title">App updates</string>
+    <string name="app_updates_section_preferences">Preferences</string>
+    <string name="app_updates_section_versions">Versions</string>
+    <string name="app_updates_state_up_to_date">Up to date · %1$s</string>
+    <string name="app_updates_state_available">Version %1$s available</string>
+    <string name="app_updates_state_off">Automatic checks are off</string>
+    <string name="app_updates_state_checking">Checking…</string>
+    <string name="app_updates_state_unavailable">Handled outside the app</string>
+    <string name="app_updates_intro_title">Automatic update checks</string>
+    <string name="app_updates_intro_body">Get a heads-up when a new version is out. Nothing downloads or installs on its own.</string>
+    <string name="app_updates_intro_enable">Turn on</string>
+    <string name="app_updates_intro_decline">Not now</string>
+    <string name="app_updates_card_title">Update available</string>
+    <string name="app_updates_card_body">Version %1$s is ready to download (%2$s).</string>
+    <string name="app_updates_action_view">View</string>
+    <string name="app_updates_action_download">Download</string>
+    <string name="app_updates_action_download_install">Download and install</string>
+    <string name="app_updates_action_install">Install</string>
+    <string name="app_updates_action_cancel">Cancel download</string>
+    <string name="app_updates_action_discard">Discard</string>
+    <string name="app_updates_action_check">Check now</string>
+    <string name="app_updates_auto_title">Check automatically</string>
+    <string name="app_updates_auto_desc">Notify me when a new version is out</string>
+    <string name="app_updates_installed_title">Installed version</string>
+    <string name="app_updates_installed_value">%1$s (build %2$d)</string>
+    <string name="app_updates_latest_title">Latest release</string>
+    <string name="app_updates_latest_value">%1$s · %2$s</string>
+    <string name="app_updates_latest_none">Nothing newer found</string>
+    <string name="app_updates_notes_title">What\'s new</string>
+    <string name="app_updates_checking_title">Checking for updates</string>
+    <string name="app_updates_checking_body">Looking for a newer version…</string>
+    <string name="app_updates_downloading_title">Downloading update</string>
+    <string name="app_updates_downloading_body">%1$s of %2$s</string>
+    <string name="app_updates_verifying_title">Verifying download</string>
+    <string name="app_updates_verifying_body">Checking the signature and version before installing.</string>
+    <string name="app_updates_ready_title">%1$s ready to install</string>
+    <string name="app_updates_ready_body">Android will ask you to confirm. JugglucoNG closes and reopens; sensor connections resume by themselves.</string>
+    <string name="app_updates_up_to_date_title">You\'re on the latest version</string>
+    <string name="app_updates_last_checked">Last checked %1$s</string>
+    <string name="app_updates_never_checked">never</string>
+    <string name="app_updates_error_title">Update check failed</string>
+    <string name="app_updates_permission_title">Allow installs from JugglucoNG</string>
+    <string name="app_updates_permission_body">Android needs a one-time permission before JugglucoNG can install its own update.</string>
+    <string name="app_updates_permission_action">Open settings</string>
+    <string name="app_updates_unsupported_store_title">Updates come from your app store</string>
+    <string name="app_updates_unsupported_store_body">This copy was installed by %1$s, which handles updates itself.</string>
+    <string name="app_updates_unsupported_debug_title">Not available in debug builds</string>
+    <string name="app_updates_unsupported_debug_body">Debug builds use their own package name and signing key, so no published release can install over them.</string>
+    <string name="app_updates_error_network">Could not reach the update source. Check your connection and try again.</string>
+    <string name="app_updates_error_rate_limited">The update source is rate-limiting checks. Try again later.</string>
+    <string name="app_updates_error_parse">The update source returned something unexpected.</string>
+    <string name="app_updates_error_no_artifact">The latest release has no download for this build.</string>
+    <string name="app_updates_error_checksum">The download did not match its checksum and was deleted.</string>
+    <string name="app_updates_error_signature">The downloaded APK is signed with a different key and was deleted. Only install JugglucoNG from the official release page.</string>
+    <string name="app_updates_error_package">The downloaded APK belongs to a different app.</string>
+    <string name="app_updates_error_downgrade">That release is not newer than the installed version.</string>
+    <string name="app_updates_error_storage">Not enough free space for the download.</string>
+    <string name="app_updates_error_install_permission">JugglucoNG is not allowed to install apps yet.</string>
+    <string name="app_updates_error_install_failed">The installation did not complete.</string>
+    <string name="app_updates_error_cancelled">Installation cancelled.</string>
+    <string name="app_updates_source_title">Update source</string>
+    <string name="app_updates_source_help">Any https address: a GitHub project, a fork or mirror of one, or your own update manifest. An update can only install if it is signed with the same key as your current build — that is what protects you, not where it came from.</string>
+    <string name="app_updates_source_invalid">Enter an https:// address.</string>
+    <string name="app_updates_source_reset">Use default</string>
+    <string name="app_updates_action_save">Save</string>
 </resources>
