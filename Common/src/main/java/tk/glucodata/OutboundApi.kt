@@ -40,6 +40,7 @@ object OutboundApi {
     private const val QUEUE_BUSY_STATUS_INTERVAL_MS = 5 * 60 * 1000L
     private const val ERROR_QUEUE_BUSY = "API send queue is busy; dropped stale live reading"
     private const val ERROR_NETWORK_UNAVAILABLE = "Network unavailable; skipped live API send"
+    private const val STALE_READING_LOOKBACK_MS = 12 * 60 * 60 * 1000L
 
     private val pendingSends = AtomicInteger(0)
     private val lastQueueBusyStatusAtMs = AtomicLong(0)
@@ -319,7 +320,42 @@ object OutboundApi {
         val candidates = destinationId
             ?.let { id -> listOfNotNull(config.findDestination(id)) }
             ?: config.activeDestinations()
-        return candidates.filter { it.isReady() }
+        // SMS destinations are event-driven (see tk.glucodata.sms.SmsWatchdog) and must
+        // never be fed by the reading stream — a text per reading would be ruinous.
+        return candidates.filter { it.isReady() && !it.isSms() }
+    }
+
+    /**
+     * The latest reading as the template engine sees it, or null when the app has
+     * never had one. Tolerates stale data on purpose: the SMS watchdog needs the
+     * last known value precisely when readings have stopped arriving.
+     */
+    internal fun currentReadingOrNull(
+        recipient: String = "",
+        maxAgeMillis: Long = STALE_READING_LOOKBACK_MS
+    ): Reading? {
+        val current = CurrentDisplaySource.resolveCurrent(maxAgeMillis) ?: return null
+        if (current.timeMillis <= 0L || current.sharedMgdl <= 0) return null
+        val trend = ExchangeTrend.resolve(current.sensorId, current.timeMillis, current.rate)
+        return Reading(
+            eventId = "${current.sensorId.orEmpty()}:${current.timeMillis}:${current.sharedMgdl}",
+            recipient = recipient,
+            sensorId = current.sensorId.orEmpty(),
+            primaryText = current.primaryStr,
+            displayValue = current.primaryValue.toDouble(),
+            mgdl = current.sharedMgdl,
+            autoValue = current.autoValue,
+            autoMgdl = displayToMgdl(current.autoValue),
+            rawValue = current.rawValue,
+            rateMgdlPerMinute = current.rate,
+            trendIndex = trend.index,
+            trendNameFromInput = trend.name.orEmpty(),
+            trendRateMgdlPerMinute = trend.rateMgdlPerMinute,
+            timeMillis = current.timeMillis,
+            sensorGen = current.sensorGen,
+            alarm = 0,
+            test = false
+        )
     }
 
     private fun enqueueForDestination(

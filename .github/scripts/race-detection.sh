@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-APP_APK=$(find Common/build/outputs/apk/mobileLibre3SiDexNogoogle/debug -name "*.apk" ! -name "*-unsigned*" | head -1)
-TEST_APK=$(find Common/build/outputs/apk/androidTest/mobileLibre3SiDexNogoogle/debug -name "*.apk" | head -1)
+APP_APK=$(find Common/build/outputs/apk/mobile/debug -name "*.apk" ! -name "*-unsigned*" | head -1)
+TEST_APK=$(find Common/build/outputs/apk/androidTest/mobile/debug -name "*.apk" | head -1)
 
 echo "App APK:  $APP_APK"
 echo "Test APK: $TEST_APK"

@@ -34,10 +34,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.alpha
 
 import androidx.compose.material.icons.filled.AccessTime
@@ -90,12 +98,25 @@ fun InfoRow(label: String, value: String) {
     }
 }
 
-private fun formatSensorReadingAge(nowMillis: Long, readingMillis: Long): String {
+private enum class SensorReadingAgeUnit {
+    SECONDS,
+    MINUTES
+}
+
+private data class SensorReadingAge(
+    val amount: Int,
+    val unit: SensorReadingAgeUnit
+)
+
+private fun sensorReadingAge(nowMillis: Long, readingMillis: Long): SensorReadingAge {
     val ageSeconds = ((nowMillis - readingMillis).coerceAtLeast(0L) / 1000L)
     return if (ageSeconds < 60L) {
-        "${ageSeconds}s"
+        SensorReadingAge(ageSeconds.toInt(), SensorReadingAgeUnit.SECONDS)
     } else {
-        "${(ageSeconds / 60L).coerceAtLeast(1L)}m"
+        SensorReadingAge(
+            (ageSeconds / 60L).coerceAtLeast(1L).toInt(),
+            SensorReadingAgeUnit.MINUTES
+        )
     }
 }
 
@@ -124,8 +145,18 @@ private fun SensorCurrentValueChip(
             delay(nextSensorReadingAgeDelay(nowMillis, snapshot.timeMillis))
         }
     }
-    val ageText = remember(nowMillis, snapshot.timeMillis) {
-        formatSensorReadingAge(nowMillis, snapshot.timeMillis)
+    val readingAge = remember(nowMillis, snapshot.timeMillis) {
+        sensorReadingAge(nowMillis, snapshot.timeMillis)
+    }
+    val ageText = when (readingAge.unit) {
+        SensorReadingAgeUnit.SECONDS -> stringResource(
+            R.string.sensor_reading_age_seconds,
+            readingAge.amount
+        )
+        SensorReadingAgeUnit.MINUTES -> stringResource(
+            R.string.sensor_reading_age_minutes,
+            readingAge.amount
+        )
     }
 
     Surface(
@@ -1368,10 +1399,28 @@ fun SensorCard(
                     // Clean Label-Value rows
                     val labelStyle = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     val valueStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface)
+                    var batteryRefreshAnimation by remember(sensor.serial) { mutableIntStateOf(0) }
 
-                    val DataRow = @Composable { label: String, value: String ->
+                    @Composable
+                    fun DataRow(
+                        label: String,
+                        value: String,
+                        onClick: (() -> Unit)? = null,
+                        valueAnimationKey: Int? = null,
+                    ) {
+                        val rowModifier = if (onClick != null) {
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = onClick,
+                                )
+                        } else {
+                            Modifier.fillMaxWidth()
+                        }
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = rowModifier,
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Top
                         ) {
@@ -1382,14 +1431,38 @@ fun SensorCard(
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(0.42f)
                             )
-                            Text(
-                                text = value,
-                                style = valueStyle,
-                                maxLines = 2,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                                modifier = Modifier.weight(0.58f)
-                            )
+                            if (valueAnimationKey == null) {
+                                Text(
+                                    text = value,
+                                    style = valueStyle,
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                    modifier = Modifier.weight(0.58f)
+                                )
+                            } else {
+                                AnimatedContent(
+                                    targetState = value to valueAnimationKey,
+                                    transitionSpec = {
+                                        (fadeIn(tween(180)) + slideInVertically(tween(180)) { it / 3 })
+                                            .togetherWith(
+                                                fadeOut(tween(120)) + slideOutVertically(tween(120)) { -it / 3 },
+                                            )
+                                    },
+                                    contentAlignment = Alignment.CenterEnd,
+                                    label = "sensorBatteryValue",
+                                    modifier = Modifier.weight(0.58f),
+                                ) { (animatedValue, _) ->
+                                    Text(
+                                        text = animatedValue,
+                                        style = valueStyle,
+                                        maxLines = 2,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -1420,9 +1493,7 @@ fun SensorCard(
                        DataRow(stringResource(R.string.sensor_expected_end), formatSensorTime(sensor.expectedEnd))
                     }
 
-                    if (sensor.isMq && sensor.batteryPercent >= 0) {
-                        DataRow(stringResource(R.string.sensor_battery_voltage), "${sensor.batteryPercent}%")
-                    } else if (sensor.isAnytime && sensor.batteryMillivolts > 0) {
+                    if (sensor.isAnytime && sensor.batteryMillivolts > 0) {
                         // Anytime: surface both percent and voltage — voltage is the
                         // health-critical metric (low-battery cutoff is 4.05 V on CT3).
                         val voltsText = String.format(java.util.Locale.getDefault(), "%.2f V", sensor.batteryMillivolts / 1000.0)
@@ -1432,6 +1503,22 @@ fun SensorCard(
                             voltsText
                         }
                         DataRow(stringResource(R.string.sensor_battery_voltage), combined)
+                    } else if (sensor.batteryPercent >= 0) {
+                        val refreshBattery = if (sensor.isSibionics && sensor.isVendorConnected) {
+                            {
+                                if (viewModel.refreshSensorBattery(sensor.serial)) {
+                                    batteryRefreshAnimation++
+                                }
+                            }
+                        } else {
+                            null
+                        }
+                        DataRow(
+                            label = stringResource(R.string.sensor_battery_voltage),
+                            value = "${sensor.batteryPercent}%",
+                            onClick = refreshBattery,
+                            valueAnimationKey = if (sensor.isSibionics) batteryRefreshAnimation else null,
+                        )
                     } else if (sensor.batteryMillivolts > 0) {
                         DataRow(stringResource(R.string.sensor_battery_voltage), String.format(java.util.Locale.getDefault(), "%.3f V", sensor.batteryMillivolts / 1000.0))
                     }
@@ -1467,8 +1554,14 @@ fun SensorCard(
                     }
 
                     if (sensor.sensorAgeHours >= 0) {
-                        val ageText = if (sensor.sensorAgeHours < 24) "${sensor.sensorAgeHours}h"
-                                      else "${sensor.sensorAgeHours / 24}d ${sensor.sensorAgeHours % 24}h"
+                        val ageText = if (sensor.sensorAgeHours < 24) {
+                            stringResource(R.string.sensor_age_hours_compact, sensor.sensorAgeHours)
+                        } else {
+                            val days = sensor.sensorAgeHours / 24
+                            val hours = sensor.sensorAgeHours % 24
+                            "${stringResource(R.string.sensor_age_days_compact, days)} " +
+                                stringResource(R.string.sensor_age_hours_compact, hours)
+                        }
                         DataRow(stringResource(R.string.sensor_age), ageText)
                     }
 

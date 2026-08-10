@@ -33,6 +33,9 @@ public class XInfuus {
 public static void sendGlucoseBroadcast(String serial, double currentGlucose,float rate,long mmsec) {
     }
 
+public static void sendGlucoseBroadcast(String serial, double currentGlucose,float rate,long mmsec,long sensorStartmsec) {
+    }
+
 public static final String glucoseaction="";
 
     public static void sendSensorActivateBroadcast(Context context,String serial,long startsec) {

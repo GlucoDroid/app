@@ -66,14 +66,14 @@ jobs:
 
       - name: Build debug APK
         run: |
-          ./gradlew :Common:assembleMobileLibre3SiDexNogoogleDebug \
+          ./gradlew :Common:assembleMobileDebug \
             --no-daemon --warning-mode=all \
             -Pno_x86 -Pno_x86_64
 
       - name: Build test APK (instrumented dispatch only)
         if: inputs.test_type == 'instrumented' && inputs.power_only != true
         run: |
-          ./gradlew :Common:assembleMobileLibre3SiDexNogoogleDebugAndroidTest \
+          ./gradlew :Common:assembleMobileDebugAndroidTest \
             --no-daemon --warning-mode=all \
             -Pno_x86 -Pno_x86_64
 
@@ -82,8 +82,8 @@ jobs:
         with:
           name: apks
           path: |
-            Common/build/outputs/apk/mobileLibre3SiDexNogoogle/debug/*.apk
-            Common/build/outputs/apk/androidTest/mobileLibre3SiDexNogoogle/debug/*.apk
+            Common/build/outputs/apk/mobile/debug/*.apk
+            Common/build/outputs/apk/androidTest/mobile/debug/*.apk
           retention-days: 1
           if-no-files-found: warn
 

@@ -16,15 +16,6 @@ import androidx.compose.ui.text.withStyle
 import tk.glucodata.R
 import kotlin.math.abs
 
-data class GlucosePoint(
-    val value: Float,
-    val time: String,
-    val timestamp: Long = 0L,
-    val rawValue: Float = 0f,
-    val rate: Float? = null,
-    val sensorSerial: String? = null
-)
-
 // Helper to format timestamps or date strings into "Mon 20.05.2024 14:30"
 fun formatSensorTime(rawTime: String): String {
     if (rawTime.isBlank()) return ""

@@ -23,7 +23,7 @@ env:
 jobs:
   # ── 1. Android Lint ──────────────────────────────────────────────────────────
   lint:
-    name: Android Lint (nogoogle release)
+    name: Android Lint (mobile release)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -47,7 +47,7 @@ jobs:
 
       - name: Run lint
         run: |
-          ./gradlew :Common:lintMobileLibre3SiDexNogoogleRelease \
+          ./gradlew :Common:lintMobileRelease \
             --no-daemon --warning-mode=all
         # abortOnError is false in build.gradle so this always exits 0;
         # we parse severity ourselves below.
@@ -55,7 +55,7 @@ jobs:
       - name: Summarise lint results
         if: always()
         run: |
-          XML=$(find Common/build/reports -name "lint-results-mobileLibre3SiDexNogoogleRelease.xml" | head -1)
+          XML=$(find Common/build/reports -name "lint-results-mobileRelease.xml" | head -1)
           if [[ -z "$XML" ]]; then
             echo "No lint XML found." >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -123,8 +123,8 @@ jobs:
         with:
           name: lint-reports
           path: |
-            Common/build/reports/lint-results-mobileLibre3SiDexNogoogleRelease.xml
-            Common/build/reports/lint-results-mobileLibre3SiDexNogoogleRelease.html
+            Common/build/reports/lint-results-mobileRelease.xml
+            Common/build/reports/lint-results-mobileRelease.html
           retention-days: 30
 
   # ── 2. Race / Thread-Safety Detection ────────────────────────────────────────
@@ -164,11 +164,11 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           ls -l /dev/kvm
 
-      - name: Build debug + test APKs (nogoogle)
+      - name: Build debug + test APKs
         run: |
           ./gradlew \
-            :Common:assembleMobileLibre3SiDexNogoogleDebug \
-            :Common:assembleMobileLibre3SiDexNogoogleDebugAndroidTest \
+            :Common:assembleMobileDebug \
+            :Common:assembleMobileDebugAndroidTest \
             --no-daemon --warning-mode=all \
             -Pno_x86 -Pno_x86_64
 

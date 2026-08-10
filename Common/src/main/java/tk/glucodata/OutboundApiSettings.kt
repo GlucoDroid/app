@@ -7,6 +7,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
 import java.util.UUID
+import tk.glucodata.sms.SmsPolicy
 
 @Keep
 object OutboundApiSettings {
@@ -15,6 +16,12 @@ object OutboundApiSettings {
     const val PRESET_GLUCO_WATCH_VK = "glucowatch_vk"
     const val PRESET_VK_MESSAGES = "vk_messages"
     const val PRESET_GLUCODROID_CLOUD = "glucodroid_cloud"
+
+    /**
+     * SMS is a destination in the settings sense — a place readings can go — but it
+     * is never fed by the reading stream. See [tk.glucodata.sms.SmsPolicy].
+     */
+    const val PRESET_SMS = "sms"
 
     private const val LEGACY_PROVIDER_WEBHOOK_JSON = "webhook_json"
     private const val LEGACY_PROVIDER_VK = "vk"
@@ -73,6 +80,8 @@ object OutboundApiSettings {
     private const val LEGACY_CHAT_TEMPLATE = "{value} {unit} {trend_arrow} {time}"
     const val DEFAULT_GLUCO_WATCH_TEMPLATE =
         "GV:{mmol}|RAW:{raw}|TR:{trend_arrow}|AL:{alarm}|RT:{rate_mmol}|IOB:{iob}|COB:{cob}|TS:{timestamp}"
+    // Deliberately terse: every extra token costs a paid SMS segment.
+    const val DEFAULT_SMS_TEMPLATE = "{value} {unit} {trend_arrow} {time}"
 
     @Volatile
     private var cachedConfig: Config? = null
@@ -119,8 +128,11 @@ object OutboundApiSettings {
         val lastSentAtMsByRecipient: Map<String, Long> = emptyMap(),
         val lastSentMgdlByRecipient: Map<String, Int> = emptyMap(),
         val lastStaleAtMsByRecipient: Map<String, Long> = emptyMap(),
-        val settingsVersion: Int = 0
+        val settingsVersion: Int = 0,
+        val smsPolicy: SmsPolicy = SmsPolicy()
     ) {
+        fun isSms(): Boolean = normalizedPreset() == PRESET_SMS
+
         fun normalizedPreset(): String = normalizePreset(preset)
 
         fun normalizedTriggerMode(): String = normalizeTriggerMode(triggerMode)
@@ -172,14 +184,18 @@ object OutboundApiSettings {
             return trimmed
         }
 
-        fun recipients(): List<String> =
-            chatId
+        fun recipients(): List<String> {
+            if (isSms()) return smsPolicy.numbers()
+            return chatId
                 .split(',', ';', '\n')
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
+        }
 
         fun isReady(globalEnabled: Boolean = true): Boolean {
             if (!globalEnabled || !enabled) return false
+            // SMS has no endpoint to configure — a contact is the whole requirement.
+            if (isSms()) return smsPolicy.hasUsableContacts()
             if (resolvedUrl().isBlank()) return false
             return when (normalizedPreset()) {
                 PRESET_TELEGRAM_BOT -> token.isNotBlank() && recipients().isNotEmpty() &&
@@ -284,6 +300,9 @@ object OutboundApiSettings {
             .putBoolean(KEY_ENABLED, true)
             .putString(KEY_DESTINATIONS_JSON, encodeDestinations(normalized.destinations).toString())
             .apply()
+        // Adding, editing or disabling an SMS destination has to take effect without
+        // waiting for the next reading — the watchdog is what makes it do anything.
+        runCatching { tk.glucodata.sms.SmsWatchdog.ensureRunning(context) }
     }
 
     @JvmStatic
@@ -324,7 +343,8 @@ object OutboundApiSettings {
             lastSentAtMsByRecipient = emptyMap(),
             lastSentMgdlByRecipient = emptyMap(),
             lastStaleAtMsByRecipient = emptyMap(),
-            settingsVersion = 1
+            settingsVersion = 1,
+            smsPolicy = SmsPolicy().sanitized()
         )
     }
 
@@ -334,6 +354,7 @@ object OutboundApiSettings {
             PRESET_TELEGRAM_BOT -> "https://api.telegram.org/bot{token}/sendMessage"
             PRESET_GLUCO_WATCH_VK,
             PRESET_VK_MESSAGES -> DEFAULT_VK_URL
+            PRESET_SMS -> ""
             else -> DEFAULT_CUSTOM_URL
         }
 
@@ -341,6 +362,7 @@ object OutboundApiSettings {
     fun defaultTemplate(preset: String): String =
         when (normalizePreset(preset)) {
             PRESET_GLUCO_WATCH_VK -> DEFAULT_GLUCO_WATCH_TEMPLATE
+            PRESET_SMS -> DEFAULT_SMS_TEMPLATE
             PRESET_TELEGRAM_BOT,
             PRESET_VK_MESSAGES -> DEFAULT_CHAT_TEMPLATE
             else -> DEFAULT_CUSTOM_TEMPLATE
@@ -353,6 +375,7 @@ object OutboundApiSettings {
             PRESET_GLUCO_WATCH_VK -> "VK direct message"
             PRESET_VK_MESSAGES -> "VK text message"
             PRESET_GLUCODROID_CLOUD -> "glucodroid.cloud"
+            PRESET_SMS -> "Emergency SMS"
             else -> "Custom JSON webhook"
         }
 
@@ -556,7 +579,8 @@ object OutboundApiSettings {
             PRESET_TELEGRAM_BOT,
             PRESET_GLUCO_WATCH_VK,
             PRESET_VK_MESSAGES,
-            PRESET_GLUCODROID_CLOUD -> preset
+            PRESET_GLUCODROID_CLOUD,
+            PRESET_SMS -> preset
             else -> PRESET_CUSTOM_JSON
         }
 
@@ -632,6 +656,7 @@ object OutboundApiSettings {
                             encodeLongMap(destination.lastStaleAtMsByRecipient)
                         )
                         .put("settingsVersion", maxOf(1, destination.settingsVersion))
+                        .put("smsPolicy", SmsPolicy.encode(destination.smsPolicy))
                 )
             }
         }
@@ -740,7 +765,8 @@ object OutboundApiSettings {
                 lastSentAtMsByRecipient = decodeLongMap(item.optJSONObject("lastSentAtMsByRecipient")),
                 lastSentMgdlByRecipient = decodeIntMap(item.optJSONObject("lastSentMgdlByRecipient")),
                 lastStaleAtMsByRecipient = decodeLongMap(item.optJSONObject("lastStaleAtMsByRecipient")),
-                settingsVersion = maxOf(1, itemSettingsVersion)
+                settingsVersion = maxOf(1, itemSettingsVersion),
+                smsPolicy = SmsPolicy.decode(item.optJSONObject("smsPolicy"))
             )
         }
         return destinations.distinctBy { it.id.lowercase(Locale.US) }

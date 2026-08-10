@@ -75,6 +75,16 @@ internal class DeltaAlarmState(private val falling: Boolean) {
         armed = true
     }
 
+    /**
+     * The alert offered by the last true [shouldTrigger] never reached the user
+     * (delivery suppressed or failed). Re-arm so the next evaluation offers it
+     * again while the steep run still stands; if the run has broken meanwhile,
+     * the stale alarm dies with it instead of firing late.
+     */
+    fun rearmAfterFailedDelivery() {
+        armed = true
+    }
+
     fun shouldTrigger(
         enabled: Boolean,
         activeNow: Boolean,

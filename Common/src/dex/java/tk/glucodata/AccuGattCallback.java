@@ -252,6 +252,7 @@ private boolean connected=false;
 @SuppressLint("MissingPermission")
 @Override
 public void onConnectionStateChange(BluetoothGatt bluetoothGatt, int status, int newState) {
+    noteFirstGattCallback("onConnectionStateChange", bluetoothGatt);
     long tim = System.currentTimeMillis();
     if(stop) {
         constatchange[1] = tim; //Needed? ever displayed?

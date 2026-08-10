@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -33,6 +34,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
@@ -51,9 +53,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -153,6 +160,7 @@ private fun HistoryRoute(
     val appChartRangeColorsEnabled by dashboardViewModel.glucoseAppChartRangeColorsEnabled.collectAsStateWithLifecycle()
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
+    val predictionModelProfile by dashboardViewModel.predictionModelProfile.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
     var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
     var lastJournalType by rememberSaveable { mutableStateOf(JournalEntryType.INSULIN) }
@@ -239,6 +247,7 @@ private fun HistoryRoute(
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                 foodMacrosEnabled = journalFoodMacrosEnabled,
+                modelProfile = predictionModelProfile,
                 targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
                     tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
                 } else {
@@ -304,6 +313,7 @@ private fun JournalRoute(
     val appChartRangeColorsEnabled by dashboardViewModel.glucoseAppChartRangeColorsEnabled.collectAsStateWithLifecycle()
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
+    val predictionModelProfile by dashboardViewModel.predictionModelProfile.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
     var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
     var lastJournalType by rememberSaveable { mutableStateOf(JournalEntryType.INSULIN) }
@@ -393,6 +403,7 @@ private fun JournalRoute(
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                 foodMacrosEnabled = journalFoodMacrosEnabled,
+                modelProfile = predictionModelProfile,
                 targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
                     tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
                 } else {
@@ -602,6 +613,35 @@ private fun CalibrationSheetHost(
 }
 
 @Composable
+private fun AdaptiveNavigationLabel(text: String) {
+    BoxWithConstraints {
+        val density = LocalDensity.current
+        val textMeasurer = rememberTextMeasurer()
+        val regularStyle = MaterialTheme.typography.labelMedium
+        val tightStyle = regularStyle.copy(letterSpacing = 0.sp)
+        val compactStyle = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp)
+        val availableWidthPx = with(density) { maxWidth.toPx() }
+        val labelStyle = remember(text, availableWidthPx, regularStyle, tightStyle, compactStyle) {
+            listOf(regularStyle, tightStyle, compactStyle).firstOrNull { style ->
+                textMeasurer.measure(
+                    text = AnnotatedString(text),
+                    style = style,
+                    maxLines = 1
+                ).size.width <= availableWidthPx
+            } ?: compactStyle
+        }
+
+        Text(
+            text = text,
+            style = labelStyle,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
     val navController = rememberNavController()
     val dashboardViewModel: DashboardViewModel = viewModel()
@@ -694,7 +734,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     restoreState = true
                 }
             }
-            // Already on the destination, do nothing
+            // Already on the destination. Tapping the tab you are already on is how people
+            // back out of a mode, so let it close Arrange rather than doing nothing.
+            else -> tk.glucodata.ui.stats.StatsArrangeMode.close()
         }
     }
 
@@ -811,6 +853,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/predictive-simulation") {
                         PredictiveSimulationSettingsScreen(navController, dashboardViewModel)
                     }
+                    composable("settings/predictive-simulation/model-profile") {
+                        PredictionModelProfileScreen(navController, dashboardViewModel)
+                    }
                     composable("settings/floating-display") {
                         FloatingGlucoseSettingsScreen(navController, dashboardViewModel)
                     }
@@ -881,7 +926,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                                     isStatistics = item.route == "stats"
                                 )
                             },
-                            label = { Text(item.label) },
+                            label = {
+                                AdaptiveNavigationLabel(item.label)
+                            },
                             selected = isSelected,
                             onClick = { onNavigate(item.route) }
                         )
@@ -958,6 +1005,9 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 }
                 composable("settings/predictive-simulation") {
                     PredictiveSimulationSettingsScreen(navController, dashboardViewModel)
+                }
+                composable("settings/predictive-simulation/model-profile") {
+                    PredictionModelProfileScreen(navController, dashboardViewModel)
                 }
                 composable("settings/floating-display") {
                     FloatingGlucoseSettingsScreen(navController, dashboardViewModel)

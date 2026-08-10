@@ -15,6 +15,14 @@ class SibionicsDeviceBindingTest {
     )
 
     @Test
+    fun defaultSensorAlgorithmKeepsCalibrationEnabled() {
+        assertEquals(
+            SibionicsAlgorithmSelection.STOCK_CALIBRATED,
+            SibionicsAlgorithmSelection.DEFAULT,
+        )
+    }
+
+    @Test
     fun recognizesObservedSibionics2TransmitterName() {
         assertTrue(SibionicsConstants.isSibionics2TransmitterName("P225043JMV"))
         assertTrue(SibionicsConstants.isSibionics2TransmitterName("P2250671014ATR89"))
@@ -162,14 +170,45 @@ class SibionicsDeviceBindingTest {
     @Test
     fun acceptsObservedGs1QrPayloadsAcrossManagedVariants() {
         val payloads = listOf(
-            "\u001D0106972831641803112412191725121810LT4F241247J\u001D21241247YEZ1450HAJ02",
-            "\u001D0106972831641476112412231725122210LT46241219C\u001D21WD9QAXGA52WS4V",
-            "\u001D0106972831640165112312091724120810LT41231108C\u001D21231108GEPD802JPP76",
-            "\u001D0106972831641476112512181727061710LT46251212C\u001D21XPT1EEX2NRU16U",
+            SibionicsConstants.Variant.EU to
+                "\u001D0106972831641803112412191725121810LT4F241247J\u001D21241247YEZ1450HAJ02",
+            SibionicsConstants.Variant.HEMATONIX to
+                "\u001D0106972831641476112412231725122210LT46241219C\u001D21WD9QAXGA52WS4V",
+            SibionicsConstants.Variant.CHINESE to
+                "\u001D0106972831640165112312091724120810LT41231108C\u001D21231108GEPD802JPP76",
+            SibionicsConstants.Variant.SIBIONICS2 to
+                "\u001D0106972831641476112512181727061710LT46251212C\u001D21XPT1EEX2NRU16U",
         )
 
-        payloads.forEach { assertTrue(SibionicsRegistry.isSupportedQrPayload(it)) }
-        assertTrue(SibionicsRegistry.isSupportedQrPayload("]d2" + payloads.last().drop(1)))
+        payloads.forEach { (variant, payload) ->
+            assertTrue(SibionicsRegistry.isSupportedQrPayload(payload))
+            assertTrue(SibionicsRegistry.isSupportedQrPayload(payload, variant))
+        }
+        assertTrue(SibionicsRegistry.isSupportedQrPayload("]d2" + payloads.last().second.drop(1)))
+    }
+
+    @Test
+    fun rejectsQrPayloadsFromTheWrongSibionicsGeneration() {
+        val eu = "\u001D0106972831641803112412191725121810LT4F241247J\u001D21241247YEZ1450HAJ02"
+        val hematonix = "\u001D0106972831641476112412231725122210LT46241219C\u001D21WD9QAXGA52WS4V"
+        val chinese = "\u001D0106972831640165112312091724120810LT41231108C\u001D21231108GEPD802JPP76"
+        val v120P = "\u001D0106972831641476112507301726072910LT46250683C\u001D21P2250683013AQT98"
+        val v120Xpt = "\u001D0106972831641476112512181727061710LT46251212C\u001D21XPT1EEX2NRU16U"
+
+        listOf(eu, hematonix, chinese).forEach {
+            assertFalse(SibionicsRegistry.isSupportedQrPayload(it, SibionicsConstants.Variant.SIBIONICS2))
+        }
+        listOf(v120P, v120Xpt).forEach { payload ->
+            listOf(
+                SibionicsConstants.Variant.EU,
+                SibionicsConstants.Variant.HEMATONIX,
+                SibionicsConstants.Variant.CHINESE,
+            ).forEach { variant ->
+                assertFalse(SibionicsRegistry.isSupportedQrPayload(payload, variant))
+            }
+            assertTrue(SibionicsRegistry.isSupportedQrPayload(payload, SibionicsConstants.Variant.SIBIONICS2))
+        }
+        assertFalse(SibionicsRegistry.isSupportedQrPayload(v120P, SibionicsConstants.Variant.GS3))
     }
 
     @Test

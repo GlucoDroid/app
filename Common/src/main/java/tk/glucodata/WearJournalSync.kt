@@ -1,0 +1,251 @@
+package tk.glucodata
+
+import android.content.Context
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
+
+/**
+ * Journal over the Data Layer.
+ *
+ * The journal lives in Room on the phone only, so the watch keeps a cache of
+ * what the phone last served and relays new entries back for the phone to
+ * persist. Payloads are encoded on the phone side of the bridge so the reflective
+ * surface into the mobile source set stays two methods wide.
+ *
+ * Wire format, version 1, big-endian:
+ *
+ *     served:  u8 version, u8 enabled, u16 entryCount,
+ *              entryCount × { i64 timestampMs, i64 id, u8 type, f32 amount,
+ *                             u8 titleLen, titleLen × utf8 },
+ *              u16 presetCount,
+ *              presetCount × { i64 id, f32 units, u8 nameLen, nameLen × utf8 }
+ *
+ *     command: u8 version, u8 command, i64 timestampMs, i64 id, u8 type,
+ *              f32 amount, i64 presetId
+ */
+object WearJournalSync {
+    private const val LOG_ID = "WearJournalSync"
+    const val VERSION = 1
+
+    const val CMD_ADD = 1
+    const val CMD_DELETE = 2
+
+    /** Matches the ordinals of the phone's JournalEntryType. */
+    const val TYPE_INSULIN = 0
+    const val TYPE_CARBS = 1
+    const val TYPE_FINGERSTICK = 2
+    const val TYPE_ACTIVITY = 3
+    const val TYPE_NOTE = 4
+
+    private const val HISTORY_MS = 24L * 60L * 60L * 1000L
+    private const val PREFS = "wear_journal_cache"
+    private const val KEY_PAYLOAD = "payload"
+
+    data class Entry(
+        val timestampMs: Long,
+        val id: Long,
+        val type: Int,
+        val amount: Float,
+        val title: String,
+    )
+
+    data class Preset(
+        val id: Long,
+        val units: Float,
+        val name: String,
+    )
+
+    data class Journal(
+        val enabled: Boolean = false,
+        val entries: List<Entry> = emptyList(),
+        val presets: List<Preset> = emptyList(),
+    )
+
+    // ---------------------------------------------------------------- phone
+
+    /** Phone: the watch asked for the journal. */
+    @JvmStatic
+    fun onRequest(fromMs: Long) {
+        if (Applic.isWearable) return
+        val payload = JournalAccess.serveEntries(if (fromMs > 0L) fromMs else System.currentTimeMillis() - HISTORY_MS)
+        Log.i(LOG_ID, "journal request from watch: payload=${payload?.size ?: -1} bytes")
+        if (payload == null) {
+            // No journal in this variant, or it is switched off. Say so, so the
+            // watch hides the feature instead of showing an empty list.
+            val disabled = ByteBuffer.allocate(6)
+                .put(VERSION.toByte())
+                .put(0)
+                .putShort(0)
+                .putShort(0)
+                .array()
+            MessageSender.sendSyncMessage(MessageSender.JOURNAL_DATA_PATH, disabled)
+            return
+        }
+        MessageSender.sendSyncMessage(MessageSender.JOURNAL_DATA_PATH, payload)
+    }
+
+    /** Phone: the watch added or removed an entry. */
+    @JvmStatic
+    fun onCommand(data: ByteArray?) {
+        if (Applic.isWearable || data == null || data.size < 2) return
+        if (!JournalAccess.applyCommand(data)) {
+            Log.w(LOG_ID, "journal command rejected")
+            return
+        }
+        onRequest(0L)
+    }
+
+    /** Phone: push the journal after it changed locally. */
+    @JvmStatic
+    fun onJournalChanged() {
+        if (Applic.isWearable) return
+        if (!MessageSender.outgoingAllowed()) return
+        onRequest(0L)
+    }
+
+    // ---------------------------------------------------------------- watch
+
+    /** Watch: ask the phone for the journal. */
+    @JvmStatic
+    fun requestSync() {
+        if (!Applic.isWearable) return
+        val data = ByteBuffer.allocate(9)
+            .put(VERSION.toByte())
+            .putLong(System.currentTimeMillis() - HISTORY_MS)
+            .array()
+        val sent = MessageSender.sendSyncMessage(MessageSender.JOURNAL_REQ_PATH, data)
+        Log.i(LOG_ID, "journal requested sent=$sent")
+    }
+
+    /** Watch: the phone served the journal. */
+    @JvmStatic
+    fun onServed(data: ByteArray?) {
+        if (!Applic.isWearable || data == null || data.isEmpty()) return
+        if (data[0].toInt() != VERSION) {
+            Log.w(LOG_ID, "ignoring journal payload version=${data[0].toInt()}")
+            return
+        }
+        val journal = runCatching { decode(data) }.getOrNull() ?: return
+        store(data)
+        cached = journal
+        Log.i(LOG_ID, "journal received: enabled=${journal.enabled} entries=${journal.entries.size}")
+        UiRefreshBus.requestStatusRefresh()
+    }
+
+    /** Watch: send an entry for the phone to persist. */
+    @JvmStatic
+    fun sendAdd(timestampMs: Long, type: Int, amount: Float, presetId: Long = 0L): Boolean {
+        return sendCommand(CMD_ADD, timestampMs, 0L, type, amount, presetId)
+    }
+
+    /** Watch: delete an entry the phone owns. */
+    @JvmStatic
+    fun sendDelete(id: Long, timestampMs: Long): Boolean {
+        return sendCommand(CMD_DELETE, timestampMs, id, TYPE_NOTE, Float.NaN, 0L)
+    }
+
+    private fun sendCommand(
+        command: Int,
+        timestampMs: Long,
+        id: Long,
+        type: Int,
+        amount: Float,
+        presetId: Long,
+    ): Boolean {
+        val data = ByteBuffer.allocate(1 + 1 + 8 + 8 + 1 + 4 + 8)
+            .put(VERSION.toByte())
+            .put(command.toByte())
+            .putLong(timestampMs)
+            .putLong(id)
+            .put(type.toByte())
+            .putFloat(amount)
+            .putLong(presetId)
+            .array()
+        return MessageSender.sendSyncMessage(MessageSender.JOURNAL_CMD_PATH, data)
+    }
+
+    @Volatile private var cached: Journal? = null
+
+    /** Watch: last journal the phone served, restored across app starts. */
+    @JvmStatic
+    fun cached(): Journal {
+        cached?.let { return it }
+        val stored = runCatching {
+            Applic.app?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                ?.getString(KEY_PAYLOAD, null)
+                ?.let { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }
+        }.getOrNull()
+        val journal = stored?.let { runCatching { decode(it) }.getOrNull() } ?: Journal()
+        cached = journal
+        return journal
+    }
+
+    private fun store(payload: ByteArray) {
+        runCatching {
+            Applic.app?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                ?.edit()
+                ?.putString(KEY_PAYLOAD, android.util.Base64.encodeToString(payload, android.util.Base64.NO_WRAP))
+                ?.apply()
+        }
+    }
+
+    // --------------------------------------------------------------- codec
+
+    internal fun decode(data: ByteArray): Journal {
+        val buffer = ByteBuffer.wrap(data)
+        // Kept free of logging so it stays a pure codec, testable on the JVM.
+        if (buffer.get().toInt() != VERSION) return Journal()
+        val enabled = buffer.get().toInt() != 0
+        val entryCount = buffer.short.toInt() and 0xFFFF
+        val entries = ArrayList<Entry>(entryCount)
+        repeat(entryCount) {
+            if (buffer.remaining() < 8 + 8 + 1 + 4 + 1) return@repeat
+            val timestamp = buffer.long
+            val id = buffer.long
+            val type = buffer.get().toInt()
+            val amount = buffer.float
+            val titleLen = buffer.get().toInt() and 0xFF
+            if (buffer.remaining() < titleLen) return@repeat
+            val title = ByteArray(titleLen).also { buffer.get(it) }.toString(StandardCharsets.UTF_8)
+            entries.add(Entry(timestamp, id, type, amount, title))
+        }
+        val presets = ArrayList<Preset>()
+        if (buffer.remaining() >= 2) {
+            val presetCount = buffer.short.toInt() and 0xFFFF
+            repeat(presetCount) {
+                if (buffer.remaining() < 8 + 4 + 1) return@repeat
+                val id = buffer.long
+                val units = buffer.float
+                val nameLen = buffer.get().toInt() and 0xFF
+                if (buffer.remaining() < nameLen) return@repeat
+                val name = ByteArray(nameLen).also { buffer.get(it) }.toString(StandardCharsets.UTF_8)
+                presets.add(Preset(id, units, name))
+            }
+        }
+        return Journal(enabled, entries.sortedByDescending { it.timestampMs }, presets)
+    }
+
+    /** Decodes a watch command; phone side. Returns null when malformed. */
+    internal fun decodeCommand(data: ByteArray): Command? {
+        if (data.size < 1 + 1 + 8 + 8 + 1 + 4 + 8) return null
+        val buffer = ByteBuffer.wrap(data)
+        if (buffer.get().toInt() != VERSION) return null
+        return Command(
+            command = buffer.get().toInt(),
+            timestampMs = buffer.long,
+            id = buffer.long,
+            type = buffer.get().toInt(),
+            amount = buffer.float,
+            presetId = buffer.long,
+        )
+    }
+
+    internal data class Command(
+        val command: Int,
+        val timestampMs: Long,
+        val id: Long,
+        val type: Int,
+        val amount: Float,
+        val presetId: Long,
+    )
+}

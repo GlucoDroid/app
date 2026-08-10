@@ -5730,6 +5730,7 @@ class AiDexSensor(context: Context, serial: String, dataptr: Long) : SuperGattCa
     @SuppressLint("MissingPermission")
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
         super.onConnectionStateChange(gatt, status, newState)
+        noteFirstGattCallback("onConnectionStateChange", gatt)
         noteVendorBridgeActivity("onConnectionStateChange-$newState", gatt.device?.address)
         connectInProgress = false
 

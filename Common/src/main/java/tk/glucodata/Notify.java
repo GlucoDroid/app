@@ -768,6 +768,24 @@ public class Notify {
         return notify.arrowglucosealarm(kind, glucoseValue, message, snapshot, alertChannelForKind(kind), true);
     }
 
+    /**
+     * Message-only variant for alerts about non-glucose conditions (sensor
+     * expiry) when no current reading exists. The alarm carries no glucose
+     * figure at all - showing a stale or fabricated value on an alarm screen
+     * would be worse than showing none. Runs through arrowglucosealarm like the
+     * value-carrying variant, so the first-fire gate and retry sessions apply
+     * unchanged; the NaN value keeps the banner display blank and the
+     * foreground glucose notification untouched.
+     */
+    public static boolean triggerSupplementalMessageAlert(int kind, String message) {
+        final Notify notify = onenot;
+        if (notify == null) {
+            return false;
+        }
+        final notGlucose snapshot = new notGlucose(System.currentTimeMillis(), "", Float.NaN, 0);
+        return notify.arrowglucosealarm(kind, Float.NaN, message, snapshot, alertChannelForKind(kind), true);
+    }
+
     private static void sendLegacyWatchAlert(int kind, float glvalue, String message, notGlucose strglucose) {
         if (isWearable) {
             return;
@@ -976,14 +994,11 @@ public class Notify {
     }
 
     private static String alarmDisplayGlucoseValue(float glvalue, notGlucose glucose) {
-        if (Float.isFinite(glvalue) && glvalue > 0.1f) {
-            final String glucoseFormat = pureglucoseformat != null ? pureglucoseformat : "%.1f";
-            return format(usedlocale, glucoseFormat, glvalue);
-        }
-        if (glucose != null && glucose.value != null && !glucose.value.isBlank()) {
-            return glucose.value;
-        }
-        return "";
+        final String glucoseFormat = pureglucoseformat != null ? pureglucoseformat : "%.1f";
+        return AlertDisplayText.alarmDisplayValue(
+                glvalue,
+                glucose != null ? glucose.value : null,
+                v -> format(usedlocale, glucoseFormat, v));
     }
 
     private static String resolveNotificationSensorSerial() {
@@ -2587,7 +2602,11 @@ public class Notify {
             ;
             mksound(kind);
         }
-        updateForegroundGlucoseNotification(kind, glvalue, sglucose);
+        // A message-only alert (no reading available) must not repaint the
+        // persistent glucose notification with a non-value.
+        if (Float.isFinite(glvalue)) {
+            updateForegroundGlucoseNotification(kind, glvalue, sglucose);
+        }
     }
 
     private void deliverTriggeredAlert(int kind, float glvalue, String message, notGlucose strglucose, String type) {
@@ -2868,6 +2887,13 @@ public class Notify {
 
         if (hideIcon) {
             GluNotBuilder.setSmallIcon(R.drawable.transparent_icon);
+            return;
+        }
+
+        // A message-only alert has no value; both icon painters would render
+        // the literal text "NaN".
+        if (!Float.isFinite(glvalue)) {
+            GluNotBuilder.setSmallIcon(R.drawable.loss);
             return;
         }
 
@@ -4098,6 +4124,7 @@ public class Notify {
         }
         ;
         if (isWearable) {
+            WearOngoingActivity.updateStatus(Applic.app, glucosenotificationid);
             notificationManager.notify(glucosealarmid, notif);
         } else {
             if (keeprunning.theservice != null) {
@@ -4223,6 +4250,9 @@ public class Notify {
     @SuppressLint("ForegroundServiceType")
     public void foregroundno(Service service) {
         Notification not = getforgroundnotification();
+        if (isWearable) {
+            not = WearOngoingActivity.attach(service, not, glucosenotificationid);
+        }
         if (Build.VERSION.SDK_INT >= 29) {
             service.startForeground(glucosenotificationid, not,
                     android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);

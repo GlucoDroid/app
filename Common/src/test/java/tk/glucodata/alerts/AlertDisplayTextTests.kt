@@ -7,6 +7,42 @@ class AlertDisplayTextTests {
 
     private val units = listOf("mmol/L", "mg/dL")
 
+    // --- alarmDisplayValue ---
+
+    @Test
+    fun usableReadingIsRenderedByTheCallerFormatter() {
+        assertEquals(
+            "123.4!",
+            AlertDisplayText.alarmDisplayValue(123.4f, "999") { v -> "$v!" }
+        )
+    }
+
+    @Test
+    fun messageOnlyAlertShowsNoValueInsteadOfNaN() {
+        // #98: an expiry alarm delivered without a reading carries NaN and a
+        // blank snapshot. The display must stay empty - formatting would render
+        // the literal "NaN", and any number would be stale or fabricated.
+        val noFormatting = { _: Float -> throw AssertionError("must not format a non-value") }
+        assertEquals("", AlertDisplayText.alarmDisplayValue(Float.NaN, null, noFormatting))
+        assertEquals("", AlertDisplayText.alarmDisplayValue(Float.NaN, "  ", noFormatting))
+    }
+
+    @Test
+    fun missingLiveValueFallsBackToSnapshotString() {
+        assertEquals(
+            "5.6",
+            AlertDisplayText.alarmDisplayValue(Float.NaN, "5.6") { v -> "$v!" }
+        )
+    }
+
+    @Test
+    fun sentinelZeroCountsAsAbsent() {
+        assertEquals(
+            "120",
+            AlertDisplayText.alarmDisplayValue(0f, "120") { v -> "$v!" }
+        )
+    }
+
     // --- notificationBadge ---
 
     @Test

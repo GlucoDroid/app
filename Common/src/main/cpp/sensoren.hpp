@@ -356,7 +356,7 @@ public:
   int addsensor(const span<const char> name) {
     return addsensor(std::string_view(name.data(), name.size()));
   }
-  int addsensor(const string_view name) {
+  int addsensor(const string_view name, size_t minimumPollRecords = 0) {
     LOGGER("addsensor(%.16s)\n", name.data());
     removeunused();
     int endindex = getendindex();
@@ -369,7 +369,13 @@ public:
     pathconcat sdir(inbasedir, name);
     mkdir(sdir.data(), 0700);
     SensorGlucoseData::initInfoFile(pathconcat(sdir, "info.dat"), 14, 3);
-    SensorGlucoseData *histel = new SensorGlucoseData(sdir, lastpos);
+    SensorGlucoseData *histel =
+        minimumPollRecords > 0
+            ? new SensorGlucoseData(
+                  sdir, lastpos,
+                  SensorGlucoseData::DirectStreamCapacity{
+                      minimumPollRecords})
+            : new SensorGlucoseData(sdir, lastpos);
     if (!histel->error()) {
       std::string_view svname(name);
       if (svname.length() >= 2 && svname.substr(0, 2) == "X-") {
@@ -404,8 +410,9 @@ public:
 #endif
     return lastpos;
   }
-  SensorGlucoseData *ensureDirectStreamShell(const string_view name,
-                                             uint32_t starttime = 0) {
+  SensorGlucoseData *ensureDirectStreamShell(
+      const string_view name, uint32_t starttime = 0,
+      size_t minimumPollRecords = 0) {
     if (name.empty()) {
       return nullptr;
     }
@@ -414,7 +421,7 @@ public:
       ind = sensorindexshort(name.data());
     }
     if (ind < 0) {
-      ind = addsensor(name);
+      ind = addsensor(name, minimumPollRecords);
     }
     if (ind < 0) {
       return nullptr;
@@ -433,7 +440,13 @@ public:
       delete broken;
     }
     if (!hist[ind]) {
-      hist[ind] = new SensorGlucoseData(sdir, ind);
+      hist[ind] =
+          minimumPollRecords > 0
+              ? new SensorGlucoseData(
+                    sdir, ind,
+                    SensorGlucoseData::DirectStreamCapacity{
+                        minimumPollRecords})
+              : new SensorGlucoseData(sdir, ind);
       LOGGER("repair hist[%d]=%p\n", ind, hist[ind]);
     }
     if (!hist[ind] || hist[ind]->error()) {
@@ -442,6 +455,14 @@ public:
         hist[ind] = nullptr;
         delete broken;
       }
+      return nullptr;
+    }
+    if (minimumPollRecords > 0 &&
+        hist[ind]->pollStorageCapacity() < minimumPollRecords) {
+      LOGGER("ensureDirectStreamShell %.16s capacity=%zu requested=%zu; "
+             "active mapping unchanged\n",
+             name.data(), hist[ind]->pollStorageCapacity(),
+             minimumPollRecords);
       return nullptr;
     }
     auto *info = hist[ind]->getinfo();

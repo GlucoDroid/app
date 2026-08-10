@@ -28,4 +28,5 @@ public class EverSense {
    public static  void setreceivers() { }
    public static final String glucoseaction=null;
    static void broadcastglucose(int mgdl, float rate, long timmsec) {}
+   static void broadcastglucose(ExchangeGlucosePayload payload) {}
    }

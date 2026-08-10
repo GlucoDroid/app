@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Visibility
@@ -28,6 +29,8 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WidthFull
 import androidx.compose.material.icons.filled.WidthNormal
 import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +52,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
@@ -80,6 +85,9 @@ private val EditorRowSpacing = 4.dp
 @Composable
 internal fun StatsLayoutEditor(
     layout: StatsLayoutState,
+    summary: StatsSummary,
+    targets: StatsTargets,
+    unit: GlucoseUnit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -88,28 +96,7 @@ internal fun StatsLayoutEditor(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 4.dp, end = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.stats_arrange_title),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold)
-                )
-                Text(
-                    text = stringResource(R.string.stats_arrange_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            TextButton(onClick = onDone) {
-                Text(text = stringResource(R.string.libre_setup_done))
-            }
-        }
-
+        // Title, hint and Done are in the sheet's fixed header, not in this list.
         EditorSectionLabel(stringResource(R.string.stats_arrange_sections))
         ReorderableRows(
             items = layout.cardOrder,
@@ -138,8 +125,13 @@ internal fun StatsLayoutEditor(
             items = layout.metricOrder,
             onReordered = StatsLayoutStore::setMetricOrder
         ) { metric, dragging, handle ->
+            val spec = metricSpec(metric, summary, targets, unit)
             EditorRow(
-                title = stringResource(metric.titleResId),
+                title = spec.title,
+                // The live number and the metric's own tint, so this list reads as the
+                // grid it governs rather than as a settings screen about it.
+                value = spec.value,
+                tone = spec.tone,
                 hidden = metric in layout.hiddenMetrics,
                 dragging = dragging,
                 handle = handle,
@@ -282,6 +274,8 @@ private fun EditorRow(
     dragging: Boolean,
     handle: Modifier,
     onToggleHidden: () -> Unit,
+    value: String? = null,
+    tone: Color? = null,
     pinned: Boolean = false,
     pinnable: Boolean = false,
     onTogglePinned: () -> Unit = {},
@@ -289,10 +283,14 @@ private fun EditorRow(
     onToggleWide: () -> Unit = {}
 ) {
     val container by animateColorAsState(
-        targetValue = if (dragging) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
+        targetValue = when {
+            dragging -> MaterialTheme.colorScheme.secondaryContainer
+            // Shown rows carry the metric's own tint, in the same shape and strength as
+            // the tile they stand for; hidden ones fall back to bare surface.
+            tone != null && !hidden -> tone.copy(alpha = 0.14f)
+                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
+            hidden -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f)
+            else -> MaterialTheme.colorScheme.surfaceContainerHigh
         },
         label = "editorRowContainer"
     )
@@ -330,8 +328,21 @@ private fun EditorRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        if (value != null && tone != null) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontFeatureSettings = "tnum",
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = tone.copy(alpha = if (hidden) 0.45f else 1f),
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.padding(end = 2.dp)
+            )
+        }
         if (wide != null) {
-            IconButton(onClick = onToggleWide) {
+            IconButton(onClick = onToggleWide, modifier = Modifier.size(38.dp)) {
                 Icon(
                     imageVector = if (wide) Icons.Default.WidthFull else Icons.Default.WidthNormal,
                     contentDescription = stringResource(R.string.stats_arrange_width),
@@ -345,7 +356,7 @@ private fun EditorRow(
             }
         }
         if (pinnable) {
-            IconButton(onClick = onTogglePinned) {
+            IconButton(onClick = onTogglePinned, modifier = Modifier.size(38.dp)) {
                 Icon(
                     imageVector = if (pinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
                     contentDescription = stringResource(R.string.stats_arrange_pin),
@@ -358,7 +369,7 @@ private fun EditorRow(
                 )
             }
         }
-        IconButton(onClick = onToggleHidden) {
+        IconButton(onClick = onToggleHidden, modifier = Modifier.size(38.dp)) {
             Icon(
                 imageVector = if (hidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                 contentDescription = stringResource(R.string.stats_arrange_visibility),
@@ -528,9 +539,18 @@ internal class MetricDragState(
         offset += delta
         val held = bounds[metric] ?: return false
         val centre = held.center + offset
-        val target = bounds.entries.firstOrNull { (other, rect) ->
-            other != metric && rect.contains(centre)
-        }?.key ?: return false
+        // Whichever slot the tile is now nearest to, and only once it is nearer to that
+        // one than to its own. Hit-testing by containment instead meant every gap between
+        // and around the tiles was dead space where a drag did nothing, which is what made
+        // dragging feel like it could only ever move a tile to the neighbouring slot.
+        val nearest = bounds.entries
+            .filter { (other, _) -> other != metric }
+            .minByOrNull { (_, rect) -> (rect.center - centre).getDistance() }
+            ?: return false
+        if ((nearest.value.center - centre).getDistance() >= (held.center - centre).getDistance()) {
+            return false
+        }
+        val target = nearest.key
 
         val order = orderOf()
         val from = order.indexOf(metric)
@@ -554,18 +574,30 @@ internal fun rememberMetricDragState(
     }
 }
 
+/**
+ * Reports a tile's slot in root coordinates.
+ *
+ * Must sit *outside* the drag's `graphicsLayer` in the modifier chain. Inside it, the
+ * reported position followed the finger — `positionInRoot` includes the layer's
+ * translation — so the hit-test point moved at twice the drag distance and the tile
+ * would swap once and then chase itself off into nowhere.
+ */
+internal fun Modifier.reportMetricBounds(
+    metric: StatsMetric,
+    state: MetricDragState
+): Modifier = onGloballyPositioned { coordinates ->
+    state.reportBounds(
+        metric,
+        Rect(coordinates.positionInRoot(), coordinates.size.toSize())
+    )
+}
+
 internal fun Modifier.draggableMetric(
     metric: StatsMetric,
     state: MetricDragState,
     onLift: () -> Unit,
     onTick: () -> Unit
 ): Modifier = this
-    .onGloballyPositioned { coordinates ->
-        state.reportBounds(
-            metric,
-            Rect(coordinates.positionInRoot(), coordinates.size.toSize())
-        )
-    }
     .pointerInput(metric, state) {
         detectDragGesturesAfterLongPress(
             onDragStart = {

@@ -344,6 +344,83 @@ static public int batteryPercent() {
         }
     }
 
+private static final String PREFS_NAME="tk.glucodata_preferences";
+private static final String PREF_UPLOAD_IOB="nightscout_upload_iob";
+private static long iobStatusUploadTime=0L;
+private static float iobStatusLastIob=Float.NaN;
+private static float iobStatusLastEiob=Float.NaN;
+private static float iobStatusLastCob=Float.NaN;
+
+/**
+ * Opt-in: off by default because enabling it changes which source the
+ * Nightscout site's IOB pill uses (NG's journal instead of Nightscout's own
+ * treatment calculation from its profile DIA).
+ */
+@Keep
+static public boolean getUploadIob() {
+    final Context context = Applic.getContext();
+    if(context == null)
+        return false;
+    return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(PREF_UPLOAD_IOB, false);
+    }
+
+@Keep
+static public void setUploadIob(boolean enabled) {
+    final Context context = Applic.getContext();
+    if(context == null)
+        return;
+    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(PREF_UPLOAD_IOB, enabled)
+            .apply();
+    }
+
+/**
+ * Uploads the journal IOB/eIOB/COB as a Nightscout devicestatus when the
+ * opt-in setting is on and one is due. Called from the native uploader loop
+ * after entries and treatments; always best-effort, so failures here never
+ * hold back glucose. The journal snapshot is the same one the notification
+ * and the glucodata broadcast display, so the site shows the phone's number.
+ */
+@Keep
+static public boolean maybeUploadIobDeviceStatus(String httpurl,String secret) {
+    try {
+        if(!getUploadIob())
+            return true;
+        final long now=System.currentTimeMillis();
+        if(!NightscoutIobDeviceStatus.fastIntervalElapsed(now, iobStatusUploadTime))
+            return true;
+        final float[] values=JournalIobAccess.snapshot(now);
+        if(values==null || values.length<3)
+            return true;
+        if(!NightscoutIobDeviceStatus.shouldUpload(
+                now,
+                iobStatusUploadTime,
+                values[0],
+                values[1],
+                values[2],
+                iobStatusLastIob,
+                iobStatusLastEiob,
+                iobStatusLastCob))
+            return true;
+        final String document=NightscoutIobDeviceStatus.buildDocument(now,values[0],values[1],values[2]);
+        if(document==null)
+            return true;
+        if(uploadDeviceStatusAsync(httpurl,document.getBytes(java.nio.charset.StandardCharsets.UTF_8),secret,false)) {
+            iobStatusUploadTime=now;
+            iobStatusLastIob=values[0];
+            iobStatusLastEiob=values[1];
+            iobStatusLastCob=values[2];
+            }
+        return true;
+        }
+    catch(Throwable th) {
+        Log.e(LOG_ID,"maybeUploadIobDeviceStatus error:\n"+stackline(th));
+        return true;
+        }
+    }
+
 @Keep
 static public int upload(String httpurl,byte[] postdata,String secret,boolean put) {
     return uploadWithTimeouts(

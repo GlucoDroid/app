@@ -1,6 +1,7 @@
 package tk.glucodata.alerts
 
 import tk.glucodata.Log
+import tk.glucodata.sms.SmsWatchdog
 
 /**
  * Tracks episode state for active alerts.
@@ -88,6 +89,7 @@ object AlertStateTracker {
         dismissedAlerts.remove(type)
         lastTriggerTime[type] = System.currentTimeMillis()
         cooldownUntilTime[type] = lastTriggerTime.getValue(type) + DEFAULT_REARM_COOLDOWN_MS
+        SmsWatchdog.onAlertFired(type.id)
         return true
     }
 
@@ -97,6 +99,7 @@ object AlertStateTracker {
             return false
         }
         dismissedAlerts.add(type)
+        SmsWatchdog.onAlertAcknowledged(type.id)
         Log.i(LOG_ID, "Dismissed ${type.name} for current episode")
         return true
     }
@@ -135,6 +138,7 @@ object AlertStateTracker {
         lastTriggerTime.remove(type)
         dismissedAlerts.remove(type)
         manualTests.clearPending(type)
+        SmsWatchdog.onAlertResolved(type.id)
     }
 }
 

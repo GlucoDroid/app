@@ -35,6 +35,8 @@ import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalFoodInput
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalInsulinPresetInput
+import tk.glucodata.data.prediction.PredictionModelProfile
+import tk.glucodata.data.prediction.PredictionModelProfileStore
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.util.inDisplayUnit
 import tk.glucodata.data.journal.JournalRepository
@@ -382,6 +384,14 @@ class DashboardViewModel(
     private val _predictionInsulinSensitivityMgDlPerUnit = MutableStateFlow(PREDICTION_INSULIN_SENSITIVITY_DEFAULT)
     val predictionInsulinSensitivityMgDlPerUnit = _predictionInsulinSensitivityMgDlPerUnit.asStateFlow()
 
+    private val _predictionModelProfile = MutableStateFlow(
+        PredictionModelProfile.single(
+            PREDICTION_CARB_RATIO_DEFAULT,
+            PREDICTION_INSULIN_SENSITIVITY_DEFAULT
+        )
+    )
+    val predictionModelProfile = _predictionModelProfile.asStateFlow()
+
     private val _predictionCarbAbsorptionGramsPerHour = MutableStateFlow(PREDICTION_CARB_ABSORPTION_DEFAULT)
     val predictionCarbAbsorptionGramsPerHour = _predictionCarbAbsorptionGramsPerHour.asStateFlow()
 
@@ -661,6 +671,10 @@ class DashboardViewModel(
         _predictionInsulinSensitivityMgDlPerUnit.value = prefs
             .getFloat(PREDICTION_INSULIN_SENSITIVITY_KEY, PREDICTION_INSULIN_SENSITIVITY_DEFAULT)
             .coerceIn(10f, 180f)
+        _predictionModelProfile.value = PredictionModelProfileStore.load(prefs)
+        _predictionCarbRatioGramsPerUnit.value = _predictionModelProfile.value.blocks.first().carbRatioGramsPerUnit
+        _predictionInsulinSensitivityMgDlPerUnit.value =
+            _predictionModelProfile.value.blocks.first().insulinSensitivityMgDlPerUnit
         _predictionCarbAbsorptionGramsPerHour.value = prefs
             .getFloat(PREDICTION_CARB_ABSORPTION_KEY, PREDICTION_CARB_ABSORPTION_DEFAULT)
             .coerceIn(10f, 90f)
@@ -1549,20 +1563,58 @@ class DashboardViewModel(
     }
 
     fun setPredictionCarbRatioGramsPerUnit(value: Float) {
-        val normalized = value.roundToStep(1f).coerceIn(3f, 30f)
-        val context = tk.glucodata.Applic.app
-        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
-        prefs.edit().putFloat(PREDICTION_CARB_RATIO_KEY, normalized).apply()
-        _predictionCarbRatioGramsPerUnit.value = normalized
-        refreshNotificationPredictionSurfaces(context)
+        updatePredictionModelBlock(
+            startMinuteOfDay = 0,
+            carbRatioGramsPerUnit = value
+        )
     }
 
     fun setPredictionInsulinSensitivityMgDlPerUnit(value: Float) {
-        val normalized = value.roundToStep(1f).coerceIn(10f, 180f)
+        updatePredictionModelBlock(
+            startMinuteOfDay = 0,
+            insulinSensitivityMgDlPerUnit = value
+        )
+    }
+
+    fun addPredictionModelBlock(startMinuteOfDay: Int) {
+        persistPredictionModelProfile(_predictionModelProfile.value.addBlock(startMinuteOfDay))
+    }
+
+    fun removePredictionModelBlock(startMinuteOfDay: Int) {
+        persistPredictionModelProfile(_predictionModelProfile.value.removeBlock(startMinuteOfDay))
+    }
+
+    fun movePredictionModelBlock(oldStartMinuteOfDay: Int, newStartMinuteOfDay: Int) {
+        persistPredictionModelProfile(
+            _predictionModelProfile.value.moveBlock(oldStartMinuteOfDay, newStartMinuteOfDay)
+        )
+    }
+
+    fun updatePredictionModelBlock(
+        startMinuteOfDay: Int,
+        carbRatioGramsPerUnit: Float? = null,
+        insulinSensitivityMgDlPerUnit: Float? = null
+    ) {
+        val normalizedCarbRatio = carbRatioGramsPerUnit?.roundToStep(1f)
+        val normalizedSensitivity = insulinSensitivityMgDlPerUnit?.roundToStep(1f)
+        persistPredictionModelProfile(
+            _predictionModelProfile.value.updateBlock(
+                startMinuteOfDay = startMinuteOfDay,
+                carbRatioGramsPerUnit = normalizedCarbRatio,
+                insulinSensitivityMgDlPerUnit = normalizedSensitivity
+            )
+        )
+    }
+
+    private fun persistPredictionModelProfile(profile: PredictionModelProfile) {
+        if (profile == _predictionModelProfile.value) return
         val context = tk.glucodata.Applic.app
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
-        prefs.edit().putFloat(PREDICTION_INSULIN_SENSITIVITY_KEY, normalized).apply()
-        _predictionInsulinSensitivityMgDlPerUnit.value = normalized
+        PredictionModelProfileStore.save(prefs, profile)
+        _predictionModelProfile.value = profile
+        val first = profile.blocks.first()
+        _predictionCarbRatioGramsPerUnit.value = first.carbRatioGramsPerUnit
+        _predictionInsulinSensitivityMgDlPerUnit.value = first.insulinSensitivityMgDlPerUnit
         refreshNotificationPredictionSurfaces(context)
     }
 

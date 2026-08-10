@@ -2,6 +2,7 @@ package tk.glucodata.data
 
 import android.content.Context
 import android.util.Log
+import androidx.annotation.Keep
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -143,22 +144,34 @@ class HistoryRepository(context: Context = Applic.app) {
             }
         }
 
+        /**
+         * Resolved by name from [tk.glucodata.HistorySyncAccess], so the name must survive R8.
+         * The manual keep list in proguard-rules.my did not cover this one: in every minified
+         * build the lookup threw, the bridge answered "no rows", and the Ottai driver read that
+         * as "nothing stored" and re-pulled the sensor's entire history on every reconnect.
+         * @Keep pins it at the declaration, where it cannot drift away from the caller.
+         */
+        @Keep
         @JvmStatic
         fun getHistoryTimestampsForSensorBlocking(
             sensorSerial: String,
             startTime: Long,
             endTime: Long
-        ): LongArray {
+        ): LongArray? {
             val resolvedSerial = sensorSerial.takeIf { it.isNotBlank() }
                 ?: return LongArray(0)
             if (endTime < startTime) return LongArray(0)
+            // null propagates "the query failed" all the way to the caller; an empty array here
+            // means the store really holds nothing for this window.
             return kotlinx.coroutines.runBlocking {
                 HistoryRepository()
-                    .getHistoryTimestampsForSensor(resolvedSerial, startTime, endTime)
-                    .toLongArray()
+                    .getHistoryTimestampsForSensorOrNull(resolvedSerial, startTime, endTime)
+                    ?.toLongArray()
             }
         }
 
+        /** Resolved by name from [tk.glucodata.HistorySyncAccess] — see [getHistoryTimestampsForSensorBlocking]. */
+        @Keep
         @JvmStatic
         fun deleteReadingsForSensorAfterBlocking(sensorSerial: String, timestampExclusive: Long): Int {
             val resolvedSerial = sensorSerial.takeIf { it.isNotBlank() }
@@ -307,6 +320,8 @@ class HistoryRepository(context: Context = Applic.app) {
             }
         }
 
+        /** Resolved by name from [tk.glucodata.HistorySyncAccess] — see [getHistoryTimestampsForSensorBlocking]. */
+        @Keep
         @JvmStatic
         fun storeHistoryBatchBlocking(
             sensorSerial: String,
@@ -801,7 +816,20 @@ class HistoryRepository(context: Context = Applic.app) {
         serial: String,
         startTime: Long,
         endTime: Long
-    ): List<Long> {
+    ): List<Long> = getHistoryTimestampsForSensorOrNull(serial, startTime, endTime) ?: emptyList()
+
+    /**
+     * Stored timestamps in the window, or null when the query could not be answered.
+     *
+     * Callers diff this against what a sensor reports and treat an empty list as "nothing is
+     * stored" — a conclusion that costs a full history re-download. A failed query must not
+     * masquerade as that answer, so it is reported as null and the caller decides.
+     */
+    suspend fun getHistoryTimestampsForSensorOrNull(
+        serial: String,
+        startTime: Long,
+        endTime: Long
+    ): List<Long>? {
         val serials = resolveQuerySensorSerials(serial)
         if (serials.isEmpty() || endTime < startTime) return emptyList()
         return withContext(Dispatchers.IO) {
@@ -809,7 +837,7 @@ class HistoryRepository(context: Context = Applic.app) {
                 dao.getTimestampsForSensors(serials, startTime, endTime)
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting history timestamps for sensor $serial", e)
-                emptyList()
+                null
             }
         }
     }

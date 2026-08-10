@@ -627,7 +627,8 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(getSensorEndData)(JNIEnv *env,
   return sens->expectedEndTime() | show << 32;
 }
 static SensorGlucoseData *ensureDirectStreamShellForId(const char *sensorId,
-                                                       uint32_t startTimeSec);
+                                                       uint32_t startTimeSec,
+                                                       size_t minimumRecords = 0);
 static void seedDirectStreamStateIfMissing(SensorGlucoseData *hist,
                                            time_t timestamp);
 static void syncListStarttime(SensorGlucoseData *hist, uint32_t start);
@@ -1269,12 +1270,13 @@ extern "C" JNIEXPORT void JNICALL fromjava(addGlucoseInjection)(
 }
 
 static SensorGlucoseData *ensureDirectStreamShellForId(const char *sensorId,
-                                                       uint32_t startTimeSec) {
+                                                       uint32_t startTimeSec,
+                                                       size_t minimumRecords) {
   if (!sensors || !sensorId || !sensorId[0]) {
     return nullptr;
   }
   return sensors->ensureDirectStreamShell(std::string_view(sensorId),
-                                          startTimeSec);
+                                          startTimeSec, minimumRecords);
 }
 
 static bool isManagedDirectStreamSensorId(JNIEnv *env, const char *sensorId) {
@@ -1466,18 +1468,12 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(addGlucoseStreamWithRawTemp)(
              : JNI_FALSE;
 }
 
-extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(
-    JNIEnv *env, jclass cl, jstring sensorId, jlong startTimeSec) {
-  if (!sensors || !sensorId)
-    return 0LL;
-  const char *str = env->GetStringUTFChars(sensorId, NULL);
-  if (!str)
-    return 0LL;
-
+static jlong ensureSensorShellInternal(const char *str, jlong startTimeSec,
+                                       size_t minimumRecords) {
   SensorGlucoseData *hist =
-      ensureDirectStreamShellForId(str, static_cast<uint32_t>(startTimeSec));
+      ensureDirectStreamShellForId(str, static_cast<uint32_t>(startTimeSec),
+                                   minimumRecords);
   if (!hist || hist->error()) {
-    env->ReleaseStringUTFChars(sensorId, str);
     return 0LL;
   }
   seedDirectStreamStateIfMissing(hist, static_cast<time_t>(startTimeSec));
@@ -1501,17 +1497,46 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(
     }
   }
 
-  env->ReleaseStringUTFChars(sensorId, str);
   return reinterpret_cast<jlong>(hist);
+}
+
+extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShell)(
+    JNIEnv *env, jclass cl, jstring sensorId, jlong startTimeSec) {
+  if (!sensors || !sensorId)
+    return 0LL;
+  const char *str = env->GetStringUTFChars(sensorId, NULL);
+  if (!str)
+    return 0LL;
+  const jlong result = ensureSensorShellInternal(str, startTimeSec, 0);
+  env->ReleaseStringUTFChars(sensorId, str);
+  return result;
+}
+
+extern "C" JNIEXPORT jlong JNICALL fromjava(ensureSensorShellWithCapacity)(
+    JNIEnv *env, jclass cl, jstring sensorId, jlong startTimeSec,
+    jint minimumRecords) {
+  if (!sensors || !sensorId || minimumRecords <= 0)
+    return 0LL;
+  const char *str = env->GetStringUTFChars(sensorId, nullptr);
+  if (!str)
+    return 0LL;
+  const jlong result = ensureSensorShellInternal(
+      str, startTimeSec, static_cast<size_t>(minimumRecords));
+  env->ReleaseStringUTFChars(sensorId, str);
+  return result;
 }
 
 // Set the wear duration (days) for a direct-stream sensor (e.g. Ottai) by id. The
 // AiDex helper aidexSetWearDays takes an aidexstream* and cannot be reused here —
 // direct-stream sensors are plain SensorGlucoseData*. Writes info->wearduration2
-// (minutes) so officialendtime()/expectedEndTime() reflect the real activated life.
+// (minutes) so officialendtime()/expectedEndTime() and getmaxtime() reflect the
+// real activated life.
 extern "C" JNIEXPORT void JNICALL fromjava(setSensorWearDays)(
     JNIEnv *env, jclass cl, jstring sensorId, jint days) {
-  if (!sensors || !sensorId || days <= 0)
+  // wearduration2 is uint16_t minutes, so past 45 days the product wraps into a
+  // lifetime shorter than the sensor's; a garbage value must not land at all.
+  constexpr const jint maxweardays = 0xFFFF / (24 * 60);
+  if (!sensors || !sensorId || days <= 0 || days > maxweardays)
     return;
   const char *str = env->GetStringUTFChars(sensorId, NULL);
   if (!str)
@@ -1520,6 +1545,14 @@ extern "C" JNIEXPORT void JNICALL fromjava(setSensorWearDays)(
     if (!hist->error()) {
       if (auto *info = hist->getinfo()) {
         info->wearduration2 = static_cast<uint16_t>(days * 24 * 60);
+        // Deliberately NOT raising info->days here. It is the shell's storage
+        // geometry, and data.dat/polls.dat/current.dat are all sized from it in
+        // the SensorGlucoseData constructor's initializer list, while maxpos()
+        // and maxstreampos() recompute from it on every call. Raising it
+        // mid-session would leave those bounds describing twice the region that
+        // is actually mapped. getmaxtime() consults wearduration2 instead, so
+        // the lifetime the sensor negotiated is honoured without touching the
+        // geometry of files that are already open.
         LOGGER("setSensorWearDays: %s days=%d wear=%u\n", str, days,
                info->wearduration2);
       }

@@ -31,6 +31,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 
+import androidx.annotation.Keep;
+
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -46,6 +48,7 @@ import static android.bluetooth.BluetoothDevice.BOND_BONDING;
 import static android.bluetooth.BluetoothDevice.BOND_NONE;
 import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_BALANCED;
 import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_HIGH;
+import static android.bluetooth.BluetoothGatt.GATT_SUCCESS;
 import static android.bluetooth.BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
 import static android.bluetooth.BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
 import static java.util.Objects.isNull;
@@ -103,8 +106,13 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     public BluetoothDevice mActiveBluetoothDevice;
     long foundtime = 0L;
     protected BluetoothGatt mBluetoothGatt;
+    private volatile BluetoothGatt locallyConnectedGatt;
     private volatile boolean connectPending = false;
     private volatile ScheduledFuture<?> pendingConnectFuture = null;
+    /** connectGatt() timestamp of the attempt now in flight, cleared by the first callback the
+     * stack delivers for it. Zero means "already reported", so a live connection pays one
+     * volatile read per callback and nothing else. */
+    private volatile long connectGattAtMs = 0L;
     boolean superseded = false;
     public final int sensorgen;
     public int readrssi = 9999;
@@ -124,6 +132,31 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             ;
         }
         ;
+    }
+
+    @Override
+    public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+        if (newState == android.bluetooth.BluetoothProfile.STATE_CONNECTED) {
+            locallyConnectedGatt = gatt;
+        } else if (newState == android.bluetooth.BluetoothProfile.STATE_DISCONNECTED
+                && locallyConnectedGatt == gatt) {
+            locallyConnectedGatt = null;
+            WearSensorClaim.onLocalGattDisconnected(SerialNumber);
+        }
+    }
+
+    /**
+     * True only when this process received STATE_CONNECTED for the callback's
+     * current Android GATT object. Persisted/synced driver state cannot set it.
+     */
+    public final boolean hasLocallyConnectedGatt() {
+        final BluetoothGatt current = mBluetoothGatt;
+        return current != null && locallyConnectedGatt == current;
+    }
+
+    /** Mark a live reading accepted by this local BLE callback. */
+    protected final void markLocalReadingAccepted(long sampleTimeMs) {
+        WearSensorClaim.onLocalReadingAccepted(SerialNumber, sampleTimeMs);
     }
 
     public void disconnect() {
@@ -646,6 +679,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         if (!isWearable) {
             app.numdata.sendglucose(SerialNumber, tim, gl, thresholdchange(rate), alarm | 0x10);
             GlucoseWidget.update();
+            WearSync2.pushTail();
             // Keep the webserver's /pebble IOB in step with the journal,
             // independent of whether any broadcast target is configured.
             JournalIobAccess.pushWatchserver(System.currentTimeMillis());
@@ -751,6 +785,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                     Log.i(LOG_ID, "RAW mode during warmup: using raw=" + glucoseToUse + " mgdl=" + mgdlToUse);
                 }
 
+                markLocalReadingAccepted(timmsec);
                 dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime, sensorgen);
                 charcha[0] = timmsec;
 
@@ -828,6 +863,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 mgdlToUse = (int) Math.round(glucoseToUse * (Applic.unit == 1 ? mgdLmult : 1.0f));
             }
 
+            markLocalReadingAccepted(timmsec);
             dowithglucose(SerialNumber, mgdlToUse, glucoseToUse, rate, alarm, timmsec, sensorstartmsec, showtime,
                     sensorgen);
 
@@ -965,6 +1001,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         ;
         var tmpgatt = mBluetoothGatt;
         if (tmpgatt != null) {
+            if (locallyConnectedGatt == tmpgatt) {
+                locallyConnectedGatt = null;
+                WearSensorClaim.onLocalGattDisconnected(SerialNumber);
+            }
             try {
                 tmpgatt.disconnect();
                 tmpgatt.close();
@@ -989,6 +1029,56 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             ;
         }
 
+    }
+
+    /**
+     * Connect mode for this sensor's GATT connections.
+     * <p>
+     * The backing field is one application-wide static that the {@link SensorBluetooth}
+     * constructor overwrites from {@code Natives.getAndroid13()}, so until this hook existed a
+     * driver had no say at all: every one of the 103 connect attempts logged during the
+     * 2026-08-01 jamming storm (52 + 51, two Ottai sensors) used autoConnect=true and not one
+     * used false. Whether a direct connect would do better on any particular peripheral is still
+     * unmeasured — see {@link #noteFirstGattCallback} for the number that would decide it — so
+     * every driver deliberately keeps inheriting the user's setting here.
+     */
+    protected boolean useAutoConnect() {
+        return autoconnect;
+    }
+
+    private void armConnectCallbackLatency() {
+        connectGattAtMs = System.currentTimeMillis();
+    }
+
+    /**
+     * Time from connectGatt() to the first callback the stack delivered for that attempt, and the
+     * mode it was asked for. Comparing autoConnect=true against false needs this number and the
+     * app has never recorded it: the 2026-08-01 logs show how long an outage lasted but not how
+     * long a connect took to produce its first sign of life, which is the part the two modes
+     * differ in.
+     * <p>
+     * Subclasses have to call this from their own onConnectionStateChange — that is in practice
+     * the first callback of an attempt, and no driver except AiDex chains to super, so the base
+     * class cannot funnel it. They call it first, above their own staleness guards, so the gatt
+     * is taken here instead: a late callback from a retired GATT belongs to an earlier attempt,
+     * and letting it consume the timestamp would publish its age against the attempt in flight —
+     * corrupting exactly the number this exists to collect, in the drivers with the most
+     * retired-GATT churn. A null mBluetoothGatt is the window between connectGatt() returning and
+     * the driver storing it, and that attempt IS the one being timed.
+     */
+    protected final void noteFirstGattCallback(String which, BluetoothGatt gatt) {
+        final long started = connectGattAtMs;
+        if (started == 0L)
+            return;
+        final BluetoothGatt current = mBluetoothGatt;
+        if (current != null && gatt != null && gatt != current)
+            return;
+        connectGattAtMs = 0L;
+        if (doLog) {
+            Log.i(LOG_ID, SerialNumber + " first GATT callback " + which + " "
+                    + (System.currentTimeMillis() - started) + "ms after connectGatt autoConnect="
+                    + useAutoConnect());
+        }
     }
 
     private Runnable getConnectDevice() {
@@ -1062,26 +1152,24 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 {
                     if (doLog) {
                         Log.d(LOG_ID, SerialNumber + " Try connection to " + device.getAddress() + " " + devname
-                                + " autoconnect=" + autoconnect);
+                                + " autoconnect=" + cb.useAutoConnect());
                     }
                     ;
                 }
                 ;
             }
             try {
+                cb.armConnectCallbackLatency();
                 if (isWearable) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        cb.mBluetoothGatt = device.connectGatt(Applic.app, autoconnect, cb, BluetoothDevice.TRANSPORT_LE);
-                    } else {
-                        cb.mBluetoothGatt = device.connectGatt(Applic.app, autoconnect, cb);
-                    }
+                    cb.mBluetoothGatt = device.connectGatt(Applic.app, cb.useAutoConnect(), cb,
+                            BluetoothDevice.TRANSPORT_LE);
                     cb.setGattOptions(cb.mBluetoothGatt);
                 } else {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        cb.mBluetoothGatt = device.connectGatt(Applic.app, autoconnect, cb,
+                        cb.mBluetoothGatt = device.connectGatt(Applic.app, cb.useAutoConnect(), cb,
                                 BluetoothDevice.TRANSPORT_LE);
                     } else {
-                        cb.mBluetoothGatt = device.connectGatt(Applic.app, autoconnect, cb);
+                        cb.mBluetoothGatt = device.connectGatt(Applic.app, cb.useAutoConnect(), cb);
                     }
                 }
 
@@ -1195,8 +1283,15 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
      * after every LL connection-parameter update, including ones the peripheral requested,
      * so it is the only signal that a sensor renegotiated away from the fast interval the
      * app asked for. Signature must stay exactly this for runtime dispatch to bind.
+     *
+     * No compiled call site reaches it, so R8 deleted it outright from every release build ever
+     * shipped -- the framework called it 210 times into app1 and 207 into app2 during the
+     * 2026-08-01 storm and not one "conn params" line was written. @Keep plus the matching rule
+     * in proguard-rules.my; both, because the rule can drift and the annotation cannot.
      */
+    @Keep
     public void onConnectionUpdated(BluetoothGatt gatt, int interval, int latency, int timeout, int status) {
+        noteFirstGattCallback("onConnectionUpdated", gatt);
         onConnectionParamsUpdated(gatt, interval, latency, timeout, status);
     }
 
@@ -1328,9 +1423,33 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
     @Override
     public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
+        noteFirstGattCallback("onPhyUpdate", gatt);
         {
             if (doLog) {
                 Log.i(LOG_ID, "onPhyUpdate txPhy=" + txPhy + " rxPhy=" + rxPhy + " status=" + status);
+            }
+            ;
+        }
+        ;
+    }
+
+    /**
+     * Relay for {@link BluetoothGatt#readRemoteRssi()}. Five drivers declared their own copy of
+     * this callback and the base class had none, so a driver that did not was simply unable to see
+     * a signal level: the whole 2026-08-01 jamming storm was logged without a single RSSI value in
+     * it, which is why "jammed" and "out of range" are still indistinguishable in that dataset.
+     * {@link #readrssi} is what the sensor screens read, so it is filled here for every driver
+     * rather than once per driver; the drivers that already override this keep their own handling.
+     */
+    @Override
+    public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
+        noteFirstGattCallback("onReadRemoteRssi", gatt);
+        if (status == GATT_SUCCESS) {
+            readrssi = rssi;
+        }
+        {
+            if (doLog) {
+                Log.i(LOG_ID, SerialNumber + " onReadRemoteRssi rssi=" + rssi + " status=" + status);
             }
             ;
         }

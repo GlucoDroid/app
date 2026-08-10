@@ -54,7 +54,9 @@ import tk.glucodata.data.journal.JournalEntry
 import tk.glucodata.data.journal.JournalEntryType
 import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalInsulinPreset
+import tk.glucodata.data.journal.JournalActiveInsulinSummary
 import tk.glucodata.data.journal.JournalIobCalculator
+import tk.glucodata.drivers.nightscout.NightscoutFollowerDeviceStatus
 import tk.glucodata.ui.ChartViewportSnapshot
 import tk.glucodata.ui.DashboardChartSection
 import tk.glucodata.ui.GlucosePoint
@@ -469,9 +471,25 @@ private fun JournalMetricsPanel(
     val todaysEntries = remember(entries, startOfDayMillis, nowMillis) {
         entries.filter { it.timestamp in startOfDayMillis..nowMillis }
     }
-    val activeInsulin = remember(entries, presetsById, nowMillis) {
+    val localActiveInsulin = remember(entries, presetsById, nowMillis) {
         JournalIobCalculator.buildActiveInsulinSummary(entries, presetsById, nowMillis)
     }
+    // Mirrors the dashboard chip: a fresh devicestatus from the followed
+    // uploader wins over the local recomputation, and the ticker above
+    // retires it once it leaves the freshness window.
+    val remoteInsulin = remember(nowMillis) { NightscoutFollowerDeviceStatus.fresh(nowMillis) }
+    val activeInsulin = remember(localActiveInsulin, remoteInsulin) {
+        when {
+            remoteInsulin == null -> localActiveInsulin
+            localActiveInsulin == null && remoteInsulin.iobUnits < 0.005f -> null
+            else -> (localActiveInsulin ?: JournalActiveInsulinSummary(0, 0f, 0, null)).copy(
+                iobUnits = remoteInsulin.iobUnits,
+                eiobUnits = remoteInsulin.eiobUnits.takeIf { it.isFinite() }
+                    ?: localActiveInsulin?.eiobUnits ?: 0f
+            )
+        }
+    }
+    val activeInsulinFromRemote = remoteInsulin != null && activeInsulin != null
     val iobUnits = activeInsulin?.iobUnits?.coerceAtLeast(0f) ?: 0f
     val eiobUnits = activeInsulin?.eiobUnits?.coerceAtLeast(0f) ?: 0f
     val activeUntilFormatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -578,6 +596,13 @@ private fun JournalMetricsPanel(
                                     R.string.journal_active_insulin_until,
                                     activeUntilFormatter.format(Date(endingAt))
                                 ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (activeInsulinFromRemote) {
+                            Text(
+                                text = stringResource(R.string.journal_iob_source_remote),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

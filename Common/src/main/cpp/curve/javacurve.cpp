@@ -25,9 +25,7 @@ extern "C" JNIEXPORT jint JNICALL fromjava(openglversion)(JNIEnv *env,
 }
 
 /*
-extern "C" JNIEXPORT void JNICALL fromjava(initopengl)(JNIEnv* env, jclass
-obj,jboolean started) { initopengl(started);
-    } */
+*/
 
 extern bool alarmongoing;
 extern "C" JNIEXPORT jboolean JNICALL fromjava(getisalarm)(JNIEnv *env,
@@ -43,15 +41,7 @@ extern "C" JNIEXPORT jboolean JNICALL fromjava(turnoffalarm)(JNIEnv *env,
   return alarmongoing;
 }
 
-extern "C" JNIEXPORT void JNICALL fromjava(resize)(JNIEnv *env, jclass obj,
-                                                   jint widthin, jint heightin,
-                                                   jint initscreenwidth) {
-  appcurve.resizescreen(widthin, heightin, initscreenwidth);
-}
 
-extern "C" JNIEXPORT jfloat JNICALL fromjava(freey)(JNIEnv *env, jclass clazz) {
-  return appcurve.getfreey();
-}
 
 extern void setusedsensors();
 extern "C" JNIEXPORT void JNICALL fromjava(setmaxsensors)(JNIEnv *env,
@@ -78,10 +68,6 @@ extern "C" JNIEXPORT jstring JNICALL fromjava(getUsedSensorName)(JNIEnv *envin,
 }
 
 extern int badscanMessage(NVGcontext *avg, int kind);
-extern "C" JNIEXPORT jint JNICALL fromjava(badscan)(JNIEnv *env, jclass obj,
-                                                    jint kind) {
-  return ::appcurve.badscanMessage(::genVG, kind);
-}
 
 jobject glucosecurve = 0;
 
@@ -714,10 +700,6 @@ clazz) { calccurvegegs(); setdiffcurrent(settings->data()->currentRelative);
    } */
 
 extern void flingX(float vol);
-extern "C" JNIEXPORT void JNICALL fromjava(flingX)(JNIEnv *env, jclass clazz,
-                                                   jfloat vol) {
-  appcurve.flingX(vol);
-}
 
 // extern int translate(float dx,float dy,float yold,float y);
 extern "C" JNIEXPORT jint JNICALL fromjava(translate)(JNIEnv *env, jclass clazz,
@@ -727,19 +709,9 @@ extern "C" JNIEXPORT jint JNICALL fromjava(translate)(JNIEnv *env, jclass clazz,
 }
 
 void xscaleGesture(float scalex, float midx);
-extern "C" JNIEXPORT void JNICALL fromjava(xscale)(JNIEnv *env, jclass clazz,
-                                                   jfloat scalex, jfloat midx) {
-  appcurve.xscaleGesture(scalex, midx);
-}
 
 void prevscr();
-extern "C" JNIEXPORT void JNICALL fromjava(prevscr)(JNIEnv *env, jclass obj) {
-  appcurve.prevscr();
-}
 void nextscr();
-extern "C" JNIEXPORT void JNICALL fromjava(nextscr)(JNIEnv *env, jclass obj) {
-  appcurve.nextscr();
-}
 
 void pressedback();
 extern "C" JNIEXPORT void JNICALL fromjava(pressedback)(JNIEnv *env,
@@ -747,11 +719,6 @@ extern "C" JNIEXPORT void JNICALL fromjava(pressedback)(JNIEnv *env,
   pressedback();
 }
 bool isbutton(float x, float y);
-extern "C" JNIEXPORT jboolean JNICALL fromjava(isbutton)(JNIEnv *env,
-                                                         jclass clazz, jfloat x,
-                                                         jfloat y) {
-  return isbutton(x, y);
-}
 
 extern "C" JNIEXPORT jlong JNICALL fromjava(tap)(JNIEnv *env, jclass clazz,
                                                  jfloat x, jfloat y) {
@@ -759,11 +726,6 @@ extern "C" JNIEXPORT jlong JNICALL fromjava(tap)(JNIEnv *env, jclass clazz,
 }
 
 int64_t longpress(float x, float y);
-extern "C" JNIEXPORT jlong JNICALL fromjava(longpress)(JNIEnv *env,
-                                                       jclass clazz, jfloat x,
-                                                       jfloat y) {
-  return appcurve.longpress(x, y);
-}
 
 #include "numhit.hpp"
 
@@ -1008,10 +970,6 @@ extern "C" JNIEXPORT void JNICALL fromjava(makenumbers)(JNIEnv *env,
 /*
 static float screenwidthcm=0;
 //extern bool iswatch;
-extern "C" JNIEXPORT void JNICALL fromjava(setscreenwidthcm)(JNIEnv *env, jclass
-thiz,jfloat wcm) { screenwidthcm=wcm;
-//   iswatch=(wcm<5.8f);
-   }
 */
 #define defdisplay(kind)                                                       \
   extern "C" JNIEXPORT jboolean JNICALL fromjava(getshow##kind)(JNIEnv * env,  \

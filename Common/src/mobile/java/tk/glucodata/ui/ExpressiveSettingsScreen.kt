@@ -67,7 +67,10 @@ import tk.glucodata.Natives
 import tk.glucodata.OutboundApiSettings
 import tk.glucodata.R
 import tk.glucodata.SensorBluetooth
+import tk.glucodata.SensorSourceResolver
+import tk.glucodata.alerts.SensorHandoverRuntime
 import tk.glucodata.data.calibration.CalibrationManager
+import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.ui.components.StyledSwitch
 import tk.glucodata.ui.theme.labelLargeExpressive
 import tk.glucodata.ui.viewmodel.DashboardViewModel
@@ -105,7 +108,7 @@ fun ExpressiveSettingsScreen(
     val showLibreView = remember {
         runCatching { Natives.getuselibreview() }.getOrDefault(false) ||
             runCatching { Natives.getlibreAccountIDnumber() }.getOrDefault(0L) > 0L ||
-            hasActiveLibreSensor()
+            hasActiveLibreSensorForLibreView()
     }
     val showOttaiSettings = remember {
         SensorBluetooth.mygatts().any { callback ->
@@ -122,7 +125,6 @@ fun ExpressiveSettingsScreen(
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
     val dataSmoothingExchangeOnly by viewModel.dataSmoothingExchangeOnly.collectAsState()
-    val previewWindowMode by viewModel.previewWindowMode.collectAsState()
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val alertsMasterEnabled by viewModel.alertsMasterEnabled.collectAsState()
@@ -161,7 +163,6 @@ fun ExpressiveSettingsScreen(
     var showClearHistoryDialog by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showFactoryResetDialog by remember { mutableStateOf(false) }
-    var showPreviewWindowDialog by remember { mutableStateOf(false) }
     var isClearing by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var pendingSettingsImportUri by remember { mutableStateOf<Uri?>(null) }
@@ -172,6 +173,21 @@ fun ExpressiveSettingsScreen(
     // Advanced settings
     var turbo by remember { mutableStateOf(Natives.getpriority()) }
     var autoConnect by remember { mutableStateOf(Natives.getAndroid13()) }
+    val handoverPrefs = remember {
+        context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+    }
+    var sensorHandoverEnabled by remember {
+        mutableStateOf(handoverPrefs.getBoolean(SensorHandoverRuntime.PREF_ENABLED, false))
+    }
+    var sensorHandoverAction by remember {
+        mutableStateOf(
+            handoverPrefs.getInt(
+                SensorHandoverRuntime.PREF_OLD_ACTION,
+                SensorHandoverRuntime.OLD_ACTION_DEACTIVATE
+            )
+        )
+    }
+    var showSensorHandoverActionDialog by remember { mutableStateOf(false) }
 
     val currentLocale = AppCompatDelegate.getApplicationLocales().get(0) ?: Locale.getDefault()
     val currentLangName = currentLocale.displayLanguage.replaceFirstChar { it.uppercase() }
@@ -197,12 +213,6 @@ fun ExpressiveSettingsScreen(
             }
         }.joinToString(" · ")
     }
-    val previewWindowLabel = when (previewWindowMode) {
-        1 -> stringResource(R.string.preview_window_always)
-        2 -> stringResource(R.string.preview_window_never)
-        else -> stringResource(R.string.preview_window_expanded_only)
-    }
-
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -274,6 +284,16 @@ fun ExpressiveSettingsScreen(
                     onOpenCalibration = { navController.navigate("settings/calibrations") },
                     iconTint = glucoseColor,
                     position = CardPosition.MIDDLE
+                )
+
+                SettingsItem(
+                    title = stringResource(R.string.graph_smoothing_title),
+                    subtitle = graphSmoothingLabel,
+                    showArrow = true,
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
+                    iconTint = glucoseColor,
+                    position = CardPosition.MIDDLE,
+                    onClick = { navController.navigate("settings/data-smoothing") }
                 )
 
                 JournalSettingsItem(
@@ -514,24 +534,33 @@ fun ExpressiveSettingsScreen(
                     position = CardPosition.MIDDLE,
                     onCheckedChange = { SensorBluetooth.setAutoconnect(it); autoConnect = it }
                 )
-                SettingsItem(
-                    title = stringResource(R.string.graph_smoothing_title),
-                    subtitle = graphSmoothingLabel,
-                    showArrow = true,
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
+                SettingsSwitchItem(
+                    title = stringResource(R.string.sensor_handover_title),
+                    subtitle = stringResource(R.string.sensor_handover_desc),
+                    checked = sensorHandoverEnabled,
+                    icon = Icons.Default.SwapHoriz,
                     iconTint = advColor,
                     position = CardPosition.MIDDLE,
-                    onClick = { navController.navigate("settings/data-smoothing") }
+                    onCheckedChange = {
+                        handoverPrefs.edit().putBoolean(SensorHandoverRuntime.PREF_ENABLED, it).apply()
+                        sensorHandoverEnabled = it
+                    }
                 )
-                SettingsItem(
-                    title = stringResource(R.string.preview_window_title),
-                    subtitle = previewWindowLabel,
-                    showArrow = true,
-                    icon = Icons.Default.CropSquare,
-                    iconTint = advColor,
-                    position = CardPosition.MIDDLE,
-                    onClick = { showPreviewWindowDialog = true }
-                )
+                if (sensorHandoverEnabled) {
+                    SettingsItem(
+                        title = stringResource(R.string.sensor_handover_old_action_title),
+                        subtitle = if (sensorHandoverAction == SensorHandoverRuntime.OLD_ACTION_REMOVE) {
+                            stringResource(R.string.sensor_handover_action_remove)
+                        } else {
+                            stringResource(R.string.sensor_handover_action_deactivate)
+                        },
+                        showArrow = true,
+                        icon = Icons.Default.DeleteSweep,
+                        iconTint = advColor,
+                        position = CardPosition.MIDDLE,
+                        onClick = { showSensorHandoverActionDialog = true }
+                    )
+                }
                 SettingsItem(
                     title = stringResource(R.string.cgm_readiness_title),
                     subtitle = stringResource(R.string.cgm_readiness_settings_desc),
@@ -607,7 +636,15 @@ fun ExpressiveSettingsScreen(
                     iconTint = dataColor,
                     position = CardPosition.BOTTOM,
                     onClick = { 
-                        importLauncher.launch(arrayOf("application/json", "text/*", "text/csv", "*/*"))
+                        importLauncher.launch(
+                            arrayOf(
+                                "application/json",
+                                "text/*",
+                                "text/csv",
+                                "text/tab-separated-values",
+                                "*/*"
+                            )
+                        )
                     }
                 )
             }
@@ -683,13 +720,14 @@ fun ExpressiveSettingsScreen(
         context.findActivity()?.hardRestart() 
     }, { showUnitDialog = false })
     if (showThemeDialog) ThemePickerDialog(themeMode, { onThemeChanged(it); showThemeDialog = false }, { showThemeDialog = false })
-    if (showPreviewWindowDialog) PreviewWindowPickerDialog(
-        currentMode = previewWindowMode,
+    if (showSensorHandoverActionDialog) SensorHandoverActionPickerDialog(
+        currentAction = sensorHandoverAction,
         onSelect = {
-            viewModel.setPreviewWindowMode(it)
-            showPreviewWindowDialog = false
+            handoverPrefs.edit().putInt(SensorHandoverRuntime.PREF_OLD_ACTION, it).apply()
+            sensorHandoverAction = it
+            showSensorHandoverActionDialog = false
         },
-        onDismiss = { showPreviewWindowDialog = false }
+        onDismiss = { showSensorHandoverActionDialog = false }
     )
     if (showLanguageDialog) LanguagePickerDialog { showLanguageDialog = false }
     if (showClearHistoryDialog) ConfirmActionDialog(stringResource(R.string.clean_history_confirm), stringResource(R.string.clear_history_desc_long), Icons.Filled.History, { scope.launch { tk.glucodata.data.DataManagement.clearHistory() }; showClearHistoryDialog = false }, { showClearHistoryDialog = false })
@@ -1076,25 +1114,13 @@ fun PredictiveSimulationSettingsScreen(
     navController: NavController,
     viewModel: DashboardViewModel
 ) {
-    val unit by viewModel.unit.collectAsState()
-    val isMmol = tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)
     val journalEnabled by viewModel.journalEnabled.collectAsState()
     val predictiveSimulationEnabled by viewModel.predictiveSimulationEnabled.collectAsState()
     val notificationChartPredictionEnabled by viewModel.predictiveSimulationNotificationChartEnabled.collectAsState()
     val trendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
-    val carbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
-    val insulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
+    val modelProfile by viewModel.predictionModelProfile.collectAsState()
     val carbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
     val horizonMinutes by viewModel.predictionHorizonMinutes.collectAsState()
-    val insulinSensitivityDisplay = remember(insulinSensitivityMgDlPerUnit, isMmol) {
-        tk.glucodata.ui.util.GlucoseFormatter.displayFromMgDl(insulinSensitivityMgDlPerUnit, isMmol)
-    }
-    val sensitivityValue = if (isMmol) {
-        stringResource(R.string.predictive_sensitivity_value_mmol, insulinSensitivityDisplay)
-    } else {
-        stringResource(R.string.predictive_sensitivity_value_mgdl, insulinSensitivityMgDlPerUnit)
-    }
-    val sensitivityRange = if (isMmol) 0.6f..10f else 10f..180f
 
     Scaffold(
         contentWindowInsets = WindowInsets(0.dp),
@@ -1165,36 +1191,27 @@ fun PredictiveSimulationSettingsScreen(
             }
 
             if (journalEnabled) {
-                item(key = "model_label") {
-                    SectionLabel(
-                        stringResource(R.string.predictive_model_tuning),
-                        topPadding = 4.dp
+                item(key = "model") {
+                    SettingsItem(
+                        title = stringResource(R.string.predictive_model_tuning),
+                        subtitle = if (modelProfile.blocks.size == 1) {
+                            stringResource(R.string.predictive_model_profile_summary_single)
+                        } else {
+                            stringResource(
+                                R.string.predictive_model_profile_summary_count,
+                                modelProfile.blocks.size
+                            )
+                        },
+                        showArrow = true,
+                        onClick = {
+                            navController.navigate("settings/predictive-simulation/model-profile")
+                        },
+                        icon = Icons.Default.Schedule,
+                        iconTint = MaterialTheme.colorScheme.secondary
                     )
                 }
-                item(key = "model") {
+                item(key = "absorption") {
                     PredictiveSimulationSettingsCard(enabled = predictiveSimulationEnabled) {
-                        PredictiveSimulationParameterRow(
-                            title = stringResource(R.string.predictive_carb_ratio),
-                            valueLabel = stringResource(R.string.predictive_carb_ratio_value, carbRatioGramsPerUnit),
-                            value = carbRatioGramsPerUnit,
-                            valueRange = 3f..30f,
-                            enabled = predictiveSimulationEnabled,
-                            onValueChange = { viewModel.setPredictionCarbRatioGramsPerUnit(it) }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
-                        PredictiveSimulationParameterRow(
-                            title = stringResource(R.string.predictive_insulin_sensitivity),
-                            valueLabel = sensitivityValue,
-                            value = insulinSensitivityDisplay,
-                            valueRange = sensitivityRange,
-                            enabled = predictiveSimulationEnabled,
-                            onValueChange = { displayValue ->
-                                viewModel.setPredictionInsulinSensitivityMgDlPerUnit(
-                                    if (isMmol) tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(displayValue) else displayValue
-                                )
-                            }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
                         PredictiveSimulationParameterRow(
                             title = stringResource(R.string.predictive_carb_absorption),
                             valueLabel = stringResource(R.string.predictive_absorption_value, carbAbsorptionGramsPerHour),
@@ -1230,7 +1247,7 @@ private fun PredictiveSimulationSettingsCard(
 }
 
 @Composable
-private fun PredictiveSimulationParameterRow(
+internal fun PredictiveSimulationParameterRow(
     title: String,
     valueLabel: String,
     value: Float,
@@ -1794,7 +1811,62 @@ private fun ThemePickerDialog(current: ThemeMode, onSelect: (ThemeMode) -> Unit,
 }
 
 @Composable
-private fun PreviewWindowPickerDialog(
+private fun SensorHandoverActionPickerDialog(
+    currentAction: Int,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val options = listOf(
+        stringResource(R.string.sensor_handover_action_deactivate) to SensorHandoverRuntime.OLD_ACTION_DEACTIVATE,
+        stringResource(R.string.sensor_handover_action_remove) to SensorHandoverRuntime.OLD_ACTION_REMOVE
+    )
+    BasicAlertDialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 6.dp,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
+                Text(
+                    text = stringResource(R.string.sensor_handover_old_action_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                )
+                Text(
+                    text = stringResource(R.string.sensor_handover_old_action_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+                )
+                options.forEach { (label, value) ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .clickable { onSelect(value) }
+                            .padding(horizontal = 24.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = currentAction == value, onClick = null)
+                        Spacer(Modifier.width(16.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun PreviewWindowPickerDialog(
     currentMode: Int,
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit
@@ -1941,3 +2013,26 @@ private fun ConfirmActionDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
+
+/**
+ * True when a currently active sensor is genuinely a Libre 2 / Libre 3.
+ *
+ * Deliberately does NOT reuse the native Libre check used for NFC readiness:
+ * native `isLibre2()`/`isLibre3()` are defined by *exclusion* (anything that is
+ * not AccuChek/Sibionics/Dexcom is reported as Libre), so Kotlin-driver sensors
+ * such as Ottai — which have no native family flag but are mirrored into the
+ * native glucose stream — come back as "Libre". Here we require a positive
+ * LIBRE2/LIBRE3 kind and additionally drop any sensor claimed by a managed
+ * Kotlin BLE driver.
+ */
+private fun hasActiveLibreSensorForLibreView(): Boolean = runCatching {
+    Natives.activeSensors()?.filterNotNull().orEmpty().any { sensorId ->
+        // Owned by a Kotlin BLE driver (Ottai, MQ, iCan, AiDex, Anytime, Sibionics) -> not Libre.
+        val managed = runCatching { ManagedSensorRuntime.resolveDriver(sensorId) }.getOrNull()
+        if (managed != null) return@any false
+        val kind = runCatching {
+            SensorSourceResolver.resolveSensorKind(sensorId, SensorSourceResolver.SENSOR_KIND_UNKNOWN)
+        }.getOrDefault(SensorSourceResolver.SENSOR_KIND_UNKNOWN)
+        kind == SensorSourceResolver.SENSOR_KIND_LIBRE2 || kind == SensorSourceResolver.SENSOR_KIND_LIBRE3
+    }
+}.getOrDefault(false)

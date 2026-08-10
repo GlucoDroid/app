@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,9 +63,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,6 +87,9 @@ import java.net.NetworkInterface
 import java.text.DateFormat
 import java.util.Collections
 import java.util.Date
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import tk.glucodata.Applic
 import tk.glucodata.GoogleServices
 import tk.glucodata.Natives
@@ -91,6 +97,8 @@ import tk.glucodata.Notify
 import tk.glucodata.R
 import tk.glucodata.SuperGattCallback
 import tk.glucodata.WatchInterop
+import tk.glucodata.WearSensorClaimState
+import tk.glucodata.WearSensorClaimStatus
 import tk.glucodata.watchdrip
 import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.MasterSwitchCard
@@ -299,34 +307,129 @@ fun WatchSettingsScreen(navController: NavController) {
 fun WearOsConfigScreen(navController: NavController) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
 
-    var nodes by remember { mutableStateOf(WatchInterop.getWearNodes()) }
-    var selectedNodeId by rememberSaveable { mutableStateOf(nodes.firstOrNull()?.id ?: "") }
+    var nodes by remember { mutableStateOf<List<WatchInterop.WearNodeInfo>>(emptyList()) }
+    var selectedNodeId by rememberSaveable { mutableStateOf("") }
     var directOnWatch by rememberSaveable { mutableStateOf(false) }
     var enterOnWatch by rememberSaveable { mutableStateOf(false) }
+    var refreshingNodes by remember { mutableStateOf(false) }
+    var syncStatus by remember { mutableStateOf(WatchInterop.getWearSyncStatus()) }
+    val claimRevision by WearSensorClaimStatus.revision.collectAsState()
 
-    fun refreshNodes() {
-        WatchInterop.refreshWearNodes()
-        val latest = WatchInterop.getWearNodes()
+    fun applyNodes(latest: List<WatchInterop.WearNodeInfo>) {
         nodes = latest
         if (latest.none { it.id == selectedNodeId }) {
             selectedNodeId = latest.firstOrNull()?.id ?: ""
         }
     }
 
+    suspend fun refreshNodesNow() {
+        refreshingNodes = true
+        try {
+            val latest = withContext(Dispatchers.IO) {
+                WatchInterop.refreshWearNodes()
+                WatchInterop.getWearNodes()
+            }
+            applyNodes(latest)
+            syncStatus = WatchInterop.getWearSyncStatus()
+        } finally {
+            refreshingNodes = false
+        }
+    }
+
+    fun refreshNodes() {
+        scope.launch {
+            refreshNodesNow()
+        }
+    }
+
+    LaunchedEffect(claimRevision) {
+        refreshNodesNow()
+    }
+
+    // Seed the switches from what the user asked for, not from what the watch
+    // has confirmed. Direct routing is a two-phase handoff — the watch only
+    // claims the sensor after a connected driver accepts a reading — so binding
+    // to the confirmed state made every toggle spring straight back to off.
     LaunchedEffect(selectedNodeId, nodes) {
         val selected = nodes.firstOrNull { it.id == selectedNodeId } ?: return@LaunchedEffect
-        if (selected.directSensorMode >= 0) {
-            directOnWatch = selected.directSensorMode > 0
+        directOnWatch = when {
+            selected.directRequested -> true
+            selected.claimState != null -> selected.claimState != WearSensorClaimState.PHONE_OWNS
+            selected.directSensorMode >= 0 -> selected.directSensorMode > 0
+            else -> false
         }
-        if (selected.watchNumsMode >= 0) {
-            enterOnWatch = selected.watchNumsMode > 0
+        enterOnWatch = when {
+            selected.enterRequested -> true
+            selected.watchNumsMode >= 0 -> selected.watchNumsMode > 0
+            else -> false
         }
     }
 
     val selected = nodes.firstOrNull { it.id == selectedNodeId }
-    val canSetDirect = selected?.directSensorMode?.let { it >= 0 } == true
-    val canSetNums = selected?.watchNumsMode?.let { it >= 0 } == true
+    val selectedAppInstalled = selected?.appInstalled == true
+    // Having the app on the watch is the only real precondition. Requiring a
+    // known native host first was circular: applying the routing is what creates
+    // that host, so both switches sat greyed out forever on a fresh pairing.
+    val canSetDirect = selectedAppInstalled
+    val canSetNums = selectedAppInstalled
+    // Both directions apply immediately. Turning direct mode on used to change
+    // nothing until "Sync now" was pressed, and the state was overwritten by the
+    // next refresh before the user got there.
+    fun updateDirectRouting(enabled: Boolean) {
+        directOnWatch = enabled
+        val node = selected ?: return
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                if (enabled) {
+                    WatchInterop.applyStandaloneSensorMode(
+                        node.id,
+                        node.isGalaxy,
+                        directOnWatch = true,
+                        enterOnWatch = enterOnWatch,
+                    )
+                } else {
+                    WatchInterop.applyWearNodeRouting(
+                        node.id,
+                        node.isGalaxy,
+                        directOnWatch = false,
+                        enterOnWatch = enterOnWatch,
+                    )
+                }
+            }
+            if (!ok) {
+                directOnWatch = !enabled
+                Toast.makeText(context, context.getString(R.string.wentwrong), Toast.LENGTH_SHORT).show()
+            }
+            refreshNodesNow()
+        }
+    }
+
+    fun updateEnterOnWatch(enabled: Boolean) {
+        enterOnWatch = enabled
+        val node = selected ?: return
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                WatchInterop.applyWearNodeRouting(
+                    node.id,
+                    node.isGalaxy,
+                    directOnWatch = directOnWatch,
+                    enterOnWatch = enabled,
+                )
+            }
+            if (!ok) {
+                enterOnWatch = !enabled
+                Toast.makeText(context, context.getString(R.string.wentwrong), Toast.LENGTH_SHORT).show()
+            }
+            refreshNodesNow()
+        }
+    }
+    fun timeStatus(timeMs: Long): String = if (timeMs <= 0L) {
+        "Never"
+    } else {
+        DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(timeMs))
+    }
 
     Scaffold(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0.dp),
@@ -339,7 +442,7 @@ fun WearOsConfigScreen(navController: NavController) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { refreshNodes() }) {
+                    IconButton(onClick = { refreshNodes() }, enabled = !refreshingNodes) {
                         Icon(Icons.Filled.Refresh, contentDescription = null)
                     }
                 }
@@ -354,7 +457,7 @@ fun WearOsConfigScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item("wear_nodes") {
-                SectionLabel("Connected watches", topPadding = 0.dp)
+                SectionLabel("Watch status", topPadding = 0.dp)
                 if (nodes.isEmpty()) {
                     SettingsItem(
                         title = "No Wear OS watches found",
@@ -372,11 +475,37 @@ fun WearOsConfigScreen(navController: NavController) {
                                 else -> CardPosition.MIDDLE
                             }
                             val isSelected = node.id == selectedNodeId
+                            val appStatus = if (node.appInstalled) {
+                                stringResource(R.string.watchappinstalled)
+                            } else {
+                                stringResource(R.string.wear_watch_app_missing)
+                            }
+                            val liveStatus = if (isSelected) {
+                                val chunks = syncStatus.lastChunkCount
+                                val claimStatus = when (node.claimState) {
+                                    WearSensorClaimState.PHONE_OWNS -> stringResource(R.string.wear_claim_state_phone_owns)
+                                    WearSensorClaimState.REQUESTING -> stringResource(R.string.wear_claim_state_requesting)
+                                    WearSensorClaimState.CONNECTED -> stringResource(R.string.wear_claim_state_connected)
+                                    null -> null
+                                }
+                                "\nHistory served: ${timeStatus(syncStatus.lastServedMs)}${if (chunks > 0) " ($chunks chunks)" else ""}" +
+                                    "\nNetwork info: ${timeStatus(syncStatus.lastNetInfoExchangeMs)}" +
+                                    (claimStatus?.let { "\n$it" } ?: "")
+                            } else ""
+                            val appSubtitle = if (node.appInstalled) {
+                                "$appStatus • ${node.id}$liveStatus"
+                            } else {
+                                "$appStatus • ${node.id}\n${stringResource(R.string.wear_watch_app_missing_hint)}"
+                            }
                             SettingsItem(
                                 title = node.displayName,
-                                subtitle = node.id,
+                                subtitle = appSubtitle,
                                 icon = if (node.isGalaxy) Icons.Filled.Watch else Icons.Filled.Devices,
-                                iconTint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+                                iconTint = when {
+                                    !node.appInstalled -> MaterialTheme.colorScheme.error
+                                    isSelected -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.tertiary
+                                },
                                 position = position,
                                 onClick = { selectedNodeId = node.id },
                                 trailingContent = {
@@ -397,18 +526,28 @@ fun WearOsConfigScreen(navController: NavController) {
             item("wear_routing") {
                 SectionLabel("Routing", topPadding = 0.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    // Say which phase the handoff is in, so a switch that is on
+                    // while the phone still owns Bluetooth reads as "waiting",
+                    // not as "broken".
+                    val handoffPhase = when {
+                        selected?.claimState == WearSensorClaimState.CONNECTED ->
+                            stringResource(R.string.wear_claim_state_connected)
+                        directOnWatch && selected?.directPending == true ->
+                            stringResource(R.string.wear_claim_state_requesting)
+                        else -> stringResource(R.string.wear_claim_state_phone_owns)
+                    }
                     SettingsItem(
-                        title = "Direct sensor connection",
-                        subtitle = if (directOnWatch) {
-                            "Watch connects directly"
+                        title = stringResource(R.string.wear_direct_sensor_on_watch),
+                        subtitle = (if (directOnWatch) {
+                            stringResource(R.string.wear_direct_sensor_watch_desc)
                         } else {
-                            "Phone connects directly"
-                        },
+                            stringResource(R.string.wear_direct_sensor_phone_desc)
+                        }) + "\n" + handoffPhase,
                         icon = if (directOnWatch) Icons.Filled.Watch else Icons.Filled.PhoneAndroid,
                         iconTint = MaterialTheme.colorScheme.primary,
                         position = CardPosition.TOP,
                         onClick = if (selected != null && canSetDirect) {
-                            { directOnWatch = !directOnWatch }
+                            { updateDirectRouting(!directOnWatch) }
                         } else {
                             null
                         },
@@ -416,7 +555,7 @@ fun WearOsConfigScreen(navController: NavController) {
                             StyledSwitch(
                                 checked = directOnWatch,
                                 onCheckedChange = if (selected != null && canSetDirect) {
-                                    { directOnWatch = it }
+                                    { updateDirectRouting(it) }
                                 } else {
                                     null
                                 },
@@ -427,15 +566,15 @@ fun WearOsConfigScreen(navController: NavController) {
                     SettingsItem(
                         title = "Enter amounts on watch",
                         subtitle = if (enterOnWatch) {
-                            "Watch entry enabled"
+                            "Entries made on the watch are stored and synced to the phone."
                         } else {
-                            "Phone entry only"
+                            "Amounts can only be entered on the phone."
                         },
                         icon = Icons.Filled.Edit,
                         iconTint = MaterialTheme.colorScheme.primary,
                         position = CardPosition.BOTTOM,
                         onClick = if (selected != null && canSetNums) {
-                            { enterOnWatch = !enterOnWatch }
+                            { updateEnterOnWatch(!enterOnWatch) }
                         } else {
                             null
                         },
@@ -443,7 +582,7 @@ fun WearOsConfigScreen(navController: NavController) {
                             StyledSwitch(
                                 checked = enterOnWatch,
                                 onCheckedChange = if (selected != null && canSetNums) {
-                                    { enterOnWatch = it }
+                                    { updateEnterOnWatch(it) }
                                 } else {
                                     null
                                 },
@@ -455,79 +594,86 @@ fun WearOsConfigScreen(navController: NavController) {
             }
 
             item("wear_actions") {
+                SectionLabel("Actions", topPadding = 0.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
+                    FilledTonalButton(
                         onClick = {
                             if (selected == null) {
                                 Toast.makeText(context, "No watch selected", Toast.LENGTH_SHORT).show()
                             } else {
-                                val ok = WatchInterop.applyWearNodeRouting(
-                                    nodeId = selected.id,
-                                    isGalaxy = selected.isGalaxy,
-                                    directOnWatch = directOnWatch,
-                                    enterOnWatch = enterOnWatch
-                                )
-                                Toast.makeText(
-                                    context,
-                                    if (ok) context.getString(R.string.saved) else context.getString(R.string.wentwrong),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                refreshNodes()
+                                scope.launch {
+                                    val routingOk = withContext(Dispatchers.IO) {
+                                        WatchInterop.applyStandaloneSensorMode(selected.id, selected.isGalaxy, directOnWatch, enterOnWatch)
+                                    }
+                                    val ok = routingOk && WatchInterop.syncWearNow()
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) context.getString(R.string.saved) else context.getString(R.string.wentwrong),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    refreshNodes()
+                                }
                             }
                         },
-                        enabled = selected != null,
-                        modifier = Modifier.fillMaxWidth()
+                        enabled = selectedAppInstalled,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Icon(Icons.Filled.Sync, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Apply routing")
+                        Text("Sync now")
                     }
                     OutlinedButton(
                         onClick = {
                             if (selected == null) {
                                 Toast.makeText(context, "No watch selected", Toast.LENGTH_SHORT).show()
                             } else {
-                                val ok = WatchInterop.startWearApp(selected.id, selected.isGalaxy)
-                                Toast.makeText(
-                                    context,
-                                    if (ok) "Start command sent to watch" else context.getString(R.string.wentwrong),
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                scope.launch {
+                                    val ok = withContext(Dispatchers.IO) {
+                                        WatchInterop.startWearApp(selected.id, selected.isGalaxy)
+                                    }
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "Restart command sent to watch" else context.getString(R.string.wentwrong),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         },
-                        enabled = selected != null,
-                        modifier = Modifier.fillMaxWidth()
+                        enabled = selectedAppInstalled,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                        Icon(Icons.Filled.Refresh, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Start watch app")
+                        Text("Restart watch app")
                     }
                     OutlinedButton(
                         onClick = {
                             if (selected == null) {
                                 Toast.makeText(context, "No watch selected", Toast.LENGTH_SHORT).show()
                             } else {
-                                val ok = WatchInterop.applyWearDefaults(selected.id, selected.isGalaxy)
-                                Toast.makeText(
-                                    context,
-                                    if (ok) "Defaults sent" else context.getString(R.string.wentwrong),
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                scope.launch {
+                                    val ok = withContext(Dispatchers.IO) {
+                                        WatchInterop.applyWearDefaults(selected.id, selected.isGalaxy)
+                                    }
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "Defaults sent" else context.getString(R.string.wentwrong),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         },
-                        enabled = selected != null,
-                        modifier = Modifier.fillMaxWidth()
+                        enabled = selectedAppInstalled,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Icon(Icons.Filled.Settings, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Apply defaults")
+                        Text("Send defaults")
                     }
-                    OutlinedButton(
+                    TextButton(
                         onClick = { uriHandler.openUri("https://www.juggluco.nl/JugglucoWearOS/intro/index.html") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(Icons.Filled.Info, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.helpname))
                     }
                 }

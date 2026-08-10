@@ -25,8 +25,21 @@ class SensorExpiryAlertStateTests {
 
     private fun newState(store: ExpiryWarnedStore = FakeWarnedStore()) = SensorExpiryAlertState(store)
 
-    /** Evaluate a tick "minutesBefore" minutes before [endMs]. */
+    /**
+     * Evaluate a tick "minutesBefore" minutes before [endMs], with delivery
+     * succeeding - what the runtime does when a reading is available.
+     */
     private fun SensorExpiryAlertState.fire(
+        minutesBefore: Int,
+        thresholds: Set<Int>,
+        endMs: Long = end,
+        snoozed: Boolean = false,
+        active: Boolean = true
+    ): Set<Int> = fireUndelivered(minutesBefore, thresholds, endMs, snoozed, active)
+        .also { triggered -> triggered.forEach { confirmDelivered(it) } }
+
+    /** Same tick, but the alert never reached the user (no reading, suppressed). */
+    private fun SensorExpiryAlertState.fireUndelivered(
         minutesBefore: Int,
         thresholds: Set<Int>,
         endMs: Long = end,
@@ -178,6 +191,130 @@ class SensorExpiryAlertStateTests {
         val s2 = SensorExpiryAlertState(store)                          // restart
         assertEquals(emptySet<Int>(), s2.fire(3990, setOf(T6H, T3D)))   // adoption persisted, still silent
         assertEquals(setOf(T6H), s2.fire(360, setOf(T6H, T3D)))         // 6h edge unaffected
+    }
+
+    @Test
+    fun editingThresholdsMidEpisodeKeepsTheConfiguredOnesArmed() {
+        // Field regression: the user had 3d/2d/1d/12h/1h configured, got the 3d
+        // warning and nothing afterwards, while the persisted warned-set showed
+        // every threshold marked for that sensor. Adding one threshold must not
+        // silence the ones that were configured all along.
+        val s = newState()
+        val before = setOf(4320, 2880, 1440, 720, 60)
+        val after = before + T6H
+        assertEquals(emptySet<Int>(), s.fire(5760, before))
+        assertEquals(setOf(4320), s.fire(4320, before))
+        assertEquals(emptySet<Int>(), s.fire(2900, after))   // 6h added, its window still shut
+        assertEquals(setOf(2880), s.fire(2880, after))
+        assertEquals(setOf(1440), s.fire(1440, after))
+        assertEquals(setOf(720), s.fire(720, after))
+        assertEquals(setOf(T6H), s.fire(360, after))
+        assertEquals(setOf(60), s.fire(60, after))
+    }
+
+    @Test
+    fun reselectingAThresholdIsNotTreatedAsANewOne() {
+        val store = FakeWarnedStore()
+        val s1 = SensorExpiryAlertState(store)
+        s1.fire(5760, setOf(T3D, T1D))                                  // baseline outside both
+        assertEquals(setOf(T3D), s1.fire(4320, setOf(T3D, T1D)))
+        assertEquals(emptySet<Int>(), s1.fire(2000, setOf(T3D)))        // 1d deselected
+        assertEquals(emptySet<Int>(), s1.fire(1400, setOf(T3D)))        // its edge passes while off
+        // Reselected inside the open window: not fired retroactively, but not
+        // recorded as warned either - it never was.
+        assertEquals(emptySet<Int>(), s1.fire(1300, setOf(T3D, T1D)))
+        assertEquals(setOf("$end:$T3D"), store.entries)
+        // ...so the usual catch-up still applies after a restart.
+        assertEquals(setOf(T1D), SensorExpiryAlertState(store).fire(1290, setOf(T3D, T1D)))
+    }
+
+    @Test
+    fun disableEnableCycleMidEpisodeLeavesLaterThresholdsArmed() {
+        val s = newState()
+        val t = setOf(4320, 2880, 1440, 720, 60)
+        assertEquals(emptySet<Int>(), s.fire(5760, t))
+        assertEquals(setOf(4320), s.fire(4320, t))
+        // User switches the alert off and back on again.
+        assertEquals(
+            emptySet<Int>(),
+            s.triggeredThresholds(false, true, false, end, end - min(4000), t)
+        )
+        assertEquals(emptySet<Int>(), s.fire(4000, t))    // re-enabled: 3d stays warned, nothing due
+        assertEquals(setOf(2880), s.fire(2880, t))
+        assertEquals(setOf(60), s.fire(60, t))
+    }
+
+    @Test
+    fun onlyThresholdsAbsentFromThePreviousConfigCountAsNew() {
+        val configured = setOf(4320, 2880, 1440, 720, 60)
+        val nowMs = end - min(30)
+        // Same set saved again (e.g. after an enable/disable cycle): nothing is new,
+        // so no open window may be adopted.
+        assertEquals(
+            emptySet<Int>(),
+            newlyOpenExpiryThresholds(configured, configured, end, nowMs)
+        )
+        // One threshold genuinely added while several windows are open: only that
+        // one is adopted.
+        assertEquals(
+            setOf(T6H),
+            newlyOpenExpiryThresholds(configured, configured + T6H, end, nowMs)
+        )
+    }
+
+    @Test
+    fun newThresholdIsAdoptedOnlyWhileItsWindowIsOpen() {
+        val nowMs = end - min(300)   // 5h before the end
+        assertEquals(
+            setOf(T6H),
+            newlyOpenExpiryThresholds(setOf(T3D), setOf(T3D, T6H), end, nowMs)
+        )
+        assertEquals(
+            emptySet<Int>(),
+            newlyOpenExpiryThresholds(setOf(T3D), setOf(T3D, 60), end, nowMs)
+        )
+        // No plausible sensor end: nothing to adopt against.
+        assertEquals(
+            emptySet<Int>(),
+            newlyOpenExpiryThresholds(setOf(T3D), setOf(T3D, T6H), 0L, nowMs)
+        )
+    }
+
+    @Test
+    fun undeliveredWarningIsOfferedAgainInsteadOfBeingSwallowed() {
+        // #98: no current glucose reading means the notification path cannot
+        // deliver. The warning must survive that tick, not count as warned.
+        val store = FakeWarnedStore()
+        val s = SensorExpiryAlertState(store)
+        s.fire(1800, setOf(T1D))
+        assertEquals(setOf(T1D), s.fireUndelivered(1440, setOf(T1D)))   // edge, delivery fails
+        assertEquals(setOf<String>(), store.entries)                    // nothing recorded as warned
+        assertEquals(setOf(T1D), s.fireUndelivered(1400, setOf(T1D)))   // still owed
+        assertEquals(setOf(T1D), s.fire(1300, setOf(T1D)))              // reading is back: delivered
+        assertEquals(setOf("$end:$T1D"), store.entries)
+        assertEquals(emptySet<Int>(), s.fire(1200, setOf(T1D)))         // and only once
+    }
+
+    @Test
+    fun undeliveredWarningStillFiresAfterRestart() {
+        val store = FakeWarnedStore()
+        val s1 = SensorExpiryAlertState(store)
+        s1.fire(1800, setOf(T1D))
+        assertEquals(setOf(T1D), s1.fireUndelivered(1440, setOf(T1D)))  // never delivered, process dies
+        assertEquals(setOf(T1D), SensorExpiryAlertState(store).fire(1430, setOf(T1D)))
+    }
+
+    @Test
+    fun moreUrgentThresholdSupersedesAnUndeliveredOne() {
+        val store = FakeWarnedStore()
+        val s = SensorExpiryAlertState(store)
+        s.fire(5760, setOf(T1D, T6H))
+        assertEquals(setOf(T1D), s.fireUndelivered(1440, setOf(T1D, T6H)))  // 1d owed, undelivered
+        // The 6h edge arrives first: it wins, and the stale 1d warning is dropped
+        // rather than queued behind it.
+        assertEquals(setOf(T6H), s.fire(360, setOf(T1D, T6H)))
+        assertEquals(setOf("$end:$T1D", "$end:$T6H"), store.entries)
+        assertEquals(emptySet<Int>(), s.fire(120, setOf(T1D, T6H)))
     }
 
     @Test

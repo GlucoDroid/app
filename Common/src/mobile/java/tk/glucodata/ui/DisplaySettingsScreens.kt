@@ -34,6 +34,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CropSquare
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.SettingsAccessibility
 import androidx.compose.material.icons.filled.Warning
@@ -74,6 +75,7 @@ import tk.glucodata.ui.components.CardPosition
 import tk.glucodata.ui.components.MasterSwitchCard
 import tk.glucodata.ui.components.SectionLabel
 import tk.glucodata.ui.components.SettingsSwitchItem
+import tk.glucodata.ui.components.SettingsItem
 import tk.glucodata.ui.viewmodel.DashboardViewModel
 
 private val legacySettingsHorizontalPadding = 16.dp
@@ -350,6 +352,13 @@ fun DisplayAndColorSettingsScreen(
     val appChartRangeColorsEnabled by viewModel.glucoseAppChartRangeColorsEnabled.collectAsState()
     val dashboardDeltaEnabled by viewModel.dashboardShowDelta.collectAsState()
     val dashboardRowsDeltaEnabled by viewModel.dashboardRowsShowDelta.collectAsState()
+    val previewWindowMode by viewModel.previewWindowMode.collectAsState()
+    var showPreviewWindowDialog by rememberSaveable { mutableStateOf(false) }
+    val previewWindowLabel = when (previewWindowMode) {
+        1 -> stringResource(R.string.preview_window_always)
+        2 -> stringResource(R.string.preview_window_never)
+        else -> stringResource(R.string.preview_window_expanded_only)
+    }
 
     LegacySettingsScaffold(
         navController = navController,
@@ -403,12 +412,21 @@ fun DisplayAndColorSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.padding(horizontal = legacySettingsHorizontalPadding)
         ) {
+            SettingsItem(
+                title = stringResource(R.string.preview_window_title),
+                subtitle = previewWindowLabel,
+                showArrow = true,
+                icon = Icons.Default.CropSquare,
+                iconTint = MaterialTheme.colorScheme.primary,
+                position = CardPosition.TOP,
+                onClick = { showPreviewWindowDialog = true }
+            )
             SettingsSwitchItem(
                 title = stringResource(R.string.dashboard_show_delta_title),
                 subtitle = stringResource(R.string.dashboard_show_delta_desc),
                 checked = dashboardDeltaEnabled,
                 onCheckedChange = { viewModel.setDashboardShowDelta(it) },
-                position = CardPosition.TOP
+                position = CardPosition.MIDDLE
             )
             SettingsSwitchItem(
                 title = stringResource(R.string.dashboard_rows_show_delta_title),
@@ -419,6 +437,17 @@ fun DisplayAndColorSettingsScreen(
             )
         }
 
+    }
+
+    if (showPreviewWindowDialog) {
+        PreviewWindowPickerDialog(
+            currentMode = previewWindowMode,
+            onSelect = {
+                viewModel.setPreviewWindowMode(it)
+                showPreviewWindowDialog = false
+            },
+            onDismiss = { showPreviewWindowDialog = false }
+        )
     }
 }
 

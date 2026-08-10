@@ -172,6 +172,20 @@ class DisplayValueResolverTests {
     }
 
     @Test
+    fun resolve_nonGlucoseRawSentinel_isOmitted() {
+        val dv = DisplayValueResolver.resolve(
+            autoValue = 115f,
+            rawValue = 11_557f,
+            viewMode = 2,
+            isMmol = false,
+        )
+
+        assertEquals("115", dv.primaryStr)
+        assertEquals(null, dv.secondaryStr)
+        assertEquals("115", dv.fullFormatted)
+    }
+
+    @Test
     fun formatForSpeech_mmolOneDecimal_usesDotSeparator() {
         assertEquals("15.7", DisplayValueResolver.formatForSpeech(15.7f, isMmol = true))
         assertEquals("0.0", DisplayValueResolver.formatForSpeech(0.0f, isMmol = true))
