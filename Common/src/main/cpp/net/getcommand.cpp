@@ -198,6 +198,87 @@ static bool isMirrorSensorDataPath(std::string_view path) {
     return isPolls || isRawPolls || isTempPolls;
 }
 
+// A mirrored polls.dat update is a contiguous run of minute slots, so the master also
+// serialises the minutes it has no reading for: savepollallIDsonly() fills those with a
+// ScanData that carries a timestamp and g==0, and rawpolls.dat with a raw of 0. Written
+// through verbatim they replace whatever the follower already had in those slots -- its own
+// Bluetooth stream, or an earlier and better range from the same master -- with a dash.
+// Issue #166: a master that had dropped to NFC-only scanning wiped hours of the follower's
+// live curve every time it scanned.
+//
+// So a hole never overwrites a reading. Everything else is untouched -- a real value from the
+// master still wins over whatever the follower had, which is what keeps corrections
+// propagating. The one thing this deliberately stops honouring is a master retracting a value
+// it had already sent (prunestream(), which runs once per sensor at first open, normally
+// before mirroring is up at all): showing a stale-but-real reading beats blanking a good one.
+enum class PollRecordKind { none, scan, raw };
+
+static PollRecordKind mirrorPollRecordKind(std::string_view path) {
+    static constexpr std::string_view sensorsPrefix = "sensors/";
+    static constexpr std::string_view pollsSuffix = "/polls.dat";
+    static constexpr std::string_view rawPollsSuffix = "/rawpolls.dat";
+    if (path.size() <= sensorsPrefix.size() ||
+        path.substr(0, sensorsPrefix.size()) != sensorsPrefix) {
+        return PollRecordKind::none;
+    }
+    if (path.size() >= rawPollsSuffix.size() &&
+        path.substr(path.size() - rawPollsSuffix.size()) == rawPollsSuffix) {
+        return PollRecordKind::raw;
+    }
+    if (path.size() >= pollsSuffix.size() &&
+        path.substr(path.size() - pollsSuffix.size()) == pollsSuffix) {
+        return PollRecordKind::scan;
+    }
+    return PollRecordKind::none;
+}
+
+// Returns true when merged holds the range to write instead of incoming.
+template <typename Rec, typename IsHole>
+static bool keepLocalWhereIncomingIsAHole(int fp, uint32_t offset, uint32_t len,
+                                          const uint8_t *incoming,
+                                          std::vector<uint8_t> &merged, IsHole isHole) {
+    if (!len || (offset % sizeof(Rec)) || (len % sizeof(Rec))) {
+        return false; // not on a record boundary: nothing safe to reason about
+    }
+    std::vector<uint8_t> local(len);
+    const ssize_t got = ::pread(fp, local.data(), len, offset);
+    if (got < static_cast<ssize_t>(sizeof(Rec))) {
+        return false; // the follower has nothing stored here yet
+    }
+    const size_t records = static_cast<size_t>(got) / sizeof(Rec);
+    merged.assign(incoming, incoming + len);
+    Rec *out = reinterpret_cast<Rec *>(merged.data());
+    const Rec *have = reinterpret_cast<const Rec *>(local.data());
+    bool kept = false;
+    for (size_t i = 0; i < records; ++i) {
+        if (isHole(out[i]) && !isHole(have[i])) {
+            out[i] = have[i];
+            kept = true;
+        }
+    }
+    if (!kept) {
+        merged.clear();
+    }
+    return kept;
+}
+
+static bool mergeMirrorPollHoles(std::string_view path, int fp, uint32_t offset, uint32_t len,
+                                 const uint8_t *incoming, std::vector<uint8_t> &merged) {
+    switch (mirrorPollRecordKind(path)) {
+    case PollRecordKind::scan:
+        return keepLocalWhereIncomingIsAHole<ScanData>(
+            fp, offset, len, incoming, merged,
+            [](const ScanData &rec) { return rec.g == 0; });
+    case PollRecordKind::raw:
+        return keepLocalWhereIncomingIsAHole<RawData>(
+            fp, offset, len, incoming, merged,
+            [](const RawData &rec) { return rec.raw == 0; });
+    case PollRecordKind::none:
+        break;
+    }
+    return false;
+}
+
 static constexpr std::string_view mirrorCalibrationPrefix = "mirror/calibration/";
 static constexpr std::string_view mirrorCalibrationSuffix = ".json";
 
@@ -932,8 +1013,14 @@ static bool savefileonce(const struct fileonce_t *gegs) {
     destruct des([fp](){filedata.close(fp);});
     start+=(gegs->namelen);
     payloadStart = start;
+    std::vector<uint8_t> merged;
     for(int i=0;i<nr;i++) {
-        if(!filedata.savedata(fp,gegs->gegs[i].off,gegs->gegs[i].len,start)) {
+        const uint8_t *towrite=start;
+        if(mergeMirrorPollHoles(namesv,fp,gegs->gegs[i].off,gegs->gegs[i].len,start,merged)) {
+            LOGGERTAG("%s: kept local readings where the mirror sent holes\n",name);
+            towrite=merged.data();
+            }
+        if(!filedata.savedata(fp,gegs->gegs[i].off,gegs->gegs[i].len,towrite)) {
             LOGARTAG("savedata failed");
             return false;
             }

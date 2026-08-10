@@ -15,7 +15,7 @@ class JournalDoseCalculatorTests {
             glucoseMgDl = null,
             carbRatioGramsPerUnit = 10f,
             insulinSensitivityMgDlPerUnit = 50f,
-            targetHighMgDl = 120f,
+            targetMgDl = 120f,
             activeInsulinUnits = 0f
         )
 
@@ -33,7 +33,7 @@ class JournalDoseCalculatorTests {
             glucoseMgDl = 220f,
             carbRatioGramsPerUnit = 10f,
             insulinSensitivityMgDlPerUnit = 50f,
-            targetHighMgDl = 120f,
+            targetMgDl = 120f,
             activeInsulinUnits = 1.25f
         )
 
@@ -44,13 +44,32 @@ class JournalDoseCalculatorTests {
     }
 
     @Test
+    fun theDoseTargetSetsHowFarACorrectionReachesDown() {
+        // 220 mg/dL, ISF 50: correcting to 120 is 2 U, correcting to the 90 default is 2.6 U.
+        fun correctionAt(target: Float) = JournalDoseCalculator.insulinForCarbs(
+            carbsGrams = 10f,
+            proteinGrams = null,
+            fatGrams = null,
+            macrosEnabled = false,
+            glucoseMgDl = 220f,
+            carbRatioGramsPerUnit = 10f,
+            insulinSensitivityMgDlPerUnit = 50f,
+            targetMgDl = target,
+            activeInsulinUnits = 0f
+        )!!.correctionInsulinUnits
+
+        assertEquals(2f, correctionAt(120f), 0.0001f)
+        assertEquals(2.6f, correctionAt(90f), 0.0001f)
+    }
+
+    @Test
     fun correctionIsRemovedBeforeCalculatingCoveredCarbs() {
         val coveredCarbs = JournalDoseCalculator.carbsCoveredByInsulin(
             insulinUnits = 4f,
             glucoseMgDl = 220f,
             carbRatioGramsPerUnit = 10f,
             insulinSensitivityMgDlPerUnit = 50f,
-            targetHighMgDl = 120f,
+            targetMgDl = 120f,
             activeInsulinUnits = 0.5f
         )
 
@@ -65,7 +84,7 @@ class JournalDoseCalculatorTests {
                 glucoseMgDl = Float.NaN,
                 carbRatioGramsPerUnit = 10f,
                 insulinSensitivityMgDlPerUnit = 50f,
-                targetHighMgDl = 120f,
+                targetMgDl = 120f,
                 activeInsulinUnits = 0f
             )
         )
@@ -78,7 +97,7 @@ class JournalDoseCalculatorTests {
                 glucoseMgDl = null,
                 carbRatioGramsPerUnit = Float.NaN,
                 insulinSensitivityMgDlPerUnit = 50f,
-                targetHighMgDl = 120f,
+                targetMgDl = 120f,
                 activeInsulinUnits = 0f
             )
         )

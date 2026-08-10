@@ -80,6 +80,62 @@ class DataSmoothingTests {
     }
 
     @Test
+    fun exchangeSmoothingMinutesFeedsTheNativeUploaderInTheDefaultState() {
+        // Default state: smoothing on, neither scope switch flipped. The Nightscout
+        // uploader has to see the same window every Java-side output already applies.
+        assertEquals(
+            5,
+            DataSmoothing.exchangeSmoothingMinutes(
+                smoothingMinutes = 5,
+                graphOnly = false,
+                exchangeOutputsOnly = false
+            )
+        )
+
+        assertEquals(
+            7,
+            DataSmoothing.exchangeSmoothingMinutes(
+                smoothingMinutes = 7,
+                graphOnly = true,
+                exchangeOutputsOnly = true
+            )
+        )
+    }
+
+    @Test
+    fun exchangeSmoothingMinutesIsZeroWhenExchangeOutputsStayUnsmoothed() {
+        assertEquals(
+            0,
+            DataSmoothing.exchangeSmoothingMinutes(
+                smoothingMinutes = 5,
+                graphOnly = true,
+                exchangeOutputsOnly = false
+            )
+        )
+
+        assertEquals(
+            0,
+            DataSmoothing.exchangeSmoothingMinutes(
+                smoothingMinutes = 0,
+                graphOnly = false,
+                exchangeOutputsOnly = false
+            )
+        )
+    }
+
+    @Test
+    fun exchangeSmoothingMinutesRejectsAWindowThatIsNotOnTheScale() {
+        assertEquals(
+            0,
+            DataSmoothing.exchangeSmoothingMinutes(
+                smoothingMinutes = 6,
+                graphOnly = false,
+                exchangeOutputsOnly = false
+            )
+        )
+    }
+
+    @Test
     fun shouldCollapseExchangeOutputsRequiresEffectiveExchangeSmoothing() {
         assertFalse(
             DataSmoothing.shouldCollapseExchangeOutputs(

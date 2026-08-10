@@ -35,6 +35,7 @@ import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalFoodInput
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalInsulinPresetInput
+import tk.glucodata.data.prediction.DoseTarget
 import tk.glucodata.data.prediction.PredictionModelProfile
 import tk.glucodata.data.prediction.PredictionModelProfileStore
 import tk.glucodata.ui.GlucosePoint
@@ -155,6 +156,7 @@ class DashboardViewModel(
         const val PREDICTION_CARB_ABSORPTION_KEY = "dashboard_prediction_carb_absorption_g_per_h"
         const val PREDICTION_HORIZON_MINUTES_KEY = "dashboard_prediction_horizon_minutes"
         const val PREDICTION_NOTIFICATION_CHART_KEY = "dashboard_prediction_notification_chart_enabled"
+        const val PREDICTION_DOSE_TARGET_KEY = "dashboard_prediction_dose_target_mgdl"
         const val PREDICTION_CARB_RATIO_DEFAULT = 10f
         const val PREDICTION_INSULIN_SENSITIVITY_DEFAULT = 54f
         const val PREDICTION_CARB_ABSORPTION_DEFAULT = 35f
@@ -397,6 +399,9 @@ class DashboardViewModel(
 
     private val _predictionHorizonMinutes = MutableStateFlow(PREDICTION_HORIZON_MINUTES_DEFAULT)
     val predictionHorizonMinutes = _predictionHorizonMinutes.asStateFlow()
+
+    private val _predictionDoseTargetMgDl = MutableStateFlow(DoseTarget.DEFAULT_MGDL)
+    val predictionDoseTargetMgDl = _predictionDoseTargetMgDl.asStateFlow()
 
     private val _journalEntries = MutableStateFlow<List<JournalEntry>>(emptyList())
     val journalEntries = _journalEntries.asStateFlow()
@@ -681,6 +686,9 @@ class DashboardViewModel(
         _predictionHorizonMinutes.value = prefs
             .getInt(PREDICTION_HORIZON_MINUTES_KEY, PREDICTION_HORIZON_MINUTES_DEFAULT)
             .coerceIn(30, 360)
+        _predictionDoseTargetMgDl.value = prefs
+            .getFloat(PREDICTION_DOSE_TARGET_KEY, DoseTarget.DEFAULT_MGDL)
+            .coerceIn(DoseTarget.MIN_MGDL, DoseTarget.MAX_MGDL)
         if (journalEnabled) {
             ensureJournalEntriesObserved()
         } else if (journalEntriesJob != null) {
@@ -1624,6 +1632,15 @@ class DashboardViewModel(
         val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
         prefs.edit().putFloat(PREDICTION_CARB_ABSORPTION_KEY, normalized).apply()
         _predictionCarbAbsorptionGramsPerHour.value = normalized
+        refreshNotificationPredictionSurfaces(context)
+    }
+
+    fun setPredictionDoseTargetMgDl(value: Float) {
+        val normalized = value.roundToStep(1f).coerceIn(DoseTarget.MIN_MGDL, DoseTarget.MAX_MGDL)
+        val context = tk.glucodata.Applic.app
+        val prefs = context.getSharedPreferences("tk.glucodata_preferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putFloat(PREDICTION_DOSE_TARGET_KEY, normalized).apply()
+        _predictionDoseTargetMgDl.value = normalized
         refreshNotificationPredictionSurfaces(context)
     }
 

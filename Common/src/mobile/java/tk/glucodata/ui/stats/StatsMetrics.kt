@@ -111,6 +111,7 @@ internal fun ScoreTile(
     modifier: Modifier = Modifier,
     infoText: String? = null,
     forceStatusOwnRow: Boolean? = null,
+    forceTitleOwnRow: Boolean? = null,
     // Keep the line even when this tile has nothing for it, so a tile that does have
     // one does not end up taller than its neighbour.
     reserveStatus: Boolean = false,
@@ -179,6 +180,67 @@ internal fun ScoreTile(
                     }
                 }
                 val statusNeedsOwnRow = forceStatusOwnRow ?: autoStatusNeedsOwnRow
+                val autoTitleNeedsOwnRow = remember(
+                    forceTitleOwnRow, title, value, expandable, textMeasurer, density,
+                    valueStyle, titleStyle, sharedWidthPx
+                ) {
+                    if (forceTitleOwnRow != null) {
+                        false
+                    } else {
+                        titleOverflows(
+                            title = title,
+                            value = value,
+                            expandable = expandable,
+                            widthPx = sharedWidthPx,
+                            density = density,
+                            textMeasurer = textMeasurer,
+                            titleStyle = titleStyle,
+                            valueStyle = valueStyle
+                        )
+                    }
+                }
+                val titleNeedsOwnRow = forceTitleOwnRow ?: autoTitleNeedsOwnRow
+
+                if (titleNeedsOwnRow) {
+                    // Nothing left to shrink: the label alone needs the width. Long
+                    // translations and small screens both land here, and truncating the
+                    // label to keep the number on the same line loses the more important
+                    // half — a number nobody can name is no use.
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        TileTitle(
+                            title = title,
+                            expandable = expandable,
+                            titleStyle = titleStyle,
+                            maxLines = 2
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Text(
+                                text = status,
+                                style = statusStyle,
+                                color = tone,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = value,
+                                style = valueStyle,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(start = 8.dp),
+                                maxLines = 1,
+                                softWrap = false,
+                                textAlign = TextAlign.End
+                            )
+                        }
+                    }
+                } else
 
                 if (statusNeedsOwnRow) {
                     Column(
@@ -190,27 +252,12 @@ internal fun ScoreTile(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Top
                         ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = title,
-                                    style = titleStyle,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                if (expandable) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
+                            TileTitle(
+                                title = title,
+                                expandable = expandable,
+                                titleStyle = titleStyle,
+                                modifier = Modifier.weight(1f)
+                            )
                             Text(
                                 text = value,
                                 style = valueStyle,
@@ -240,26 +287,11 @@ internal fun ScoreTile(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(if (hasStatus) 4.dp else 0.dp)
                         ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = title,
-                                    style = titleStyle,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                if (expandable) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
+                            TileTitle(
+                                title = title,
+                                expandable = expandable,
+                                titleStyle = titleStyle
+                            )
                             if (hasStatus) {
                                 Text(
                                     text = status,
@@ -309,6 +341,100 @@ internal fun ScoreTile(
                 )
             }
         }
+    }
+}
+
+/**
+ * The tile's label, with its info affordance.
+ *
+ * The label is the weighted child so that the icon is measured first and always gets its
+ * 14 dp. Unweighted, the label took the whole row and the icon was laid out at zero width —
+ * which is why a metric with a long name appeared to have no way to ask what it means.
+ */
+@Composable
+private fun TileTitle(
+    title: String,
+    expandable: Boolean,
+    titleStyle: androidx.compose.ui.text.TextStyle,
+    modifier: Modifier = Modifier,
+    maxLines: Int = 1
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = titleStyle,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f, fill = false),
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (expandable) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.74f),
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
+/** True when the label and the value cannot share a line. */
+private fun titleOverflows(
+    title: String,
+    value: String,
+    expandable: Boolean,
+    widthPx: Int,
+    density: androidx.compose.ui.unit.Density,
+    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    titleStyle: androidx.compose.ui.text.TextStyle,
+    valueStyle: androidx.compose.ui.text.TextStyle
+): Boolean {
+    val gapPx = with(density) { 12.dp.roundToPx() }
+    val iconPx = if (expandable) with(density) { 18.dp.roundToPx() } else 0
+    val titlePx = textMeasurer.measure(
+        text = AnnotatedString(title),
+        style = titleStyle,
+        maxLines = 1
+    ).size.width
+    val valuePx = textMeasurer.measure(
+        text = AnnotatedString(value),
+        style = valueStyle,
+        maxLines = 1
+    ).size.width
+    return titlePx + iconPx > (widthPx - valuePx - gapPx).coerceAtLeast(0)
+}
+
+/**
+ * Same question as [rememberScoreTileNeedsOwnRow], asked about the label, so both tiles in
+ * a row drop the value onto its own line together rather than one of them looking taller.
+ */
+@Composable
+internal fun rememberScoreTileTitleNeedsOwnRow(
+    contentWidth: Dp,
+    title: String,
+    value: String,
+    expandable: Boolean
+): Boolean {
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+    val titleStyle = MaterialTheme.typography.titleMedium.copy(lineHeight = 22.sp)
+    val valueStyle = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum")
+    return remember(contentWidth, title, value, expandable, density, textMeasurer, titleStyle, valueStyle) {
+        titleOverflows(
+            title = title,
+            value = value,
+            expandable = expandable,
+            widthPx = with(density) { maxOf(contentWidth, 0.dp).roundToPx() },
+            density = density,
+            textMeasurer = textMeasurer,
+            titleStyle = titleStyle,
+            valueStyle = valueStyle
+        )
     }
 }
 
@@ -478,9 +604,13 @@ internal fun metricSpec(
 
         StatsMetric.STD_DEV -> spec(
             value = formatMgDl(summary.stdDevMgDl, unit),
+            // Judged as a share of the mean rather than against fixed mg/dL, because that
+            // is what a spread means. On the old absolutes a run averaging 5.1 mmol was
+            // called moderate at the exact same reading CV called steady — two tiles side
+            // by side, same underlying number, opposite verdicts.
             status = when {
-                summary.stdDevMgDl < 18f -> steadyWord
-                summary.stdDevMgDl < 27f -> middlingWord
+                summary.cvPercent < 32f -> steadyWord
+                summary.cvPercent < 40f -> middlingWord
                 else -> swingyWord
             },
             // One deviation either side of the mean, stated the way IQR states its own
@@ -489,8 +619,8 @@ internal fun metricSpec(
             meta = "${formatMgDl((summary.avgMgDl - summary.stdDevMgDl).coerceAtLeast(0f), unit)}-" +
                 formatMgDl(summary.avgMgDl + summary.stdDevMgDl, unit),
             tone = when {
-                summary.stdDevMgDl < 18f -> TirInRangeColor
-                summary.stdDevMgDl < 27f -> TirHighColor
+                summary.cvPercent < 32f -> TirInRangeColor
+                summary.cvPercent < 40f -> TirHighColor
                 else -> TirVeryHighColor
             },
             infoText = stringResource(R.string.std_dev_description)
@@ -534,6 +664,7 @@ internal fun metricSpec(
                     else -> R.string.risk_high
                 }
             ),
+            meta = "$targetWord <2.5",
             tone = if (summary.risk.lbgi < 2.5f) TirInRangeColor else TirVeryLowColor,
             infoText = stringResource(R.string.lbgi_description)
         )
@@ -547,6 +678,7 @@ internal fun metricSpec(
                     else -> R.string.risk_high
                 }
             ),
+            meta = "$targetWord <4.5",
             tone = if (summary.risk.hbgi < 4.5f) TirInRangeColor else TirVeryHighColor,
             infoText = stringResource(R.string.hbgi_description)
         )
@@ -566,7 +698,9 @@ internal fun metricSpec(
         StatsMetric.GVI -> spec(
             value = String.format(Locale.getDefault(), "%.2f", summary.gvi.value),
             status = stringResource(summary.gvi.labelResId),
-            meta = "$stabilityWord ${String.format(Locale.getDefault(), "%.0f%%", summary.gvi.stability)} · ROC ${String.format(Locale.getDefault(), "%.2f", summary.gvi.rateOfChange)}",
+            // Rate of change dropped: it never fitted on one line in any language, and
+            // GVI is already a rate-of-change score.
+            meta = "$stabilityWord ${String.format(Locale.getDefault(), "%.0f%%", summary.gvi.stability)}",
             tone = when {
                 summary.gvi.value < 1.55f -> TirInRangeColor
                 summary.gvi.value < 1.90f -> TirHighColor
@@ -603,6 +737,7 @@ internal fun metricSpec(
                 summary.mageMgDl < 90f -> middlingWord
                 else -> swingyWord
             },
+            meta = "$targetWord <${formatMgDl(45f, unit)}",
             tone = when {
                 summary.mageMgDl < 45f -> TirInRangeColor
                 summary.mageMgDl < 90f -> TirHighColor
@@ -619,6 +754,7 @@ internal fun metricSpec(
                 summary.moddMgDl < 60f -> middlingWord
                 else -> swingyWord
             },
+            meta = "$targetWord <${formatMgDl(36f, unit)}",
             tone = when {
                 summary.moddMgDl < 36f -> TirInRangeColor
                 summary.moddMgDl < 60f -> TirHighColor
@@ -752,6 +888,13 @@ private fun MetricRow(
             rememberScoreTileNeedsOwnRow(tileContentWidth, leftSpec.value, leftSpec.status) ||
                 (rightSpec != null &&
                     rememberScoreTileNeedsOwnRow(tileContentWidth, rightSpec.value, rightSpec.status))
+        val useOwnTitleRow = rememberScoreTileTitleNeedsOwnRow(
+            tileContentWidth, leftSpec.title, leftSpec.value, leftSpec.infoText != null
+        ) || (
+            rightSpec != null && rememberScoreTileTitleNeedsOwnRow(
+                tileContentWidth, rightSpec.title, rightSpec.value, rightSpec.infoText != null
+            )
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(spacing)
@@ -766,6 +909,7 @@ private fun MetricRow(
                 onToggleExpanded = { onToggleExpanded(leftSpec.metric) },
                 infoText = leftSpec.infoText,
                 forceStatusOwnRow = useOwnStatusRow,
+                forceTitleOwnRow = useOwnTitleRow,
                 reserveStatus = reserveStatus,
                 reserveMeta = reserveMeta,
                 modifier = Modifier
@@ -783,6 +927,7 @@ private fun MetricRow(
                     onToggleExpanded = { onToggleExpanded(rightSpec.metric) },
                     infoText = rightSpec.infoText,
                     forceStatusOwnRow = useOwnStatusRow,
+                    forceTitleOwnRow = useOwnTitleRow,
                     reserveStatus = reserveStatus,
                     reserveMeta = reserveMeta,
                     modifier = Modifier

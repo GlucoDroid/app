@@ -155,6 +155,8 @@ fun AppUpdatesScreen(navController: NavController) {
                 Spacer(Modifier.height(12.dp))
             }
 
+            Spacer(Modifier.height(16.dp))
+
             CheckForUpdatesButton(
                 checking = state.checking,
                 // Downloading or installing is the primary action while a card offers it; the
@@ -162,9 +164,10 @@ fun AppUpdatesScreen(navController: NavController) {
                 emphasised = !hasStatusCard,
                 onClick = { AppUpdateController.checkNow(context) }
             )
-            Spacer(Modifier.height(12.dp))
 
             if (!hasStatusCard && !state.checking && state.lastCheckAtMillis > 0L) {
+                Spacer(Modifier.height(12.dp))
+
                 Text(
                     text = stringResource(R.string.app_updates_up_to_date_title) +
                         " · " + stringResource(R.string.app_updates_last_checked, state.lastCheckedLabel()),
@@ -176,7 +179,7 @@ fun AppUpdatesScreen(navController: NavController) {
                         .padding(top = 10.dp, start = 16.dp, end = 16.dp)
                 )
             }
-
+            Spacer(Modifier.height(16.dp))
 //            // --- Preferences ---------------------------------------------------------
 //            SectionLabel(stringResource(R.string.app_updates_section_preferences))
 

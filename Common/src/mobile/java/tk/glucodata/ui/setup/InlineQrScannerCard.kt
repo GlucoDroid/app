@@ -80,13 +80,27 @@ private fun Context.hasCameraPermission(): Boolean {
 @SuppressLint("UnsafeOptInUsageError")
 private fun androidx.camera.core.ImageProxy.extractMediaImage() = image
 
+/** How long the same rejected payload is ignored before it is offered to the caller again. */
+private const val REJECTED_SCAN_COOLDOWN_MS = 4_000L
+
+/** Last payload the caller turned down, so a code held in frame is not re-reported every frame. */
+private class RejectedScan {
+    @Volatile var value: String? = null
+    @Volatile var atMs: Long = 0L
+}
+
+/**
+ * @param onScanResult invoked with a decoded payload; return true if the caller accepted it, which
+ *   stops the camera. Returning false leaves the scanner running — a stray code in frame (a box's
+ *   "app download" QR, a code for a different sensor type) must not be able to end the scan.
+ */
 @Composable
 @SuppressLint("ClickableViewAccessibility")
 @OptIn(androidx.camera.core.ExperimentalGetImage::class)
 fun InlineQrScannerCard(
     modifier: Modifier = Modifier,
     scannerEnabled: Boolean = true,
-    onScanResult: (String) -> Unit,
+    onScanResult: (String) -> Boolean,
     onManualFallback: (() -> Unit)? = null,
     manualFallbackLabel: String? = null,
     onTouchInteractionChanged: ((Boolean) -> Unit)? = null
@@ -108,6 +122,10 @@ fun InlineQrScannerCard(
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
     }
     var previewInstanceNonce by remember { mutableIntStateOf(0) }
+    val rejectedScan = remember { RejectedScan() }
+    // The analyzer closure outlives the recompositions that change what a scan should do (the
+    // selected sensor type, the selected Bluetooth device), so it must not capture the lambda.
+    val onScanResultState = rememberUpdatedState(onScanResult)
     val cameraState = rememberUpdatedState(camera)
     val onTouchInteractionChangedState = rememberUpdatedState(onTouchInteractionChanged)
     val scaleDetector = remember(context) {
@@ -257,8 +275,17 @@ fun InlineQrScannerCard(
                                                         ?.takeIf { value -> value.isNotEmpty() }
                                                 }
                                             if (rawValue != null && !consumed) {
-                                                consumed = true
-                                                onScanResult(rawValue)
+                                                val nowMs = android.os.SystemClock.elapsedRealtime()
+                                                val isRepeatOfRejected = rawValue == rejectedScan.value &&
+                                                    nowMs - rejectedScan.atMs < REJECTED_SCAN_COOLDOWN_MS
+                                                if (!isRepeatOfRejected) {
+                                                    if (onScanResultState.value(rawValue)) {
+                                                        consumed = true
+                                                    } else {
+                                                        rejectedScan.value = rawValue
+                                                        rejectedScan.atMs = nowMs
+                                                    }
+                                                }
                                             }
                                         }
                                         .addOnFailureListener(mainExecutor) { throwable ->

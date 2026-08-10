@@ -159,7 +159,6 @@ fun ManualSensorEntryDialog(
     var batch by remember { mutableStateOf("") }
     var serial by remember { mutableStateOf("") }
     var batchValid by remember { mutableStateOf(false) }
-    var serialValid by remember { mutableStateOf(false) }
 
     // Set examples based on sensor type
     val (batchExample, serialExample) = if (type == SibionicsType.SIBIONICS2) {
@@ -167,6 +166,11 @@ fun ManualSensorEntryDialog(
     } else {
         "LT41250946H" to "250946432T452CBZ43"
     }
+
+    // The QR path refuses a code whose serial form belongs to another sensor type; typing the
+    // code by hand must not be the way around that check.
+    val serialValid = SibionicsRegistry.isManualSerialForVariant(serial, type.toManagedVariant())
+    val serialTypeMismatch = serial.length in 10..20 && !serialValid
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -197,11 +201,21 @@ fun ManualSensorEntryDialog(
                     value = serial,
                     onValueChange = {
                         serial = it.uppercase().filter { c -> c.isLetterOrDigit() }
-                        serialValid = serial.length in 10..20
                     },
                     label = { Text(stringResource(R.string.serial_number_label)) },
                     placeholder = { Text(serialExample, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                    supportingText = { Text(stringResource(R.string.serial_number_supporting, serialExample)) },
+                    supportingText = {
+                        if (serialTypeMismatch) {
+                            Text(
+                                stringResource(
+                                    R.string.sibionics_serial_wrong_type,
+                                    stringResource(type.displayNameRes),
+                                ),
+                            )
+                        } else {
+                            Text(stringResource(R.string.serial_number_supporting, serialExample))
+                        }
+                    },
                     singleLine = true,
                     isError = serial.isNotEmpty() && !serialValid,
                     modifier = Modifier.fillMaxWidth()
@@ -524,6 +538,7 @@ fun ScanSensorStep(
     val buttonHeight = if (compact) 46.dp else 48.dp
     var showManualEntry by remember { mutableStateOf(false) }
     var handledScan by remember { mutableStateOf(false) }
+    var scanRejection by remember { mutableStateOf<String?>(null) }
     var scannerTouchActive by remember { mutableStateOf(false) }
     var bleProbeScanning by remember { mutableStateOf(true) }
     var bleProbeDevices by remember { mutableStateOf(listOf<BleDeviceScanner.SibionicsBleDevice>()) }
@@ -537,14 +552,23 @@ fun ScanSensorStep(
     val selectedBleDevice = remember(matchingBleDevices, selectedBleAddress) {
         matchingBleDevices.firstOrNull { it.address == selectedBleAddress }
     }
+    val sibionics2Label = stringResource(SibionicsType.SIBIONICS2.displayNameRes)
+    val selectedTypeLabel = stringResource(selectedType.displayNameRes)
     val submitManagedQr: (String) -> Boolean = { raw ->
         if (SibionicsRegistry.isSupportedQrPayload(raw, selectedType.toManagedVariant())) {
+            scanRejection = null
             onManagedEntry(raw, selectedBleDevice)
             true
         } else {
-            tk.glucodata.Applic.Toaster(
-                context.getString(R.string.invalid_code_format),
-            )
+            // Rendered in place of the instruction line, not toasted: a toast is not guaranteed
+            // to be seen (or shown at all) and this is the only feedback a rejected scan has.
+            val isSibionics2Code = SibionicsRegistry.qrPayloadIsV120Identity(raw)
+            scanRejection = when (isSibionics2Code) {
+                null -> context.getString(R.string.invalid_code_format)
+                true -> context.getString(R.string.sibionics_code_wrong_type, sibionics2Label)
+                false -> context.getString(R.string.sibionics_code_not_for_type, selectedTypeLabel)
+            }
+            tk.glucodata.Log.i("SibionicsSetup", "rejected scan for ${selectedType.name}: $scanRejection")
             false
         }
     }
@@ -634,9 +658,7 @@ fun ScanSensorStep(
                     .height(if (compact) 320.dp else 380.dp),
                 scannerEnabled = !galleryDecodeInProgress,
                 onScanResult = { raw ->
-                    if (!handledScan) {
-                        handledScan = submitManagedQr(raw)
-                    }
+                    if (handledScan) true else submitManagedQr(raw).also { handledScan = it }
                 },
                 onManualFallback = launchFullscreenScan,
                 manualFallbackLabel = stringResource(R.string.scan_qr_button),
@@ -646,10 +668,21 @@ fun ScanSensorStep(
                 }
             )
             Text(
-                text = stringResource(R.string.scan_sensor_instruction),
+                text = scanRejection
+                    // The split generation needs the transmitter connection code; the generic
+                    // text sends the user to the sensor box, whose code is then rejected.
+                    ?: if (selectedType == SibionicsType.SIBIONICS2) {
+                        stringResource(R.string.scan_sensor_instruction_sibionics2)
+                    } else {
+                        stringResource(R.string.scan_sensor_instruction)
+                    },
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (scanRejection != null) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.padding(top = if (compact) 10.dp else 12.dp, bottom = if (compact) 16.dp else 20.dp)
             )
 

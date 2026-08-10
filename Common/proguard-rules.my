@@ -113,6 +113,13 @@
 
 -keep class tk.glucodata.CalibrationProfileAccess { *; }
 
+# Keep the native exported-value bridge stable. uploader.cpp and common.cpp resolve
+# these by GetStaticMethodID, which R8 cannot see as a reference: without them the
+# Nightscout uploader and the webserver silently fall back to unsmoothed,
+# uncalibrated stored values in minified builds only. The declarations also carry
+# @Keep; keep the two in sync.
+-keep class tk.glucodata.NightscoutCalibration { *; }
+
 # Keep notification/AOD predictive chart bridge stable. NotificationChartDrawer
 # resolves the mobile-only helper by name so main/wear source sets do not take a
 # direct dependency on mobile prediction/journal classes.

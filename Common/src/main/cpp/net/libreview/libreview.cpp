@@ -508,8 +508,8 @@ static int addcurrents(char *&uitptr, time_t nu,
       int id = i;
       if (settings->data()->libreIsViewed) {
 
-        extern jobject glucosecurve;
-        if (glucosecurve) {
+        extern bool hasglucosecurve();
+        if (hasglucosecurve()) {
           isViewed = true;
         }
         /*

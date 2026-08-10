@@ -1405,6 +1405,13 @@ static bool addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
       if (hist->validPollIndex(lifeCount)) {
         int preservedRaw = 0;
         uint16_t preservedTemp = 0;
+        // A slot holding no value before this write is a gap being filled — backfill arriving
+        // behind the Nightscout cursor, which only ever advances and would otherwise skip it
+        // for good. Note it now, rewind after the store. Guarded on empty->filled so that
+        // rewriting values that are already there (calibration replays) cannot put the
+        // uploader into a resend loop: each gap can trigger at most one rewind.
+        const ScanData *pollsbuf = hist->getPollsData();
+        const bool fillsPollGap = pollsbuf && pollsbuf[lifeCount].g <= 0;
         if (hist->hasStreamID(lifeCount)) {
           const RawData *rawbuf = hist->getRawPollsData();
           if (rawbuf) {
@@ -1427,6 +1434,16 @@ static bool addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
         hist->savepollallIDs<60>(timestamp, lifeCount, mgVal, 0, change,
                                  preservedRaw, preservedTemp);
         stored = true;
+        // nightiter is uint16_t, so a sensor long enough to index past it (46-day Sibionics)
+        // already cannot be tracked by it; leave those alone rather than truncate.
+        if (fillsPollGap && lifeCount <= UINT16_MAX) {
+          if (auto *pollinfo = hist->getinfo();
+              pollinfo && pollinfo->nightiter > lifeCount) {
+            LOGGER("%s: poll %d backfilled behind Nightscout cursor %u; rewinding\n", str,
+                   lifeCount, (unsigned)pollinfo->nightiter);
+            __atomic_store_n(&pollinfo->nightiter, (uint16_t)lifeCount, __ATOMIC_RELAXED);
+          }
+        }
         if (backup) {
           // Kotlin calibration rewrites touch historical stream points. Rewind
           // both stream and history mirror cursors so followers receive the
@@ -1434,6 +1451,15 @@ static bool addGlucoseStreamInternal(JNIEnv *env, jlong timestamp, jfloat glucos
           hist->backstream(lifeCount);
           hist->backhistory(lifeCount);
         }
+      } else {
+        // Dropping a live reading here used to be completely silent: the caller
+        // saw only stored=false, so an Ottai that outgrew its 15-day poll map on
+        // entering extended wear stopped feeding native storage — and therefore
+        // Nightscout — with nothing in the log to say so. Never fail quietly.
+        LOGGER("%s: live reading at %lld DROPPED, lifeCount=%lld outside poll "
+               "capacity=%zu (starttime=%u)\n",
+               str, (long long)timestamp, (long long)lifeCount,
+               hist->pollStorageCapacity(), start);
       }
       setstreaming(hist);
     }

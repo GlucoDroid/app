@@ -900,6 +900,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     
     <string name="scan_sensor_title">Scan QR Code</string>
     <string name="scan_sensor_instruction">Scan the QR code on your generic Sibionics sensor box.</string>
+    <string name="scan_sensor_instruction_sibionics2">Scan the connection code on the Sibionics 2 transmitter, or pick the transmitter from Bluetooth below.</string>
     <string name="scan_qr_button">Scan QR Code</string>
     <string name="select_gallery_button">Select from Gallery</string>
     <string name="skip_fake_sensor">Skip (Use Fake Sensor)</string>
@@ -914,6 +915,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="failed_to_connect">"Failed to connect to "</string>
     <string name="sensor_not_init">Sensor not initialized. Use \'Scan Sensor\' first.</string>
     <string name="invalid_code_format">Invalid code format. Please try again.</string>
+    <string name="sibionics_code_wrong_type">This is a %1$s code. Go back and choose %1$s.</string>
+    <string name="sibionics_code_not_for_type">This code does not belong to %1$s. Go back and choose the matching sensor type.</string>
+    <string name="sibionics_serial_wrong_type">This serial does not match %1$s. Go back and choose the matching sensor type.</string>
     <string name="no_qr_found">No QR code found in image</string>
     
     <!-- ComposeHost Strings -->
@@ -1038,7 +1042,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_possible">Possible CGM</string>
     <string name="ottai_ble_scan_unknown">Other CGM</string>
     <string name="ottai_ble_scan_registered">Already added</string>
-    <string name="ottai_ble_scan_registered_hint">A sensor that is already connected stops advertising, so it cannot show up in the scan above.</string>
+    <string name="ottai_ble_scan_registered_hint">Sensors you already added stay connected, so they stop advertising and cannot appear in the scan.</string>
+    <string name="ottai_ble_scan_connected">Connected now</string>
+    <string name="ottai_ble_scan_weak">Weak signal</string>
+    <string name="ottai_ble_scan_weak_hint">Weaker than the −70 dBm the official app requires. Move the phone closer to confirm.</string>
     <!-- Ottai wizard: entry / login modes / sensor list / advanced -->
     <string name="ottai_entry_import_title">Import credentials file</string>
     <string name="ottai_entry_import_desc">Use a saved .json — no account or network needed.</string>
@@ -1862,7 +1869,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_modd_description">Mean of daily differences: how far the same clock time differs from one day to the next. A low value means your days repeat, which is what makes a routine adjustable.</string>
     <string name="stats_metric_streak">Best streak</string>
     <string name="stats_metric_streak_description">Longest run of consecutive days at 70%% or more in range.</string>
-    <string name="stats_metric_streak_meta">days at 70%%+</string>
+    <string name="stats_metric_streak_meta">days at 70%+</string>
     <string name="stats_metric_readings">%1$d readings</string>
     <string name="stats_metrics_all_hidden">Every metric is hidden. Add some back from Arrange.</string>
     <string name="stats_hourly_exposure">24-hour exposure</string>
@@ -2016,6 +2023,10 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Carb absorption</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">Dose target</string>
+    <string name="predictive_dose_target_explanation">Insulin and carb suggestions correct toward this value. It is separate from the in-range band shown on the chart.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Forecast horizon</string>
     <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_dose_math_title">Dose calculator</string>
@@ -2663,4 +2674,32 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="app_updates_source_invalid">Enter an https:// address.</string>
     <string name="app_updates_source_reset">Use default</string>
     <string name="app_updates_action_save">Save</string>
+    <string name="insulin_pens_title">Insulin pens</string>
+    <string name="insulin_pens_desc">NovoPen doses over NFC</string>
+    <string name="insulin_pens_enable_title">Read insulin pens</string>
+    <string name="insulin_pens_enable_desc">Hold an NFC pen against the phone to add its doses</string>
+    <string name="insulin_pens_how_title">How to read a pen</string>
+    <string name="insulin_pens_how_desc">Press the pen\'s dose button so the display lights up, then hold the display against the top of the phone until it vibrates.</string>
+    <string name="insulin_pens_paired">Your pens</string>
+    <string name="insulin_pens_none">No pens yet</string>
+    <string name="insulin_pens_none_desc">Hold a pen against the phone and it appears here.</string>
+    <string name="insulin_pen_name">Pen %1$s</string>
+    <string name="insulin_pen_insulin_unset">No insulin chosen</string>
+    <string name="insulin_pen_dose_count">%1$d doses added</string>
+    <string name="insulin_pen_last_read">read %1$s</string>
+    <string name="insulin_pen_never_read">not read yet</string>
+    <string name="insulin_pen_choose_insulin">Which insulin is in this pen?</string>
+    <string name="insulin_pen_forget">Forget pen</string>
+    <string name="insulin_pen_forget_confirm">Forget pen %1$s?</string>
+    <string name="insulin_pen_forget_desc">Doses already in the journal stay there.</string>
+    <string name="insulin_pen_new_doses">%1$d new doses</string>
+    <string name="insulin_pen_no_new_doses">Pen read. No new doses.</string>
+    <string name="insulin_pen_doses_label">Doses</string>
+    <string name="insulin_pen_select_all">Select all</string>
+    <string name="insulin_pen_select_none">Clear</string>
+    <string name="insulin_pen_units">%1$s U</string>
+    <string name="insulin_pen_priming">Air shot</string>
+    <string name="insulin_pen_add_doses">Add %1$d doses</string>
+    <string name="insulin_pen_doses_added">%1$d doses added to the journal</string>
+    <string name="insulin_pens_journal_off">The journal is switched off, so imported doses would not be shown anywhere.</string>
 </resources>

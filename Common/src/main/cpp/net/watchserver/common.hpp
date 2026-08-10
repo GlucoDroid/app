@@ -214,3 +214,4 @@ const ScanData *makeExportedScan(const SensorGlucoseData *sens,
                                  const sensorname_t *sensorname,
                                  ScanData &storage);
 int getExchangeOutputIntervalSeconds();
+int getExchangeSmoothingSeconds();

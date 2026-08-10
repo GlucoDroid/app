@@ -120,11 +120,51 @@ class OttaiWarmupContinuityTests {
         assertTrue(gate.offer(Sample(dataNo + 1, 4.1f, 6_100)))
     }
 
+    @Test
+    fun continuityGate_isNotPoisonedByAnOlderBackfillRecord() {
+        // 2026-08-07, 6CA04230E260. A hole retry for [0,1) returned the sensor's first minute —
+        // dataNo 0, 7.70 mmol, raw 19091, from two weeks earlier — on the same accept path live
+        // readings use. It replaced the 5.00 mmol baseline, and the next three live samples were
+        // refused as one-minute excursions until the yield valve re-baselined the gate: 20:02
+        // through 20:04 lost, with the sensor streaming normally throughout.
+        val gate = ContinuityGate()
+        assertTrue(gate.offer(Sample(21_437, 5.00f, 13_073)))
+        // Still accepted — it is a real record and belongs in history.
+        assertTrue(gate.offer(Sample(0, 7.70f, 19_091)))
+        assertTrue(gate.offer(Sample(21_438, 5.00f, 13_057)))
+        assertTrue(gate.offer(Sample(21_439, 5.00f, 13_018)))
+        assertTrue(gate.offer(Sample(21_440, 5.00f, 13_042)))
+    }
+
+    @Test
+    fun continuityGate_theStaleBaselineIsWhatRefusedTheLiveStream() {
+        // Pin the mechanism: against the stale dataNo=0 record the live sample really does look
+        // like an excursion, so nothing but the baseline itself was wrong.
+        assertTrue(
+            OttaiOutputFilter.isOneMinuteRawExcursion(
+                candidateMmol = 5.00f,
+                candidateRaw = 13_057,
+                baselineMmol = 7.70f,
+                baselineRaw = 19_091,
+            )
+        )
+        // And the record that should have been the baseline passes cleanly.
+        assertFalse(
+            OttaiOutputFilter.isOneMinuteRawExcursion(
+                candidateMmol = 5.00f,
+                candidateRaw = 13_057,
+                baselineMmol = 5.00f,
+                baselineRaw = 13_073,
+            )
+        )
+    }
+
     /**
      * Mirrors the accept/reject bookkeeping of OttaiBleManager.emitReading around the continuity
      * gate, using the same pure predicates the driver calls.
      */
     private class ContinuityGate {
+        private var baselineDataNo = -1
         private var baselineMmol = Float.NaN
         private var baselineRaw = 0
         private var evaluatedDataNo = -1
@@ -154,10 +194,14 @@ class OttaiWarmupContinuityTests {
         }
 
         private fun accept(s: Sample) {
+            noteEvaluated(s)
+            // The baseline only moves forward: history is accepted on this same path, and an old
+            // backfill record must not become the reference for the live stream.
+            if (baselineDataNo >= 0 && s.dataNo < baselineDataNo) return
+            baselineDataNo = s.dataNo
             baselineMmol = s.mmol
             baselineRaw = s.raw
             consecutiveRejects = 0
-            noteEvaluated(s)
         }
 
         private fun noteEvaluated(s: Sample) {

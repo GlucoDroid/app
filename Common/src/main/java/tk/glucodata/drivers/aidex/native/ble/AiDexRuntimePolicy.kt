@@ -134,10 +134,18 @@ internal object AiDexRuntimePolicy {
         return !hasModelMetadata || !hasAuthoritativeSessionStart || !hasSensorReportedWearDays
     }
 
+    /**
+     * [calibrationRangeKnownEmpty] is set once the sensor has answered `GET_CALIBRATION_RANGE`
+     * with an empty range. A sensor that has never been calibrated would otherwise keep the
+     * routine refresh armed forever, since it can never populate the record cache.
+     */
     fun shouldRequestRoutineCalibrationRefresh(
         hasCachedCalibrationRecords: Boolean,
         calibrationDownloading: Boolean,
-    ): Boolean = !hasCachedCalibrationRecords && !calibrationDownloading
+        calibrationRangeKnownEmpty: Boolean = false,
+    ): Boolean = !hasCachedCalibrationRecords &&
+        !calibrationDownloading &&
+        !calibrationRangeKnownEmpty
 
     fun shouldRunOptionalStreamingSync(
         phase: AiDexBleManager.Phase,

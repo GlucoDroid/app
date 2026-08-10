@@ -355,6 +355,7 @@ fun DashboardScreen(
     val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
     val predictionInsulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
     val predictionModelProfile by viewModel.predictionModelProfile.collectAsState()
+    val predictionDoseTargetMgDl by viewModel.predictionDoseTargetMgDl.collectAsState()
     val predictionCarbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
     val predictionHorizonMinutes by viewModel.predictionHorizonMinutes.collectAsState()
     val journalEntries by viewModel.journalEntries.collectAsState()
@@ -502,7 +503,7 @@ fun DashboardScreen(
         viewMode,
         unit,
         targetLow,
-        targetHigh,
+        predictionDoseTargetMgDl,
         predictionSettings,
         journalNow
     ) {
@@ -523,7 +524,7 @@ fun DashboardScreen(
                     predictionPoints = it.points,
                     unit = unit,
                     targetLow = targetLow,
-                    targetHigh = targetHigh,
+                    doseTargetMgDl = predictionDoseTargetMgDl,
                     settings = predictionSettings,
                     nowMillis = journalNow,
                     maxBaselineAgeMillis = Notify.glucosetimeout
@@ -806,11 +807,7 @@ fun DashboardScreen(
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                 foodMacrosEnabled = journalFoodMacrosEnabled,
                 modelProfile = predictionModelProfile,
-                targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
-                    tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
-                } else {
-                    targetHigh
-                }
+                targetMgDl = predictionDoseTargetMgDl
             ),
             initialType = request.type,
             existingEntry = request.existingEntry,

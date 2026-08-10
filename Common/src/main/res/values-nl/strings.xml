@@ -509,6 +509,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     
     <string name="scan_sensor_title">Scan QR-code</string>
     <string name="scan_sensor_instruction">Scan de QR-code op je generieke Sibionics-sensordoos.</string>
+    <string name="scan_sensor_instruction_sibionics2">Scan de verbindingscode op de Sibionics 2-zender, of kies de zender hieronder via Bluetooth.</string>
     <string name="scan_qr_button">QR-code scannen</string>
     <string name="select_gallery_button">Selecteer uit galerij</string>
     <string name="skip_fake_sensor">Overslaan (Gebruik nepsensor)</string>
@@ -522,6 +523,9 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="failed_to_connect">"Verbinding mislukt met "</string>
     <string name="sensor_not_init">Sensor niet geïnitialiseerd. Gebruik eerst \'Scan Sensor\'.</string>
     <string name="invalid_code_format">Ongeldige code-indeling. Probeer het opnieuw.</string>
+    <string name="sibionics_code_wrong_type">Dit is een %1$s-code. Ga terug en kies %1$s.</string>
+    <string name="sibionics_code_not_for_type">Deze code hoort niet bij %1$s. Ga terug en kies het juiste sensortype.</string>
+    <string name="sibionics_serial_wrong_type">Dit serienummer past niet bij %1$s. Ga terug en kies het juiste sensortype.</string>
     <string name="no_qr_found">Geen QR-code gevonden in afbeelding</string>
     
     <string name="go">Ga</string>
@@ -1562,6 +1566,10 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Koolhydraatabsorptie</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">Doelwaarde voor dosering</string>
+    <string name="predictive_dose_target_explanation">Insuline- en koolhydraatsuggesties corrigeren naar deze waarde. Die staat los van het streefbereik op de grafiek.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Voorspellingshorizon</string>
     <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_dose_math_title">Dosiscalculator</string>
@@ -1984,7 +1992,10 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_ble_scan_possible">Mogelijke CGM</string>
     <string name="ottai_ble_scan_unknown">Andere CGM</string>
     <string name="ottai_ble_scan_registered">Al toegevoegd</string>
-    <string name="ottai_ble_scan_registered_hint">Een al verbonden sensor stopt met adverteren en verschijnt daarom niet in de lijst hierboven.</string>
+    <string name="ottai_ble_scan_registered_hint">Al toegevoegde sensoren blijven verbonden, stoppen daarom met adverteren en kunnen niet in de zoekopdracht verschijnen.</string>
+    <string name="ottai_ble_scan_connected">Nu verbonden</string>
+    <string name="ottai_ble_scan_weak">Zwak signaal</string>
+    <string name="ottai_ble_scan_weak_hint">Zwakker dan de −70 dBm die de officiële app vereist. Houd de telefoon dichterbij om te bevestigen.</string>
     <string name="ottai_account_hint">E-mail of gebruikersnaam</string>
     <string name="ottai_account_note">Meld je aan met je e-mail of je gebruikersnaam.</string>
     <string name="ottai_code_sent_email">Code verzonden naar %1$s</string>
@@ -2296,7 +2307,7 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_metric_modd_description">Gemiddelde van dagelijkse verschillen: hoe ver hetzelfde klokuur van de ene dag op de andere verschilt. Een lage waarde betekent dat je dagen zich herhalen, en dat maakt een routine bij te sturen.</string>
     <string name="stats_metric_streak">Beste reeks</string>
     <string name="stats_metric_streak_description">Langste reeks opeenvolgende dagen met 70%% of meer in bereik.</string>
-    <string name="stats_metric_streak_meta">dagen op 70%%+</string>
+    <string name="stats_metric_streak_meta">dagen op 70%+</string>
     <string name="stats_pinned_add">Toevoegen</string>
     <string name="stats_pinned_pick_title">Op Dashboard tonen</string>
     <string name="stats_pinned_remove">Van Dashboard verwijderen</string>
@@ -2460,4 +2471,32 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="app_updates_source_invalid">Voer een https://-adres in.</string>
     <string name="app_updates_source_reset">Standaard gebruiken</string>
     <string name="app_updates_action_save">Opslaan</string>
+    <string name="insulin_pens_title">Insulinepennen</string>
+    <string name="insulin_pens_desc">NovoPen-doses via NFC</string>
+    <string name="insulin_pens_enable_title">Insulinepennen uitlezen</string>
+    <string name="insulin_pens_enable_desc">Houd een NFC-pen tegen de telefoon om de doses toe te voegen</string>
+    <string name="insulin_pens_how_title">Een pen uitlezen</string>
+    <string name="insulin_pens_how_desc">Druk op de doseerknop zodat het scherm van de pen oplicht en houd dat scherm tegen de bovenkant van de telefoon tot deze trilt.</string>
+    <string name="insulin_pens_paired">Jouw pennen</string>
+    <string name="insulin_pens_none">Nog geen pennen</string>
+    <string name="insulin_pens_none_desc">Houd een pen tegen de telefoon en hij verschijnt hier.</string>
+    <string name="insulin_pen_name">Pen %1$s</string>
+    <string name="insulin_pen_insulin_unset">Geen insuline gekozen</string>
+    <string name="insulin_pen_dose_count">%1$d doses toegevoegd</string>
+    <string name="insulin_pen_last_read">gelezen %1$s</string>
+    <string name="insulin_pen_never_read">nog niet gelezen</string>
+    <string name="insulin_pen_choose_insulin">Welke insuline zit in deze pen?</string>
+    <string name="insulin_pen_forget">Pen vergeten</string>
+    <string name="insulin_pen_forget_confirm">Pen %1$s vergeten?</string>
+    <string name="insulin_pen_forget_desc">Doses die al in het dagboek staan, blijven staan.</string>
+    <string name="insulin_pen_new_doses">%1$d nieuwe doses</string>
+    <string name="insulin_pen_no_new_doses">Pen gelezen. Geen nieuwe doses.</string>
+    <string name="insulin_pen_doses_label">Doses</string>
+    <string name="insulin_pen_select_all">Alles selecteren</string>
+    <string name="insulin_pen_select_none">Wissen</string>
+    <string name="insulin_pen_units">%1$s E</string>
+    <string name="insulin_pen_priming">Ontluchting</string>
+    <string name="insulin_pen_add_doses">%1$d doses toevoegen</string>
+    <string name="insulin_pen_doses_added">%1$d doses toegevoegd aan het dagboek</string>
+    <string name="insulin_pens_journal_off">Het dagboek staat uit, dus ingelezen doses worden nergens getoond.</string>
 </resources>

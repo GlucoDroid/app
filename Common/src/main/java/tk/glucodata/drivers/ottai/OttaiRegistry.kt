@@ -252,6 +252,19 @@ object OttaiRegistry {
     fun removeSensor(context: Context, sensorId: String?) {
         val id = sensorId?.trim() ?: return
         val canonical = OttaiConstants.canonicalSensorId(id).ifEmpty { id }
+        // When this sensor started is the one fact removal must not destroy. It takes a BLE
+        // session to re-derive, and the cloud does not reliably carry it — a re-bind answers with
+        // activeTime = now, or with nothing at all. Wiped, a sensor two weeks into its life came
+        // back from a remove/re-add reading "Ready to activate" and offering to start warmup
+        // (2026-08-07, 6CA04230E260, real start 2026-07-23).
+        //
+        // Carry it into the provisional slot, whose meaning is exactly "a start recovered locally
+        // that the cloud has not confirmed": a later cloud activeTime still overrides it, and it
+        // cannot resurrect the sensor on its own, because every managed-connection path reaches
+        // it only through a persisted record that this call just deleted.
+        val recoveredStartMs = loadMaterials(context, canonical).activeTimeMs
+            .takeIf { it > 0L }
+            ?: loadProvisionalActiveTime(context, canonical)
         writeRecords(context, persistedRecords(context).filter { !it.matchesId(canonical) })
         writeRecords(
             context,
@@ -264,7 +277,10 @@ object OttaiRegistry {
                 OttaiConstants.PREF_COEFF_PREFIX, OttaiConstants.PREF_ACTIVE_TIME_PREFIX,
                 OttaiConstants.PREF_PROVISIONAL_ACTIVE_TIME_PREFIX,
                 OttaiConstants.PREF_ACTIVE_EXPIRE_PREFIX, OttaiConstants.PREF_RETAIN_TIME_PREFIX,
-                OttaiConstants.PREF_ACCEPTED_MAX_ACTIVE_PREFIX,
+                // PREF_ACCEPTED_MAX_ACTIVE is deliberately NOT in this list: it is the lifetime
+                // the sensor itself accepted at activation, kept for the same reason as the start
+                // below. Dropping it sends an extended 28-day unit back to the 15-day rated
+                // default, which reads as EXPIRED partway through a working sensor.
                 OttaiConstants.PREF_PREHEAT_PERIOD_PREFIX,
                 OttaiConstants.PREF_DEVICE_VERSION_PREFIX, OttaiConstants.PREF_LAST_DATA_NO_PREFIX,
                 OttaiConstants.PREF_DEVICE_ID_PREFIX, OttaiConstants.PREF_ACTIVATION_ATTEMPTED_PREFIX,
@@ -274,6 +290,7 @@ object OttaiRegistry {
                 OttaiConstants.PREF_TEMPERATURE_HISTORY_PREFIX,
             ).forEach { remove(it + canonical) }
         }.apply()
+        saveProvisionalActiveTime(context, canonical, recoveredStartMs)
     }
 
     // ---- per-sensor materials ----

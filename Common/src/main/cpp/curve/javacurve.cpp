@@ -3,6 +3,7 @@
 #include "sensoren.hpp"
 #include "share/logs.hpp"
 #include <jni.h>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <sys/prctl.h>
@@ -71,14 +72,33 @@ extern int badscanMessage(NVGcontext *avg, int kind);
 
 jobject glucosecurve = 0;
 
+/* glucosecurve is written by the UI thread (onResume/onStop) and read by the
+   native worker threads, which call into it from render()/visiblebutton()/
+   callshowsensorinfo(). Replacing it without a lock let a worker pass an
+   already-deleted global ref to CallVoidMethod and crash the process in
+   art::InvokeVirtualOrInterfaceWithVarArgs. Readers take a local ref under the
+   lock, so the object stays alive for the duration of the upcall even if the UI
+   thread swaps the global out in the meantime. */
+static std::mutex glucosecurvemutex;
+
+/* For callers that only need to know whether the UI is attached. */
+bool hasglucosecurve() {
+  const std::lock_guard<std::mutex> lock(glucosecurvemutex);
+  return glucosecurve != nullptr;
+}
+
 extern "C" JNIEXPORT void JNICALL fromjava(setpaused)(JNIEnv *env, jclass cl,
                                                       jobject val) {
-  if (glucosecurve)
-    env->DeleteGlobalRef(glucosecurve);
-  if (val)
-    glucosecurve = env->NewGlobalRef(val);
-  else
-    glucosecurve = nullptr;
+  jobject old;
+  {
+    const std::lock_guard<std::mutex> lock(glucosecurvemutex);
+    old = glucosecurve;
+    glucosecurve = val ? env->NewGlobalRef(val) : nullptr;
+  }
+  /* Only now that no reader can reach it any more. Readers that got in before
+     the swap already hold a local ref that keeps the object alive. */
+  if (old)
+    env->DeleteGlobalRef(old);
 }
 #ifndef NOJAVA
 JavaVM *vmptr;
@@ -563,32 +583,47 @@ if(!jchangedProfile)  {
   }
 getenv()->CallStaticVoidMethod(JNIApplic,jchangedProfile);
 } */
+/* Returns a local ref the caller must release, or nullptr when no curve is
+   attached. Attaching this thread to the VM is left as late as the original
+   code did it: only once there is something to call. */
+static jobject getglucosecurve() {
+  const std::lock_guard<std::mutex> lock(glucosecurvemutex);
+  return glucosecurve ? getenv()->NewLocalRef(glucosecurve) : nullptr;
+}
+
 void visiblebutton() {
-  if (glucosecurve) {
+  if (jobject curve = getglucosecurve()) {
+    JNIEnv *env = getenv();
     if (summaryready) {
-      JNIEnv *env = getenv();
       LOGAR("call summaryready");
-      env->CallVoidMethod(glucosecurve, summaryready);
+      env->CallVoidMethod(curve, summaryready);
     } else
       LOGAR("didn't find GlucoseCurve");
+    env->DeleteLocalRef(curve);
   }
 }
 
 void callshowsensorinfo(const char *text, SensorGlucoseData *sensorptr) {
-  if (glucosecurve) {
+  if (jobject curve = getglucosecurve()) {
+    JNIEnv *env = getenv();
     if (showsensorinfo) {
-      JNIEnv *env = getenv();
       LOGAR("call showsensorinfo");
-      env->CallVoidMethod(glucosecurve, showsensorinfo, env->NewStringUTF(text),
+      /* These threads are attached as daemons and never return to Java, so
+         local refs they create are only reclaimed by deleting them here. */
+      jstring jtext = env->NewStringUTF(text);
+      env->CallVoidMethod(curve, showsensorinfo, jtext,
                           reinterpret_cast<jlong>(sensorptr));
+      env->DeleteLocalRef(jtext);
     } else
       LOGAR("didn't find GlucoseCurve");
+    env->DeleteLocalRef(curve);
   }
 }
 
 void render() {
   LOGAR("Render");
-  if (glucosecurve) {
+  if (jobject curve = getglucosecurve()) {
+    JNIEnv *env = getenv();
     struct method {
       jmethodID requestRendermeth;
       method(JNIEnv *env) {
@@ -597,8 +632,9 @@ void render() {
         env->DeleteLocalRef(cl);
       };
     };
-    static method meth(getenv());
-    getenv()->CallVoidMethod(glucosecurve, meth.requestRendermeth);
+    static method meth(env);
+    env->CallVoidMethod(curve, meth.requestRendermeth);
+    env->DeleteLocalRef(curve);
   }
   //   onestep();
 }

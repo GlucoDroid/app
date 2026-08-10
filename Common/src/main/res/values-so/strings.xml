@@ -848,6 +848,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     
     <string name="scan_sensor_title">Sawir code-ka QR</string>
     <string name="scan_sensor_instruction">Ka sawir koodka QR ee sanduuqa dareenka guud ee Sibionics.</string>
+    <string name="scan_sensor_instruction_sibionics2">Sawir koodhka isku xirka ee ku yaal gudbiyaha Sibionics 2, ama hoos kaga dooro gudbiyaha Bluetooth-ka.</string>
     <string name="scan_qr_button">Sawir code-ka QR</string>
     <string name="select_gallery_button">Ka dooro Gallery</string>
     <string name="skip_fake_sensor">Ka bood (Isticmaal sensor been abuur ah)</string>
@@ -862,6 +863,9 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="failed_to_connect">"waa ku guuldareystay in lagu xiro"</string>
     <string name="sensor_not_init">Dareemaha lama bilaabin Isticmaal \'Scan Sensor\' marka hore.</string>
     <string name="invalid_code_format">Qaab kood aan sax ahayn Fadlan isku day mar kale</string>
+    <string name="sibionics_code_wrong_type">Kani waa kood %1$s. Dib u noqo oo dooro %1$s.</string>
+    <string name="sibionics_code_not_for_type">Koodkan kuma eka %1$s. Dib u noqo oo dooro nooca dareemaha ku habboon.</string>
+    <string name="sibionics_serial_wrong_type">Lambarkan taxanaha lama mid aha %1$s. Dib u noqo oo dooro nooca dareemaha ku habboon.</string>
     <string name="no_qr_found">Ma jiro summada QR ee sawirka laga helay</string>
     
     <!-- ComposeHost Strings -->
@@ -976,7 +980,10 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="ottai_ble_scan_possible">CGM suurtagal ah</string>
     <string name="ottai_ble_scan_unknown">CGM kale</string>
     <string name="ottai_ble_scan_registered">Hore ayaa loogu daray</string>
-    <string name="ottai_ble_scan_registered_hint">Dareeme hore u xiran wuu joojiyaa baahinta, sidaas darteed kuma muuqan doono liiska kore.</string>
+    <string name="ottai_ble_scan_registered_hint">Dareemayaasha horey loogu daray way xiran yihiin, sidaas darteed way joojiyaan baahinta oo kama muuqan karaan raadinta.</string>
+    <string name="ottai_ble_scan_connected">Hadda wuu xiran yahay</string>
+    <string name="ottai_ble_scan_weak">Calaamad daciif ah</string>
+    <string name="ottai_ble_scan_weak_hint">Ka daciifsan −70 dBm ee uu u baahan yahay abka rasmiga ah. U soo dhoweey taleefanka si aad u xaqiijiso.</string>
     <!-- Ottai wizard: entry / login modes / sensor list / advanced -->
     <string name="ottai_entry_import_title">Soo rar faylka aqoonsiga</string>
     <string name="ottai_entry_import_desc">Isticmaal .json kaydsan - xisaab ama shabakad looma baahna.</string>
@@ -1798,6 +1805,10 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">nuugista karbohaydraytyada</string>
     <string name="predictive_absorption_value">%1$.0f g/saacaddii</string>
+    <string name="predictive_dose_target">Bartilmaameedka qiyaasta</string>
+    <string name="predictive_dose_target_explanation">Talooyinka insuliinta iyo kaarbohaydraytka waxay saxaan ilaa qiimahan. Wuu ka duwan yahay xadka bartilmaameedka ee garaafka lagu muujiyay.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Saadaasha hawada sare</string>
     <string name="predictive_horizon_value">%1$d daq</string>
     <string name="journal_dose_math_title">Xisaabiyaha qiyaasta</string>
@@ -2453,7 +2464,7 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="stats_metric_modd_description">Celceliska kala duwanaanshaha maalinlaha ah: intee saacaddaa isku ah uga duwan tahay maalin ilaa midda xigta. Qiime hooseeya wuxuu ka dhigan yahay in maalmahaagu isku celceliyaan, taasna waa waxa nidaamka la hagaajin karo ka dhigaya.</string>
     <string name="stats_metric_streak">Xariiqda ugu fiican</string>
     <string name="stats_metric_streak_description">Xariiqda ugu dheer ee maalmo isku xiga oo heerka ku jira 70%% ama ka badan.</string>
-    <string name="stats_metric_streak_meta">maalmood 70%%+</string>
+    <string name="stats_metric_streak_meta">maalmood 70%+</string>
     <string name="stats_pinned_add">Ku dar</string>
     <string name="stats_pinned_pick_title">Ku muuji Dashboard-ka</string>
     <string name="stats_pinned_remove">Ka saar Dashboard-ka</string>
@@ -2617,4 +2628,32 @@ Marka la cadaadiyo OK waxay dhalin doontaa xidhiidh teleefankan oo waxa ay soo b
     <string name="app_updates_source_invalid">Geli cinwaan https:// ah.</string>
     <string name="app_updates_source_reset">Isticmaal caadiga</string>
     <string name="app_updates_action_save">Kaydi</string>
+    <string name="insulin_pens_title">Qalimaanta insuliinta</string>
+    <string name="insulin_pens_desc">Qiyaasaha NovoPen ee NFC</string>
+    <string name="insulin_pens_enable_title">Akhri qalimaanta insuliinta</string>
+    <string name="insulin_pens_enable_desc">Qalinka NFC-ga taabsii taleefanka si qiyaasihiisa loogu daro</string>
+    <string name="insulin_pens_how_title">Sida loo akhriyo qalinka</string>
+    <string name="insulin_pens_how_desc">Riix badhanka qiyaasta ilaa shaashadda qalinka ay iftiimiso, kadibna ku hay shaashadda qaybta sare ee taleefanka ilaa uu gariiro.</string>
+    <string name="insulin_pens_paired">Qalimaankaaga</string>
+    <string name="insulin_pens_none">Weli qalin ma jiro</string>
+    <string name="insulin_pens_none_desc">Qalin taabsii taleefanka, halkanna wuu ka soo muuqan doonaa.</string>
+    <string name="insulin_pen_name">Qalin %1$s</string>
+    <string name="insulin_pen_insulin_unset">Insuliin lama dooran</string>
+    <string name="insulin_pen_dose_count">%1$d qiyaas ayaa lagu daray</string>
+    <string name="insulin_pen_last_read">la akhriyay %1$s</string>
+    <string name="insulin_pen_never_read">weli lama akhrin</string>
+    <string name="insulin_pen_choose_insulin">Insuliinteed baa qalinkan ku jirta?</string>
+    <string name="insulin_pen_forget">Iloow qalinka</string>
+    <string name="insulin_pen_forget_confirm">Ma iloowdaa qalinka %1$s?</string>
+    <string name="insulin_pen_forget_desc">Qiyaasaha horey ugu jiray xusuus-qorka way sii jiraan.</string>
+    <string name="insulin_pen_new_doses">%1$d qiyaas oo cusub</string>
+    <string name="insulin_pen_no_new_doses">Qalinka waa la akhriyay. Qiyaas cusub ma jiro.</string>
+    <string name="insulin_pen_doses_label">Qiyaasaha</string>
+    <string name="insulin_pen_select_all">Dhammaan dooro</string>
+    <string name="insulin_pen_select_none">Nadiifi</string>
+    <string name="insulin_pen_units">%1$s U</string>
+    <string name="insulin_pen_priming">Hawo-bixin</string>
+    <string name="insulin_pen_add_doses">Ku dar %1$d qiyaas</string>
+    <string name="insulin_pen_doses_added">%1$d qiyaas ayaa xusuus-qorka lagu daray</string>
+    <string name="insulin_pens_journal_off">Xusuus-qorka waa la damiyay, sidaas darteed qiyaasaha la soo geliyo meelna kama muuqan doonaan.</string>
 </resources>

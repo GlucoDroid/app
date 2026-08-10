@@ -382,7 +382,7 @@ class DataFrameParsingTests {
     @Test
     fun testParseDataFrame_RawrExample() {
         // From rawr.txt: 01 00 02 00 2B 00 3F 84 4F 03 86 0B 43 02 00 7D CE
-        // bytes[1..4] = 00 02 00 2B → u32LE = 0x2B000200 = 721420800 seconds → 12023680 minutes
+        // bytes[4..5] = 2B 00 → u16LE = 43 minutes since sensor start
         // glucose = bytes[6..7] LE with mask 0x03FF = 0x843F & 0x03FF = 63 mg/dL
         // i1 = bytes[8..9] LE = 0x034F / 100 = 8.47
         // i2 = bytes[10..11] LE = 0x0B86 / 100 = 29.50
@@ -396,7 +396,7 @@ class DataFrameParsingTests {
         assertNotNull(parsed)
 
         assertEquals(0x01, parsed!!.opcode)
-        assertEquals(12023680, parsed.timeOffsetMinutes) // 0x2B000200 / 60
+        assertEquals(43, parsed.timeOffsetMinutes) // u16LE(bytes[4..5]) = 0x002B
         // rawGlucosePacked = 0x843F, glucose = 0x843F & 0x03FF = 0x003F = 63
         assertEquals(0x843F, parsed.rawGlucosePacked)
         assertEquals(63.0f, parsed.glucoseMgDl, 0.01f)
@@ -455,18 +455,33 @@ class DataFrameParsingTests {
     fun testParseDataFrame_TimeOffsetMinutes() {
         val frame = ByteArray(17)
         frame[0] = 0xA1.toByte() // valid direct opcode
-        // bytes[1..4]: 900 seconds (15 minutes) = 0x00000384 LE = 84 03 00 00
+        // bytes[4..5]: 15 minutes = 0x000F LE = 0F 00
+        frame[4] = 0x0F
+        frame[5] = 0x00
+        // Bytes 1..3 are not the offset; fill them to prove they are ignored.
         frame[1] = 0x84.toByte()
         frame[2] = 0x03
-        frame[3] = 0x00
-        frame[4] = 0x00
+        frame[3] = 0xFF.toByte()
         frame[6] = 80  // rawGlucose = 80 (valid)
         frame[7] = 0x00
         val parsed = AiDexParser.parseDataFrame(frame)
         assertNotNull(parsed)
-        assertEquals(15, parsed!!.timeOffsetMinutes) // 900 / 60 = 15
+        assertEquals(15, parsed!!.timeOffsetMinutes)
         assertEquals(80.0f, parsed.glucoseMgDl, 0.01f)
         assertTrue(parsed.isValid)
+    }
+
+    @Test
+    fun testParseDataFrame_TimeOffsetUsesBothBytes() {
+        val frame = ByteArray(17)
+        frame[0] = 0xA1.toByte()
+        frame[4] = 0xED.toByte() // 2285 = 0x08ED
+        frame[5] = 0x08
+        frame[6] = 80
+        frame[7] = 0x00
+        val parsed = AiDexParser.parseDataFrame(frame)
+        assertNotNull(parsed)
+        assertEquals(2285, parsed!!.timeOffsetMinutes)
     }
 
     @Test

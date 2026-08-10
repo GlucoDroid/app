@@ -440,7 +440,10 @@ private fun MQScanStep(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(220.dp),
-                            onScanResult = onQrCodeChanged,
+                            onScanResult = { raw ->
+                                onQrCodeChanged(raw)
+                                true
+                            },
                         )
                         Spacer(Modifier.height(8.dp))
                         if (qrCodeContent.isNotBlank()) {
