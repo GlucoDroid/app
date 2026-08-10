@@ -1143,6 +1143,11 @@ internal fun PinnedStatsStrip(
     modifier: Modifier = Modifier,
     rows: Int = 1,
     windowState: MutableState<PinnedWindow> = rememberSaveable { mutableStateOf(PinnedWindow.TODAY) },
+    // Not just rememberSaveable inside the strip: portrait and landscape compose this from two
+    // different call sites (same reason windowState above is hoisted), so state living here was
+    // silently discarded — closing the open metric picker — on every rotation. Callers that
+    // render both orientations must hoist and pass their own, like DashboardScreen.kt does.
+    editingSlotState: MutableState<Int?> = rememberSaveable { mutableStateOf<Int?>(null) },
 ) {
     val context = LocalContext.current
     LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
@@ -1157,7 +1162,7 @@ internal fun PinnedStatsStrip(
     if (pinned.isEmpty() || pinnedState.summary.readingCount == 0) return
 
     // -1 means the picker was opened from the add slot.
-    var editingSlot by remember { mutableStateOf<Int?>(null) }
+    var editingSlot by editingSlotState
     val dragState = rememberMetricDragState(
         order = pinned,
         onReordered = StatsLayoutStore::setDashboardMetrics

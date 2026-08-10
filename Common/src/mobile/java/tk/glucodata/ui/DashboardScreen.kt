@@ -331,6 +331,9 @@ fun DashboardScreen(
     val pinnedStatsWindow = rememberSaveable {
         mutableStateOf(tk.glucodata.ui.stats.PinnedWindow.TODAY)
     }
+    // Same reason as pinnedStatsWindow above: owned here so the open metric picker survives
+    // the portrait/landscape call-site swap instead of silently closing on rotation.
+    val pinnedStatsEditingSlot = rememberSaveable { mutableStateOf<Int?>(null) }
     val chartSmoothingMinutes by viewModel.chartSmoothingMinutes.collectAsState()
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
@@ -1359,7 +1362,8 @@ fun DashboardScreen(
                         item {
                             tk.glucodata.ui.stats.PinnedStatsStrip(
                                 rows = 2,
-                                windowState = pinnedStatsWindow
+                                windowState = pinnedStatsWindow,
+                                editingSlotState = pinnedStatsEditingSlot
                             )
                         }
                     }
@@ -1788,7 +1792,8 @@ fun DashboardScreen(
                                 // welded to the chart card once the chart collapses.
                                 top = 8.dp
                             ),
-                            windowState = pinnedStatsWindow
+                            windowState = pinnedStatsWindow,
+                            editingSlotState = pinnedStatsEditingSlot
                         )
                     }
 }
