@@ -46,6 +46,7 @@ import java.lang.Math.min
 
 class ArrowValueDataSourceService: SuspendingComplicationDataSourceService()  {
 private var glview: GlucoseValue? =null
+private val iconView = GlucoseValue(150,150)
 
     override fun onComplicationActivated( complicationInstanceId: Int, type: ComplicationType) {
         Log.d(LOG_ID, "onComplicationActivated(): $complicationInstanceId")
@@ -74,7 +75,8 @@ fun getview(type: ComplicationType):GlucoseValue {
       }
     override fun getPreviewData(type: ComplicationType): ComplicationData {
 
-	    val icon=Icon.createWithBitmap( getview(type).previewbitmap())
+        val reading = GlucoseComplicationData.previewReading()
+        val tapAction = GlucoseComplicationData.tapAction()
         return when (type) {
         
 /*         MONOCHROMATIC_IMAGE -> {
@@ -92,21 +94,36 @@ fun getview(type: ComplicationType):GlucoseValue {
 			    }  */
             PHOTO_IMAGE -> {
                 Log.i(LOG_ID,"getPreviewData PHOTO_IMAGE")
+                val icon=Icon.createWithBitmap( getview(type).previewbitmap())
                 PhotoImageComplicationData.Builder(photoImage = icon, contentDescription = PlainComplicationText.Builder("Glucose+arrow").build()
-                ).setTapAction(null).build()
+                ).setTapAction(tapAction).build()
             } 
-         else -> 
+            SHORT_TEXT -> GlucoseComplicationData.shortValueData(
+                reading,
+                "Glucose+arrow",
+                tapAction,
+                arrowIcon(reading),
+            )
+            RANGED_VALUE -> GlucoseComplicationData.rangedValueData(
+                reading,
+                "Glucose+arrow",
+                tapAction,
+                arrowIcon(reading),
+            )
+            SMALL_IMAGE ->
             //ComplicationType.SMALL_IMAGE -> 
             {
                Log.i(LOG_ID,"getPreviewData OTHER")
+                 val icon=Icon.createWithBitmap( getview(type).previewbitmap())
                  SmallImageComplicationData.Builder(
                     smallImage = SmallImage.Builder( icon, SmallImageType.PHOTO).build(),
                     contentDescription = PlainComplicationText.Builder(text = "Glucose+arrow")
                         .build()
                 )
-                    .setTapAction(null)
+                    .setTapAction(tapAction)
                     .build()
             }
+            else -> GlucoseComplicationData.shortValueData(null, "Glucose+arrow", tapAction)
 
         }
     }
@@ -114,17 +131,33 @@ fun getview(type: ComplicationType):GlucoseValue {
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         Log.d(LOG_ID, "onComplicationRequest() id: ${request.complicationInstanceId}")
 
-        val complicationPendingIntent = Notify.mkpending();
+        val complicationPendingIntent = GlucoseComplicationData.tapAction()
     val type=        request.complicationType
-      val glucose = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)
+      val glucose = GlucoseComplicationData.currentReading()
+      if (type == SHORT_TEXT) {
+          return GlucoseComplicationData.shortValueData(
+              glucose,
+              "Glucose Arrow+Value",
+              complicationPendingIntent,
+              glucose?.let { arrowIcon(it) },
+          )
+      }
+      if (type == RANGED_VALUE) {
+          return GlucoseComplicationData.rangedValueData(
+              glucose,
+              "Glucose Arrow+Value",
+              complicationPendingIntent,
+              glucose?.let { arrowIcon(it) },
+          )
+      }
       val bitmap=
       if(glucose==null) {
          Log.i(LOG_ID,"glucose==null") 
 	      getview(type).getnovalue()
          }
 	else {
-         Log.i(LOG_ID,"glucose==${glucose.primaryStr}") 
-      getview(type).getArrowValueBitmap(glucose.primaryStr,glucose.timeMillis,glucose.index,glucose.rate)
+         Log.i(LOG_ID,"glucose==${glucose.text}")
+      getview(type).getArrowValueBitmap(glucose.text,glucose.timeMillis,glucose.index,glucose.rate)
 	}
 
 	val image=Icon.createWithBitmap(bitmap)
@@ -142,6 +175,9 @@ fun getview(type: ComplicationType):GlucoseValue {
             }
 
     }
+
+    private fun arrowIcon(reading: GlucoseComplicationData.Reading): Icon =
+        Icon.createWithBitmap(iconView.getArrowTimeBitmap(reading.timeMillis, reading.rate))
 
     companion object {
         private const val LOG_ID = "ArrowValueDataSourceService"

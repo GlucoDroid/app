@@ -63,3 +63,8 @@ Common/printmappingout.txt
 # Kilo CLI / editor / IDE
 .kilo/
 glucodroid.code-workspace
+
+# Android Studio "Generate Signed APK" wizard output (Destination Folder)
+/Common/mobileGoogle/
+/Common/mobile/
+/Common/wear/

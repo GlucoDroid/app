@@ -1093,6 +1093,9 @@ class ICanHealthBleManager(
     override fun getService(): UUID? =
         if (mActiveDeviceAddress.isNullOrBlank()) null else ICanHealthConstants.CGM_SERVICE
 
+    override fun mygetDeviceName(): String =
+        serialFromDevice?.takeIf { it.isNotBlank() } ?: super.mygetDeviceName()
+
     override fun matchDeviceName(deviceName: String?, address: String?): Boolean {
         val trimmedName = deviceName?.trim()?.takeIf { it.isNotEmpty() } ?: return false
         val knownAddress = mActiveDeviceAddress?.takeIf { it.isNotBlank() }
@@ -1148,6 +1151,8 @@ class ICanHealthBleManager(
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        noteFirstGattCallback("onConnectionStateChange", gatt)
+        super.onConnectionStateChange(gatt, status, newState)
         if (stop) return
         val currentGatt = mBluetoothGatt
         if (currentGatt != null && currentGatt !== gatt) {
@@ -1475,13 +1480,15 @@ class ICanHealthBleManager(
         if (previousId != canonicalSerial) {
             clearLegacyAuthBypassState(previousId)
             promoteNativeSensorIdentity(previousId, canonicalSerial)
-            promotePersistedSensorIdentity(previousId, canonicalSerial)
             if (Applic.app != null) {
                 loadAesKeyFromPrefs(Applic.app, canonicalSerial)
                 loadRecoveredUserIdFromPrefs(Applic.app, canonicalSerial)
                 clearLegacyAuthBypassState(Applic.app, canonicalSerial)
             }
         }
+        // Replace the onboarding placeholder for both newly promoted and restored
+        // callbacks once DIS has supplied the canonical sensor identity.
+        promotePersistedSensorIdentity(previousId, canonicalSerial)
         loadPersistedCoveredEdge(force = true)
         applyViewModeToNative()
     }
@@ -1508,7 +1515,7 @@ class ICanHealthBleManager(
             oldSensorId = previousId,
             newSensorId = resolvedSerial,
             address = mActiveDeviceAddress,
-            displayName = mygetDeviceName()
+            displayName = resolvedSerial
         )
     }
 

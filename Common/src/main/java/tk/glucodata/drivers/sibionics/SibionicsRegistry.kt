@@ -42,7 +42,7 @@ object SibionicsRegistry {
     private const val PREF_INTEGRATED_CALIBRATION_BASELINE_PREFIX = "sibionics_managed_calibration_baseline_"
     private const val SIBIONICS_GTIN_PREFIX = "0697283164"
     private val SENSOR_QR_PATTERN = Regex(
-        "^\u001D?01(\\d{14})11\\d{6}17\\d{6}10[A-Z0-9]{8,20}\u001D?21[A-Z0-9]{10,20}\u001D?$",
+        "^\u001D?01(\\d{14})11\\d{6}17\\d{6}10[A-Z0-9]{8,20}\u001D?21([A-Z0-9]{10,20})\u001D?$",
     )
 
     data class IntegratedCalibrationBaseline(
@@ -79,16 +79,35 @@ object SibionicsRegistry {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     internal fun isSupportedQrPayload(source: String?): Boolean {
-        val match = SENSOR_QR_PATTERN.matchEntire(cleanQrPayload(source)) ?: return false
+        return supportedQrMatch(source) != null
+    }
+
+    internal fun isSupportedQrPayload(
+        source: String?,
+        variant: SibionicsConstants.Variant,
+    ): Boolean {
+        val match = supportedQrMatch(source) ?: return false
+        val ai21 = match.groupValues[2]
+        val isV120Identity = ai21.startsWith("P") || ai21.startsWith("XPT")
+        return when (variant) {
+            SibionicsConstants.Variant.SIBIONICS2 -> isV120Identity
+            SibionicsConstants.Variant.GS3 -> false
+            else -> !isV120Identity
+        }
+    }
+
+    private fun supportedQrMatch(source: String?): MatchResult? {
+        val match = SENSOR_QR_PATTERN.matchEntire(cleanQrPayload(source)) ?: return null
         val gtin = match.groupValues[1]
-        if (!gtin.startsWith(SIBIONICS_GTIN_PREFIX)) return false
+        if (!gtin.startsWith(SIBIONICS_GTIN_PREFIX)) return null
         val body = gtin.dropLast(1)
         val checksum = body.mapIndexed { index, char ->
             val digit = char.digitToInt()
             if ((body.length - index) % 2 == 1) digit * 3 else digit
         }.sum()
-        return (10 - checksum % 10) % 10 == gtin.last().digitToInt() &&
-            deriveNativeQrName(source) != null
+        if ((10 - checksum % 10) % 10 != gtin.last().digitToInt()) return null
+        if (deriveNativeQrName(source) == null) return null
+        return match
     }
 
     @JvmStatic
@@ -512,7 +531,7 @@ object SibionicsRegistry {
         val selectionKey = PREF_ALGORITHM_SELECTION_PREFIX + sensorId
         if (preferences.contains(selectionKey)) {
             return SibionicsAlgorithmSelection.fromStorage(
-                preferences.getInt(selectionKey, SibionicsAlgorithmSelection.STOCK.storageId),
+                preferences.getInt(selectionKey, SibionicsAlgorithmSelection.DEFAULT.storageId),
             )
         }
         val legacyKey = PREF_CUSTOM_ALGORITHM_PREFIX + sensorId
@@ -523,7 +542,7 @@ object SibionicsRegistry {
                 SibionicsAlgorithmSelection.STOCK_CALIBRATED
             }
         } else {
-            SibionicsAlgorithmSelection.STOCK
+            SibionicsAlgorithmSelection.DEFAULT
         }
     }
 

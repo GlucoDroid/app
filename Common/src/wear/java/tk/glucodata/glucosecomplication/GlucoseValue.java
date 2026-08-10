@@ -142,9 +142,7 @@ private void setcolor() {
      }
 
 void  setbackground() {
-	if(wasbackground!=newbackground) {
-		setcolor();
-		}
+	setcolor();
 	}
 float  drawcenter(String value) {
        var bounds=new Rect();

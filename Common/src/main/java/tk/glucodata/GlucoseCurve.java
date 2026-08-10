@@ -26,14 +26,9 @@ import android.app.Activity;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.opengl.GLSurfaceView;
 import android.text.InputType;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
-import android.view.GestureDetector;
-import android.view.MotionEvent;
-import android.view.ScaleGestureDetector;
-import android.view.SurfaceHolder;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -81,7 +76,20 @@ import static tk.glucodata.settings.Settings.editoptions;
 import static tk.glucodata.settings.Settings.removeContentView;
 import static tk.glucodata.util.getlabel;
 
-public class GlucoseCurve extends GLSurfaceView {
+/**
+ * Was an OpenGL surface driving the native nanovg curve. Both the mobile and wear
+ * ComposeHosts set this view to GONE before it is ever laid out, so no EGL context
+ * was ever created and no frame was ever drawn — it only cost a surface per launch.
+ *
+ * What survives is the static screen-metrics surface ({@link #metrics},
+ * {@link #getDensity}, {@link #dpToPx}, {@link #getwidth}, {@link #getheight}) plus
+ * the legacy dialog helpers, all of which are still used by the legacy Java View
+ * screens. No Kotlin/Compose code references any of it.
+ *
+ * getwidth()/getheight() return 0: they were only ever populated by the renderer's
+ * onSurfaceChanged, which has not fired since the view started being hidden.
+ */
+public class GlucoseCurve extends View {
 Button summarybutton=null;
 boolean statspresent=false;
 @Keep
@@ -121,12 +129,25 @@ static int reopennr=0;
     private static final String LOG_ID = "GlucoseCurve";
 static   public float smallfontsize;
     Calendar cal = Calendar.getInstance();
- final   private ScaleGestureDetector mScaleDetector;
- final   private GestureDetector mGestureDetector;
     static final int STEPBACK = 1;
     boolean waitnfc = false;
-    MyRenderer render = new MyRenderer();
     static int height,width;
+
+/**
+ * The two ints that used to live on MyRenderer. No frame is drawn any more, but
+ * these are still a live flag channel: ScanNfcV sets badscan/stepresult after an
+ * NFC scan, and MainActivity.onBackPressed and Applic read stepresult to decide
+ * whether back dismisses a scan result or finishes the activity.
+ *
+ * Kept as a field named `render` so the dozen existing `curve.render.*` call sites
+ * keep their exact current meaning. Nothing sets stepresult implicitly now that
+ * onDrawFrame is gone — only the explicit assignments do.
+ */
+public static final class ScanResultState {
+    public int stepresult = 0;
+    public int badscan = 0;
+    }
+public final ScanResultState render = new ScanResultState();
 
 
 
@@ -344,16 +365,17 @@ static public float getDensity() {
     }
 public GlucoseCurve(MainActivity context) {
     super(context);
-    {if(doLog) {Log.i(LOG_ID,"GlucoseCurve "+MainActivity.openglversion);};};
-    mScaleDetector = new ScaleGestureDetector(context, mScaleListener);
-    final  GestureListener gestureListener = new GestureListener();
-    mGestureDetector = new GestureDetector(context, gestureListener);
-    setEGLContextClientVersion(MainActivity.openglversion);
-    setEGLConfigChooser(8, 8, 8, 8, 16, 1);
-    setRenderer(render);
-    setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
     metrics= getResources().getDisplayMetrics();
     dialogs=new Dialogs(metrics.density);
+    }
+
+/**
+ * No-op stand-in for the old GLSurfaceView requestRender. Roughly seventy call sites across
+ * the legacy screens funnel here through MainActivity.requestRender(); there is no
+ * longer anything to render, so this exists to keep them compiling rather than to
+ * churn every one of them.
+ */
+public void requestRender() {
     }
     public static int dpToPx(float dp) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, metrics);
@@ -371,60 +393,6 @@ static void setgeo(int w,int h) {
         height=h;
         }
     }
-long multitime=0L;
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        if(turnoffalarm())
-            Notify.stopalarm();
-        if((render.stepresult&STEPBACK)!=0) {
-            final float x = event.getX();
-            final float y = event.getY();
-    
-            if(Natives.isbutton(x, y)) {
-                render.badscan=0;
-                if(Menus.on)
-                    Menus.show((MainActivity)getContext());
-                else
-                    requestRender();
-            }
-            return false;
-        }
-
-        if (event.getPointerCount() > 1) {
-        multitime=System.currentTimeMillis();
-            return mScaleDetector.onTouchEvent(event);
-            }
-        else
-            return mGestureDetector.onTouchEvent(event);
-
-    }
-
-    boolean down = false;
-final    private ScaleGestureDetector.SimpleOnScaleGestureListener mScaleListener = new ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        float focusx;
-
-        @Override
-        public boolean onScaleBegin(ScaleGestureDetector detector) {
-            focusx = detector.getFocusX();
-            return true;
-        }
-
-        @Override
-        public void onScaleEnd(ScaleGestureDetector detector) {
-
-
-        }
-
-        @Override
-        public boolean onScale(ScaleGestureDetector detector) {
-            float scalex = detector.getCurrentSpanX() / detector.getPreviousSpanX();
-      {if(doLog) {Log.i(LOG_ID,"onScale SpanX="+detector.getCurrentSpanX()+" PreviousSpanX="+ detector.getPreviousSpanX()+" scalex="+scalex);};};
-            Natives.xscale(scalex, focusx);
-            requestRender();
-            down = false;
-            return true;
-        }
-    };
 
     long reldate;
      void startdatepick(long tim) {
@@ -435,245 +403,6 @@ final    private ScaleGestureDetector.SimpleOnScaleGestureListener mScaleListene
         });
 
     }
-class GestureListener implements GestureDetector.OnGestureListener {
-        @Override
-        public boolean onDown(MotionEvent e) {
-            down = true;
-            return true;
-        }
-
-        @Override
-        public void onShowPress(MotionEvent e) {
-
-        }
-
-
-      /*
-void startlibrelink(String lang) {
-    Activity act = (Activity) getContext();
-    ComponentName cn = new ComponentName("com.freestylelibre.app."+lang, "com.librelink.app.ui.SplashActivity");
-    //                            ComponentName cn = new ComponentName("com.freestylelibre.app.nl","com.librelink.app.ui.common.ScanSensorActivity");
-    Intent infoIntent = new Intent();
-    infoIntent.setComponent(cn);
-    infoIntent.setAction("android.intent.action.MAIN");
-    act.startActivity(infoIntent);
-}
-*/
-//GarminStatus status=null;
-//bluediag bluestatus=null;
-        @UiThread
-        @Override
-        public boolean onSingleTapUp(MotionEvent event) {
-            {if(doLog) {Log.d(LOG_ID,"onSingleTapUp");};};
-            if (down ) {
-                final float x=event.getX();
-                final float y=event.getY();
-                long choice = Natives.tap(x, y);
-                if(choice==-2L) 
-                    return true;
-                if(choice!=-1L) {
-                    int menu = (int) (choice & 0xf);
-                    int item = (int) (choice >> 4);
-                    {if(doLog) {Log.i(LOG_ID,"menu="+menu+" item="+item);};};
-                switch(menu) {
-                     case 0:
-                        switch (item) {
-                            case 0: ((MainActivity) getContext()).selectionSystemUI(); break;
-                            case 1: Menus.show((MainActivity) getContext());break;
-                            case 2: {
-                            MainActivity activity = (MainActivity) getContext();
-                            if(!isWearable) {
-                                tk.glucodata.Watch.show(activity);
-                                }
-                            else {
-                                }
-                                tk.glucodata.Display.show(activity);
-                                }
-
-                                break;
-                              case 3: bluediag.start((MainActivity)getContext()); 
-                                  break;
-                              case 4: {
-                                MainActivity activity = (MainActivity) getContext(); 
-                                Settings.set(activity);
-                                };break;
-
-                            case 5: {
-                                if(!isWearable) {
-                                    MainActivity activity = (MainActivity) getContext();
-                                    if(SiBionics==1)
-                                        PhotoScan.scan(activity,REQUEST_BARCODE);
-                                    else
-                                        doabout(activity);
-                                    }
-
-
-                                break;
-                                }
-                                            case 6: ((Activity) getContext()).moveTaskToBack(true);break; //keeps current state 
-                                            case 7:  Notify.stopalarm();break;
-                                            default:
-                                    }
-
-                            break;
-             case 1: {
-                switch(item&0xF) {
-                                    case 0: dialogs.showexport(( MainActivity)getContext(),getWidth(),getHeight(),null); break;
-
-
-                   case 1: (new Backup()).mkbackupview(( MainActivity)getContext());break;
-                case 2: {
-                       MainActivity activity = (MainActivity) getContext();
-                    if(Natives.staticnum()) {
-                  if(isWearable)
-                     Specific.blockedNum(activity);
-                  else   {
-                           activity.lightBars(false);
-                            help.help(R.string.staticnum,activity,l->activity.lightBars(!Natives.getInvertColors( ))); 
-                            }
-                        }
-                    else {
-                        numberview.addnumberview(activity);
-                        if(!smallScreen)
-                            showkeyboard(activity);
-                        }
-                    }; break;
-                case 3: getnumcontrol((MainActivity) getContext());return true;
-                case 4: Stats.mkstats((MainActivity) getContext());break;
-                case 5: tk.glucodata.Talker.config((MainActivity) getContext());break;
-                case 6:  Floating.setfloatglucose((MainActivity) getContext(),!Natives.getfloatglucose()) ;break;
-                };
-                };break;
-            case 2: {
-                var light=item==0;
-                var main=(MainActivity) getContext();
-                main.lightBars(light);
-                };break;
-            case 3:
-                switch (item) {
-                    case 1: startsearch();
-                                    break;
-                    case 2:
-                                startdatepick(Natives.getstarttime());
-                                    break;
-                            };break;
-                    case 0xe: {
-              if(reopennr>0)
-                  return true;
-                MainActivity act = (MainActivity) getContext();
-                               int pos=(int)(choice>>16);
-                            int base =(int)((choice>>8)&0xF);
-                            {if(doLog) {Log.i(LOG_ID,"tap pos="+pos+" base="+base);};};
-                if(numcontrol!=null) hidesave(numcontrol);
-                numberview.addnumberview(act, base, pos) ;
-                if(!Natives.staticnum()) {
-                    if(!smallScreen)
-                        numberview.showkeyboard(act);
-                    }
-                };
-                return true;
-                        default:
-                    }
-                }
-            requestRender();
-            return true;
-        }
-            return false;
-}
-
-
-
-        @Override
-        public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-//          {if(doLog) {Log.i(LOG_ID,"onScroll dX="+distanceX+" dY="+distanceY);};};
-        if(down) {
-            if((render.stepresult&STEPBACK)==0)
-                if(Natives.translate(distanceX, distanceY, e1.getRawY(), e2.getRawY())!=0)
-                    requestRender();
-            return true;
-            }
-        return false;
-        }
-
-
-        @Override
-        public void onLongPress(MotionEvent event) {
-            {if(doLog) {Log.d(LOG_ID,"OnLongPress" + (down?"":" not") + " down");};};
-        if(down) {
-        long nutime=System.currentTimeMillis();
-        if((nutime-multitime)<1000)
-            return;
-                final float wgrens=smallfontsize*3;
-                final float rgrens=getWidth()-wgrens;
-                final float x=event.getX();
-                final float y=event.getY();
-            if(x<wgrens) {
-                Natives.prevday(1);
-                }
-            else {
-                if(x>rgrens) {
-                    Natives.nextday(1);
-                    }
-                else {
-                    long hitptr=Natives.longpress(x, y);
-                   if(hitptr!=0) {
-                if((hitptr&3)!=0) {
-                 return;
-                 }
-            else {
-                 MainActivity activity = (MainActivity) getContext();
-                if(Natives.staticnum()&&hitptr== numio.newhit) {
-                    help.help(R.string.staticnum,activity);
-                    }
-                else {
-                    numberview.addnumberview(activity,hitptr);
-                    if(!Natives.staticnum()) {
-                        if(!smallScreen) {
-                            showkeyboard(activity);
-                            }
-                        }
-                    }
-                }
-                }
-                    }
-                }
-
-                requestRender();
-            }
-
-        }
-        /*
-        @Override
-        public boolean    onDoubleTap(MotionEvent e) {
-            Log.d(LOG_ID,"public boolean    onDoubleTap(MotionEvent e) {");return false;
-
-        }
-
-        @Override
-        public boolean    onDoubleTapEvent(MotionEvent e) {
-            Log.d(LOG_ID,"public boolean    onDoubleTapEvent(MotionEvent e) {");return false;
-
-        }
-
-        @Override
-        public   boolean    onSingleTapConfirmed(MotionEvent e) {
-            Log.d(LOG_ID,"public   boolean    onSingleTapConfirmed(MotionEvent e) {");return false;
-        }
-*/
-        @Override
-        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {{if(doLog) {Log.d(LOG_ID,"onFling");};};
-            // {if(doLog) {Log.i(LOG_ID,"onFling volX="+velocityX+"volY="+velocityY);};};
-            if(down) {
-                float absx=abs(velocityX);
-                if(absx>2000.0&&absx>abs(velocityY)) {
-                    Natives.flingX(velocityX);
-                    requestRender();
-                }
-                return true;
-            }
-    return false;
-        }
-    };//end class GestureListener 
 
 
 
@@ -1202,38 +931,22 @@ if(!smallScreen) {
 
 
 
-@Override
+// Not View overrides — MainActivity drives these from its own onResume/onPause.
+// They used to also be the GLSurfaceView lifecycle hooks; only the Applic
+// bookkeeping was ever ours, and that is what is left.
 public void onResume() {
     {if(doLog) {Log.i(LOG_ID,"onResume()");};};
-    super.onResume();
     Applic app = Applic.app;
 
     app.setcurve(this);
     app.setmintime();
     }
 
-@Override
 public void onPause() {
     {if(doLog) {Log.i(LOG_ID,"onPause()");};};
      Applic app = Applic.app;
      app.cancelmintime();
      app.setcurve(null);
-     super.onPause();
-    }
-@Override
-public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
-    {if(doLog) {Log.i(LOG_ID,"surfaceChanged format="+format+", width="+w+", height="+h);};};
-    super.surfaceChanged(holder,format,w,h);
-    }
-@Override
-public void surfaceCreated(SurfaceHolder holder) {
-    {if(doLog) {Log.i(LOG_ID,"surfaceCreated(SurfaceHolder holder)");};};
-    super.surfaceCreated(holder);
-    }
-@Override
-public void surfaceDestroyed(SurfaceHolder holder) {
-   {if(doLog) {Log.i(LOG_ID,"surfaceDestroyed(SurfaceHolder holder)");};};
-   super.surfaceDestroyed(holder);
     }
 static public void    doabout(MainActivity activity) {
 if(!isWearable) {

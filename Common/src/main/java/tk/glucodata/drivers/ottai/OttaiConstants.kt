@@ -241,6 +241,23 @@ object OttaiConstants {
      * Otherwise the manager retargets its transport at every neighbouring Ottai in turn,
      * each one failing the auth-signature check, and never reaches its own sensor.
      */
+    /**
+     * How long a freshly armed candidate scan insists on the sensor's own address before the
+     * name-only fallback is allowed to admit anything else.
+     *
+     * The fallback exists for the address-changed case, but the scanner stops on the first hit,
+     * so every stranger it admits costs a whole connect/discover/auth cycle and another scan
+     * restart before the real sensor can be seen. On 2026-07-29 three wrong units were probed at
+     * +0 s, +12 s and +15 s and the correct one was only reached at +21 s; the sensor's own
+     * advertisement is normally in the very first burst, so holding out briefly costs nothing
+     * when the address is unchanged and delays only the genuine address-changed case.
+     */
+    const val ACTIVATION_EXACT_ONLY_WINDOW_MS = 15_000L
+
+    @JvmStatic
+    fun isActivationExactOnlyWindowOpen(discoveryStartedAtMs: Long, nowMs: Long): Boolean =
+        discoveryStartedAtMs > 0L && nowMs - discoveryStartedAtMs < ACTIVATION_EXACT_ONLY_WINDOW_MS
+
     fun shouldProbeActivationAdvertisement(
         discoveryPending: Boolean,
         scannedAddress: String?,
@@ -248,6 +265,7 @@ object OttaiConstants {
         advertisedName: String?,
         rejectedAddresses: Set<String> = emptySet(),
         allowNameMatch: Boolean = true,
+        exactOnlyWindowOpen: Boolean = false,
     ): Boolean {
         if (!discoveryPending) return false
         val scanned = normalizeBleAddress(scannedAddress, allowPlain = false) ?: return false
@@ -259,7 +277,7 @@ object OttaiConstants {
         }
         val expected = normalizeBleAddress(expectedAddress, allowPlain = false)
         if (expected?.equals(scanned, ignoreCase = true) == true) return true
-        if (!allowNameMatch) return false
+        if (!allowNameMatch || exactOnlyWindowOpen) return false
         return advertisedName?.trim()?.contains("ottai", ignoreCase = true) == true
     }
 
@@ -272,6 +290,37 @@ object OttaiConstants {
     /** Default warmup seconds (device_manage_warmup_duration). */
     const val DEFAULT_WARMUP_SECONDS = 3200
     const val DEFAULT_PREHEAT_PERIOD_MS = 3_600_000L
+
+    /**
+     * Post-activation window during which readings are decoded and logged but never published,
+     * stored or exported.
+     *
+     * The vendor's own preheat (DEFAULT_PREHEAT_PERIOD_MS, or the cloud's preheatPeriodTime) is
+     * 60 min, but the settling ramp measured on this hardware is over well inside 10 minutes: on
+     * the 2026-07-29 activation dataNo 3 read 2.80 mmol (published as 50 mg/dL) and climbed
+     * monotonically — 3.00, 3.30, 3.80, 5.00, 5.70, 6.00, 6.10 — reaching plateau by dataNo 11.
+     * Suppressing a full hour would throw away usable data, so this window is deliberately
+     * shorter than the vendor's and is the value this fork enforces.
+     */
+    const val WARMUP_SUPPRESS_MS = 600_000L
+
+    /**
+     * Whether a sample falls inside the post-activation settling window and so must not be
+     * published, stored or exported.
+     *
+     * Deliberately a property of the SAMPLE rather than of the wall clock: a history replay of
+     * the same records then reaches the same verdict on every pass and across restarts, instead
+     * of re-admitting during warmup whatever the live path already refused.
+     *
+     * [activationStartMs] must be an authoritative start — pass 0 to disable the gate rather than
+     * feeding it a provisional, which for a vendor-activated sensor always reads "just now" and
+     * would blank ten minutes of good readings on every fresh connect.
+     */
+    @JvmStatic
+    fun isWithinWarmup(activationStartMs: Long, sampleMs: Long): Boolean =
+        activationStartMs > 0L &&
+            sampleMs > 0L &&
+            sampleMs < activationStartMs + WARMUP_SUPPRESS_MS
 
     // ---- SharedPreferences keys ----
 

@@ -71,6 +71,7 @@ public    void handlealarm() {
         LossOfSensorAlarm.setalarm(Applic.app, nexttime);
         MessageSender.sendwakestream();
         Natives.wakestreamsender();
+        WearSync2.requestSync();
     }
 
 

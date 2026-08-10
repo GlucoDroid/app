@@ -544,7 +544,7 @@ fun HistoryBrowseScreen(
                                 contentDescription = stringResource(R.string.export_data)
                             )
                         }
-                        IconButton(onClick = { importLauncher.launch(arrayOf("text/csv", "text/plain", "*/*")) }) {
+                        IconButton(onClick = { importLauncher.launch(arrayOf("text/csv", "text/tab-separated-values", "text/plain", "*/*")) }) {
                             Icon(
                                 imageVector = Icons.Filled.FolderOpen,
                                 contentDescription = stringResource(R.string.import_data)

@@ -5,11 +5,13 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import java.net.HttpURLConnection
+import java.net.URLEncoder
 import java.net.URL
 import java.util.Locale
 import org.json.JSONArray
 import org.json.JSONObject
 import tk.glucodata.Applic
+import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
 import tk.glucodata.Natives
 import tk.glucodata.R
@@ -35,8 +37,8 @@ class NightscoutFollowerManager(
         private const val POLL_INTERVAL_MS = 60_000L
         private const val RETRY_INTERVAL_MS = 30_000L
         private const val PROBE_INTERVAL_MS = 59_000L
-        private const val HISTORY_COUNT = 288
         private const val TREATMENT_COUNT = 512
+        private const val DEVICE_STATUS_COUNT = 5
         private const val MMOL_TO_MGDL = 18.0182f
     }
 
@@ -59,6 +61,8 @@ class NightscoutFollowerManager(
     @Volatile private var latestReadingMgdl: Float = Float.NaN
     @Volatile private var latestRateMgdlPerMin: Float = 0f
     @Volatile private var nativeMirroredUpToMs: Long = 0L
+    @Volatile private var bootstrapHistoryPending =
+        !NightscoutFollowerRegistry.hasCompleteHistoryImport(Applic.app, SerialNumber)
 
     init {
         mActiveDeviceAddress = url
@@ -156,6 +160,7 @@ class NightscoutFollowerManager(
         stop = true
         handler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacks(probeRunnable)
+        NightscoutFollowerDeviceStatus.clear()
         setStatus(Phase.IDLE, localizedString(R.string.nightscout_follow_status_paused, "Nightscout follower paused"))
     }
 
@@ -177,6 +182,7 @@ class NightscoutFollowerManager(
         stop = true
         handler.removeCallbacksAndMessages(null)
         mainHandler.removeCallbacks(probeRunnable)
+        NightscoutFollowerDeviceStatus.clear()
         if (wipeData) {
             Applic.app?.let { NightscoutFollowerRegistry.disableFollowerSensor(it) }
         }
@@ -210,16 +216,21 @@ class NightscoutFollowerManager(
         }
         setStatus(Phase.SYNCING, localizedString(R.string.nightscout_follow_status_syncing, "Refreshing Nightscout"))
         try {
-            val readings = fetchReadings()
+            val fetched = fetchReadings()
+            val readings = fetched.latestReadings
             importRemoteTreatments()
+            refreshRemoteDeviceStatus()
             if (readings.isEmpty()) {
                 setStatus(Phase.IDLE, localizedString(R.string.nightscout_follow_status_no_readings, "No Nightscout readings yet"))
                 scheduleRefresh(POLL_INTERVAL_MS)
                 return
             }
-            importHistory(readings)
+            if (!fetched.historyImported) {
+                importHistory(readings)
+            }
             publishLatest(readings)
             mirrorToNative(readings)
+            bootstrapHistoryPending = false
             setStatus(Phase.FOLLOWING, localizedString(R.string.nightscout_follow_status_following, "Following Nightscout"))
             Log.i(
                 TAG,
@@ -227,7 +238,7 @@ class NightscoutFollowerManager(
                     Locale.US,
                     "Nightscout follower refreshed (%s): %s points latest=%.1f",
                     reason,
-                    readings.size,
+                    fetched.fetchedCount,
                     readings.last().glucoseMgdl,
                 ),
             )
@@ -281,8 +292,64 @@ class NightscoutFollowerManager(
         )
     }
 
-    private fun fetchReadings(): List<VirtualGlucoseSensorBridge.Reading> {
-        val endpoint = "${NightscoutFollowerRegistry.normalizeUrl(url)}/api/v1/entries/sgv.json?count=$HISTORY_COUNT"
+    private data class FetchedReadings(
+        val latestReadings: List<VirtualGlucoseSensorBridge.Reading>,
+        val fetchedCount: Int,
+        val historyImported: Boolean,
+    )
+
+    private fun fetchReadings(): FetchedReadings {
+        val latestStoredMs = HistorySyncAccess.getLatestTimestampForSensor(SerialNumber)
+        val lowerBoundMs = NightscoutFollowerHistoryPaging.lowerBoundMs(
+            latestStoredMs = latestStoredMs,
+            bootstrap = bootstrapHistoryPending,
+        )
+        if (bootstrapHistoryPending || lowerBoundMs == null) {
+            val result = NightscoutFollowerHistoryPaging.consumePages(
+                lowerBoundMs = null,
+                fetchPage = { beforeExclusiveMs ->
+                    fetchReadingsPage(lowerBoundMs = null, beforeExclusiveMs = beforeExclusiveMs)
+                },
+                consumePage = { page ->
+                    val imported = VirtualGlucoseSensorBridge.importHistory(
+                        sensorSerial = SerialNumber,
+                        readings = page,
+                        logLabel = "Nightscout follower",
+                    )
+                    check(imported > 0) {
+                        "Nightscout history page could not be stored"
+                    }
+                },
+            )
+            lastImportedHistoryTailMs =
+                result.newestReadings.maxOfOrNull { it.timestampMs } ?: lastImportedHistoryTailMs
+            if (result.reachedEnd) {
+                NightscoutFollowerRegistry.markCompleteHistoryImport(Applic.app, SerialNumber)
+            }
+            return FetchedReadings(
+                latestReadings = result.newestReadings,
+                fetchedCount = result.fetchedCount,
+                historyImported = true,
+            )
+        }
+
+        val readings = fetchReadingsPage(lowerBoundMs, beforeExclusiveMs = null)
+        return FetchedReadings(
+            latestReadings = readings,
+            fetchedCount = readings.size,
+            historyImported = false,
+        )
+    }
+
+    private fun fetchReadingsPage(
+        lowerBoundMs: Long?,
+        beforeExclusiveMs: Long?,
+    ): List<VirtualGlucoseSensorBridge.Reading> {
+        val endpoint = NightscoutFollowerHistoryPaging.endpoint(
+            baseUrl = NightscoutFollowerRegistry.normalizeUrl(url),
+            lowerBoundMs = lowerBoundMs,
+            beforeExclusiveMs = beforeExclusiveMs,
+        )
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 30_000
@@ -330,6 +397,45 @@ class NightscoutFollowerManager(
             }
             0
         }
+
+    // Devicestatus is optional enrichment on top of entries/treatments: a
+    // failing endpoint (404 on old servers, 401, malformed body) must never
+    // block the glucose refresh, so the whole step stays inside runCatching.
+    private fun refreshRemoteDeviceStatus() {
+        runCatching {
+            val body = fetchDeviceStatusJson()
+            if (stop || body.isBlank() || body == "[]") return
+            NightscoutFollowerDeviceStatus.update(NightscoutFollowerDeviceStatus.parseNewest(body))
+        }.onFailure { error ->
+            Log.w(TAG, "Nightscout devicestatus ignored: ${error.message}")
+        }
+    }
+
+    private fun fetchDeviceStatusJson(): String {
+        val endpoint = "${NightscoutFollowerRegistry.normalizeUrl(url)}/api/v1/devicestatus.json?count=$DEVICE_STATUS_COUNT"
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 30_000
+            requestMethod = "GET"
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "JugglucoNG Nightscout follower")
+            NightscoutFollowerRegistry.applyAuth(this, secret)
+        }
+        try {
+            val code = connection.responseCode
+            val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                .orEmpty()
+            if (code == 404) return "[]"
+            if (code !in 200..299) {
+                throw IllegalStateException("Nightscout devicestatus HTTP $code: ${body.take(160)}")
+            }
+            return body
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     private fun fetchTreatmentsJson(): String {
         val endpoint = "${NightscoutFollowerRegistry.normalizeUrl(url)}/api/v1/treatments.json?count=$TREATMENT_COUNT"
@@ -389,4 +495,89 @@ class NightscoutFollowerManager(
         )
     }
 
+}
+
+internal object NightscoutFollowerHistoryPaging {
+    private const val INCREMENTAL_OVERLAP_MS = 5L * 60L * 1000L
+    private const val PAGE_COUNT = 1_000
+
+    fun lowerBoundMs(
+        latestStoredMs: Long,
+        bootstrap: Boolean,
+    ): Long? =
+        if (bootstrap || latestStoredMs <= 0L) null
+        else (latestStoredMs - INCREMENTAL_OVERLAP_MS).coerceAtLeast(1L)
+
+    fun endpoint(
+        baseUrl: String,
+        lowerBoundMs: Long?,
+        beforeExclusiveMs: Long?,
+    ): String {
+        val parameters = buildList {
+            add("count=$PAGE_COUNT")
+            if (lowerBoundMs != null) {
+                add("${encoded("find[date][\$gte]")}=$lowerBoundMs")
+            }
+            if (beforeExclusiveMs != null) {
+                add("${encoded("find[date][\$lt]")}=$beforeExclusiveMs")
+            }
+        }
+        return "$baseUrl/api/v1/entries/sgv.json?${parameters.joinToString("&")}"
+    }
+
+    data class Result(
+        val newestReadings: List<VirtualGlucoseSensorBridge.Reading>,
+        val fetchedCount: Int,
+        val reachedEnd: Boolean,
+    )
+
+    fun consumePages(
+        lowerBoundMs: Long?,
+        fetchPage: (beforeExclusiveMs: Long?) -> List<VirtualGlucoseSensorBridge.Reading>,
+        consumePage: (List<VirtualGlucoseSensorBridge.Reading>) -> Unit,
+    ): Result {
+        var newestReadings = emptyList<VirtualGlucoseSensorBridge.Reading>()
+        var fetchedCount = 0
+        var beforeExclusiveMs: Long? = null
+        var reachedEnd = false
+
+        while (true) {
+            val page = fetchPage(beforeExclusiveMs)
+            if (page.isEmpty()) {
+                reachedEnd = true
+                break
+            }
+            val oldestPageTimestamp = page.minOf { it.timestampMs }
+            if (beforeExclusiveMs?.let { oldestPageTimestamp >= it } == true) {
+                break
+            }
+
+            val accepted = page.filter { reading ->
+                (lowerBoundMs?.let { reading.timestampMs >= it } ?: true) &&
+                    (beforeExclusiveMs?.let { reading.timestampMs < it } ?: true)
+            }
+            if (newestReadings.isEmpty()) {
+                newestReadings = accepted
+            }
+            if (accepted.isNotEmpty()) {
+                consumePage(accepted)
+                fetchedCount += accepted.size
+            }
+
+            if (lowerBoundMs != null && oldestPageTimestamp <= lowerBoundMs) {
+                reachedEnd = true
+                break
+            }
+            beforeExclusiveMs = oldestPageTimestamp
+        }
+
+        return Result(
+            newestReadings = newestReadings,
+            fetchedCount = fetchedCount,
+            reachedEnd = reachedEnd,
+        )
+    }
+
+    private fun encoded(value: String): String =
+        URLEncoder.encode(value, Charsets.UTF_8.name())
 }

@@ -214,6 +214,7 @@ class OttaiReconnectPolicyTests {
                 unstable = true,
                 nowMs = now,
                 lastReassertMs = 0L,
+                reassertsThisConnection = 0,
             ),
         )
     }
@@ -227,6 +228,7 @@ class OttaiReconnectPolicyTests {
                 unstable = true,
                 nowMs = now,
                 lastReassertMs = 0L,
+                reassertsThisConnection = 0,
             ),
         )
     }
@@ -240,6 +242,7 @@ class OttaiReconnectPolicyTests {
                 unstable = true,
                 nowMs = now,
                 lastReassertMs = 0L,
+                reassertsThisConnection = 0,
             ),
         )
     }
@@ -253,6 +256,7 @@ class OttaiReconnectPolicyTests {
                 unstable = false,
                 nowMs = now,
                 lastReassertMs = 0L,
+                reassertsThisConnection = 0,
             ),
         )
     }
@@ -266,6 +270,40 @@ class OttaiReconnectPolicyTests {
                 unstable = true,
                 nowMs = now,
                 lastReassertMs = now - OttaiBleManager.PRIORITY_REASSERT_MIN_GAP_MS + 1_000L,
+                reassertsThisConnection = 0,
+            ),
+        )
+    }
+
+    /**
+     * linkUnstable is permanently true for a user in a jamming environment — two abnormal drops in
+     * 15 minutes is a low bar — so without a per-connection cap the grip runs for the life of the
+     * link: ~133 reasserts per sensor per 4h in the 2026-08-01 logs, each one dropping the
+     * sensor's effective listen period from 1925ms to 15ms for ~5.8s.
+     */
+    @Test
+    fun theReassertIsCappedPerConnection() {
+        val cap = OttaiBleManager.MAX_PRIORITY_REASSERTS_PER_CONNECTION
+        for (done in 0 until cap) {
+            assertTrue(
+                OttaiBleManager.shouldHoldFastParams(
+                    intervalUnits = 308,
+                    latency = 4,
+                    unstable = true,
+                    nowMs = now,
+                    lastReassertMs = 0L,
+                    reassertsThisConnection = done,
+                ),
+            )
+        }
+        assertFalse(
+            OttaiBleManager.shouldHoldFastParams(
+                intervalUnits = 308,
+                latency = 4,
+                unstable = true,
+                nowMs = now,
+                lastReassertMs = 0L,
+                reassertsThisConnection = cap,
             ),
         )
     }
@@ -277,5 +315,62 @@ class OttaiReconnectPolicyTests {
         assertEquals(360_000L, OttaiBleManager.connectingStaleThresholdMs(2))
         assertEquals(360_000L, OttaiBleManager.connectingStaleThresholdMs(7))
         assertEquals(90_000L, OttaiBleManager.connectingStaleThresholdMs(-1))
+    }
+
+    /**
+     * All 88 drops of the 2026-08-01 storm were status=8, and 15 of those outages ended within
+     * 10s of close(); the peer had stopped answering but was still there, so the 3s default was
+     * pure hold. Half of it and no more: this path re-arms from the BT callback thread with the
+     * disconnect event still in flight, and connecting inside MIUI's registerApp() churn is how a
+     * status=133 gets earned.
+     */
+    @Test
+    fun aSupervisionTimeoutReArmsSooner() {
+        assertEquals(1_500L, OttaiBleManager.reconnectDelayAfterDisconnectMs(8, fastReArmAllowed = true))
+    }
+
+    /**
+     * 19 is a live peer closing the link itself — re-arming early against that builds a
+     * connect/terminate loop, and the 3s default demonstrably recovered from it (drop at
+     * 1785606352, reconnected 1785606359). 22 is our own teardown, 133 never appeared on this
+     * path at all (all five in the logs were ATT reads), and 0 is a clean close.
+     */
+    @Test
+    fun everyOtherDisconnectStatusKeepsTheThreeSecondDefault() {
+        for (status in intArrayOf(0, 19, 22, 62, 133, 147)) {
+            assertEquals(
+                3_000L,
+                OttaiBleManager.reconnectDelayAfterDisconnectMs(status, fastReArmAllowed = true),
+            )
+        }
+    }
+
+    /**
+     * The shortened re-arm is worth 0.7% of the storm's downtime, so one bounce off the stack's
+     * own client registration is enough to give it up: after that the outage runs on the default.
+     */
+    @Test
+    fun aWithdrawnFastReArmFallsBackToTheDefault() {
+        assertEquals(3_000L, OttaiBleManager.reconnectDelayAfterDisconnectMs(8, fastReArmAllowed = false))
+    }
+
+    @Test
+    fun aStatusOneThreeThreeRightAfterAShortenedReArmWithdrawsIt() {
+        assertTrue(OttaiBleManager.fastReArmBounced(133, now, now - 1_800L))
+        assertTrue(OttaiBleManager.fastReArmBounced(133, now, now))
+    }
+
+    @Test
+    fun anUnrelatedOneThreeThreeLeavesTheShortenedReArmAlone() {
+        // Nothing armed: the pre-existing 133s were ATT reads on an established link, not
+        // connect bounces, and they must not disable a delay that was never used.
+        assertFalse(OttaiBleManager.fastReArmBounced(133, now, 0L))
+        // Long after the re-arm — that is an ordinary failed connect, not the clientIf window.
+        assertFalse(OttaiBleManager.fastReArmBounced(133, now, now - 30_000L))
+        // A clock step backwards must not count as a bounce either.
+        assertFalse(OttaiBleManager.fastReArmBounced(133, now, now + 5_000L))
+        // Every other status leaves it armed, supervision timeouts above all.
+        assertFalse(OttaiBleManager.fastReArmBounced(8, now, now - 500L))
+        assertFalse(OttaiBleManager.fastReArmBounced(19, now, now - 500L))
     }
 }

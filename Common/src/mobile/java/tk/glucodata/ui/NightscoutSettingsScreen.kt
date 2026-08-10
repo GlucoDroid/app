@@ -75,6 +75,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tk.glucodata.Natives
+import tk.glucodata.NightPost
 import tk.glucodata.R
 import tk.glucodata.data.journal.JournalTreatmentUploader
 import tk.glucodata.drivers.nightscout.NightscoutFollowerRegistry
@@ -147,6 +148,7 @@ fun NightscoutSettingsScreen(navController: NavController) {
     var sendTreatments by rememberSaveable { mutableStateOf(Natives.getpostTreatments()) }
     var sendLongInsulin by rememberSaveable { mutableStateOf(JournalTreatmentUploader.getSendLongInsulin()) }
     var receiveTreatments by rememberSaveable { mutableStateOf(JournalTreatmentUploader.getReceiveTreatments()) }
+    var uploadIob by rememberSaveable { mutableStateOf(NightPost.getUploadIob()) }
     var isV3 by rememberSaveable { mutableStateOf(Natives.getnightscoutV3()) }
     var showSecret by rememberSaveable { mutableStateOf(false) }
     var lastResponseCode by rememberSaveable { mutableStateOf(0) }
@@ -582,6 +584,20 @@ fun NightscoutSettingsScreen(navController: NavController) {
                             icon = Icons.Default.Medication,
                             iconTint = MaterialTheme.colorScheme.tertiary,
                             enabled = sendTreatments,
+                            position = CardPosition.MIDDLE
+                        )
+                        SettingsSwitchItem(
+                            title = stringResource(R.string.nightscout_upload_iob),
+                            subtitle = stringResource(R.string.nightscout_upload_iob_desc),
+                            checked = uploadIob,
+                            onCheckedChange = {
+                                uploadIob = it
+                                NightPost.setUploadIob(it)
+                                if (it) Natives.wakeuploader()
+                            },
+                            icon = Icons.Default.CloudUpload,
+                            iconTint = MaterialTheme.colorScheme.secondary,
+                            enabled = mode != NightscoutMode.OFF,
                             position = CardPosition.MIDDLE
                         )
                         SettingsSwitchItem(

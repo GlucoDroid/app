@@ -10,6 +10,7 @@ import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalRepository
 import tk.glucodata.data.prediction.PredictiveSimulationSettings
 import tk.glucodata.data.prediction.GlucosePredictionSeriesKind
+import tk.glucodata.data.prediction.PredictionModelProfileStore
 import tk.glucodata.ui.buildPredictionSeriesForChart
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -25,14 +26,10 @@ object NotificationPredictionOverlay {
     private const val TREND_MOMENTUM_KEY = "dashboard_prediction_trend_momentum_enabled"
     private const val JOURNAL_KEY = "dashboard_journal_enabled"
     private const val FOOD_MACROS_KEY = "dashboard_journal_food_macros_enabled"
-    private const val CARB_RATIO_KEY = "dashboard_prediction_carb_ratio_g_per_u"
-    private const val INSULIN_SENSITIVITY_KEY = "dashboard_prediction_insulin_sensitivity_mgdl_per_u"
     private const val CARB_ABSORPTION_KEY = "dashboard_prediction_carb_absorption_g_per_h"
     private const val HORIZON_MINUTES_KEY = "dashboard_prediction_horizon_minutes"
     private const val JOURNAL_LOOKBACK_MS = 36L * 60L * 60L * 1000L
     private const val CACHE_MAX_AGE_MS = 30_000L
-    private const val PREDICTION_CARB_RATIO_DEFAULT = 10f
-    private const val PREDICTION_INSULIN_SENSITIVITY_DEFAULT = 54f
     private const val PREDICTION_CARB_ABSORPTION_DEFAULT = 35f
     private const val PREDICTION_HORIZON_MINUTES_DEFAULT = 120
 
@@ -109,14 +106,11 @@ object NotificationPredictionOverlay {
                 enabled = true,
                 trendMomentumEnabled = prefs.getBoolean(TREND_MOMENTUM_KEY, true),
                 horizonMinutes = horizonMinutes,
-                carbRatioGramsPerUnit = prefs.getFloat(CARB_RATIO_KEY, PREDICTION_CARB_RATIO_DEFAULT).coerceIn(3f, 30f),
-                insulinSensitivityMgDlPerUnit = prefs
-                    .getFloat(INSULIN_SENSITIVITY_KEY, PREDICTION_INSULIN_SENSITIVITY_DEFAULT)
-                    .coerceIn(10f, 180f),
                 carbAbsorptionGramsPerHour = prefs
                     .getFloat(CARB_ABSORPTION_KEY, PREDICTION_CARB_ABSORPTION_DEFAULT)
                     .coerceIn(10f, 90f),
-                foodMacrosEnabled = prefs.getBoolean(JOURNAL_KEY, true) && prefs.getBoolean(FOOD_MACROS_KEY, false)
+                foodMacrosEnabled = prefs.getBoolean(JOURNAL_KEY, true) && prefs.getBoolean(FOOD_MACROS_KEY, false),
+                modelProfile = PredictionModelProfileStore.load(prefs)
             )
         )
         return predictionSeries.mapNotNull { series ->

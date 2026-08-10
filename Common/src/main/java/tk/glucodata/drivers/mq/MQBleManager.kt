@@ -770,6 +770,8 @@ class MQBleManager(
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        noteFirstGattCallback("onConnectionStateChange", gatt)
+        super.onConnectionStateChange(gatt, status, newState)
         if (stop) return
         when (newState) {
             BluetoothProfile.STATE_CONNECTED -> {

@@ -42,6 +42,7 @@ enum class SibionicsAlgorithmSelection(val storageId: Int) {
     companion object {
         private const val CALIBRATION_BIT = 1
         private const val MODEL_MASK = 6
+        val DEFAULT = STOCK_CALIBRATED
 
         fun fromStorage(value: Int): SibionicsAlgorithmSelection =
             entries.firstOrNull { it.storageId == value } ?: STOCK

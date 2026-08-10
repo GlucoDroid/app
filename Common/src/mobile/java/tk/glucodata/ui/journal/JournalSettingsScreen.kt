@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Vaccines
 import androidx.compose.material.icons.filled.History
 
@@ -174,6 +175,7 @@ fun JournalSettingsScreen(
     val journalDashboardQuickAddButton by viewModel.journalDashboardQuickAddButton.collectAsState()
     val journalHealthConnectActivityEnabled by viewModel.journalHealthConnectActivityEnabled.collectAsState()
     val aapsJournalImportEnabled by viewModel.aapsJournalImportEnabled.collectAsState()
+    val predictionModelProfile by viewModel.predictionModelProfile.collectAsState()
     val allPresets by viewModel.journalInsulinPresets.collectAsState()
     val allFoods by viewModel.journalFoods.collectAsState()
     val activePresets = remember(allPresets) { allPresets.filter { !it.isArchived } }
@@ -274,6 +276,26 @@ fun JournalSettingsScreen(
                         iconTint = MaterialTheme.colorScheme.primary,
                         position = CardPosition.TOP,
                         enabled = journalEnabled
+                    )
+                    SettingsItem(
+                        title = stringResource(R.string.predictive_model_tuning),
+                        subtitle = if (predictionModelProfile.blocks.size == 1) {
+                            stringResource(R.string.predictive_model_profile_summary_single)
+                        } else {
+                            stringResource(
+                                R.string.predictive_model_profile_summary_count,
+                                predictionModelProfile.blocks.size
+                            )
+                        },
+                        showArrow = true,
+                        onClick = if (journalEnabled) {
+                            { navController.navigate("settings/predictive-simulation/model-profile") }
+                        } else {
+                            null
+                        },
+                        icon = Icons.Default.Schedule,
+                        iconTint = MaterialTheme.colorScheme.secondary,
+                        position = CardPosition.MIDDLE
                     )
                     SettingsSwitchItem(
                         title = stringResource(R.string.journal_food_macros_title),

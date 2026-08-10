@@ -127,10 +127,21 @@ object OutboundApiJournalSnapshot {
         } else {
             Float.NaN
         }
+        // A fresh devicestatus from the uploading device replaces the local
+        // journal math: IOB, eIOB and COB switch source together because they
+        // come from one document and one computation — mixing them would be
+        // inconsistent. The one exception is a field the document lacks (an
+        // uploader without carb data omits cob): that field alone stays
+        // local. The 30-minute-window projections keep the local values in
+        // either case; they only feed the notification risk tint and have no
+        // remote counterpart.
+        val remote = tk.glucodata.drivers.nightscout.NightscoutFollowerDeviceStatus.fresh(atMillis)
+        val localIob = if (hasInsulin) insulin.iobUnits else Float.NaN
+        val localEiob = if (hasInsulin) insulin.eiobUnits else Float.NaN
         return floatArrayOf(
-            if (hasInsulin) insulin.iobUnits else Float.NaN,
-            if (hasInsulin) insulin.eiobUnits else Float.NaN,
-            cobNow,
+            remote?.iobUnits ?: localIob,
+            remote?.eiobUnits?.takeIf { it.isFinite() } ?: localEiob,
+            remote?.cobGrams?.takeIf { it.isFinite() } ?: cobNow,
             if (hasInsulin) iobNextWindow else Float.NaN,
             cobNextWindow
         )

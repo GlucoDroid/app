@@ -26,17 +26,14 @@ import android.content.ComponentName
 import android.graphics.drawable.Icon
 import androidx.wear.watchface.complications.data.ComplicationData
 import androidx.wear.watchface.complications.data.ComplicationType
-import androidx.wear.watchface.complications.data.SmallImage
 import androidx.wear.watchface.complications.data.PlainComplicationText
+import androidx.wear.watchface.complications.data.SmallImage
 import androidx.wear.watchface.complications.data.SmallImageComplicationData
 import androidx.wear.watchface.complications.data.SmallImageType
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
 import androidx.wear.watchface.complications.datasource.ComplicationRequest
 import androidx.wear.watchface.complications.datasource.SuspendingComplicationDataSourceService
-import tk.glucodata.Applic
-import tk.glucodata.CurrentDisplaySource
 import tk.glucodata.Log
-import tk.glucodata.Notify
 
 class NumberDataSourceService: SuspendingComplicationDataSourceService()  {
 private val glview= GlucoseValue(100,100)
@@ -49,47 +46,71 @@ private val glview= GlucoseValue(100,100)
     }
 
     override fun getPreviewData(type: ComplicationType): ComplicationData {
-        val value: String
-        val time: Long
-        val index: Int
-        val glucose = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)
-        val now = System.currentTimeMillis()
-        if (glucose != null&&(now-glucose.timeMillis)<tk.glucodata.Notify.glucosetimeout) {
-            time = glucose.timeMillis
-            value = glucose.primaryStr
-            index = glucose.index
-        } else {
-            value = if (Applic.unit == 1) "5.6" else "101"
-            index = 0
-	        time=now
+        val reading = GlucoseComplicationData.previewReading()
+        val tapAction = GlucoseComplicationData.tapAction()
+        return when (type) {
+            ComplicationType.SMALL_IMAGE -> {
+                SmallImageComplicationData.Builder(
+                    smallImage = SmallImage.Builder(
+                        Icon.createWithBitmap(
+                            glview.getNumberBitmap(
+                                reading.text,
+                                reading.timeMillis,
+                                reading.index,
+                                System.currentTimeMillis(),
+                            ),
+                        ),
+                        SmallImageType.PHOTO,
+                    ).build(),
+                    contentDescription = PlainComplicationText.Builder(text = "Glucose Value").build(),
+                )
+                    .setTapAction(tapAction)
+                    .build()
+            }
+            ComplicationType.SHORT_TEXT -> GlucoseComplicationData.shortValueData(
+                reading,
+                "Glucose Value",
+                tapAction,
+            )
+            ComplicationType.RANGED_VALUE -> GlucoseComplicationData.rangedValueData(
+                reading,
+                "Glucose Value",
+                tapAction,
+            )
+            else -> GlucoseComplicationData.shortValueData(null, "Glucose Value", tapAction)
         }
-        return SmallImageComplicationData.Builder(
-            smallImage =  SmallImage.Builder( Icon.createWithBitmap(glview.getNumberBitmap(value,time,index,now)), SmallImageType.PHOTO).build(),
-            contentDescription = PlainComplicationText.Builder(text = "Glucose Value").build() )
-            .setTapAction(null)
-            .build()
     }
 
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         Log.d(LOG_ID, "onComplicationRequest() id: ${request.complicationInstanceId}")
 
-        val complicationPendingIntent = Notify.mkpending();
+        val complicationPendingIntent = GlucoseComplicationData.tapAction()
+        val glucose = GlucoseComplicationData.currentReading()
 
         return when (request.complicationType) {
             ComplicationType.SMALL_IMAGE-> {
-		      val glucose = CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout)
 	      var image=
 	      if(glucose==null) {
 		 Log.i(LOG_ID,"glucose==null") 
 		  glview.getnovalue()
 		 }
 	      else {
-		    Log.i(LOG_ID,"glucose==${glucose.primaryStr}") 
+		    Log.i(LOG_ID,"glucose==${glucose.text}")
    		   val now = System.currentTimeMillis()
-			   glview.getNumberBitmap(glucose.primaryStr,glucose.timeMillis,glucose.index,now)
+			   glview.getNumberBitmap(glucose.text,glucose.timeMillis,glucose.index,now)
 		  }
                 SmallImageComplicationData.Builder( SmallImage.Builder( Icon.createWithBitmap(image), SmallImageType.PHOTO).build(), contentDescription = PlainComplicationText.Builder("Glucose Number").build()).setTapAction(complicationPendingIntent).build()
 		}
+            ComplicationType.SHORT_TEXT -> GlucoseComplicationData.shortValueData(
+                glucose,
+                "Glucose Number",
+                complicationPendingIntent,
+            )
+            ComplicationType.RANGED_VALUE -> GlucoseComplicationData.rangedValueData(
+                glucose,
+                "Glucose Number",
+                complicationPendingIntent,
+            )
 
             else -> {
                 Log.w(LOG_ID, "Unexpected complication type ${request.complicationType}")

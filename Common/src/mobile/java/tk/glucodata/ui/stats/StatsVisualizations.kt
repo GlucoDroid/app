@@ -429,8 +429,29 @@ internal fun CalendarHeatGrid(
                             )
                             .then(
                                 if (day != null) Modifier.clickable { onDayClick(day) } else Modifier
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // The day of the month, so a square can be found by date rather
+                        // than by counting along a row. Drawn in the ink the square's own
+                        // fill was picked to carry, so it stays legible from the palest
+                        // out-of-range orange to the deepest in-range green.
+                        if (inWindow) {
+                            Text(
+                                text = date.dayOfMonth.toString(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFeatureSettings = "tnum",
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = if (day != null) {
+                                    Color.Black.copy(alpha = 0.55f)
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                                },
+                                maxLines = 1
                             )
-                    )
+                        }
+                    }
                 }
             }
         }

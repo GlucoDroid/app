@@ -164,6 +164,8 @@ import tk.glucodata.ui.journal.JournalFloatingActionMenu
 import tk.glucodata.ui.journal.JournalInlineChip
 import tk.glucodata.ui.journal.JournalSettingsScreen
 import tk.glucodata.data.journal.JournalIobCalculator
+import tk.glucodata.data.journal.JournalActiveInsulinSummary
+import tk.glucodata.drivers.nightscout.NightscoutFollowerDeviceStatus
 import tk.glucodata.ui.journal.buildJournalChartMarkers
 import tk.glucodata.ui.journal.journalQuickAddTimestamp
 import tk.glucodata.ui.viewmodel.DashboardViewModel
@@ -255,13 +257,13 @@ private data class SnapInput(
     val boost: Float
 )
 
-enum class TimeRange(val label: String, val hours: Int) {
-    H1("1H", 1),
-    H3("3H", 3),
-    H6("6H", 6),
-    H12("12H", 12),
-    H24("24H", 24),
-    D3("3D", 72);
+enum class TimeRange(val labelResId: Int, val hours: Int, val labelAmount: Int = hours) {
+    H1(R.string.dashboard_range_hours, 1),
+    H3(R.string.dashboard_range_hours, 3),
+    H6(R.string.dashboard_range_hours, 6),
+    H12(R.string.dashboard_range_hours, 12),
+    H24(R.string.dashboard_range_hours, 24),
+    D3(R.string.dashboard_range_days, 72, 3);
 
     companion object {
         fun fromPreference(value: String?): TimeRange =
@@ -316,6 +318,12 @@ fun DashboardScreen(
     // Read outside the lazy list: an item that renders nothing still costs the list's
     // inter-item spacing, so the row has to be omitted rather than emitted empty.
     val showPinnedStats = tk.glucodata.ui.stats.hasPinnedStats()
+    // Owned here, not inside the strip: portrait and landscape compose it from two different
+    // call sites, so state living in the strip was discarded on every rotation and the window
+    // fell back to 24h. This screen stays in composition across the orientation change.
+    val pinnedStatsWindow = rememberSaveable {
+        mutableStateOf(tk.glucodata.ui.stats.PinnedWindow.TODAY)
+    }
     val chartSmoothingMinutes by viewModel.chartSmoothingMinutes.collectAsState()
     val dataSmoothingGraphOnly by viewModel.dataSmoothingGraphOnly.collectAsState()
     val dataSmoothingCollapseChunks by viewModel.dataSmoothingCollapseChunks.collectAsState()
@@ -339,6 +347,7 @@ fun DashboardScreen(
     val predictionTrendMomentumEnabled by viewModel.predictionTrendMomentumEnabled.collectAsState()
     val predictionCarbRatioGramsPerUnit by viewModel.predictionCarbRatioGramsPerUnit.collectAsState()
     val predictionInsulinSensitivityMgDlPerUnit by viewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsState()
+    val predictionModelProfile by viewModel.predictionModelProfile.collectAsState()
     val predictionCarbAbsorptionGramsPerHour by viewModel.predictionCarbAbsorptionGramsPerHour.collectAsState()
     val predictionHorizonMinutes by viewModel.predictionHorizonMinutes.collectAsState()
     val journalEntries by viewModel.journalEntries.collectAsState()
@@ -396,18 +405,38 @@ fun DashboardScreen(
             buildJournalChartMarkers(scopedJournalEntries, journalPresetsById, unit, glucoseHistory, journalFoodsById)
         }
     }
-    val activeInsulinSummary = remember(journalEnabled, scopedJournalEntries, journalPresetsById, journalNow) {
+    val localInsulinSummary = remember(journalEnabled, scopedJournalEntries, journalPresetsById, journalNow) {
         if (!journalEnabled || scopedJournalEntries.isEmpty()) {
             null
         } else {
             JournalIobCalculator.buildActiveInsulinSummary(scopedJournalEntries, journalPresetsById, journalNow)
         }
     }
+    // A fresh devicestatus published by the followed uploader replaces the
+    // locally recomputed IOB/eIOB so both devices show the same numbers; the
+    // journalNow ticker re-evaluates the freshness window, so a stale
+    // document falls back to the local computation on its own.
+    val remoteInsulin = remember(journalEnabled, journalNow) {
+        if (journalEnabled) NightscoutFollowerDeviceStatus.fresh(journalNow) else null
+    }
+    val activeInsulinSummary = remember(localInsulinSummary, remoteInsulin) {
+        when {
+            remoteInsulin == null -> localInsulinSummary
+            localInsulinSummary == null && remoteInsulin.iobUnits < 0.005f -> null
+            else -> (localInsulinSummary ?: JournalActiveInsulinSummary(0, 0f, 0, null)).copy(
+                iobUnits = remoteInsulin.iobUnits,
+                eiobUnits = remoteInsulin.eiobUnits.takeIf { it.isFinite() }
+                    ?: localInsulinSummary?.eiobUnits ?: 0f
+            )
+        }
+    }
+    val activeInsulinFromRemote = remoteInsulin != null && activeInsulinSummary != null
     val predictionSettings = remember(
         predictiveSimulationEnabled,
         predictionTrendMomentumEnabled,
         predictionCarbRatioGramsPerUnit,
         predictionInsulinSensitivityMgDlPerUnit,
+        predictionModelProfile,
         predictionCarbAbsorptionGramsPerHour,
         predictionHorizonMinutes,
         journalEnabled,
@@ -420,7 +449,8 @@ fun DashboardScreen(
             carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
             insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
             carbAbsorptionGramsPerHour = predictionCarbAbsorptionGramsPerHour,
-            foodMacrosEnabled = journalEnabled && journalFoodMacrosEnabled
+            foodMacrosEnabled = journalEnabled && journalFoodMacrosEnabled,
+            modelProfile = predictionModelProfile
         )
     }
     val consumerHistory = remember(
@@ -576,6 +606,10 @@ fun DashboardScreen(
                                 viewModel.onHistoryImported(tk.glucodata.data.HistoryRepository.IMPORTED_SENSOR_SERIAL)
                             }
                             result.success -> toast(context.getString(R.string.import_no_glucose))
+                            // Say what was wrong with the file — a bare
+                            // "unsupported" leaves the user guessing.
+                            result.errorMessage != null ->
+                                toast(context.getString(R.string.import_failed_with_error, result.errorMessage))
                             else -> toast(context.getString(R.string.import_unsupported_file))
                         }
                     }
@@ -729,6 +763,7 @@ fun DashboardScreen(
                 carbRatioGramsPerUnit = predictionCarbRatioGramsPerUnit,
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                 foodMacrosEnabled = journalFoodMacrosEnabled,
+                modelProfile = predictionModelProfile,
                 targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
                     tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
                 } else {
@@ -1197,7 +1232,15 @@ fun DashboardScreen(
                 }
             },
                 onImportHistory = {
-                    importLauncher.launch(arrayOf("application/json", "text/csv", "text/comma-separated-values", "*/*"))
+                    importLauncher.launch(
+                        arrayOf(
+                            "application/json",
+                            "text/csv",
+                            "text/comma-separated-values",
+                            "text/tab-separated-values",
+                            "*/*"
+                        )
+                    )
                 },
                 modifier = Modifier
                     .padding(padding),
@@ -1269,7 +1312,10 @@ fun DashboardScreen(
                     // two, rather than four cells squeezed across it.
                     if (showPinnedStats) {
                         item {
-                            tk.glucodata.ui.stats.PinnedStatsStrip(rows = 2)
+                            tk.glucodata.ui.stats.PinnedStatsStrip(
+                                rows = 2,
+                                windowState = pinnedStatsWindow
+                            )
                         }
                     }
 
@@ -1385,6 +1431,7 @@ fun DashboardScreen(
                                     peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
+                                    activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
@@ -1587,6 +1634,7 @@ fun DashboardScreen(
                                     peerPredictionSeries = peerPredictionSeries,
                                     journalMarkers = journalChartMarkers,
                                     activeInsulinSummary = activeInsulinSummary,
+                                    activeInsulinFromRemote = activeInsulinFromRemote,
                                     showEiob = journalEiobDisplayEnabled,
                                     appChartRangeColors = appChartRangeColorsEnabled,
                                     predictionSeries = predictionSeries,
@@ -1677,7 +1725,8 @@ fun DashboardScreen(
                                 // full 12 dp here and read as a hole, 2 dp had the strip
                                 // welded to the chart card once the chart collapses.
                                 top = 8.dp
-                            )
+                            ),
+                            windowState = pinnedStatsWindow
                         )
                     }
 }

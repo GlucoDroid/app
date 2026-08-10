@@ -76,16 +76,17 @@ public final class GlucoseDelta {
 
     /**
      * Compact signed text: mg/dL as integer when close to one ("-1", "+2"),
-     * one decimal otherwise; mmol always one decimal. Dot separator like the
-     * value displays of GDH-style receivers.
+     * one decimal otherwise; mmol always one decimal. Decimal separators follow
+     * the user's locale, matching the primary glucose readout.
      */
     public static String format(float deltaPerMinute, boolean isMmol) {
         if (!Float.isFinite(deltaPerMinute))
             return "";
         final float rounded = Math.round(deltaPerMinute * 10f) / 10f;
-        final String sign = rounded > 0f ? "+" : "";
+        final String sign = rounded > 0f ? "+" : rounded < 0f ? "\u2212" : "";
+        final float magnitude = Math.abs(rounded);
         if (!isMmol && Math.abs(rounded - Math.round(rounded)) < 0.05f)
-            return sign + Math.round(rounded);
-        return sign + String.format(Locale.ROOT, "%.1f", rounded);
+            return sign + Math.abs(Math.round(rounded));
+        return sign + String.format(Locale.getDefault(), "%.1f", magnitude);
     }
 }

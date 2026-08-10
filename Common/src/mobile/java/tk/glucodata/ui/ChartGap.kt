@@ -5,18 +5,33 @@ import androidx.compose.ui.geometry.Offset
 /**
  * How far apart two readings may be before the chart stops connecting them.
  *
- * Deliberately 15 minutes — a missing reading has to look missing. Raising it would draw
- * a straight line across a real hole in the data, which is worse than an honest gap.
+ * The native renderer behind the notification chart (`JCurve::histcurve` in
+ * `curve/curve.cpp`) walks history *positions* and breaks the path only on a missing
+ * slot — elapsed time never enters into it, so consecutive 15-minute records always
+ * connect. This chart only has a flat list of timestamps from mixed sources, so the
+ * equivalent rule has to be expressed in time:
  *
- * The consequence is that a stretch covered only by 15-minute Libre NFC history splits
- * into one-point runs, because a slot's stored timestamp is
- * `scanTime - (currentId - slotId) * 60` and slots written by different scans land 15
- * minutes apart give or take those scans' second-offsets. [ChartLineRun] is what keeps
- * those points visible: a lone point becomes a dot instead of nothing, so coarse
- * scan-recovered data reads as dotted rather than as a blank stretch.
+ *   [HISTORY_INTERVAL_MS] — the coarsest cadence the app stores, Libre 1/2 NFC history
+ *   + [WRITE_DRIFT_MS]    — a slot's stored time is `writeTime - (currentId - slotId) * 60`,
+ *                           and adjacent slots get written by different scans or BLE
+ *                           packets, so their second-offsets differ by up to a minute
+ *   + margin
+ *
+ * At 17 minutes two adjacent history slots always connect however they drifted, while a
+ * genuinely missing slot — 30 minutes or more — still breaks the curve. That distinction
+ * is the point: a hole in the data has to look like a hole, so this must not be raised
+ * to cover one.
+ *
+ * [ChartLineRun] handles what remains, mirroring the `nvgCircle` upstream draws for a
+ * one-point run: a reading with no neighbour close enough to join becomes a dot rather
+ * than nothing at all.
  */
 internal object ChartGap {
-    const val THRESHOLD_MS = 15L * 60L * 1000L
+    private const val HISTORY_INTERVAL_MS = 15L * 60L * 1000L
+    private const val WRITE_DRIFT_MS = 60L * 1000L
+    private const val MARGIN_MS = 60L * 1000L
+
+    const val THRESHOLD_MS = HISTORY_INTERVAL_MS + WRITE_DRIFT_MS + MARGIN_MS
 }
 
 /**

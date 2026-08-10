@@ -77,7 +77,6 @@ internal fun SibionicsType.acceptsBleSetupDevice(name: String?): Boolean =
 enum class SibionicsSetupStep {
     SELECT_TYPE,
     SCAN_SENSOR,
-    SCAN_TRANSMITTER,
     CONNECTING
 }
 
@@ -394,101 +393,19 @@ fun SibionicsSetupWizard(
     val context = LocalContext.current
     var currentStep by remember { mutableStateOf(SibionicsSetupStep.SELECT_TYPE) }
     var selectedType by remember { mutableStateOf(SibionicsType.EU) }
-    var useLegacyDriver by remember { mutableStateOf(false) }
-    val useManagedDriver = !useLegacyDriver
-    var sensorPtr by remember { mutableStateOf(0L) }
     var sensorName by remember { mutableStateOf("") }
-    var resetTransmitter by remember { mutableStateOf(false) } // Default false as requested
-    var pendingLegacyTransmitterName by remember { mutableStateOf<String?>(null) }
     var scannerTouchActive by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val handleDismiss: () -> Unit = {
-        tk.glucodata.MainActivity.onSensorScanResult = null
-        tk.glucodata.MainActivity.onTransmitterScanResult = null
-        onDismiss()
-    }
+    val handleDismiss: () -> Unit = onDismiss
     val handleBack: () -> Unit = {
         when (currentStep) {
             SibionicsSetupStep.SELECT_TYPE -> handleDismiss()
             SibionicsSetupStep.SCAN_SENSOR -> currentStep = SibionicsSetupStep.SELECT_TYPE
-            SibionicsSetupStep.SCAN_TRANSMITTER -> currentStep = SibionicsSetupStep.SCAN_SENSOR
             SibionicsSetupStep.CONNECTING -> handleDismiss()
         }
     }
 
     BackHandler(onBack = handleBack)
-
-    // Register callbacks with MainActivity
-    DisposableEffect(Unit) {
-        val sensorCallback = object : tk.glucodata.MainActivity.SensorScanCallback {
-            override fun onResult(name: String?, ptr: Long, libreType: Int) {
-                if (name == null || ptr == 0L) {
-                    tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.sensor_init_failed))
-                    return
-                }
-
-                sensorName = name
-                sensorPtr = ptr
-
-                Natives.setSensorptrSiSubtype(ptr, selectedType.subtype)
-
-                val pendingTransmitter = pendingLegacyTransmitterName
-                pendingLegacyTransmitterName = null
-                if (selectedType == SibionicsType.SIBIONICS2 && pendingTransmitter != null) {
-                    val transmitterPayload = constructFakeSibionicsQr(pendingTransmitter, targetLength = 59)
-                    val paired = transmitterPayload != null &&
-                        Natives.siSensorptrTransmitterScan(ptr, transmitterPayload)
-                    if (paired) {
-                        currentStep = SibionicsSetupStep.CONNECTING
-                        finishSetup(ptr, resetTransmitter)
-                        scope.launch {
-                            kotlinx.coroutines.delay(4000)
-                            onComplete()
-                        }
-                    } else {
-                        currentStep = SibionicsSetupStep.SCAN_TRANSMITTER
-                        tk.glucodata.Applic.Toaster(
-                            tk.glucodata.Applic.app.getString(R.string.failed_to_connect) + pendingTransmitter
-                        )
-                    }
-                } else {
-                    currentStep = if (selectedType == SibionicsType.SIBIONICS2) {
-                        SibionicsSetupStep.SCAN_TRANSMITTER
-                    } else {
-                        SibionicsSetupStep.CONNECTING
-                    }
-                    if (selectedType != SibionicsType.SIBIONICS2) {
-                        finishSetup(ptr, reset = false)
-                        scope.launch {
-                            kotlinx.coroutines.delay(1500)
-                            onComplete()
-                        }
-                    }
-                }
-            }
-        }
-
-        val transmitterCallback = object : tk.glucodata.MainActivity.TransmitterScanCallback {
-            override fun onResult(success: Boolean) {
-                if (success) {
-                    currentStep = SibionicsSetupStep.CONNECTING
-                    finishSetup(sensorPtr, resetTransmitter)
-                    scope.launch {
-                        kotlinx.coroutines.delay(4000)
-                        onComplete()
-                    }
-                }
-            }
-        }
-
-        tk.glucodata.MainActivity.onSensorScanResult = sensorCallback
-        tk.glucodata.MainActivity.onTransmitterScanResult = transmitterCallback
-
-        onDispose {
-            tk.glucodata.MainActivity.onSensorScanResult = null
-            tk.glucodata.MainActivity.onTransmitterScanResult = null
-        }
-    }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scaffoldModifier = if (scannerTouchActive) Modifier else Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
@@ -527,17 +444,11 @@ fun SibionicsSetupWizard(
                 SibionicsSetupStep.SELECT_TYPE -> SelectTypeStep(
                     compact = ui.compact,
                     selectedType = selectedType,
-                    useLegacyDriver = useLegacyDriver,
                     onNavigateToReadiness = onNavigateToReadiness,
                     onTypeSelected = { type ->
                         selectedType = type
                     },
-                    onLegacyDriverChanged = { enabled ->
-                        useLegacyDriver = enabled
-                    },
                     onNext = {
-                        // Always go to SCAN_SENSOR to ensure sensor structure is created.
-                        // Subtype will be applied in SCAN_SENSOR callback.
                         currentStep = SibionicsSetupStep.SCAN_SENSOR
                     },
                     onBack = {
@@ -548,29 +459,6 @@ fun SibionicsSetupWizard(
                 SibionicsSetupStep.SCAN_SENSOR -> ScanSensorStep(
                     compact = ui.compact,
                     selectedType = selectedType,
-                    useManagedDriver = useManagedDriver,
-                    onInlineScanResult = { raw ->
-                        tk.glucodata.MainActivity.handleInlineQrScan(
-                            raw,
-                            tk.glucodata.MainActivity.REQUEST_BARCODE
-                        )
-                    },
-                    onManualEntry = { code ->
-                        val fakeQr = constructFakeSibionicsQr(code, targetLength = 70)
-                        if (fakeQr == null) {
-                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.invalid_code_format))
-                            return@ScanSensorStep
-                        }
-
-                        tk.glucodata.MainActivity.thisone?.runOnUiThread {
-                            tk.glucodata.PhotoScan.connectSensor(
-                                fakeQr,
-                                tk.glucodata.MainActivity.thisone,
-                                tk.glucodata.MainActivity.REQUEST_BARCODE,
-                                0L
-                            )
-                        }
-                    },
                     onManagedEntry = { raw, device ->
                         val record = SibionicsRegistry.addSensorAndStart(
                             context = context.applicationContext,
@@ -591,122 +479,26 @@ fun SibionicsSetupWizard(
                         }
                     },
                     onBleDeviceEntry = { device ->
-                        if (useManagedDriver) {
-                            val record = SibionicsRegistry.addSensorAndStart(
-                                context = context.applicationContext,
-                                rawInput = device.name,
-                                address = device.address,
-                                displayName = device.name,
-                                variant = selectedType.toManagedVariant(),
-                                bleName = device.name,
-                            )
-                            sensorName = record.displayName
-                            currentStep = SibionicsSetupStep.CONNECTING
-                            tk.glucodata.Applic.Toaster(
-                                tk.glucodata.Applic.app.getString(R.string.sibionics_managed_sensor_added, record.displayName)
-                            )
-                            scope.launch {
-                                kotlinx.coroutines.delay(1500)
-                                onComplete()
-                            }
-                        } else {
-                            val fakeQr = constructBleOnlySibionicsQr(device.name)
-                            if (fakeQr == null) {
-                                tk.glucodata.Applic.Toaster(
-                                    tk.glucodata.Applic.app.getString(R.string.invalid_device_name) + device.name
-                                )
-                                return@ScanSensorStep
-                            }
-                            pendingLegacyTransmitterName = device.name.takeIf {
-                                selectedType == SibionicsType.SIBIONICS2
-                            }
-                            tk.glucodata.MainActivity.thisone?.runOnUiThread {
-                                tk.glucodata.PhotoScan.connectSensor(
-                                    fakeQr,
-                                    tk.glucodata.MainActivity.thisone,
-                                    tk.glucodata.MainActivity.REQUEST_BARCODE,
-                                    0L,
-                                )
-                            }
+                        val record = SibionicsRegistry.addSensorAndStart(
+                            context = context.applicationContext,
+                            rawInput = device.name,
+                            address = device.address,
+                            displayName = device.name,
+                            variant = selectedType.toManagedVariant(),
+                            bleName = device.name,
+                        )
+                        sensorName = record.displayName
+                        currentStep = SibionicsSetupStep.CONNECTING
+                        tk.glucodata.Applic.Toaster(
+                            tk.glucodata.Applic.app.getString(R.string.sibionics_managed_sensor_added, record.displayName)
+                        )
+                        scope.launch {
+                            kotlinx.coroutines.delay(1500)
+                            onComplete()
                         }
                     },
                     onScannerTouchInteractionChanged = { active ->
                         scannerTouchActive = active
-                    }
-                )
-
-                SibionicsSetupStep.SCAN_TRANSMITTER -> ScanTransmitterStep(
-                    compact = ui.compact,
-                    resetEnabled = resetTransmitter,
-                    onResetChanged = { resetTransmitter = it },
-                    onScanClick = {
-                        if (sensorPtr == 0L) {
-                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.sensor_not_init))
-                            currentStep = SibionicsSetupStep.SCAN_SENSOR
-                            return@ScanTransmitterStep
-                        }
-                        
-                        // Apply reset setting before scan
-                        Natives.setSensorptrResetSibionics2(sensorPtr, resetTransmitter)
-
-                        tk.glucodata.PhotoScan.scanner(
-                            tk.glucodata.MainActivity.thisone,
-                            tk.glucodata.MainActivity.REQUEST_BARCODE_SIB2,
-                            sensorPtr
-                        )
-                    },
-                    onBack = { currentStep = SibionicsSetupStep.SELECT_TYPE },
-                    onDeviceFound = { name ->
-                        if (sensorPtr == 0L) {
-                             tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.sensor_lost_restart))
-                             currentStep = SibionicsSetupStep.SCAN_SENSOR
-                             return@ScanTransmitterStep
-                        }
-                        
-                        val fakeQr = constructFakeSibionicsQr(name, targetLength = 59)
-                        if (fakeQr == null) {
-                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.invalid_device_name) + name)
-                            return@ScanTransmitterStep
-                        }
-
-                        Natives.setSensorptrResetSibionics2(sensorPtr, resetTransmitter)
-                        val success = Natives.siSensorptrTransmitterScan(sensorPtr, fakeQr)
-                        if (success) {
-                            currentStep = SibionicsSetupStep.CONNECTING
-                            finishSetup(sensorPtr, resetTransmitter)
-                            scope.launch {
-                                kotlinx.coroutines.delay(4000)
-                                onComplete()
-                            }
-                        } else {
-                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.failed_to_connect) + name)
-                        }
-                    },
-                    onManualEntry = { code ->
-                        if (sensorPtr == 0L) {
-                             tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.sensor_not_init))
-                             currentStep = SibionicsSetupStep.SCAN_SENSOR
-                             return@ScanTransmitterStep
-                        }
-                        
-                        val fakeQr = constructFakeSibionicsQr(code, targetLength = 59)
-                        if (fakeQr == null) {
-                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.invalid_code_format))
-                            return@ScanTransmitterStep
-                        }
-
-                        Natives.setSensorptrResetSibionics2(sensorPtr, resetTransmitter)
-                        val success = Natives.siSensorptrTransmitterScan(sensorPtr, fakeQr)
-                        if (success) {
-                            currentStep = SibionicsSetupStep.CONNECTING
-                            finishSetup(sensorPtr, resetTransmitter)
-                            scope.launch {
-                                kotlinx.coroutines.delay(4000)
-                                onComplete()
-                            }
-                        } else {
-                            tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.failed_to_connect) + code)
-                        }
                     }
                 )
 
@@ -723,9 +515,6 @@ fun SibionicsSetupWizard(
 fun ScanSensorStep(
     compact: Boolean,
     selectedType: SibionicsType,
-    useManagedDriver: Boolean,
-    onInlineScanResult: (String) -> Unit,
-    onManualEntry: (String) -> Unit,
     onManagedEntry: (String, BleDeviceScanner.SibionicsBleDevice?) -> Unit,
     onBleDeviceEntry: (BleDeviceScanner.SibionicsBleDevice) -> Unit,
     onScannerTouchInteractionChanged: (Boolean) -> Unit
@@ -749,7 +538,7 @@ fun ScanSensorStep(
         matchingBleDevices.firstOrNull { it.address == selectedBleAddress }
     }
     val submitManagedQr: (String) -> Boolean = { raw ->
-        if (SibionicsRegistry.isSupportedQrPayload(raw)) {
+        if (SibionicsRegistry.isSupportedQrPayload(raw, selectedType.toManagedVariant())) {
             onManagedEntry(raw, selectedBleDevice)
             true
         } else {
@@ -764,12 +553,7 @@ fun ScanSensorStep(
         title = stringResource(R.string.sibionics_setup_title),
         onScanResult = { raw ->
             if (!handledScan) {
-                if (useManagedDriver) {
-                    handledScan = submitManagedQr(raw)
-                } else {
-                    handledScan = true
-                    onInlineScanResult(raw)
-                }
+                handledScan = submitManagedQr(raw)
             }
         }
     )
@@ -811,11 +595,7 @@ fun ScanSensorStep(
                 try {
                     val decoded = decodeBitmapQr(context, uri)
                     if (decoded != null) {
-                        if (useManagedDriver) {
-                            submitManagedQr(decoded)
-                        } else {
-                            onManualEntry(decoded)
-                        }
+                        submitManagedQr(decoded)
                     } else {
                         tk.glucodata.Applic.Toaster(tk.glucodata.Applic.app.getString(R.string.no_qr_found))
                     }
@@ -834,11 +614,7 @@ fun ScanSensorStep(
             onDismiss = { showManualEntry = false },
             onConfirm = { code ->
                 showManualEntry = false
-                if (useManagedDriver) {
-                    onManagedEntry(code, selectedBleDevice)
-                } else {
-                    onManualEntry(code)
-                }
+                onManagedEntry(code, selectedBleDevice)
             }
         )
     }
@@ -859,12 +635,7 @@ fun ScanSensorStep(
                 scannerEnabled = !galleryDecodeInProgress,
                 onScanResult = { raw ->
                     if (!handledScan) {
-                        if (useManagedDriver) {
-                            handledScan = submitManagedQr(raw)
-                        } else {
-                            handledScan = true
-                            onInlineScanResult(raw)
-                        }
+                        handledScan = submitManagedQr(raw)
                     }
                 },
                 onManualFallback = launchFullscreenScan,
@@ -1007,10 +778,8 @@ fun ScanSensorStep(
 fun SelectTypeStep(
     compact: Boolean,
     selectedType: SibionicsType,
-    useLegacyDriver: Boolean,
     onNavigateToReadiness: () -> Unit,
     onTypeSelected: (SibionicsType) -> Unit,
-    onLegacyDriverChanged: (Boolean) -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -1120,27 +889,6 @@ fun SelectTypeStep(
                 }
             }
 
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.sibionics_legacy_driver_title)) },
-                supportingContent = {
-                    Text(
-                        text = stringResource(R.string.sibionics_legacy_driver_desc),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-                trailingContent = {
-                    StyledSwitch(
-                        checked = useLegacyDriver,
-                        onCheckedChange = onLegacyDriverChanged,
-                    )
-                },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(if (compact) 16.dp else 18.dp))
-                    .clickable { onLegacyDriverChanged(!useLegacyDriver) },
-            )
-            Spacer(modifier = Modifier.height(2.dp))
         }
 
         Spacer(modifier = Modifier.height(if (compact) 12.dp else 16.dp))

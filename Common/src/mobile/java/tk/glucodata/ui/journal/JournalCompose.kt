@@ -111,6 +111,7 @@ import tk.glucodata.data.journal.JournalFood
 import tk.glucodata.data.journal.JournalFoodInput
 import tk.glucodata.data.journal.JournalInsulinPreset
 import tk.glucodata.data.journal.JournalIntensity
+import tk.glucodata.data.prediction.PredictionModelProfile
 import tk.glucodata.data.journal.LegacyJournalFoodDatabase
 import tk.glucodata.data.journal.journalFoodDoseCarbs
 import tk.glucodata.ui.GlucosePoint
@@ -156,8 +157,18 @@ data class JournalDoseProfile(
     val carbRatioGramsPerUnit: Float,
     val insulinSensitivityMgDlPerUnit: Float,
     val foodMacrosEnabled: Boolean = false,
-    val targetHighMgDl: Float
-)
+    val targetHighMgDl: Float,
+    val modelProfile: PredictionModelProfile? = null
+) {
+    fun at(timestamp: Long): JournalDoseProfile {
+        val resolved = modelProfile?.parametersAt(timestamp) ?: return this
+        return copy(
+            carbRatioGramsPerUnit = resolved.carbRatioGramsPerUnit,
+            insulinSensitivityMgDlPerUnit = resolved.insulinSensitivityMgDlPerUnit,
+            modelProfile = null
+        )
+    }
+}
 
 private enum class JournalMealShape(val durationMinutes: Int, val labelRes: Int) {
     FAST(45, R.string.journal_meal_shape_fast),
@@ -363,8 +374,8 @@ fun JournalEntrySheet(
     var showTimePicker by remember(existingEntry?.id, initialType, selectedTimestamp) { mutableStateOf(false) }
     val saveInputs = draft.toInputs(unit, sensorSerialProvider(), presetsById, foodMacrosEnabled)
     val canSave = saveInputs.isNotEmpty()
-    val calculatorProfile = remember(doseProfile) {
-        doseProfile?.takeIf {
+    val calculatorProfile = remember(doseProfile, draft.timestamp) {
+        doseProfile?.at(draft.timestamp)?.takeIf {
             it.enabled &&
                     it.carbRatioGramsPerUnit > 0f &&
                     it.insulinSensitivityMgDlPerUnit > 0f

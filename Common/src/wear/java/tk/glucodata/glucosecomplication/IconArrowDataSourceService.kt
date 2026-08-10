@@ -76,7 +76,7 @@ fun getview(type: ComplicationType):GlucoseValue {
           MonochromaticImage.Builder( Icon.createWithBitmap(getview(type).getArrowTimeBitmap(time,rate))).build(),
 
             contentDescription = PlainComplicationText.Builder(text = "Glucose Arrow").build() )
-            .setTapAction(null)
+            .setTapAction(GlucoseComplicationData.tapAction())
             .build()
     }
 
@@ -95,7 +95,7 @@ fun getview(type: ComplicationType):GlucoseValue {
                       getview(type).getArrowTimeBitmap(glucose.timeMillis,glucose.rate);
                      }
              val image=Icon.createWithBitmap(bitmap)
-             val complicationPendingIntent = Notify.mkpending()
+             val complicationPendingIntent = GlucoseComplicationData.tapAction()
             return MonochromaticImageComplicationData.Builder(
                     MonochromaticImage.Builder(image).build(), contentDescription = PlainComplicationText.Builder("Glucose Arrow").build()).setTapAction(complicationPendingIntent).build()
             } 

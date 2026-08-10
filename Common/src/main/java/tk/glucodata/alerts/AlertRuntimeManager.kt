@@ -116,6 +116,7 @@ object AlertRuntimeManager {
         }
         synchronized(lock) {
             lastReadingTimeMs = maxOf(lastReadingTimeMs, readingTimeMs)
+            SensorHandoverRuntime.onReading(sensorId)
             if (snapshot != null && snapshot.primaryValue.isFinite()) {
                 lastGlucoseValue = snapshot.primaryValue
                 lastRate = snapshot.rate
@@ -165,6 +166,7 @@ object AlertRuntimeManager {
             evaluateDeltaAlarmsLocked()
         }
         evaluateSensorExpiryLocked(nowMs)
+        SensorHandoverRuntime.evaluate(nowMs)
         return standardAlertEvaluation
     }
 
@@ -348,6 +350,12 @@ object AlertRuntimeManager {
         if (SnoozeManager.isSnoozed(type)) {
             return
         }
+        if (SensorHandoverRuntime.missedReadingSuppressed(nowMs)) {
+            // Post-handover window: the successor is still warming up; a short
+            // data gap during the switch must not alarm as an outage.
+            clearRuntimeAlert(type, "sensor-handover-window")
+            return
+        }
 
         val missed = nowMs - lastReadingTimeMs >= durationMs
         if (!missed) {
@@ -453,10 +461,22 @@ object AlertRuntimeManager {
             return
         }
 
-        val glucoseValue = currentGlucoseValueLocked() ?: return
-        val message = sensorExpiryMessage(triggered.first())
+        // The sensor ages whether or not a reading is available, and readings
+        // often stop exactly when it is about to expire. Without a value the
+        // alarm goes out message-only rather than waiting for a reading that may
+        // never come (#98); should even that fail, the threshold stays pending
+        // and is offered again on the next tick instead of counting as warned.
+        val glucoseValue = currentGlucoseValueLocked()
+        val message = SensorHandoverRuntime.decorateExpiryMessage(sensorExpiryMessage(triggered.first()), nowMs)
 
-        triggerAlert(type, glucoseValue, currentRateLocked(), message)
+        val delivered = if (glucoseValue != null) {
+            triggerAlert(type, glucoseValue, currentRateLocked(), message)
+        } else {
+            triggerMessageAlert(type, message)
+        }
+        if (delivered) {
+            sensorExpiryState.confirmDelivered(triggered.first())
+        }
     }
 
     private fun evaluateDeltaAlarmsLocked() {
@@ -523,7 +543,12 @@ object AlertRuntimeManager {
 
         val label = Applic.app.getString(type.nameResId)
         val message = "$label ${Notify.glucosestr(glucoseValue)}"
-        triggerAlert(type, glucoseValue, currentRateLocked(), message)
+        if (!triggerAlert(type, glucoseValue, currentRateLocked(), message)) {
+            // The latch disarmed on the offer; a failed delivery must not consume
+            // the alarm. Re-armed, it fires again while the run stands and dies
+            // with it if the run breaks.
+            state.rearmAfterFailedDelivery()
+        }
     }
 
     /** Notification text naming the threshold that fired ("... in 3 days" / "... in 6 hours"). */
@@ -549,6 +574,19 @@ object AlertRuntimeManager {
             return triggered
         } catch (t: Throwable) {
             Log.stack(LOG_ID, "triggerAlert ${type.name}", t)
+            return false
+        }
+    }
+
+    private fun triggerMessageAlert(type: AlertType, message: String): Boolean {
+        try {
+            val triggered = Notify.triggerSupplementalMessageAlert(type.id, message)
+            if (triggered) {
+                Log.i(LOG_ID, "Triggered ${type.name} without reading: $message")
+            }
+            return triggered
+        } catch (t: Throwable) {
+            Log.stack(LOG_ID, "triggerMessageAlert ${type.name}", t)
             return false
         }
     }

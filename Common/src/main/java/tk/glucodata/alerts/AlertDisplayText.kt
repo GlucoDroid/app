@@ -33,6 +33,23 @@ object AlertDisplayText {
     }
 
     /**
+     * Value shown for a triggered alert on the alarm screen and the separate
+     * notification. A usable reading is rendered by the caller-supplied
+     * formatter; without one the snapshot's preformatted string is reused. A
+     * message-only alert (no reading at all: NaN value, blank snapshot) shows
+     * no value - never the literal "NaN", a stale figure, or a fabricated one.
+     * Values at or below the 0.1 sentinel count as absent, like the legacy
+     * "wasvalue" convention.
+     */
+    @JvmStatic
+    fun alarmDisplayValue(glvalue: Float, snapshotValue: String?, formatValue: (Float) -> String): String {
+        if (glvalue.isFinite() && glvalue > 0.1f) {
+            return formatValue(glvalue)
+        }
+        return snapshotValue?.takeIf { it.isNotBlank() } ?: ""
+    }
+
+    /**
      * Secondary line on the full-screen alarm. Keeps whatever the alert message
      * adds over the big label and the glucose hero (expiry lead time,
      * missed-reading duration, forecast horizon) and drops messages that merely

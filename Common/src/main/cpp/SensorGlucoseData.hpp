@@ -698,7 +698,7 @@ public:
       days = 15;
     return days * 24 * streamperhour();
   }
-  int32_t pollStorageSize() const {
+  int32_t pollStorageSize(size_t minimumRecords = 0) const {
     const auto *info = getinfo();
     const std::string_view path(sensordir.data(), sensordir.size());
     const size_t leafOffset = path.find_last_of('/') == std::string_view::npos
@@ -709,9 +709,13 @@ public:
     // Legacy Sibionics reset cycles keep appending to the same poll store.
     // Managed Sibionics shells also need to reach their day-22 reset without
     // changing the native shell's lifecycle metadata.
-    if ((info && info->sibionics) || managedSibionics)
-      return maxminutes;
-    return maxstreampos();
+    const size_t defaultRecords =
+        ((info && info->sibionics) || managedSibionics)
+            ? static_cast<size_t>(maxminutes)
+            : static_cast<size_t>(std::max(maxstreampos(), 0));
+    return static_cast<int32_t>(
+        std::min(std::max(defaultRecords, minimumRecords),
+                 static_cast<size_t>(std::numeric_limits<int32_t>::max())));
   }
   size_t pollStorageCapacity() const {
     if (!polls.data() || !rawpolls.data() || !temppolls.data())
@@ -853,7 +857,16 @@ public:
         isSibionics1() ? maxSIhours
                        : ((isAccuChek() ? maxdaysAccu : info->days + 1) * 24);
 #endif
-    uint32_t maxtime = hours * 60 * 60 + getstarttime();
+    // info->days is the shell's storage geometry — 14 for a direct-stream
+    // shell seeded before its lifetime was known — while a longer activated
+    // lifetime only ever lands in wearduration2 (setSensorWearDays). Where the
+    // two disagree the longer one is the real end; otherwise checkinfo()
+    // retires a 28-day sensor on day 14 and it silently leaves the watch feed.
+    // Only AiDex, Libre3 and direct-stream shells carry wearduration2, and for
+    // the first two it never exceeds days*24*60, so this is a no-op there.
+    const int minutes =
+        std::max(hours * 60, static_cast<int>(info->wearduration2));
+    uint32_t maxtime = minutes * 60 + getstarttime();
 
     // ARCHITECTURAL FIX: Support Custom Calibration for aged sensors.
     // If user enabled Custom Calibration (index != 0), we allow the sensor to
@@ -1594,14 +1607,16 @@ private:
 
   static constexpr const char trendsdat[] = "trends.dat";
   SensorGlucoseData(string_view sensordir, int spec, string_view baseuit,
-                    int sensorindex)
+                    int sensorindex, size_t minimumPollRecords = 0)
       : sensordir(sensordir), meminfo(sensordir, infopdat, sizeof(struct Info)),
         historydata(sensordir, "data.dat",
                     getinfo() ? historybytes(perhour()) : (haserror = true, 0)),
         scansize(maxscansize()), scans(sensordir, "current.dat", scansize),
-        polls(sensordir, "polls.dat", pollStorageSize()),
-        rawpolls(sensordir, "rawpolls.dat", pollStorageSize()),
-        temppolls(sensordir, "temppolls.dat", pollStorageSize()),
+        polls(sensordir, "polls.dat", pollStorageSize(minimumPollRecords)),
+        rawpolls(sensordir, "rawpolls.dat",
+                 pollStorageSize(minimumPollRecords)),
+        temppolls(sensordir, "temppolls.dat",
+                  pollStorageSize(minimumPollRecords)),
         trends(sensordir, trendsdat, scansize), specstart(spec),
         polluit(baseuit, "polls.dat"), rawpolluit(baseuit, "rawpolls.dat"),
         temppolluit(baseuit, "temppolls.dat"), infopath(baseuit, infopdat),
@@ -1719,10 +1734,24 @@ const char * relstatefile() {
             sensin, specin,
             std::string_view(sensin.data() + specin, sensin.size() - specin),
             sensorindex) {}
+  SensorGlucoseData(string_view sensin, int specin, int sensorindex,
+                    size_t minimumPollRecords)
+      : SensorGlucoseData(
+            sensin, specin,
+            std::string_view(sensin.data() + specin, sensin.size() - specin),
+            sensorindex, minimumPollRecords) {}
 
 public:
+  struct DirectStreamCapacity {
+    size_t minimumRecords;
+  };
+
   SensorGlucoseData(string_view sensin, int sensorindex)
       : SensorGlucoseData(sensin, globalbasedir.size() + 1, sensorindex) {}
+  SensorGlucoseData(string_view sensin, int sensorindex,
+                    DirectStreamCapacity capacity)
+      : SensorGlucoseData(sensin, globalbasedir.size() + 1, sensorindex,
+                          capacity.minimumRecords) {}
   void setMirrorRemoteBase(std::string_view baseuit) {
     if (baseuit.empty())
       return;

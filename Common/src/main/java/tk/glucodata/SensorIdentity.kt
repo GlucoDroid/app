@@ -165,6 +165,12 @@ object SensorIdentity {
     @JvmStatic
     fun shouldUseNativeHistorySync(sensorId: String?): Boolean {
         val raw = normalized(sensorId) ?: return true
+        // The watch has no Room at all — HistoryRepository is mobile-only — so
+        // native storage is its only history, whether readings arrive over
+        // WearSync2 or from a driver connected here after a handoff. Letting a
+        // managed driver answer "Room owns this" left both sources empty and the
+        // screen showing "No data" over a full store.
+        if (Applic.isWearable) return true
         managedDriverHistorySync(raw)?.let { return it }
         val canonical = canonicalOrRaw(raw) ?: raw
         if (!canonical.equals(raw, ignoreCase = true)) {

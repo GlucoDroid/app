@@ -25,6 +25,23 @@
 
     <string name="title_activity_watch_face_config">Configuration</string>
     <string name="talkhelp" />
-
-
+    <string name="wear_sensor_day_label">Day</string>
+    <string name="wear_sensor_day_format">Day %1$s</string>
+    <string name="wear_return_sensor_to_phone">Return sensor to phone</string>
+    <string name="wear_claim_watch_owns">Watch is reading the sensor</string>
+    <string name="wear_claim_waiting">Waiting to connect to the sensor</string>
+    <string name="wear_calibration_on">Calibration on</string>
+    <string name="wear_calibration_off">Calibration off</string>
+    <string name="wear_calibration_clear">Clear calibrations</string>
+    <string name="wear_calibration_delete">Delete calibration</string>
+    <string name="wear_color_in_range">Colour in-range readings</string>
+    <string name="wear_color_in_range_on">All readings coloured</string>
+    <string name="wear_color_in_range_off">Only highs and lows coloured</string>
+    <string name="wear_journal_disabled">Enable the journal on the phone to use it here.</string>
+    <string name="wear_journal_insulin">Insulin</string>
+    <string name="wear_journal_carbs">Carbs</string>
+    <string name="wear_journal_add">Add journal item</string>
+    <string name="wear_reading_actions_title">Reading</string>
+    <string name="wear_calibration_edit">Edit calibration</string>
+    <string name="wear_journal_delete">Delete</string>
 </resources>

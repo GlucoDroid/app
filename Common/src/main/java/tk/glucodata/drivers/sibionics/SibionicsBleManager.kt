@@ -57,6 +57,13 @@ class SibionicsBleManager(
         ERROR,
     }
 
+    private enum class BatteryReadPurpose {
+        SETUP,
+        STABILIZATION,
+        PERIODIC,
+        MANUAL,
+    }
+
     private data class EmittedReading(
         val sampleMs: Long,
         val glucoseMgdl: Float,
@@ -81,6 +88,9 @@ class SibionicsBleManager(
         private const val CHINESE_PROBE_TIMEOUT_MS = 5_000L
         private const val CHINESE_DATA_TIMEOUT_MS = 30_000L
         private const val HANDSHAKE_TIMEOUT_MS = 15_000L
+        private const val BATTERY_READ_TIMEOUT_MS = 3_000L
+        private const val BATTERY_STABILIZATION_INTERVAL_MS = 60_000L
+        private const val BATTERY_PERIODIC_INTERVAL_MS = 6L * 60L * 60L * 1000L
         private const val STREAMING_TIMEOUT_MS = 180_000L
         private const val CHINESE_POLL_INTERVAL_MS = 60_000L
         private const val CURRENT_FRESH_MS = 180_000L
@@ -124,7 +134,16 @@ class SibionicsBleManager(
     private var service: BluetoothGattService? = null
     private var notifyChar: BluetoothGattCharacteristic? = null
     private var writeChar: BluetoothGattCharacteristic? = null
+    @Volatile private var batteryLevelChar: BluetoothGattCharacteristic? = null
     @Volatile private var retiredGatt: BluetoothGatt? = null
+    @Volatile private var batteryReadPurpose: BatteryReadPurpose? = null
+    @Volatile private var lastBatteryPercent: Int = -1
+    @Volatile private var batteryStabilizationComplete: Boolean = false
+    private var batterySessionAttemptCount: Int = 0
+    private val batterySessionSamples = ArrayList<Int>(SibionicsBattery.MAX_STABILIZATION_ATTEMPTS)
+    private var batteryStabilizationScheduled: Boolean = false
+    private var batteryPeriodicScheduled: Boolean = false
+    @Volatile private var manualBatteryRefreshQueued: Boolean = false
 
     @Volatile private var record: SibionicsRegistry.SensorRecord? = null
     @Volatile private var variant: SibionicsConstants.Variant = SibionicsConstants.Variant.EU
@@ -200,6 +219,26 @@ class SibionicsBleManager(
             prepareForReconnect()
             setStatus(connectingStatus())
             scheduleReconnect("GATT setup timeout", delayMs = 500L)
+        }
+    }
+    private val batteryReadTimeoutRunnable = Runnable {
+        val purpose = batteryReadPurpose
+        if (purpose != null) {
+            batteryReadPurpose = null
+            Log.w(SibionicsConstants.TAG, "standard battery read timeout serial=$SerialNumber")
+            finishBatteryRead(purpose, percent = null)
+        }
+    }
+    private val batteryStabilizationRunnable = Runnable {
+        batteryStabilizationScheduled = false
+        if (!stop && phase == Phase.STREAMING && !batteryStabilizationComplete) {
+            requestBatteryRead(BatteryReadPurpose.STABILIZATION)
+        }
+    }
+    private val batteryPeriodicRunnable = Runnable {
+        batteryPeriodicScheduled = false
+        if (!stop && phase == Phase.STREAMING) {
+            requestBatteryRead(BatteryReadPurpose.PERIODIC)
         }
     }
     private val rebuildLaunchRunnable = Runnable {
@@ -361,6 +400,8 @@ class SibionicsBleManager(
         uiPaused = true
         stop = true
         advertisementRecovery.stop()
+        batteryLevelChar = null
+        resetBatterySession()
         handler.removeCallbacksAndMessages(null)
         runCatching { mBluetoothGatt?.disconnect() }
         runCatching { mBluetoothGatt?.close() }
@@ -421,6 +462,8 @@ class SibionicsBleManager(
     override fun close() {
         notificationDispatcher.invalidateSession()
         advertisementRecovery.stop()
+        batteryLevelChar = null
+        resetBatterySession()
         handler.removeCallbacksAndMessages(null)
         rebuildGeneration++
         rebuildExecutor.shutdownNow()
@@ -505,6 +548,8 @@ class SibionicsBleManager(
     }
 
     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+        noteFirstGattCallback("onConnectionStateChange", gatt)
+        super.onConnectionStateChange(gatt, status, newState)
         // A late callback from a retired GATT must not invalidate the active connection's
         // notification queue. The handler repeats this ownership check before mutating state.
         if (isCurrentGatt(gatt)) {
@@ -557,6 +602,8 @@ class SibionicsBleManager(
                 service = null
                 notifyChar = null
                 writeChar = null
+                batteryLevelChar = null
+                resetBatterySession()
                 phase = Phase.IDLE
                 runCatching { gatt.close() }
                 mBluetoothGatt = null
@@ -600,6 +647,13 @@ class SibionicsBleManager(
         }
         notifyChar = svc.getCharacteristic(SibionicsConstants.CHAR_NOTIFY_FF31)
         writeChar = svc.getCharacteristic(SibionicsConstants.CHAR_WRITE_FF32)
+        resetBatterySession()
+        batteryLevelChar = gatt.getService(SibionicsBattery.SERVICE)
+            ?.getCharacteristic(SibionicsBattery.LEVEL_CHARACTERISTIC)
+        Log.d(
+            SibionicsConstants.TAG,
+            "standard battery characteristic available=${batteryLevelChar != null} serial=$SerialNumber",
+        )
         if (notifyChar == null || writeChar == null) {
             handler.removeCallbacks(setupStageTimeoutRunnable)
             setStatus("Sibionics FF31/FF32 missing")
@@ -623,8 +677,27 @@ class SibionicsBleManager(
                 }
                 return
             }
-            startProtocolProbe()
+            requestBatteryRead(BatteryReadPurpose.SETUP)
         }
+    }
+
+    @Deprecated("Deprecated in Java")
+    @Suppress("DEPRECATION")
+    override fun onCharacteristicRead(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        status: Int,
+    ) {
+        handleCharacteristicRead(gatt, characteristic, characteristic.value ?: ByteArray(0), status)
+    }
+
+    override fun onCharacteristicRead(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+        status: Int,
+    ) {
+        handleCharacteristicRead(gatt, characteristic, value, status)
     }
 
     override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
@@ -663,6 +736,127 @@ class SibionicsBleManager(
     private fun isCurrentGatt(gatt: BluetoothGatt): Boolean {
         val activeGatt = mBluetoothGatt
         return gatt !== retiredGatt && (activeGatt == null || gatt === activeGatt)
+    }
+
+    private fun handleCharacteristicRead(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+        status: Int,
+    ) {
+        if (characteristic.uuid != SibionicsBattery.LEVEL_CHARACTERISTIC) return
+        if (!isCurrentGattCallback(gatt, "battery read")) return
+        handler.post {
+            if (!isCurrentGatt(gatt)) return@post
+            val purpose = batteryReadPurpose ?: return@post
+            batteryReadPurpose = null
+            handler.removeCallbacks(batteryReadTimeoutRunnable)
+            val percent = if (status == BluetoothGatt.GATT_SUCCESS) {
+                SibionicsBattery.parsePercent(value)
+            } else {
+                null
+            }
+            if (percent != null) {
+                lastBatteryPercent = percent
+                Log.i(SibionicsConstants.TAG, "standard battery level=$percent% serial=$SerialNumber")
+                UiRefreshBus.requestStatusRefresh()
+            } else {
+                Log.w(
+                    SibionicsConstants.TAG,
+                    "standard battery read failed status=$status bytes=${value.size} serial=$SerialNumber",
+                )
+            }
+            finishBatteryRead(purpose, percent)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun requestBatteryRead(purpose: BatteryReadPurpose): Boolean {
+        val gatt = mBluetoothGatt ?: return false
+        val characteristic = batteryLevelChar
+        if (characteristic == null) {
+            if (purpose == BatteryReadPurpose.SETUP) startProtocolProbe()
+            return false
+        }
+        if (batteryReadPurpose != null) return false
+        if (purpose != BatteryReadPurpose.SETUP && phase != Phase.STREAMING) return false
+        batteryReadPurpose = purpose
+        val started = runCatching { gatt.readCharacteristic(characteristic) }
+            .onFailure { Log.stack(SibionicsConstants.TAG, "read standard battery level", it) }
+            .getOrDefault(false)
+        if (!started) {
+            batteryReadPurpose = null
+            finishBatteryRead(purpose, percent = null)
+            return false
+        }
+        handler.removeCallbacks(batteryReadTimeoutRunnable)
+        handler.postDelayed(batteryReadTimeoutRunnable, BATTERY_READ_TIMEOUT_MS)
+        return true
+    }
+
+    private fun finishBatteryRead(purpose: BatteryReadPurpose, percent: Int?) {
+        if (purpose == BatteryReadPurpose.SETUP || purpose == BatteryReadPurpose.STABILIZATION) {
+            batterySessionAttemptCount++
+            if (percent != null) batterySessionSamples.add(percent)
+            val decision = SibionicsBattery.stabilizationDecision(
+                batterySessionAttemptCount,
+                batterySessionSamples,
+            )
+            Log.i(
+                SibionicsConstants.TAG,
+                "battery stabilization=$decision attempts=$batterySessionAttemptCount " +
+                    "samples=${batterySessionSamples.joinToString()} serial=$SerialNumber",
+            )
+            when (decision) {
+                SibionicsBattery.StabilizationDecision.CONTINUE -> {
+                    if (phase == Phase.STREAMING) scheduleBatteryStabilization()
+                }
+                SibionicsBattery.StabilizationDecision.STABLE,
+                SibionicsBattery.StabilizationDecision.EXHAUSTED -> {
+                    batteryStabilizationComplete = true
+                    schedulePeriodicBatteryRefresh(resetDelay = true)
+                }
+            }
+        } else {
+            schedulePeriodicBatteryRefresh(resetDelay = true)
+        }
+        if (purpose == BatteryReadPurpose.SETUP) startProtocolProbe()
+    }
+
+    private fun scheduleBatteryRefreshAfterStreaming() {
+        if (batteryLevelChar == null || batteryReadPurpose != null) return
+        if (batteryStabilizationComplete) {
+            schedulePeriodicBatteryRefresh()
+        } else {
+            scheduleBatteryStabilization()
+        }
+    }
+
+    private fun scheduleBatteryStabilization() {
+        if (batteryStabilizationScheduled) return
+        batteryStabilizationScheduled = true
+        handler.postDelayed(batteryStabilizationRunnable, BATTERY_STABILIZATION_INTERVAL_MS)
+    }
+
+    private fun schedulePeriodicBatteryRefresh(resetDelay: Boolean = false) {
+        if (batteryLevelChar == null) return
+        if (batteryPeriodicScheduled && !resetDelay) return
+        handler.removeCallbacks(batteryPeriodicRunnable)
+        batteryPeriodicScheduled = true
+        handler.postDelayed(batteryPeriodicRunnable, BATTERY_PERIODIC_INTERVAL_MS)
+    }
+
+    private fun resetBatterySession() {
+        batteryReadPurpose = null
+        batteryStabilizationComplete = false
+        batterySessionAttemptCount = 0
+        batterySessionSamples.clear()
+        batteryStabilizationScheduled = false
+        batteryPeriodicScheduled = false
+        manualBatteryRefreshQueued = false
+        handler.removeCallbacks(batteryReadTimeoutRunnable)
+        handler.removeCallbacks(batteryStabilizationRunnable)
+        handler.removeCallbacks(batteryPeriodicRunnable)
     }
 
     private fun startProtocolProbe() {
@@ -1054,6 +1248,7 @@ class SibionicsBleManager(
             // the sensor has delivered a current sample, otherwise large V120 history transfers
             // become unnecessarily slow on conservative Android Bluetooth stacks.
             settleConnectionPriority()
+            scheduleBatteryRefreshAfterStreaming()
             setStatus(connectedStatus())
         } else if (SibionicsSessionPolicy.shouldShowHistoryProgress(
                 historyReceivedCount,
@@ -1592,6 +1787,11 @@ class SibionicsBleManager(
         if (mirrorReadingIntoNative(reading)) {
             NightscoutUploadWake.afterLiveNativeWrite("sibionics-managed", reading.sampleMs)
         }
+        // Notification only — no timestamp or value is derived from this. It tells
+        // the watch's ownership claim that this process decoded a live reading
+        // over its own connection, which is what lets the phone stand down after
+        // a handoff instead of holding the sensor as well.
+        markLocalReadingAccepted(reading.sampleMs)
         HistorySyncAccess.storeCurrentReadingAsync(
             reading.sampleMs,
             reading.glucoseMgdl,
@@ -1601,6 +1801,7 @@ class SibionicsBleManager(
         )
         val displayValue = toDisplay(reading.glucoseMgdl)
         val displayRate = if (Applic.unit == 1) latestRateMgdlPerMin / SibionicsConstants.MGDL_PER_MMOLL else latestRateMgdlPerMin
+        markLocalReadingAccepted(reading.sampleMs)
         SuperGattCallback.processExternalCurrentReading(
             SerialNumber,
             displayValue,
@@ -1631,14 +1832,14 @@ class SibionicsBleManager(
         gatt.setCharacteristicNotification(ch, true)
         val descriptor = ch.getDescriptor(SibionicsConstants.CCCD)
         if (descriptor == null) {
-            startProtocolProbe()
+            requestBatteryRead(BatteryReadPurpose.SETUP)
             return
         }
         descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         val wrote = runCatching { gatt.writeDescriptor(descriptor) }.getOrDefault(false)
         if (!wrote) {
             Log.w(SibionicsConstants.TAG, "write CCCD failed; starting probe anyway")
-            startProtocolProbe()
+            requestBatteryRead(BatteryReadPurpose.SETUP)
         }
     }
 
@@ -1956,6 +2157,7 @@ class SibionicsBleManager(
             isVendorConnected = mBluetoothGatt != null && phase == Phase.STREAMING,
             sensorRemainingHours = remainingHours(),
             sensorAgeHours = ageHours(),
+            batteryPercent = lastBatteryPercent,
             vendorModel = variant.displayLabel,
 //            vendorFirmware = SibionicsConstants.initialProtocolMode(variant, protocolMode).name,
         )
@@ -1984,6 +2186,29 @@ class SibionicsBleManager(
             }
             Phase.ERROR -> constatstatusstr.orEmpty().ifBlank { "Error" }
         }
+    }
+
+    override fun requestBatteryRefresh(): Boolean {
+        if (stop || uiPaused || phase != Phase.STREAMING || batteryLevelChar == null) return false
+        if (batteryReadPurpose != null || manualBatteryRefreshQueued) return false
+        manualBatteryRefreshQueued = true
+        handler.post {
+            manualBatteryRefreshQueued = false
+            if (!stop && !uiPaused && phase == Phase.STREAMING) {
+                if (!batteryStabilizationComplete) {
+                    handler.removeCallbacks(batteryStabilizationRunnable)
+                    batteryStabilizationScheduled = false
+                }
+                requestBatteryRead(
+                    if (batteryStabilizationComplete) {
+                        BatteryReadPurpose.MANUAL
+                    } else {
+                        BatteryReadPurpose.STABILIZATION
+                    },
+                )
+            }
+        }
+        return true
     }
 
     private fun detailTelemetry(): String =
@@ -2179,6 +2404,8 @@ class SibionicsBleManager(
         service = null
         notifyChar = null
         writeChar = null
+        batteryLevelChar = null
+        resetBatterySession()
         mActiveBluetoothDevice = null
         phase = Phase.IDLE
         retiredGatt = staleGatt
@@ -2225,15 +2452,19 @@ class SibionicsBleManager(
         }
     }
 
-    private fun scheduleChinesePoll() {
+    private fun scheduleChinesePoll(delayMs: Long = CHINESE_POLL_INTERVAL_MS) {
         handler.removeCallbacks(chinesePollRunnable)
-        handler.postDelayed(chinesePollRunnable, CHINESE_POLL_INTERVAL_MS)
+        handler.postDelayed(chinesePollRunnable, delayMs)
     }
 
     private val chinesePollRunnable = Runnable {
         if (!stop && protocolMode == SibionicsConstants.ProtocolMode.CHINESE) {
-            sendChineseDataRequest(probing = false)
-            scheduleChinesePoll()
+            if (batteryReadPurpose != null) {
+                scheduleChinesePoll(delayMs = 1_000L)
+            } else {
+                sendChineseDataRequest(probing = false)
+                scheduleChinesePoll()
+            }
         }
     }
 

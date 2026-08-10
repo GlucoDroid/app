@@ -3,6 +3,7 @@ package tk.glucodata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Locale
 
 class GlucoseDeltaTests {
 
@@ -77,15 +78,37 @@ class GlucoseDeltaTests {
 
     @Test
     fun formatsMgdlCompactlyWithSign() {
-        assertEquals("+2", GlucoseDelta.format(2f, false))
-        assertEquals("-1", GlucoseDelta.format(-1f, false))
-        assertEquals("-1.5", GlucoseDelta.format(-1.5f, false))
-        assertEquals("0", GlucoseDelta.format(0f, false))
+        withLocale(Locale.US) {
+            assertEquals("+2", GlucoseDelta.format(2f, false))
+            assertEquals("−1", GlucoseDelta.format(-1f, false))
+            assertEquals("−1.5", GlucoseDelta.format(-1.5f, false))
+            assertEquals("0", GlucoseDelta.format(0f, false))
+        }
     }
 
     @Test
     fun formatsMmolWithOneDecimal() {
-        assertEquals("-0.1", GlucoseDelta.format(-0.1f, true))
-        assertEquals("+0.2", GlucoseDelta.format(0.15f, true))
+        withLocale(Locale.US) {
+            assertEquals("−0.1", GlucoseDelta.format(-0.1f, true))
+            assertEquals("+0.2", GlucoseDelta.format(0.15f, true))
+        }
+    }
+
+    @Test
+    fun formatsDecimalSeparatorForLocale() {
+        withLocale(Locale.forLanguageTag("ru-RU")) {
+            assertEquals("−0,1", GlucoseDelta.format(-0.1f, true))
+            assertEquals("+0,2", GlucoseDelta.format(0.15f, true))
+        }
+    }
+
+    private inline fun withLocale(locale: Locale, block: () -> Unit) {
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(locale)
+            block()
+        } finally {
+            Locale.setDefault(original)
+        }
     }
 }

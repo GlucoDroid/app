@@ -656,6 +656,7 @@ fun DashboardChartSection(
     peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
+    activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -699,6 +700,7 @@ fun DashboardChartSection(
                         peerPredictionSeries = peerPredictionSeries,
                         journalMarkers = journalMarkers,
                         activeInsulinSummary = activeInsulinSummary,
+                        activeInsulinFromRemote = activeInsulinFromRemote,
                         showEiob = showEiob,
                         appChartRangeColors = appChartRangeColors,
                         predictionPoints = predictionPoints,
@@ -772,6 +774,7 @@ fun InteractiveGlucoseChart(
     peerPredictionSeries: Map<String, List<GlucosePredictionSeries>> = emptyMap(),
     journalMarkers: List<JournalChartMarker> = emptyList(),
     activeInsulinSummary: JournalActiveInsulinSummary? = null,
+    activeInsulinFromRemote: Boolean = false,
     showEiob: Boolean = true,
     appChartRangeColors: Boolean = false,
     predictionPoints: List<GlucosePredictionPoint> = emptyList(),
@@ -2504,6 +2507,7 @@ fun InteractiveGlucoseChart(
                         var first = true
                         var hasPath = false
                         var lastTimestamp = 0L
+                        val peerRun = ChartLineRun()
                         for (i in peerStartIdx until peerEndIdx) {
                             val point = points[i]
                             val value = if (useRaw) point.rawValue else point.value
@@ -2522,14 +2526,22 @@ fun InteractiveGlucoseChart(
                             }
                             if (first) {
                                 reusablePeerPath.moveTo(px, py)
+                                peerRun.begin(px, py)
                                 first = false
                             } else {
                                 reusablePeerPath.lineTo(px, py)
+                                peerRun.extend()
                             }
                             hasPath = true
                             lastTimestamp = point.timestamp
                         }
                         if (!hasPath) return
+                        peerRun.flush()
+                        val peerDotColor = androidx.compose.ui.graphics.lerp(series.color, peerNeutralBase, 0.46f)
+                            .copy(alpha = 0.5f * alpha)
+                        peerRun.isolatedPoints.forEach { dot ->
+                            drawCircle(color = peerDotColor, radius = strokeWidth / 2f, center = dot)
+                        }
                         val brush = peerBrushes[series.sensorId]
                         if (brush != null) {
                             drawPath(
@@ -3711,6 +3723,13 @@ fun InteractiveGlucoseChart(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                                if (activeInsulinFromRemote) {
+                                    Text(
+                                        text = stringResource(R.string.journal_iob_source_remote),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -4259,8 +4278,7 @@ fun InteractiveGlucoseChart(
                 contentAlignment = Alignment.Center
             ) {
             // Estimate intrinsic width of all elements at their base (unscaled) sizes.
-            // Estimate intrinsic width. Use a realistic text width for short labels: "1H", "24H", etc.
-            val avgTextWidth = 18.dp 
+            val avgTextWidth = 18.dp
             val rangesWidth = (baseRangeHorizontalPadding * 2 + avgTextWidth) * items.size +
                 (baseRangeClockSize + baseRangeClockGap) // selected item's icon
             val rangeGapsWidth = baseInterItemSpacing * (items.size - 1)
@@ -4428,7 +4446,7 @@ fun InteractiveGlucoseChart(
                             }
 
                             Text(
-                                text = range.label,
+                                text = stringResource(range.labelResId, range.labelAmount),
                                 style = scaledLabelStyle,
                                 color = contentColor,
                                 softWrap = false,

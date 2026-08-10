@@ -59,17 +59,24 @@ class StatsLayoutTests {
     }
 
     @Test
-    fun nothingIsPinnedToTheDashboardOutOfTheBox() {
-        assertTrue(StatsLayoutState().dashboardMetrics.isEmpty())
+    fun theDashboardStartsWithLevelSpreadAndTimeInRange() {
+        val pinned = StatsLayoutState().dashboardMetrics
+        assertEquals(listOf(StatsMetric.TIME_IN_RANGE, StatsMetric.AVERAGE, StatsMetric.CV), pinned)
+        assertEquals(StatsLayoutStore.MAX_DASHBOARD_METRICS, pinned.size)
+        // GMI is a fourteen-day regression; over the strip's default window it is the mean
+        // in a percent sign, so it is not one of the three that ship pinned.
+        assertTrue(StatsMetric.GMI !in pinned)
     }
 
     @Test
-    fun onlyTheFirstThreeRowsShowBeforeTheDisclosure() {
+    fun fourRowsShowBeforeTheDisclosure() {
         val rows = packMetricRows(StatsLayoutState().visibleMetrics, emptySet())
         val head = rows.take(StatsMetric.DEFAULT_VISIBLE_ROWS)
             .flatMap { listOfNotNull(it.first, it.second) }
-        assertEquals(6, head.size)
+        assertEquals(8, head.size)
         assertEquals(StatsMetric.AVERAGE, head.first())
+        // One row left to fold away — a disclosure that reveals nothing is worse than none.
+        assertTrue(rows.size > StatsMetric.DEFAULT_VISIBLE_ROWS)
     }
 
     @Test
@@ -117,5 +124,12 @@ class StatsLayoutTests {
     @Test
     fun theDashboardStripHoldsThreeMetricsBesideThePeriodControl() {
         assertEquals(3, StatsLayoutStore.MAX_DASHBOARD_METRICS)
+    }
+
+    @Test
+    fun theStatsScreenOpensOnTwoWeeks() {
+        // Long enough for the day-by-day grid, the weekday split and a GMI that means
+        // something; short enough to still be about the present.
+        assertEquals(StatsTimeRange.DAY_14, StatsUiState().selectedRange)
     }
 }
