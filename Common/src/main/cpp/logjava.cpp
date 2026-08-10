@@ -94,8 +94,6 @@ void startlogcat() {
   }
 }
 
-#include <sys/sendfile.h>
-
 decltype(std::declval<struct stat>().st_size) filesize(int handle) {
   if (handle == -1) {
     LOGAR("getlogfile()=-1");
@@ -124,14 +122,39 @@ static bool copyfile(const char *infile, int out) {
   destruct _2([in] { close(in); });
   auto len = filesize(in);
   if (len <= 0) {
-    LOGGER("size %s=%d\n", infile, len);
+    LOGGER("size %s=%lld\n", infile, (long long)len);
     return false;
   }
-  auto outlen = sendfile(out, in, nullptr, len);
-  bool suc = outlen == len;
+  // sendfile(2) requires out to be a regular file; SAF's ACTION_CREATE_DOCUMENT
+  // returns a pipe fd, which makes sendfile fail with EINVAL (producing a
+  // zero-byte saved log). The read/write loop works with any fd type.
+  // Fixes issue #25.
+  char buf[65536];
+  ssize_t total = 0;
+  ssize_t n;
+  for (;;) {
+    n = read(in, buf, sizeof(buf));
+    if (n < 0 && errno == EINTR) continue;
+    if (n <= 0) break;
+    ssize_t written = 0;
+    while (written < n) {
+      ssize_t w = write(out, buf + written, n - written);
+      if (w < 0) {
+        flerror("write(%d)=%zd errno=%d total=%zd", out, w, errno, total);
+        return false;
+      }
+      written += w;
+    }
+    total += n;
+  }
+  // >= not ==: logging keeps appending while we copy, so the file can grow
+  // past the fstat'ed len mid-copy. Copying more than the snapshot is still a
+  // complete save; reporting it as failure produced spurious "Save failed"
+  // toasts on exactly the large, actively-recording logs users most want out.
+  bool suc = (total >= len);
   if (!suc) {
-    flerror("sendfile(%d,%d (%s) ,null,%lld)=%zd", out, in, infile, len,
-            outlen);
+    flerror("copyfile(%s): wrote %zd expected %lld", infile, total,
+            (long long)len);
   }
   return suc;
 #else
