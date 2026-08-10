@@ -1399,6 +1399,7 @@
     <string name="wear_transport_runtime_unavailable">Wear transport runtime is unavailable for this app session.</string>
     <string name="wear_transport_gms_unavailable">Google Play Services unavailable; Wear transport is disabled.</string>
     <string name="wear_transport_reinit_desc">Force a fresh watch discovery and network sync cycle.</string>
+    <string name="wear_libre_nfc_caveat">Libre sensors are activated with the phone\'s NFC first. After activation, this watch can take over.</string>
     <string name="wear_watch_app_missing">Brak aplikacji na zegarku</string>
     <string name="wear_watch_app_missing_hint">Zainstaluj Juggluco na tym zegarku, a potem stuknij odśwież.</string>
     <string name="wear_direct_sensor_on_watch">Bezpośredni sensor na zegarku</string>
