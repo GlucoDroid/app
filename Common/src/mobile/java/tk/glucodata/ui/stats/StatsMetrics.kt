@@ -1,6 +1,10 @@
 package tk.glucodata.ui.stats
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
@@ -8,7 +12,13 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
@@ -72,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import tk.glucodata.R
 import tk.glucodata.ui.components.CompactSheetDragHandle
+import tk.glucodata.ui.util.ExpressiveMotion
 import java.util.Locale
 
 /**
@@ -830,14 +841,43 @@ internal fun PinnedMetricChip(
     tir: TimeInRangeBreakdown? = null,
     onClick: (() -> Unit)? = null
 ) {
+    // Changing the window swaps every number in the strip at once. Sliding them out and
+    // the replacements in says "this is the same metric over a different window"; a hard
+    // swap of four numbers at once just reads as a glitch.
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = ExpressiveMotion.fastSpatial(),
+        label = "pinnedMetricPress"
+    )
+    val tone by animateColorAsState(
+        targetValue = spec.tone,
+        animationSpec = ExpressiveMotion.defaultEffects(),
+        label = "pinnedMetricTone"
+    )
     // The click has to be applied after the clip, not by the caller before it: a
     // `clickable` outside the chip's own shape draws a rectangular ripple, which is why
     // pressing the chip lit up square corners around a rounded card.
     Row(
         modifier = modifier
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clip(statsCardShape(16.dp, 10.dp))
-            .background(spec.tone.copy(alpha = 0.11f).compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh))
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .background(tone.copy(alpha = 0.11f).compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh))
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = LocalIndication.current,
+                        onClick = onClick
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -853,19 +893,44 @@ internal fun PinnedMetricChip(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = spec.value,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontFeatureSettings = "tnum",
-                    fontWeight = FontWeight.SemiBold
-                ),
-                color = spec.tone,
-                maxLines = 1
-            )
+            AnimatedContent(
+                targetState = spec.value,
+                transitionSpec = { verticalValueSwap() },
+                label = "pinnedMetricValue"
+            ) { value ->
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFeatureSettings = "tnum",
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = tone,
+                    maxLines = 1
+                )
+            }
         }
         if (tir != null) {
             TirVerticalBar(tir = tir, modifier = Modifier.fillMaxHeight())
         }
+    }
+}
+
+/**
+ * The strip's house transition for a value replacing another in the same slot: the old
+ * one leaves upwards, the new one arrives from below, and the slot's width morphs between
+ * them instead of snapping.
+ *
+ * Spatial and effects run on different springs on purpose — see [ExpressiveMotion].
+ */
+private fun AnimatedContentTransitionScope<String>.verticalValueSwap(): ContentTransform {
+    val enter = slideInVertically(ExpressiveMotion.defaultSpatial()) { it / 2 } +
+        fadeIn(ExpressiveMotion.defaultEffects())
+    val exit = slideOutVertically(ExpressiveMotion.defaultSpatial()) { -it / 2 } +
+        fadeOut(ExpressiveMotion.fastEffects())
+    // Clipped to the slot, so the departing number is cut off at its own line box rather
+    // than sliding up across the label above it.
+    return enter togetherWith exit using SizeTransform(clip = true) { _, _ ->
+        ExpressiveMotion.defaultSpatial()
     }
 }
 
@@ -1059,11 +1124,28 @@ private fun PinnedAddChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Same press response as the metric chips it sits beside — a row of three cells where
+    // only two react to a finger reads as one of them being broken.
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = ExpressiveMotion.fastSpatial(),
+        label = "pinnedAddPress"
+    )
     Row(
         modifier = modifier
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clip(statsCardShape(16.dp, 10.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.45f))
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onClick
+            )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1240,25 +1322,49 @@ private fun PinnedWindowPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = ExpressiveMotion.fastSpatial(),
+        label = "pinnedWindowPress"
+    )
     Row(
         modifier = modifier
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clip(statsCardShape(16.dp, 10.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onClick
+            )
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(1.dp)
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontFeatureSettings = "tnum",
-                fontWeight = FontWeight.SemiBold
-            ),
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            softWrap = false
-        )
+        // "Today" and "3d" are very different widths, and the metric chips share out
+        // whatever the pill leaves. Morphing that width is what stops a tap on the pill
+        // from jolting the whole strip sideways.
+        AnimatedContent(
+            targetState = label,
+            transitionSpec = { verticalValueSwap() },
+            label = "pinnedWindowLabel"
+        ) { text ->
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontFeatureSettings = "tnum",
+                    fontWeight = FontWeight.SemiBold
+                ),
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
         Icon(
             imageVector = Icons.Default.UnfoldMore,
             contentDescription = stringResource(R.string.stats_window_label),
