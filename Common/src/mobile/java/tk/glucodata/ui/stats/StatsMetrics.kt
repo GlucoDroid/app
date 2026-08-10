@@ -1,6 +1,7 @@
 package tk.glucodata.ui.stats
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -8,6 +9,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,12 +24,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +69,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import tk.glucodata.R
+import tk.glucodata.ui.components.CompactSheetDragHandle
 import java.util.Locale
 
 /**
@@ -893,7 +903,10 @@ fun hasPinnedStats(): Boolean {
  * two can be guaranteed to agree.
  */
 @Composable
-fun PinnedStatsStrip(modifier: Modifier = Modifier) {
+fun PinnedStatsStrip(
+    modifier: Modifier = Modifier,
+    rows: Int = 1
+) {
     val context = LocalContext.current
     LaunchedEffect(context) { StatsLayoutStore.ensureLoaded(context) }
     val layout by StatsLayoutStore.state.collectAsState()
@@ -903,37 +916,280 @@ fun PinnedStatsStrip(modifier: Modifier = Modifier) {
     if (pinned.isEmpty() || uiState.summary.readingCount == 0) return
 
     var window by rememberSaveable { mutableStateOf(PinnedWindow.H24) }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        PinnedWindowPill(
-            label = stringResource(window.labelResId),
-            onClick = {
-                val entries = PinnedWindow.entries
-                val next = entries[(entries.indexOf(window) + 1) % entries.size]
-                window = next
-                val quick = next.quickRange
-                if (quick != null) {
-                    statsViewModel.setTimeRange(quick)
-                } else {
-                    next.customRange()?.let { (start, end) ->
-                        statsViewModel.setCustomRange(start, end)
+    // -1 means the picker was opened from the add slot.
+    var editingSlot by remember { mutableStateOf<Int?>(null) }
+    val dragState = rememberMetricDragState(
+        order = pinned,
+        onReordered = StatsLayoutStore::setDashboardMetrics
+    )
+
+    val onCycleWindow: () -> Unit = {
+        val entries = PinnedWindow.entries
+        val next = entries[(entries.indexOf(window) + 1) % entries.size]
+        window = next
+        val quick = next.quickRange
+        if (quick != null) {
+            statsViewModel.setTimeRange(quick)
+        } else {
+            next.customRange()?.let { (start, end) -> statsViewModel.setCustomRange(start, end) }
+        }
+    }
+
+    // Cells in reading order: the window pill, then each pinned metric, then the add
+    // slot if there is still room.
+    val cells = buildList<@Composable (Modifier) -> Unit> {
+        add { cellModifier ->
+            PinnedWindowPill(
+                label = stringResource(window.labelResId),
+                onClick = onCycleWindow,
+                modifier = cellModifier
+            )
+        }
+        pinned.forEachIndexed { index, metric ->
+            add { cellModifier ->
+                PinnedMetricChip(
+                    spec = metricSpec(metric, uiState.summary, uiState.targets, uiState.unit),
+                    tir = uiState.summary.tir.takeIf { metric == StatsMetric.TIME_IN_RANGE },
+                    modifier = cellModifier
+                        .metricDrag(metric, dragState)
+                        .clickable {
+                            // A long press that became a drag must not also open the picker.
+                            if (dragState.dragging == null) editingSlot = index
+                        }
+                )
+            }
+        }
+        if (pinned.size < StatsLayoutStore.MAX_DASHBOARD_METRICS) {
+            add { cellModifier ->
+                PinnedAddChip(
+                    onClick = { editingSlot = -1 },
+                    modifier = cellModifier
+                )
+            }
+        }
+    }
+
+    if (rows <= 1) {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            cells.forEachIndexed { index, cell ->
+                // The pill keeps its natural width; the metrics share what is left.
+                cell(if (index == 0) Modifier.fillMaxHeight() else Modifier.weight(1f).fillMaxHeight())
+            }
+        }
+    } else {
+        // Landscape: two rows of two, so the strip is as tall as the left column is
+        // narrow rather than squeezing four cells across it.
+        val perRow = ((cells.size + rows - 1) / rows).coerceAtLeast(1)
+        Column(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            cells.chunked(perRow).forEach { rowCells ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowCells.forEach { cell ->
+                        cell(Modifier.weight(1f).fillMaxHeight())
+                    }
+                    repeat(perRow - rowCells.size) {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
+            }
+        }
+    }
+
+    editingSlot?.let { slot ->
+        PinnedMetricPickerSheet(
+            current = pinned.getOrNull(slot),
+            alreadyPinned = pinned,
+            summary = uiState.summary,
+            targets = uiState.targets,
+            unit = uiState.unit,
+            onPick = { metric ->
+                StatsLayoutStore.replaceDashboardMetric(slot, metric)
+                editingSlot = null
             },
-            modifier = Modifier.fillMaxHeight()
+            onRemove = if (slot in pinned.indices) {
+                {
+                    StatsLayoutStore.replaceDashboardMetric(slot, null)
+                    editingSlot = null
+                }
+            } else {
+                null
+            },
+            onDismiss = { editingSlot = null }
         )
-        pinned.forEach { metric ->
-            PinnedMetricChip(
-                spec = metricSpec(metric, uiState.summary, uiState.targets, uiState.unit),
-                tir = uiState.summary.tir.takeIf { metric == StatsMetric.TIME_IN_RANGE },
+    }
+}
+
+/** Empty slot inviting a metric, shown only while there is room for one. */
+@Composable
+private fun PinnedAddChip(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(statsCardShape(16.dp, 10.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.45f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = stringResource(R.string.stats_pinned_add),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * Slot editor.
+ *
+ * Every metric with its live value, so the choice is made against the real number rather
+ * than a name alone. Selection is carried by the row's own container — a filled,
+ * asymmetrically rounded surface in the same shape language as the tiles it is choosing
+ * between — rather than by a radio button bolted to the left of a plain list. Remove
+ * sits at the top, next to the title, because scrolling twenty rows to unpin something
+ * is the one thing this sheet should never make you do.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PinnedMetricPickerSheet(
+    current: StatsMetric?,
+    alreadyPinned: List<StatsMetric>,
+    summary: StatsSummary,
+    targets: StatsTargets,
+    unit: GlucoseUnit,
+    onPick: (StatsMetric) -> Unit,
+    onRemove: (() -> Unit)?,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        dragHandle = { CompactSheetDragHandle() }
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            )
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 16.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.stats_pinned_pick_title),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.weight(1f)
+                )
+                onRemove?.let { remove ->
+                    Row(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
+                            .clickable(onClick = remove)
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.stats_pinned_remove_short),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                StatsMetric.entries.forEach { metric ->
+                    val spec = metricSpec(metric, summary, targets, unit)
+                    val selected = metric == current
+                    val pinnedElsewhere = metric in alreadyPinned && !selected
+                    val rowShape = statsCardShape(20.dp, 12.dp)
+                    val container by animateColorAsState(
+                        targetValue = when {
+                            selected -> spec.tone.copy(alpha = 0.20f)
+                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            else -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f)
+                        },
+                        label = "pickerRow"
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(rowShape)
+                            .background(container)
+                            .clickable { onPick(metric) }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = spec.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (pinnedElsewhere) {
+                            Icon(
+                                imageVector = Icons.Filled.PushPin,
+                                contentDescription = stringResource(R.string.stats_pinned_already),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                        Text(
+                            text = spec.value,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFeatureSettings = "tnum",
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = spec.tone,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
         }
     }
 }

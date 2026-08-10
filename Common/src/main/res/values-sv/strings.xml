@@ -1890,12 +1890,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_button">Logga in</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Inloggad</string>
+    <string name="ottai_account_id">Konto: %1$s</string>
     <string name="ottai_sensor_mac_hint">Moln-enhets-ID (12 hex eller QR)</string>
     <string name="ottai_connect_saved">Anslut</string>
     <string name="ottai_login_fail">Inloggning misslyckades - kontrollera telefon/kod</string>
     <string name="ottai_connect_saved_fail">Inga konto- eller sparade material för detta moln-ID</string>
     <string name="ottai_status_needs_ble_address">BLE-adress behövs</string>
     <string name="ottai_status_warmup_provisional">Provisorisk uppvärmning • %1$d min kvar</string>
+    <string name="ottai_status_loading_history">Läser in historik • %1$d%%</string>
     <string name="ottai_ble_scan_title">Ottai-sensorer i närheten</string>
     <string name="ottai_ble_scan_hint">Håll telefonen nära sensorn. Stabila CGM-sändare visas här.</string>
     <string name="ottai_ble_scan_empty">Ingen Ottai-sensor hittades i närheten. Gå närmare och skanna igen.</string>
@@ -1903,6 +1905,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_likely">Troligen Ottai</string>
     <string name="ottai_ble_scan_possible">Möjlig CGM</string>
     <string name="ottai_ble_scan_unknown">Annan CGM</string>
+    <string name="ottai_ble_scan_registered">Redan tillagd</string>
+    <string name="ottai_ble_scan_registered_hint">En redan ansluten sensor slutar annonsera och visas därför inte i listan ovan.</string>
     <string name="ottai_account_hint">E-post eller användarnamn</string>
     <string name="ottai_account_note">Logga in med din e-post eller ditt användarnamn.</string>
     <string name="ottai_code_sent_email">Kod skickad till %1$s</string>
@@ -2215,4 +2219,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_streak">Bästa svit</string>
     <string name="stats_metric_streak_description">Längsta följd av dagar i rad med 70%% eller mer i målområdet.</string>
     <string name="stats_metric_streak_meta">dagar på 70%%+</string>
+    <string name="stats_pinned_add">Lägg till</string>
+    <string name="stats_pinned_pick_title">Visa på Översikt</string>
+    <string name="stats_pinned_remove">Ta bort från Översikt</string>
+    <string name="stats_pinned_already">fäst</string>
+    <string name="stats_pinned_remove_short">Ta bort</string>
 </resources>

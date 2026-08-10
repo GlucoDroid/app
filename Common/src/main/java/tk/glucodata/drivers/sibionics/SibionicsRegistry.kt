@@ -40,6 +40,10 @@ object SibionicsRegistry {
     private const val PREF_ALGORITHM_SENSITIVITY_PREFIX = "sibionics_managed_algorithm_sensitivity_"
     private const val PREF_LOCAL_REBUILD_FINGERPRINT_PREFIX = "sibionics_managed_rebuild_fingerprint_"
     private const val PREF_INTEGRATED_CALIBRATION_BASELINE_PREFIX = "sibionics_managed_calibration_baseline_"
+    private const val SIBIONICS_GTIN_PREFIX = "0697283164"
+    private val SENSOR_QR_PATTERN = Regex(
+        "^\u001D?01(\\d{14})11\\d{6}17\\d{6}10[A-Z0-9]{8,20}\u001D?21[A-Z0-9]{10,20}\u001D?$",
+    )
 
     data class IntegratedCalibrationBaseline(
         val unit: Int,
@@ -73,6 +77,19 @@ object SibionicsRegistry {
 
     fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    internal fun isSupportedQrPayload(source: String?): Boolean {
+        val match = SENSOR_QR_PATTERN.matchEntire(cleanQrPayload(source)) ?: return false
+        val gtin = match.groupValues[1]
+        if (!gtin.startsWith(SIBIONICS_GTIN_PREFIX)) return false
+        val body = gtin.dropLast(1)
+        val checksum = body.mapIndexed { index, char ->
+            val digit = char.digitToInt()
+            if ((body.length - index) % 2 == 1) digit * 3 else digit
+        }.sum()
+        return (10 - checksum % 10) % 10 == gtin.last().digitToInt() &&
+            deriveNativeQrName(source) != null
+    }
 
     @JvmStatic
     fun buildIdentity(
@@ -822,7 +839,7 @@ object SibionicsRegistry {
     }
 
     private fun deriveGs1V120CalibrationSerial(payload: String): String? {
-        val magicPos = payload.indexOf("0697283164")
+        val magicPos = payload.indexOf(SIBIONICS_GTIN_PREFIX)
         if (magicPos < 0) return null
 
         val explicitAi21 = payload.indexOf("\u001D21", startIndex = magicPos + 10)
@@ -852,9 +869,12 @@ object SibionicsRegistry {
 
     private fun cleanQrPayload(source: String?): String =
         source.orEmpty()
+            .trim()
             .uppercase(java.util.Locale.US)
+            .removePrefix("]D2")
             .replace("^]", "\u001D")
             .filter { it.isLetterOrDigit() || it == '\u001D' }
+
 }
 
 object SibionicsManagedSensorIdentityAdapter : tk.glucodata.drivers.ManagedSensorIdentityAdapter {

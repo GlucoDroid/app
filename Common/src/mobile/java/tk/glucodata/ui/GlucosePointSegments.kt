@@ -3,7 +3,7 @@ package tk.glucodata.ui
 import tk.glucodata.SensorIdentity
 
 internal object GlucosePointSegments {
-    private const val DEFAULT_GAP_THRESHOLD_MS = 15L * 60L * 1000L
+    private const val DEFAULT_GAP_THRESHOLD_MS = ChartGap.THRESHOLD_MS
 
     fun split(
         points: List<GlucosePoint>,

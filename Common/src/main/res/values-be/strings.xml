@@ -1957,12 +1957,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_button">Увайсці</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Уваход выкананы</string>
+    <string name="ottai_account_id">Уліковы запіс: %1$s</string>
     <string name="ottai_sensor_mac_hint">Воблачны ID прылады (12 hex або QR)</string>
     <string name="ottai_connect_saved">Падключыць</string>
     <string name="ottai_login_fail">Уваход не ўдаўся - праверце тэлефон/код</string>
     <string name="ottai_connect_saved_fail">Няма матэрыялаў у акаўнце або захаваных матэрыялаў для гэтага воблачнага ID</string>
     <string name="ottai_status_needs_ble_address">Патрэбны BLE-адрас</string>
     <string name="ottai_status_warmup_provisional">Папярэдні прагрэў • засталося %1$d хв</string>
+    <string name="ottai_status_loading_history">Загрузка гісторыі • %1$d%%</string>
     <string name="ottai_ble_scan_title">Датчыкі Ottai побач</string>
     <string name="ottai_ble_scan_hint">Паднясіце тэлефон бліжэй да датчыка. Стабільныя CGM-перадатчыкі з’явяцца тут.</string>
     <string name="ottai_ble_scan_empty">Датчык Ottai побач не знойдзены. Падыдзіце бліжэй і скануйце зноў.</string>
@@ -1970,6 +1972,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_likely">Падобны на Ottai</string>
     <string name="ottai_ble_scan_possible">Магчымы CGM</string>
     <string name="ottai_ble_scan_unknown">Іншы CGM</string>
+    <string name="ottai_ble_scan_registered">Ужо дададзены</string>
+    <string name="ottai_ble_scan_registered_hint">Ужо падключаны датчык перастае перадаваць рэкламныя пакеты, таму ён не з’явіцца ў спісе вышэй.</string>
     <string name="ottai_account_hint">Эл. пошта або імя карыстальніка</string>
     <string name="ottai_account_note">Увайдзіце праз эл. пошту або імя карыстальніка.</string>
     <string name="ottai_code_sent_email">Код адпраўлены на %1$s</string>
@@ -2282,4 +2286,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_streak">Лепшая серыя</string>
     <string name="stats_metric_streak_description">Найдаўжэйшы шэраг запар дзён з 70%% і больш у дыяпазоне.</string>
     <string name="stats_metric_streak_meta">дзён па 70%%+</string>
+    <string name="stats_pinned_add">Дадаць</string>
+    <string name="stats_pinned_pick_title">Паказаць на галоўным</string>
+    <string name="stats_pinned_remove">Прыбраць з галоўнага</string>
+    <string name="stats_pinned_already">замацавана</string>
+    <string name="stats_pinned_remove_short">Прыбраць</string>
 </resources>

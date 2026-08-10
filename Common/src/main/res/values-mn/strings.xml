@@ -1915,12 +1915,14 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="ottai_login_button">Нэвтрэх</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Нэвтэрсэн</string>
+    <string name="ottai_account_id">Бүртгэл: %1$s</string>
     <string name="ottai_sensor_mac_hint">Cloud төхөөрөмжийн ID (12 hex эсвэл QR)</string>
     <string name="ottai_connect_saved">Холбох</string>
     <string name="ottai_login_fail">Нэвтрэх амжилтгүй - утас/кодоо шалгана уу</string>
     <string name="ottai_connect_saved_fail">Энэ cloud ID-д аккаунт эсвэл хадгалсан материал алга</string>
     <string name="ottai_status_needs_ble_address">BLE хаяг хэрэгтэй</string>
     <string name="ottai_status_warmup_provisional">Түр халаалт • %1$d мин үлдлээ</string>
+    <string name="ottai_status_loading_history">Түүхийг ачаалж байна • %1$d%%</string>
     <string name="ottai_ble_scan_title">Ойролцоох Ottai мэдрэгчүүд</string>
     <string name="ottai_ble_scan_hint">Утсаа мэдрэгчид ойртуулна уу. Тогтвортой CGM дамжуулагчид энд гарна.</string>
     <string name="ottai_ble_scan_empty">Ойролцоо Ottai мэдрэгч олдсонгүй. Ойртоод дахин уншуулна уу.</string>
@@ -1928,6 +1930,8 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="ottai_ble_scan_likely">Ottai байх магадлалтай</string>
     <string name="ottai_ble_scan_possible">CGM байж магадгүй</string>
     <string name="ottai_ble_scan_unknown">Бусад CGM</string>
+    <string name="ottai_ble_scan_registered">Аль хэдийн нэмсэн</string>
+    <string name="ottai_ble_scan_registered_hint">Холбогдсон мэдрэгч зарлал дамжуулахаа больдог тул дээрх жагсаалтад харагдахгүй.</string>
     <string name="ottai_account_hint">Имэйл эсвэл хэрэглэгчийн нэр</string>
     <string name="ottai_account_note">Имэйл эсвэл бүртгэлийн хэрэглэгчийн нэрээрээ нэвтэрнэ үү.</string>
     <string name="ottai_code_sent_email">Код %1$s руу илгээгдсэн</string>
@@ -2330,4 +2334,9 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_metric_streak">Хамгийн урт цуваа</string>
     <string name="stats_metric_streak_description">Мужид 70%% ба түүнээс дээш байсан дараалсан өдрүүдийн хамгийн урт цуваа.</string>
     <string name="stats_metric_streak_meta">өдөр 70%%+</string>
+    <string name="stats_pinned_add">Нэмэх</string>
+    <string name="stats_pinned_pick_title">Хяналтын самбарт харуулах</string>
+    <string name="stats_pinned_remove">Хяналтын самбараас хасах</string>
+    <string name="stats_pinned_already">бэхлэгдсэн</string>
+    <string name="stats_pinned_remove_short">Хасах</string>
 </resources>

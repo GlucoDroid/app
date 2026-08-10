@@ -4,11 +4,17 @@ import java.util.LinkedHashSet
 import java.util.concurrent.ConcurrentHashMap
 import tk.glucodata.drivers.ManagedBluetoothSensorDriver
 import tk.glucodata.drivers.ManagedSensorIdentityRegistry
+import tk.glucodata.drivers.ManagedSensorRuntime
 
 object SensorIdentity {
     private const val NULL_SENTINEL = "\u0000"
     private const val UNKNOWN_SENSOR_SENTINEL = "?"
     private val nativeCanonicalCache = ConcurrentHashMap<String, String>()
+    // raw id -> resolved app (canonical) sensor id. resolveAppSensorId iterates every driver's
+    // identity adapter (each hitting SharedPreferences + regex), so it is far too costly to run
+    // per glucose point per frame — which the calibrated-chart draw path does. The mapping only
+    // changes when the sensor set / auth material changes, so memoize it and clear on those events.
+    private val appSensorIdCache = ConcurrentHashMap<String, String>()
 
     private fun normalized(sensorId: String?): String? {
         return sensorId
@@ -69,16 +75,21 @@ object SensorIdentity {
     @JvmStatic
     fun invalidateCaches() {
         nativeCanonicalCache.clear()
+        appSensorIdCache.clear()
+        ManagedSensorRuntime.clearCaches()
     }
 
     @JvmStatic
     fun resolveAppSensorId(sensorId: String?): String? {
         val raw = normalized(sensorId) ?: return null
-        return ManagedSensorIdentityRegistry.all
+        appSensorIdCache[raw]?.let { return it }
+        val resolved = ManagedSensorIdentityRegistry.all
             .asSequence()
             .mapNotNull { it.resolveCanonicalSensorId(raw) }
             .firstOrNull { it.isNotBlank() }
             ?: raw
+        appSensorIdCache[raw] = resolved
+        return resolved
     }
 
     @JvmStatic

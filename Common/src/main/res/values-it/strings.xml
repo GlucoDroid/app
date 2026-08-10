@@ -1880,12 +1880,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_button">Accedi</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Accesso effettuato</string>
+    <string name="ottai_account_id">Account: %1$s</string>
     <string name="ottai_sensor_mac_hint">ID dispositivo cloud (12 esadecimali o QR)</string>
     <string name="ottai_connect_saved">Connetti</string>
     <string name="ottai_login_fail">Accesso non riuscito - controlla telefono/codice</string>
     <string name="ottai_connect_saved_fail">Nessun materiale dell’account o salvato per questo ID cloud</string>
     <string name="ottai_status_needs_ble_address">Serve indirizzo BLE</string>
     <string name="ottai_status_warmup_provisional">Riscaldamento provvisorio • %1$d min rimanenti</string>
+    <string name="ottai_status_loading_history">Caricamento cronologia • %1$d%%</string>
     <string name="ottai_ble_scan_title">Sensori Ottai vicini</string>
     <string name="ottai_ble_scan_hint">Avvicina il telefono al sensore. I trasmettitori CGM stabili appariranno qui.</string>
     <string name="ottai_ble_scan_empty">Nessun sensore Ottai vicino trovato. Avvicinati e scansiona di nuovo.</string>
@@ -1893,6 +1895,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_likely">Probabile Ottai</string>
     <string name="ottai_ble_scan_possible">Possibile CGM</string>
     <string name="ottai_ble_scan_unknown">Altro CGM</string>
+    <string name="ottai_ble_scan_registered">Già aggiunto</string>
+    <string name="ottai_ble_scan_registered_hint">Un sensore già connesso smette di trasmettere annunci, quindi non può comparire nell’elenco qui sopra.</string>
     <string name="ottai_account_hint">E-mail o nome utente</string>
     <string name="ottai_account_note">Accedi con la tua e-mail o il nome utente dell’account.</string>
     <string name="ottai_code_sent_email">Codice inviato a %1$s</string>
@@ -2205,4 +2209,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_streak">Serie migliore</string>
     <string name="stats_metric_streak_description">Sequenza più lunga di giorni consecutivi al 70%% o più nel range.</string>
     <string name="stats_metric_streak_meta">giorni al 70%%+</string>
+    <string name="stats_pinned_add">Aggiungi</string>
+    <string name="stats_pinned_pick_title">Mostra sulla Dashboard</string>
+    <string name="stats_pinned_remove">Rimuovi dalla Dashboard</string>
+    <string name="stats_pinned_already">fissato</string>
+    <string name="stats_pinned_remove_short">Rimuovi</string>
 </resources>
