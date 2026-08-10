@@ -80,32 +80,106 @@ object AppUpdateController {
     private var installWhenReady = false
 
     /**
+     * Guards [initialize] to actually running once per process, matching its own doc comment.
+     * Cards and screens each call it from their own `LaunchedEffect(Unit)` — several can be
+     * mounted at once (e.g. the dashboard banner and an update card) — so without this, the
+     * staged-file recovery scan below would run concurrently per mount and race the state it
+     * writes against whatever a real download/install already in progress has moved on to.
+     * The set-to-true is safe unsynchronized: every call site invokes this synchronously from
+     * the main thread before the coroutine is launched. The reset-to-false on failure is not —
+     * it runs on the IO dispatcher inside the launched coroutine's catch block, so it needs
+     * @Volatile for that write to be visible to the next call's main-thread read.
+     */
+    @Volatile
+    private var initialized = false
+
+    /**
      * Called once per app start. Reloads persisted state, drops a staged APK left over from a
-     * completed install, and (re)schedules the daily check when it is enabled.
+     * completed install, recovers one that survived a process death after verifying, and
+     * (re)schedules the daily check when it is enabled.
      */
     fun initialize(context: Context) {
+        if (initialized) return
+        initialized = true
         val appContext = context.applicationContext
         scope.launch {
-            val blocker = UpdateEligibility.blocker(appContext)
-            if (blocker != null) {
-                AppUpdateCheckWorker.cancel(appContext)
-                UpdateDownloader.clearStaged(appContext)
-                _state.update { it.copy(supported = false, blocker = blocker, introPending = false) }
-                return@launch
+            try {
+                initializeBody(appContext)
+            } catch (t: Throwable) {
+                // A failure partway through (verify()/blocker() throwing, etc.) must not
+                // permanently latch `initialized` — the next mount has to get a real retry,
+                // same as every call site got before this guard existed.
+                initialized = false
+                throw t
             }
+        }
+    }
 
-            // A cached release that is no longer newer than the running build means the update
-            // was installed (or a downgrade happened); either way the staged file is dead weight.
-            val cached = AppUpdateSettings.cachedUpdate(appContext)
-            if (cached != null && !isStillNewer(cached)) {
+    private suspend fun initializeBody(appContext: Context) {
+        val blocker = UpdateEligibility.blocker(appContext)
+        if (blocker != null) {
+            AppUpdateCheckWorker.cancel(appContext)
+            UpdateDownloader.clearStaged(appContext)
+            _state.update { it.copy(supported = false, blocker = blocker, introPending = false) }
+            return
+        }
+
+        // A cached release that is no longer newer than the running build means the update
+        // was installed (or a downgrade happened); either way the staged file is dead weight.
+        val cached = AppUpdateSettings.cachedUpdate(appContext)
+        val recoveredReadyFilePath = when {
+            cached == null -> null
+            !isStillNewer(cached) -> {
                 AppUpdateSettings.clearCachedUpdate(appContext)
                 UpdateDownloader.clearStaged(appContext)
+                null
             }
+            // readyFilePath only ever lived in memory, so a process death after a completed,
+            // verified download otherwise strands the file: unreachable to the UI, but never
+            // cleaned up either since nothing here else deletes it. Recover it when the
+            // staged file still matches and verifies against the cached release; a file that
+            // doesn't (a partial download interrupted mid-transfer, or a stale one from a
+            // release that has since changed) is dead weight rather than resumable, so it
+            // gets the same cleanup a failed download would.
+            else -> {
+                val staged = UpdateDownloader.stagedFile(appContext, cached.artifact)
+                if (staged.isFile && ApkVerifier.verify(appContext, staged, cached) == null) {
+                    staged.absolutePath
+                } else {
+                    UpdateDownloader.clearStaged(appContext)
+                    null
+                }
+            }
+        }
 
-            refreshFromSettings(appContext)
-            if (AppUpdateSettings.isAutoCheckEnabled(appContext)) {
-                AppUpdateCheckWorker.schedule(appContext)
+        refreshFromSettings(appContext)
+        if (recoveredReadyFilePath != null) {
+            _state.update { current ->
+                // Both conditions matter: `stage == IDLE` means nothing else (a real download,
+                // an install) has moved on while verify() above was running; `available`
+                // matching `cached`'s identity means a "check now"/daily-worker race landing
+                // between capturing `cached` and this update didn't leave `readyFilePath`
+                // pointing at a different release than the one the UI now describes.
+                if (current.stage != UpdateStage.IDLE || current.available?.identity != cached?.identity) {
+                    return@update current
+                }
+                current.copy(
+                    stage = UpdateStage.READY_TO_INSTALL,
+                    readyFilePath = recoveredReadyFilePath,
+                    // A stale persisted check error (e.g. a network blip on an unrelated
+                    // daily check) must not mask the ready-to-install card behind it.
+                    error = null
+                )
             }
+            // The guard above can decide not to apply a file that just passed verification —
+            // at that point it isn't reachable through state and never will be (this recovery
+            // scan only runs once per process), so it would otherwise sit on disk forever.
+            if (_state.value.readyFilePath != recoveredReadyFilePath) {
+                UpdateDownloader.clearStaged(appContext)
+            }
+        }
+        if (AppUpdateSettings.isAutoCheckEnabled(appContext)) {
+            AppUpdateCheckWorker.schedule(appContext)
         }
     }
 

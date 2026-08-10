@@ -35,6 +35,11 @@ object UpdateDownloader {
     fun downloadDir(context: Context): File =
         File(context.applicationContext.cacheDir, DOWNLOAD_DIR).apply { mkdirs() }
 
+    /** Where [download] would write (or has written) [artifact]. Single source of truth for the
+     *  staging filename scheme, so a recovery/lookup path can't silently drift from it. */
+    fun stagedFile(context: Context, artifact: UpdateArtifact): File =
+        File(downloadDir(context), artifact.fileName)
+
     /** Removes every staged APK. Called after a successful install and when a download fails. */
     fun clearStaged(context: Context) {
         runCatching { downloadDir(context).listFiles()?.forEach { it.delete() } }
@@ -58,7 +63,7 @@ object UpdateDownloader {
 
         val dir = downloadDir(context)
         clearStaged(context)
-        val target = File(dir, update.artifact.fileName)
+        val target = stagedFile(context, update.artifact)
 
         val expectedSize = update.artifact.sizeBytes
         if (expectedSize > MAX_APK_BYTES) return@withContext Outcome.Failed(UpdateError.STORAGE)
