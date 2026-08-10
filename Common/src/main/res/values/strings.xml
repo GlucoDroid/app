@@ -2515,7 +2515,7 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <!-- GlucoDroid-specific strings -->
     <string name="copy_log" tools:ignore="MissingTranslation">Copy log</string>
     <string name="share_log" tools:ignore="MissingTranslation">Share log</string>
-    <string name="about_upstream" tools:ignore="MissingTranslation">Fork of JugglucoNG v1.0.3-Alpha • GPL-3.0</string>
+    <string name="about_upstream" tools:ignore="MissingTranslation">Fork of JugglucoNG v1.1.2-Alpha • GPL-3.0</string>
     <string name="about_cloud" tools:ignore="MissingTranslation">Made for glucodroid.cloud</string>
     <string name="outbound_api_glucodroid_subdomain" tools:ignore="MissingTranslation">Subdomain</string>
     <string name="outbound_api_glucodroid_ingest_token" tools:ignore="MissingTranslation">API secret</string>
