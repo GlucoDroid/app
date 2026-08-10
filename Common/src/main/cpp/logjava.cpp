@@ -147,7 +147,11 @@ static bool copyfile(const char *infile, int out) {
     }
     total += n;
   }
-  bool suc = (total == len);
+  // >= not ==: logging keeps appending while we copy, so the file can grow
+  // past the fstat'ed len mid-copy. Copying more than the snapshot is still a
+  // complete save; reporting it as failure produced spurious "Save failed"
+  // toasts on exactly the large, actively-recording logs users most want out.
+  bool suc = (total >= len);
   if (!suc) {
     flerror("copyfile(%s): wrote %zd expected %lld", infile, total,
             (long long)len);
