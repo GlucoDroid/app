@@ -162,6 +162,7 @@ private fun HistoryRoute(
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
     val predictionModelProfile by dashboardViewModel.predictionModelProfile.collectAsStateWithLifecycle()
+    val predictionDoseTargetMgDl by dashboardViewModel.predictionDoseTargetMgDl.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
     var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
     var lastJournalType by rememberSaveable { mutableStateOf(JournalEntryType.INSULIN) }
@@ -249,11 +250,7 @@ private fun HistoryRoute(
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                 foodMacrosEnabled = journalFoodMacrosEnabled,
                 modelProfile = predictionModelProfile,
-                targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
-                    tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
-                } else {
-                    targetHigh
-                }
+                targetMgDl = predictionDoseTargetMgDl
             ),
             initialType = request.type,
             existingEntry = request.existingEntry,
@@ -315,6 +312,7 @@ private fun JournalRoute(
     val predictionCarbRatioGramsPerUnit by dashboardViewModel.predictionCarbRatioGramsPerUnit.collectAsStateWithLifecycle()
     val predictionInsulinSensitivityMgDlPerUnit by dashboardViewModel.predictionInsulinSensitivityMgDlPerUnit.collectAsStateWithLifecycle()
     val predictionModelProfile by dashboardViewModel.predictionModelProfile.collectAsStateWithLifecycle()
+    val predictionDoseTargetMgDl by dashboardViewModel.predictionDoseTargetMgDl.collectAsStateWithLifecycle()
     val calibrations by tk.glucodata.data.calibration.CalibrationManager.calibrations.collectAsStateWithLifecycle()
     var journalEditorRequest by remember { mutableStateOf<JournalEditorRequest?>(null) }
     var lastJournalType by rememberSaveable { mutableStateOf(JournalEntryType.INSULIN) }
@@ -405,11 +403,7 @@ private fun JournalRoute(
                 insulinSensitivityMgDlPerUnit = predictionInsulinSensitivityMgDlPerUnit,
                 foodMacrosEnabled = journalFoodMacrosEnabled,
                 modelProfile = predictionModelProfile,
-                targetHighMgDl = if (tk.glucodata.ui.util.GlucoseFormatter.isMmol(unit)) {
-                    tk.glucodata.ui.util.GlucoseFormatter.mmolToMg(targetHigh)
-                } else {
-                    targetHigh
-                }
+                targetMgDl = predictionDoseTargetMgDl
             ),
             initialType = request.type,
             existingEntry = request.existingEntry,
@@ -836,6 +830,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                     composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                     composable("settings/api-source") { ApiSourceSettingsScreen(navController) }
                     composable("settings/glucose-meters") { GlucoseMeterSettingsScreen(navController) }
+                    composable("settings/insulin-pens") { InsulinPenSettingsScreen(navController) }
                     composable("settings/watch") { WatchSettingsScreen(navController) }
                     // Keep legacy route for backward compatibility.
                     composable("settings/weartransport") { WatchSettingsScreen(navController) }
@@ -990,6 +985,7 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 composable("settings/outbound-api") { OutboundApiSettingsScreen(navController) }
                 composable("settings/api-source") { ApiSourceSettingsScreen(navController) }
                 composable("settings/glucose-meters") { GlucoseMeterSettingsScreen(navController) }
+                composable("settings/insulin-pens") { InsulinPenSettingsScreen(navController) }
                 composable("settings/watch") { WatchSettingsScreen(navController) }
                 // Keep legacy route for backward compatibility.
                 composable("settings/weartransport") { WatchSettingsScreen(navController) }
@@ -1063,6 +1059,10 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
             }
         }
     }
+
+    // --- INSULIN PEN REVIEW SHEET (Global) ---
+    // A pen is tapped against the phone from any screen, so the review lives here.
+    InsulinPenScanSheetHost()
 
     // --- CALIBRATION BOTTOM SHEET (Global) ---
     CalibrationSheetHost(

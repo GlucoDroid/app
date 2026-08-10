@@ -771,6 +771,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="transmitter_id_supporting">Дамжуулагчийн шошгон дээрх 8-12 тэмдэгт</string>
     <string name="scan_sensor_title">QR код уншуулах</string>
     <string name="scan_sensor_instruction">Sibionics мэдрэгчийн хайрцаг дээрх QR кодыг уншуулна уу.</string>
+    <string name="scan_sensor_instruction_sibionics2">Sibionics 2 дамжуулагч дээрх холболтын кодыг уншуулна уу, эсвэл доорх Bluetooth-оос дамжуулагчаа сонгоно уу.</string>
     <string name="scan_qr_button">QR код уншуулах</string>
     <string name="select_gallery_button">Галлерейгаас сонгох</string>
     <string name="skip_fake_sensor">Алгасах (Хуурамч мэдрэгч ашиглах)</string>
@@ -782,6 +783,9 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="failed_to_connect">"Холбогдож чадсангүй: "</string>
     <string name="sensor_not_init">Мэдрэгч эхлээгүй байна. Эхлээд Мэдрэгч уншуулах-ыг ашиглана уу.</string>
     <string name="invalid_code_format">Кодын формат буруу байна. Дахин оролдоно уу.</string>
+    <string name="sibionics_code_wrong_type">Энэ бол %1$s код. Буцаж очоод %1$s-г сонгоно уу.</string>
+    <string name="sibionics_code_not_for_type">Энэ код %1$s-д хамаарахгүй. Буцаж очоод тохирох мэдрэгчийн төрлийг сонгоно уу.</string>
+    <string name="sibionics_serial_wrong_type">Энэ сериал дугаар %1$s-тай тохирохгүй байна. Буцаж очоод тохирох мэдрэгчийн төрлийг сонгоно уу.</string>
     <string name="no_qr_found">Зурагнаас QR код олдсонгүй</string>
     <string name="choose_sibionics_variant">Савлагаан дээрх загварыг сонгоно уу.</string>
       <!-- ComposeHost Strings -->
@@ -1531,6 +1535,10 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="predictive_sensitivity_value_mmol">%1$.1f mmol/L/U</string>
     <string name="predictive_carb_absorption">Carb absorption</string>
     <string name="predictive_absorption_value">%1$.0f g/h</string>
+    <string name="predictive_dose_target">Тунгийн зорилтот утга</string>
+    <string name="predictive_dose_target_explanation">Инсулин болон нүүрс усны зөвлөмж энэ утга руу залруулна. Энэ нь графикт харуулсан зорилтот мужаас тусдаа.</string>
+    <string name="predictive_dose_target_value_mmol">%1$.1f mmol/L</string>
+    <string name="predictive_dose_target_value_mgdl">%1$.0f mg/dL</string>
     <string name="predictive_forecast_horizon">Forecast horizon</string>
     <string name="predictive_horizon_value">%1$d min</string>
     <string name="journal_dose_math_title">Dose calculator</string>
@@ -1964,7 +1972,10 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="ottai_ble_scan_possible">CGM байж магадгүй</string>
     <string name="ottai_ble_scan_unknown">Бусад CGM</string>
     <string name="ottai_ble_scan_registered">Аль хэдийн нэмсэн</string>
-    <string name="ottai_ble_scan_registered_hint">Холбогдсон мэдрэгч зарлал дамжуулахаа больдог тул дээрх жагсаалтад харагдахгүй.</string>
+    <string name="ottai_ble_scan_registered_hint">Аль хэдийн нэмсэн мэдрэгчүүд холбоотой хэвээр байдаг тул зарлал дамжуулахаа больж, хайлтад харагдахгүй.</string>
+    <string name="ottai_ble_scan_connected">Одоо холбогдсон</string>
+    <string name="ottai_ble_scan_weak">Сул дохио</string>
+    <string name="ottai_ble_scan_weak_hint">Албан ёсны аппын шаарддаг −70 дБм-ээс сул байна. Баталгаажуулахын тулд утсаа ойртуулна уу.</string>
     <string name="ottai_account_hint">Имэйл эсвэл хэрэглэгчийн нэр</string>
     <string name="ottai_account_note">Имэйл эсвэл бүртгэлийн хэрэглэгчийн нэрээрээ нэвтэрнэ үү.</string>
     <string name="ottai_code_sent_email">Код %1$s руу илгээгдсэн</string>
@@ -2365,7 +2376,7 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="stats_metric_modd_description">Өдрийн зөрүүний дундаж: нэг өдрөөс нөгөөд ижил цаг хэр зөрж байгаа. Бага утга нь өдрүүд давтагдаж байгааг илтгэх ба энэ нь дэглэмийг тохируулах боломж олгодог.</string>
     <string name="stats_metric_streak">Хамгийн урт цуваа</string>
     <string name="stats_metric_streak_description">Мужид 70%% ба түүнээс дээш байсан дараалсан өдрүүдийн хамгийн урт цуваа.</string>
-    <string name="stats_metric_streak_meta">өдөр 70%%+</string>
+    <string name="stats_metric_streak_meta">өдөр 70%+</string>
     <string name="stats_pinned_add">Нэмэх</string>
     <string name="stats_pinned_pick_title">Хяналтын самбарт харуулах</string>
     <string name="stats_pinned_remove">Хяналтын самбараас хасах</string>
@@ -2529,4 +2540,32 @@ OK дарснаар энэ утсан дээр холболт үүсч, өөр A
     <string name="app_updates_source_invalid">https:// -ээр эхэлсэн хаяг оруулна уу.</string>
     <string name="app_updates_source_reset">Өгөгдмөлийг ашиглах</string>
     <string name="app_updates_action_save">Хадгалах</string>
+    <string name="insulin_pens_title">Инсулины үзэг</string>
+    <string name="insulin_pens_desc">NFC-ээр NovoPen тун унших</string>
+    <string name="insulin_pens_enable_title">Инсулины үзэг унших</string>
+    <string name="insulin_pens_enable_desc">Тунг нэмэхийн тулд NFC үзгээ утсандаа ойртуулна уу</string>
+    <string name="insulin_pens_how_title">Үзгийг хэрхэн унших вэ</string>
+    <string name="insulin_pens_how_desc">Үзгийн дэлгэц асах хүртэл тунгийн товчийг дараад, дэлгэцийг утасны дээд хэсэгт чичрэх хүртэл барина уу.</string>
+    <string name="insulin_pens_paired">Таны үзгүүд</string>
+    <string name="insulin_pens_none">Одоогоор үзэг алга</string>
+    <string name="insulin_pens_none_desc">Үзгээ утсандаа ойртуулбал энд харагдана.</string>
+    <string name="insulin_pen_name">Үзэг %1$s</string>
+    <string name="insulin_pen_insulin_unset">Инсулин сонгоогүй</string>
+    <string name="insulin_pen_dose_count">%1$d тун нэмэгдсэн</string>
+    <string name="insulin_pen_last_read">уншсан %1$s</string>
+    <string name="insulin_pen_never_read">хараахан уншаагүй</string>
+    <string name="insulin_pen_choose_insulin">Энэ үзэгт ямар инсулин байна вэ?</string>
+    <string name="insulin_pen_forget">Үзгийг мартах</string>
+    <string name="insulin_pen_forget_confirm">%1$s үзгийг мартах уу?</string>
+    <string name="insulin_pen_forget_desc">Тэмдэглэлд аль хэдийн байгаа тунгууд хэвээр үлдэнэ.</string>
+    <string name="insulin_pen_new_doses">%1$d шинэ тун</string>
+    <string name="insulin_pen_no_new_doses">Үзгийг уншлаа. Шинэ тун алга.</string>
+    <string name="insulin_pen_doses_label">Тунгууд</string>
+    <string name="insulin_pen_select_all">Бүгдийг сонгох</string>
+    <string name="insulin_pen_select_none">Цэвэрлэх</string>
+    <string name="insulin_pen_units">%1$s нэгж</string>
+    <string name="insulin_pen_priming">Агаар гаргалт</string>
+    <string name="insulin_pen_add_doses">%1$d тун нэмэх</string>
+    <string name="insulin_pen_doses_added">Тэмдэглэлд %1$d тун нэмэгдлээ</string>
+    <string name="insulin_pens_journal_off">Тэмдэглэл унтраалттай тул оруулсан тунгууд хаана ч харагдахгүй.</string>
 </resources>

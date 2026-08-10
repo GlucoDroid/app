@@ -18,7 +18,7 @@ object JournalDoseCalculator {
         glucoseMgDl: Float?,
         carbRatioGramsPerUnit: Float,
         insulinSensitivityMgDlPerUnit: Float,
-        targetHighMgDl: Float,
+        targetMgDl: Float,
         activeInsulinUnits: Float
     ): InsulinSuggestion? {
         val carbRatio = carbRatioGramsPerUnit.takeIf { it.isFinite() && it > 0f } ?: return null
@@ -32,7 +32,7 @@ object JournalDoseCalculator {
         val rawCorrection = correctionUnits(
             glucoseMgDl = glucoseMgDl,
             insulinSensitivityMgDlPerUnit = insulinSensitivityMgDlPerUnit,
-            targetHighMgDl = targetHighMgDl
+            targetMgDl = targetMgDl
         ) ?: return null
         val activeCredit = minOf(rawCorrection, activeInsulinUnits.finitePositiveOrZero())
         val correction = (rawCorrection - activeCredit).coerceAtLeast(0f)
@@ -49,7 +49,7 @@ object JournalDoseCalculator {
         glucoseMgDl: Float?,
         carbRatioGramsPerUnit: Float,
         insulinSensitivityMgDlPerUnit: Float,
-        targetHighMgDl: Float,
+        targetMgDl: Float,
         activeInsulinUnits: Float
     ): Float? {
         val insulin = insulinUnits?.takeIf { it.isFinite() && it > 0f } ?: return null
@@ -57,22 +57,23 @@ object JournalDoseCalculator {
         val rawCorrection = correctionUnits(
             glucoseMgDl = glucoseMgDl,
             insulinSensitivityMgDlPerUnit = insulinSensitivityMgDlPerUnit,
-            targetHighMgDl = targetHighMgDl
+            targetMgDl = targetMgDl
         ) ?: return null
         val correction = (rawCorrection - minOf(rawCorrection, activeInsulinUnits.finitePositiveOrZero()))
             .coerceAtLeast(0f)
         return roundCarbs((insulin - correction).coerceAtLeast(0f) * carbRatio)
     }
 
+    /** [targetMgDl] is the configured dose target — what a correction aims at. */
     private fun correctionUnits(
         glucoseMgDl: Float?,
         insulinSensitivityMgDlPerUnit: Float,
-        targetHighMgDl: Float
+        targetMgDl: Float
     ): Float? {
         if (glucoseMgDl == null) return 0f
         val glucose = glucoseMgDl.takeIf { it.isFinite() && it > 0f } ?: return null
         val sensitivity = insulinSensitivityMgDlPerUnit.takeIf { it.isFinite() && it > 0f } ?: return null
-        val target = targetHighMgDl.takeIf { it.isFinite() && it > 0f } ?: return null
+        val target = targetMgDl.takeIf { it.isFinite() && it > 0f } ?: return null
         return ((glucose - target) / sensitivity).coerceAtLeast(0f)
     }
 

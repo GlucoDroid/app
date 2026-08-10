@@ -11,6 +11,7 @@ package tk.glucodata.drivers.icanhealth
 
 import java.util.UUID
 import java.util.Locale
+import kotlin.math.abs
 
 object ICanHealthConstants {
     private val FULL_CANONICAL_HEX_SENSOR_ID_REGEX = Regex("^[0-9A-Z]{16}$", RegexOption.IGNORE_CASE)
@@ -335,6 +336,52 @@ object ICanHealthConstants {
         return tailTimestampMs >= endTimestampMs - toleranceMs.coerceAtLeast(0L)
     }
 
+    /**
+     * True while a parsed session start still explains the sensor's own sequence counter.
+     *
+     * The counter ticks once a minute from session start, so `sessionStart + sequence` must land
+     * on the moment the counter was read. A session start that is off by a whole UTC offset stays
+     * internally consistent and so survives every per-candidate bounds check; only this
+     * cross-check against the sensor's own counter catches it.
+     *
+     * Deliberately symmetric — a negative UTC offset drags the session start into the past.
+     */
+    internal fun sessionTimelineMatchesSequenceCounter(
+        sessionStartEpochMs: Long,
+        sequenceNumber: Int,
+        sequenceObservedAtMs: Long,
+        sequenceUnitMs: Long,
+        toleranceMs: Long,
+    ): Boolean {
+        if (sessionStartEpochMs <= 0L || sequenceObservedAtMs <= 0L) {
+            return false
+        }
+        if (sequenceNumber < 0) {
+            // Nothing to cross-check against yet.
+            return true
+        }
+        val impliedObservedAtMs = sessionStartEpochMs + sequenceNumber.toLong() * sequenceUnitMs
+        return abs(impliedObservedAtMs - sequenceObservedAtMs) <= toleranceMs.coerceAtLeast(0L)
+    }
+
+    /**
+     * How many readings the sensor produced between two live sequence numbers but never delivered.
+     *
+     * The sequence counter advances one unit per minute regardless of model, so a sensor on a
+     * three-minute cadence steps by three. Returns 0 when the two are consecutive readings, and
+     * 0 for any non-advancing or unusable input.
+     */
+    internal fun missedReadingsBetween(
+        previousSequence: Int,
+        currentSequence: Int,
+        readingIntervalMinutes: Int,
+    ): Int {
+        if (previousSequence < 0 || currentSequence <= previousSequence || readingIntervalMinutes <= 0) {
+            return 0
+        }
+        return ((currentSequence - previousSequence) / readingIntervalMinutes - 1).coerceAtLeast(0)
+    }
+
     const val RACP_RESULT_SUCCESS = 0x01
     const val RACP_RESULT_NOT_SUPPORTED = 0x02
     const val RACP_RESULT_NO_DATA = 0x06
@@ -635,4 +682,17 @@ object ICanHealthConstants {
 
     /** Preference key prefix for the timestamp of the latest materialized iCan sequence edge */
     const val PREF_HISTORY_EDGE_TIMESTAMP_PREFIX = "icanhealth_history_edge_timestamp_"
+
+    /**
+     * Repair generation for history written against a timezone-skewed session start.
+     *
+     * Builds before this generation parsed the 0x2AAA session start as UTC even when the sensor
+     * had sent a local wall clock, so any backfilled record older than the device's UTC offset was
+     * stored one whole offset late — a ghost copy of the curve interleaved with the real one.
+     * Bump this to schedule another one-time repull-and-replace for every iCan sensor.
+     */
+    const val HISTORY_TIMEZONE_REPAIR_GENERATION = 1
+
+    /** Preference key prefix for the repair generation already applied to a given iCan sensor */
+    const val PREF_HISTORY_TZ_REPAIR_PREFIX = "icanhealth_history_tz_repair_"
 }

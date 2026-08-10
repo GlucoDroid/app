@@ -151,7 +151,16 @@ class AiDexBleManager(
         private const val GATT_WRITE_RETRY_DELAY_MS = 200L
 
         // -- Timeouts --
-        private const val MTU_DELAY_MS = 200L
+        /**
+         * Fallback only. Service discovery is normally started from [onMtuChanged]; this is how
+         * long we wait for that callback before assuming the stack swallowed it.
+         *
+         * It must stay comfortably longer than a real MTU round trip. Starting discovery — and
+         * therefore the first CCCD descriptor write — while the MTU exchange is still outstanding
+         * wedges the connection: the write never gets `onDescriptorWrite`, `mDeviceBusy` stays
+         * latched, and every later GATT op on that link is rejected until we reconnect.
+         */
+        private const val MTU_CALLBACK_FALLBACK_MS = 2_000L
         private const val DISCOVERY_RETRY_DELAY_MS = 1_500L
         private const val DISCOVERY_MAX_RETRIES = 2
         private const val HISTORY_PAGE_TIMEOUT_MS = 25_000L
@@ -283,6 +292,8 @@ class AiDexBleManager(
 
     // -- CCCD State --
     private var servicesReady = false
+    /** Guards against discovering twice when the MTU callback and its fallback both fire. */
+    private var serviceDiscoveryStarted = false
     private var cccdQueue = ArrayDeque<UUID>() // Characteristics to enable notifications on
     private var cccdWriteInProgress = false
     private var cccdChainComplete = false
@@ -465,6 +476,13 @@ class AiDexBleManager(
                 reason = "pre-auth-encrypted-traffic phase=$phase frames=$preAuthEncryptedFrameCount age=${trafficAgeMs}ms bondState=$bondState"
             )
         }
+    }
+
+    /** Fallback: some stacks never deliver `onMtuChanged`. Discover anyway rather than stall. */
+    private val mtuDiscoveryFallback = Runnable {
+        val gatt = mBluetoothGatt ?: return@Runnable
+        Log.w(TAG, "No onMtuChanged within ${MTU_CALLBACK_FALLBACK_MS}ms — discovering services anyway")
+        beginServiceDiscovery(gatt, "mtu-callback-timeout")
     }
 
     /** Watchdog: Android must callback after descriptor writes, but some stacks drop CCCD callbacks. */
@@ -839,6 +857,8 @@ class AiDexBleManager(
     private var calibrationRangeEndIndex: Int = 0
     /** Whether a calibration download is in progress. */
     private var calibrationDownloading: Boolean = false
+    /** Set once the sensor has reported an empty calibration range on this connection. */
+    private var calibrationRangeKnownEmpty: Boolean = false
 
     // -- Startup Metadata / Legacy Start Time (0x10 / 0x21) --
     // The vendor/original stack treats raw `0x10` as startup device-info and
@@ -1297,6 +1317,8 @@ class AiDexBleManager(
         queuePausedForBonding = false
         currentGattOp = null
         servicesReady = false
+        serviceDiscoveryStarted = false
+        handler.removeCallbacks(mtuDiscoveryFallback)
         cccdChainComplete = false
         cccdWriteInProgress = false
         cccdPendingWriteUuid = null
@@ -1325,6 +1347,7 @@ class AiDexBleManager(
         pendingCalibrationRefresh = false
         pendingCalibrationRefreshReason = null
         pendingCalibrationRefreshScheduled = false
+        calibrationRangeKnownEmpty = false
         startupControlStage = StartupControlStage.IDLE
         lastF002FrameTimeMs = 0L
         noDirectLiveBroadcastFallbackMode = false
@@ -1844,6 +1867,7 @@ class AiDexBleManager(
             pendingCalibrationRefresh = false
             pendingCalibrationRefreshReason = null
             pendingCalibrationRefreshScheduled = false
+            calibrationRangeKnownEmpty = false
             startupControlStage = StartupControlStage.IDLE
             lastF002FrameTimeMs = 0L
             negotiatedMtu = 23
@@ -1875,19 +1899,22 @@ class AiDexBleManager(
             lastBroadcastOffsetForCadence = -1
             lastFreshBroadcastTimeMs = 0L
 
+            serviceDiscoveryStarted = false
             Log.i(TAG, "Connected to ${gatt.device?.address}. Requesting MTU 512...")
-            gatt.requestMtu(512)
+            val mtuRequested = runCatching { gatt.requestMtu(512) }.getOrDefault(false)
             handler.removeCallbacks(broadcastAssistRunnable)
             handler.postDelayed(broadcastAssistRunnable, BROADCAST_ASSIST_SCAN_DELAY_MS)
 
-            // Schedule service discovery after MTU exchange
-            handler.postDelayed({
-                if (mBluetoothGatt != null && !servicesReady) {
-                    Log.i(TAG, "Discovering services...")
-                    mBluetoothGatt?.discoverServices()
-                    scheduleDiscoveryRetries(gatt)
-                }
-            }, MTU_DELAY_MS)
+            // Service discovery waits for onMtuChanged. Discovering while the MTU exchange is
+            // still outstanding lets the first CCCD descriptor write race it, and that write is
+            // then never completed — the link survives but no GATT op on it can ever succeed.
+            handler.removeCallbacks(mtuDiscoveryFallback)
+            if (mtuRequested) {
+                handler.postDelayed(mtuDiscoveryFallback, MTU_CALLBACK_FALLBACK_MS)
+            } else {
+                Log.w(TAG, "requestMtu(512) was refused — discovering services immediately")
+                beginServiceDiscovery(gatt, "mtu-request-refused")
+            }
 
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             val disconnectPhase = phase
@@ -2045,6 +2072,24 @@ class AiDexBleManager(
         } else {
             Log.w(TAG, "onMtuChanged: status=$status mtu=$mtu")
         }
+        // The ATT bearer is free again — now it is safe to discover and write CCCDs.
+        handler.removeCallbacks(mtuDiscoveryFallback)
+        beginServiceDiscovery(gatt, "mtu-callback")
+    }
+
+    /**
+     * Start service discovery exactly once per connection.
+     *
+     * Called from [onMtuChanged] on the happy path, and from [mtuDiscoveryFallback] when a stack
+     * never delivers that callback.
+     */
+    private fun beginServiceDiscovery(gatt: BluetoothGatt, reason: String) {
+        if (gatt !== mBluetoothGatt) return
+        if (serviceDiscoveryStarted || servicesReady) return
+        serviceDiscoveryStarted = true
+        Log.i(TAG, "Discovering services ($reason)...")
+        gatt.discoverServices()
+        scheduleDiscoveryRetries(gatt)
     }
 
     override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
@@ -3151,8 +3196,10 @@ class AiDexBleManager(
             return untrusted("wire offset=$wireOffset is not positive")
         }
         if (wireOffset.toLong() > maxOffsetMinutes) {
-            // 1.8.1 has been observed to produce correct glucose/raw with garbage timing bytes.
-            // Accept the reading, but do not let that field rewrite start time or dedupe state.
+            // Kept as a safety net. Until the bytes[4..5] fix this fired on *every* frame on
+            // every firmware, because the offset was being read from the wrong bytes; a genuine
+            // out-of-range offset should now be rare. Accept the reading either way, but do not
+            // let that field rewrite start time or dedupe state.
             val derivedFromSession = deriveOffsetFromAuthoritativeSession(now)
             if (derivedFromSession != null) {
                 return trust(
@@ -3243,6 +3290,7 @@ class AiDexBleManager(
         return AiDexRuntimePolicy.shouldRequestRoutineCalibrationRefresh(
             hasCachedCalibrationRecords = _calibrationRecords.isNotEmpty(),
             calibrationDownloading = calibrationDownloading,
+            calibrationRangeKnownEmpty = calibrationRangeKnownEmpty,
         )
     }
 
@@ -4471,11 +4519,16 @@ class AiDexBleManager(
         calibrationRangeEndIndex = endIndex
 
         if (endIndex <= 0 || startIndex > endIndex) {
+            // The sensor has answered: it holds no calibrations. Without this the routine refresh
+            // re-armed on every live reading — "no records cached" is not the same as "not asked" —
+            // and re-sent this query roughly once a minute for the whole sensor life.
+            calibrationRangeKnownEmpty = true
             Log.i(TAG, "No calibration records available (start=$startIndex, end=$endIndex)")
             return
         }
 
         // Fetch all calibration records, starting from startIndex, chaining through endIndex
+        calibrationRangeKnownEmpty = false
         calibrationDownloading = true
         requestCalibrationPaginated(startIndex, endIndex)
     }

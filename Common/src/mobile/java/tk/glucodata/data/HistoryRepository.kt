@@ -250,6 +250,67 @@ class HistoryRepository(context: Context = Applic.app) {
         }
 
         /**
+         * Backfill arrives one BLE notification at a time — roughly sixteen readings each,
+         * ten times a second on a fast sensor. Writing a Room transaction per notification
+         * meant a delete-range plus an insert ten times a second, each one previously on a
+         * freshly created CoroutineScope, for the whole length of the connection.
+         *
+         * Batches are therefore accumulated per sensor and flushed once the burst pauses, or
+         * once enough readings have piled up that waiting no longer pays. Live readings do
+         * not come through here, so nothing user-visible is delayed by the coalescing window.
+         */
+        private const val HISTORY_BATCH_COALESCE_MS = 400L
+        private const val HISTORY_BATCH_MAX_PENDING = 512
+
+        private val historyBatchScope = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + Dispatchers.IO
+        )
+        private val historyBatchLock = Any()
+        private val pendingHistoryBatches = HashMap<String, ArrayList<HistoryReading>>()
+        private val historyBatchFlushJobs = HashMap<String, kotlinx.coroutines.Job>()
+
+        private fun enqueueHistoryBatch(roomSerial: String, readings: List<HistoryReading>) {
+            val flushNow: List<HistoryReading>?
+            synchronized(historyBatchLock) {
+                val pending = pendingHistoryBatches.getOrPut(roomSerial) { ArrayList() }
+                pending.addAll(readings)
+                if (pending.size >= HISTORY_BATCH_MAX_PENDING) {
+                    historyBatchFlushJobs.remove(roomSerial)?.cancel()
+                    flushNow = pendingHistoryBatches.remove(roomSerial)
+                } else {
+                    flushNow = null
+                    if (!historyBatchFlushJobs.containsKey(roomSerial)) {
+                        historyBatchFlushJobs[roomSerial] = historyBatchScope.launch {
+                            kotlinx.coroutines.delay(HISTORY_BATCH_COALESCE_MS)
+                            val batch = synchronized(historyBatchLock) {
+                                historyBatchFlushJobs.remove(roomSerial)
+                                pendingHistoryBatches.remove(roomSerial)
+                            }
+                            writeHistoryBatch(roomSerial, batch)
+                        }
+                    }
+                }
+            }
+            if (flushNow != null) {
+                historyBatchScope.launch { writeHistoryBatch(roomSerial, flushNow) }
+            }
+        }
+
+        private suspend fun writeHistoryBatch(roomSerial: String, batch: List<HistoryReading>?) {
+            if (batch.isNullOrEmpty()) return
+            try {
+                HistoryRepository().storeReadingsReplacingSensorBuckets(
+                    sensorSerial = roomSerial,
+                    readings = batch,
+                    bucketDurationMs = SENSOR_MINUTE_BUCKET_MS,
+                )
+                UiRefreshBus.requestDataRefresh()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed storing history batch for $roomSerial", e)
+            }
+        }
+
+        /**
          * Async helper for Java callers (e.g. AiDexProbe) to store readings without blocking.
          * Launches a coroutine in IO scope.
          */
@@ -289,35 +350,25 @@ class HistoryRepository(context: Context = Applic.app) {
                 return
             }
 
-            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val readings = ArrayList<HistoryReading>(timestamps.size)
-                    for (index in timestamps.indices) {
-                        val timestamp = timestamps[index]
-                        val value = values[index]
-                        val rawValue = rawValues[index]
-                        if (timestamp <= 0L) continue
-                        if ((!value.isFinite() || value <= 0f) && (!rawValue.isFinite() || rawValue <= 0f)) continue
-                        readings.add(
-                            HistoryReading(
-                                timestamp = timestamp,
-                                sensorSerial = roomSerial,
-                                value = if (value.isFinite()) value else 0f,
-                                rawValue = if (rawValue.isFinite()) rawValue else 0f,
-                                rate = null
-                            )
-                        )
-                    }
-                    HistoryRepository().storeReadingsReplacingSensorBuckets(
+            val readings = ArrayList<HistoryReading>(timestamps.size)
+            for (index in timestamps.indices) {
+                val timestamp = timestamps[index]
+                val value = values[index]
+                val rawValue = rawValues[index]
+                if (timestamp <= 0L) continue
+                if ((!value.isFinite() || value <= 0f) && (!rawValue.isFinite() || rawValue <= 0f)) continue
+                readings.add(
+                    HistoryReading(
+                        timestamp = timestamp,
                         sensorSerial = roomSerial,
-                        readings = readings,
-                        bucketDurationMs = SENSOR_MINUTE_BUCKET_MS,
+                        value = if (value.isFinite()) value else 0f,
+                        rawValue = if (rawValue.isFinite()) rawValue else 0f,
+                        rate = null
                     )
-                    UiRefreshBus.requestDataRefresh()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed storing history batch for $roomSerial", e)
-                }
+                )
             }
+            if (readings.isEmpty()) return
+            enqueueHistoryBatch(roomSerial, readings)
         }
 
         /** Resolved by name from [tk.glucodata.HistorySyncAccess] — see [getHistoryTimestampsForSensorBlocking]. */

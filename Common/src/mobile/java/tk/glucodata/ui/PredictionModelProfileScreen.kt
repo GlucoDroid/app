@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import tk.glucodata.R
+import tk.glucodata.data.prediction.DoseTarget
 import tk.glucodata.data.prediction.PredictionModelBlock
 import tk.glucodata.data.prediction.PredictionModelProfile
 import tk.glucodata.ui.util.GlucoseFormatter
@@ -64,6 +65,7 @@ fun PredictionModelProfileScreen(
 ) {
     val profile by viewModel.predictionModelProfile.collectAsState()
     val unit by viewModel.unit.collectAsState()
+    val doseTargetMgDl by viewModel.predictionDoseTargetMgDl.collectAsState()
     val isMmol = GlucoseFormatter.isMmol(unit)
     var timePickerRequest by remember { mutableStateOf<ProfileTimePickerRequest?>(null) }
     var pendingDeleteStart by remember { mutableStateOf<Int?>(null) }
@@ -92,6 +94,18 @@ fun PredictionModelProfileScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item(key = "dose_target") {
+                DoseTargetCard(
+                    targetMgDl = doseTargetMgDl,
+                    isMmol = isMmol,
+                    onTargetChange = { displayValue ->
+                        viewModel.setPredictionDoseTargetMgDl(
+                            if (isMmol) GlucoseFormatter.mmolToMg(displayValue) else displayValue
+                        )
+                    }
+                )
+            }
+
             item(key = "explanation") {
                 Surface(
                     shape = RoundedCornerShape(20.dp),
@@ -197,6 +211,58 @@ fun PredictionModelProfileScreen(
                 }
             }
         )
+    }
+}
+
+/**
+ * One target for the whole day, above the per-period carb ratio and sensitivity cards:
+ * it is what both dose suggestions correct toward, so it belongs with them rather than
+ * with the in-range band, which is a display range.
+ */
+@Composable
+private fun DoseTargetCard(
+    targetMgDl: Float,
+    isMmol: Boolean,
+    onTargetChange: (Float) -> Unit
+) {
+    val targetDisplay = remember(targetMgDl, isMmol) {
+        GlucoseFormatter.displayFromMgDl(targetMgDl, isMmol)
+    }
+    val targetValue = if (isMmol) {
+        stringResource(R.string.predictive_dose_target_value_mmol, targetDisplay)
+    } else {
+        stringResource(R.string.predictive_dose_target_value_mgdl, targetMgDl)
+    }
+    // Same bounds the setter coerces to, so the slider cannot reach a value it would snap back from.
+    val targetRange = remember(isMmol) {
+        if (isMmol) {
+            GlucoseFormatter.mgToMmol(DoseTarget.MIN_MGDL)..GlucoseFormatter.mgToMmol(DoseTarget.MAX_MGDL)
+        } else {
+            DoseTarget.MIN_MGDL..DoseTarget.MAX_MGDL
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            PredictiveSimulationParameterRow(
+                title = stringResource(R.string.predictive_dose_target),
+                valueLabel = targetValue,
+                value = targetDisplay,
+                valueRange = targetRange,
+                enabled = true,
+                onValueChange = onTargetChange
+            )
+            Text(
+                text = stringResource(R.string.predictive_dose_target_explanation),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
     }
 }
 

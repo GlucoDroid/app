@@ -244,7 +244,10 @@ private fun ICanHealthOnboardingStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(if (ui.compact) 320.dp else 380.dp),
-            onScanResult = onInlineScanResult,
+            onScanResult = { raw ->
+                onInlineScanResult(raw)
+                true
+            },
             onManualFallback = onLaunchFullscreenScan,
             manualFallbackLabel = stringResource(R.string.scan_qr_button)
         )

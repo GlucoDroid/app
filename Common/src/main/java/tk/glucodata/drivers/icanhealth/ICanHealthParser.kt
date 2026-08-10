@@ -25,7 +25,13 @@ data class ICanHealthGlucoseReading(
     val temperatureC: Float,
 )
 
-/** Parsed CGM session start time. */
+/**
+ * Parsed CGM session start time (BT SIG `CGM Session Start Time`, 0x2AAA).
+ *
+ * [timezoneOffset15Min] and [dstOffset15Min] are null when the sensor did not send the field
+ * at all, or sent the specification's "unknown" sentinel. They are deliberately kept apart
+ * from a genuine zero so [toEpochMillis] can tell "UTC" from "no idea".
+ */
 data class ICanHealthSessionStartTime(
     val year: Int,
     val month: Int,
@@ -33,16 +39,42 @@ data class ICanHealthSessionStartTime(
     val hour: Int,
     val minute: Int,
     val second: Int,
-    val timezoneOffset15Min: Int, // Timezone offset in 15-minute increments
+    val timezoneOffset15Min: Int?, // Time Zone, 15-minute increments, null when unknown
+    val dstOffset15Min: Int? = null, // DST Offset, 15-minute increments, null when unknown
 ) {
-    /** Convert to Unix epoch milliseconds. */
+    /** Total UTC offset in 15-minute increments, or null when the sensor told us nothing usable. */
+    fun utcOffset15MinOrNull(): Int? {
+        val tz = timezoneOffset15Min ?: return null
+        return tz + (dstOffset15Min ?: 0)
+    }
+
+    /**
+     * Convert to Unix epoch milliseconds.
+     *
+     * iCan sensors send the session start as a *local* wall clock and leave the Time Zone field
+     * absent, zero, or set to the "unknown" sentinel. Reading those fields as UTC put the session
+     * start one whole UTC offset into the future, which in turn made every session-derived
+     * history timestamp land an offset late — the interleaved "ghost curve" spikes on the chart.
+     *
+     * So an offset of exactly zero is treated as *unknown* rather than as UTC. That costs nothing
+     * for a genuinely-UTC device (local and UTC agree there) and repairs every other timezone.
+     * Only a non-zero offset is taken at face value.
+     */
     fun toEpochMillis(): Long {
-        val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+        val offset15Min = utcOffset15MinOrNull()
+        if (offset15Min == null || offset15Min == 0) {
+            // Interpret the wall clock in the device's own zone. Calendar applies the DST rules
+            // in force at that wall time, which a fixed offset could not.
+            val local = Calendar.getInstance(TimeZone.getDefault())
+            local.clear()
+            local.set(year, month - 1, day, hour, minute, second)
+            return local.timeInMillis
+        }
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        cal.clear()
         cal.set(year, month - 1, day, hour, minute, second)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        // Subtract timezone offset to convert local time to UTC
-        val offsetMs = timezoneOffset15Min * 15 * 60 * 1000L
-        return cal.timeInMillis - offsetMs
+        // Subtract the reported offset to convert the local wall clock to UTC
+        return cal.timeInMillis - offset15Min * 15 * 60 * 1000L
     }
 }
 
@@ -72,6 +104,13 @@ data class ICanHealthSnHistoryBatch(
 object ICanHealthParser {
 
     private const val TAG = "ICanHealthParser"
+
+    /** BT SIG sentinels and bounds for the 0x2AAA Time Zone / DST Offset fields. */
+    private const val TIME_ZONE_UNKNOWN = -128
+    private const val DST_OFFSET_UNKNOWN = 255
+    private const val MIN_TIME_ZONE_15MIN = -48 // UTC-12:00
+    private const val MAX_TIME_ZONE_15MIN = 56 // UTC+14:00
+    private const val MAX_DST_OFFSET_15MIN = 8 // double daylight time, +2h
 
     /**
      * Parse a 19-byte glucose notification.
@@ -176,10 +215,15 @@ object ICanHealthParser {
     /**
      * Parse CGM Session Start Time characteristic value.
      *
-     * Format: [year_u16_LE, month, day, hour, minute, second, timezone_offset_15min]
-     * Timezone offset is in 15-minute increments (BT SIG standard).
+     * Format (BT SIG `CGM Session Start Time`, 0x2AAA):
+     *   [0..6] date_time: year_u16_LE, month, day, hour, minute, second
+     *   [7]    Time Zone:  sint8, 15-minute increments, -128 (0x80) means "unknown"
+     *   [8]    DST Offset: uint8, 15-minute increments, 255 (0xFF) means "unknown"
      *
-     * @param data 7-8 byte characteristic value
+     * Time Zone and DST Offset are two separate one-byte fields, not one little-endian int16 —
+     * reading them as a pair silently folded the DST byte into the high half of the offset.
+     *
+     * @param data 7-9 byte characteristic value
      * @return Parsed session start time, or null on failure
      */
     fun parseSessionStartTime(data: ByteArray): ICanHealthSessionStartTime? {
@@ -199,15 +243,15 @@ object ICanHealthParser {
         if (year == 0 || year == 0xFFFF || month !in 1..12 || day !in 1..31) {
             return null
         }
-        val tzOffset15Min = when {
-            data.size >= 9 -> {
-                val tzLo = data[7].toInt() and 0xFF
-                val tzHi = data[8].toInt() and 0xFF
-                (tzLo or (tzHi shl 8)).toShort().toInt()
-            }
-            data.size >= 8 -> data[7].toInt()
-            else -> 0
-        }
+        // Time Zone: sint8. -128 is the spec's "unknown"; anything outside UTC-12..UTC+14 is junk.
+        val tzOffset15Min = data.getOrNull(7)
+            ?.toInt()
+            ?.takeIf { it != TIME_ZONE_UNKNOWN && it in MIN_TIME_ZONE_15MIN..MAX_TIME_ZONE_15MIN }
+
+        // DST Offset: uint8. 255 is the spec's "unknown"; real values are 0, 2, 4 or 8.
+        val dstOffset15Min = data.getOrNull(8)
+            ?.let { it.toInt() and 0xFF }
+            ?.takeIf { it != DST_OFFSET_UNKNOWN && it in 0..MAX_DST_OFFSET_15MIN }
 
         return ICanHealthSessionStartTime(
             year = year,
@@ -217,6 +261,7 @@ object ICanHealthParser {
             minute = minute,
             second = second,
             timezoneOffset15Min = tzOffset15Min,
+            dstOffset15Min = dstOffset15Min,
         )
     }
 

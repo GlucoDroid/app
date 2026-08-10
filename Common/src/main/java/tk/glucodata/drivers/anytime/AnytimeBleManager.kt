@@ -2882,6 +2882,7 @@ class AnytimeBleManager(
                 sampleSec > 3600L -> sampleSec - 3600L
                 else -> 1L
             }.coerceAtLeast(1L)
+            declareNativeLifetime(name, startSec)
             Natives.ensureSensorShell(name, startSec)
             val temperatureC = temperatureCIn
                 .takeIf { it.isFinite() && it > -20f && it < 80f }
@@ -2905,10 +2906,44 @@ class AnytimeBleManager(
         }.onFailure { Log.stack(TAG, "mirrorReadingIntoNative", it) }
     }
 
+    // Guards declareNativeLifetime against repeating on every mirrored reading. Keyed by
+    // "$name:$days" so a profile re-resolve that changes the rating declares again.
+    @Volatile private var nativeLifetimeDeclaredFor: String? = null
+
+    /**
+     * Tell native storage how long this sensor actually runs.
+     *
+     * Poll geometry comes from info->days with a 15-day floor, so a CT3 rated 16 walks off the
+     * end of its own poll map on day 15: validPollIndex() starts refusing and the native mirror
+     * — the only thing Nightscout and the other exchange paths read — goes quiet while Room
+     * carries on as if nothing happened. The capacity request covers a shell being created;
+     * setSensorWearDays lets pollStorageSize() pick the same duration up when an existing shell
+     * is next constructed, and stops checkinfo() retiring a 16-day sensor on day 14.
+     */
+    private fun declareNativeLifetime(name: String, startSec: Long) {
+        val days = profile.ratedLifetimeDays
+        if (days <= 0) return
+        val key = "$name:$days"
+        if (nativeLifetimeDeclaredFor == key) return
+        val minimumRecords = days * 24 * 60
+        runCatching {
+            if (Natives.ensureSensorShellWithCapacity(name, startSec, minimumRecords) == 0L) {
+                Natives.ensureSensorShell(name, startSec)
+            }
+            Natives.setSensorWearDays(name, days)
+            if (!Natives.hasSensorStreamCapacity(name, minimumRecords)) {
+                Log.e(TAG, "native poll capacity below $minimumRecords for $name; readings " +
+                    "past the mapped window will not reach Nightscout")
+            }
+            nativeLifetimeDeclaredFor = key
+        }.onFailure { Log.stack(TAG, "declareNativeLifetime", it) }
+    }
+
     private fun ensureNativeSensorShell() {
         val canonical = SerialNumber ?: return
         runCatching {
             val startSec = (sensorStartAtMs / 1000L).coerceAtLeast(1L)
+            declareNativeLifetime(canonical, startSec)
             Natives.ensureSensorShell(canonical, startSec)
             if (dataptr == 0L) {
                 dataptr = runCatching { Natives.getdataptr(canonical) }.getOrDefault(0L)

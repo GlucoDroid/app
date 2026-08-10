@@ -6,7 +6,10 @@
 
 package tk.glucodata.ui.setup
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.Intent
@@ -109,6 +112,13 @@ private enum class OttaiRegion(
 }
 private const val OTTAI_SCAN_DURATION_MS = 30_000L
 private const val OTTAI_OFFICIAL_RSSI_THRESHOLD = -70
+/**
+ * How often the panel re-reads the managed-sensor list and its live GATT state. The driver
+ * reconnects an added sensor within a second of any drop, so "added" flips to "connected"
+ * while the panel is open and the list has to follow.
+ */
+private const val OTTAI_KNOWN_SENSOR_REFRESH_MS = 2_000L
+private const val OTTAI_SCAN_LOG = "OttaiBleScanPanel"
 
 /**
  * What one [fetchOttaiMaterials] run produced: [materials] when a route yielded a usable auth-key
@@ -267,9 +277,21 @@ private data class OttaiScanStats(
     val strongHits: Int,
     val bestRssi: Int,
 ) {
+    /**
+     * The official scanner's acceptance rule: RSSI at or above [OTTAI_OFFICIAL_RSSI_THRESHOLD]
+     * for more than half of the address's hits. It stays the bar for the primary list, but it is
+     * only a confidence rule — an Ottai transmitter worn under clothing routinely sits below it,
+     * so anything that fails it is demoted, never dropped.
+     */
     val isStableOfficialCandidate: Boolean
         get() = strongHits > 0 && strongHits * 2 > totalHits
 }
+
+/** A sensor this app already manages, with its live link state. */
+private data class OttaiKnownSensor(
+    val record: OttaiRegistry.SensorRecord,
+    val connected: Boolean,
+)
 
 private enum class OttaiMaterialState {
     MISSING,
@@ -960,6 +982,7 @@ fun OttaiSetupWizard(
                                     lastAutoFetchId = ""
                                     if (shouldRefresh) materialRefresh += 1
                                 }
+                                true
                             },
                         )
                         Button(
@@ -1328,11 +1351,26 @@ private fun OttaiBleScanPanel(
 
         scanError = null
         scanActive = true
+        // The managed scan owns the same five startScan() calls per 30s that the platform allows
+        // the whole app, and it reconnects an added sensor the instant it advertises. Both are
+        // reasons this panel can legitimately see nothing; record them so a trace can say which.
+        Log.i(
+            OTTAI_SCAN_LOG,
+            "scan start filter=181f duration=${OTTAI_SCAN_DURATION_MS}ms " +
+                "managedScan=${SensorBluetooth.scanActiveOrPending()}",
+        )
         scanner.startScan(
             serviceUuids = listOf(OttaiConstants.SERVICE_CGM),
             onResult = { result ->
                 val candidate = ottaiCandidateFromScan(result, assumeCgmService = true) ?: return@startScan
                 val previous = scanStats[candidate.address]
+                if (previous == null) {
+                    Log.i(
+                        OTTAI_SCAN_LOG,
+                        "scan hit ${candidate.address} rssi=${candidate.rssi} " +
+                            "name=${candidate.displayName.ifBlank { "?" }} [${candidate.serviceSummary}]",
+                    )
+                }
                 val totalHits = (previous?.totalHits ?: 0) + 1
                 val strongHits = (previous?.strongHits ?: 0) +
                     if (candidate.rssi >= OTTAI_OFFICIAL_RSSI_THRESHOLD) 1 else 0
@@ -1359,6 +1397,7 @@ private fun OttaiBleScanPanel(
                 )
             },
             onError = { error ->
+                Log.e(OTTAI_SCAN_LOG, "scan failed $error")
                 scanError = error
                 scanActive = false
                 when (error) {
@@ -1376,27 +1415,48 @@ private fun OttaiBleScanPanel(
             delay(OTTAI_SCAN_DURATION_MS)
             scanActive = false
             scanner.stopScan()
+            Log.i(
+                OTTAI_SCAN_LOG,
+                "scan done addresses=${scanStats.size} " +
+                    "stable=${scanStats.values.count { it.isStableOfficialCandidate }}",
+            )
         }
     }
 
-    val stableDevices = scanStats.values
-        .filter { it.isStableOfficialCandidate }
-        .sortedWith(
-            compareByDescending<OttaiScanStats> { if (it.candidate.isLikelyOttai) 1 else 0 }
-                .thenByDescending { if (it.candidate.isPossibleCgm) 1 else 0 }
-                .thenByDescending { it.bestRssi },
-        )
-        .take(8)
-
-    // Sensors already added to the app that the scan cannot see. A connected peripheral
-    // stops advertising, and the stability filter above additionally drops anything that
-    // is not mostly above OTTAI_OFFICIAL_RSSI_THRESHOLD — so a perfectly healthy sensor
-    // reads as "not found here". List it explicitly instead of leaving the user to guess.
-    val scannedAddresses = stableDevices.map { it.candidate.address.uppercase() }.toSet()
-    val registeredElsewhere = remember(restartKey, scannedAddresses) {
-        OttaiRegistry.persistedRecords(context)
-            .filter { it.address.isNotBlank() && it.address.uppercase() !in scannedAddresses }
+    // Sensors this app already manages. A connected peripheral stops advertising, and the
+    // driver's managed scan reconnects an added sensor within a second of every drop — so the
+    // scan below is guaranteed to come up empty for exactly the sensors the user is surest are
+    // there. Poll the registry and the live GATT list instead of reading them once: an address
+    // added or connected while this panel is open has to appear without a wizard restart.
+    var knownRefresh by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(OTTAI_KNOWN_SENSOR_REFRESH_MS)
+            knownRefresh += 1
+        }
     }
+    val knownSensors = remember(restartKey, scanRetryKey, knownRefresh) {
+        val connected = connectedBleAddresses(context)
+        OttaiRegistry.persistedRecords(context)
+            .filter { it.address.isNotBlank() }
+            .map { OttaiKnownSensor(it, it.address.uppercase() in connected) }
+    }
+    val knownAddresses = knownSensors.map { it.record.address.uppercase() }.toSet()
+
+    val scanOrder = compareByDescending<OttaiScanStats> { if (it.candidate.isLikelyOttai) 1 else 0 }
+        .thenByDescending { if (it.candidate.isPossibleCgm) 1 else 0 }
+        .thenByDescending { it.bestRssi }
+    val unknownHits = scanStats.values.filter { it.candidate.address.uppercase() !in knownAddresses }
+    val stableDevices = unknownHits
+        .filter { it.isStableOfficialCandidate }
+        .sortedWith(scanOrder)
+        .take(8)
+    // Advertisers we really did see but the official -70 dBm rule rejects. Hiding them outright
+    // made a sensor under a sleeve indistinguishable from no sensor at all; demote instead.
+    val weakDevices = unknownHits
+        .filterNot { it.isStableOfficialCandidate }
+        .sortedWith(scanOrder)
+        .take(4)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1460,91 +1520,147 @@ private fun OttaiBleScanPanel(
                 }
                 Text(stringResource(buttonRes))
             }
-        } else if (scanActive) {
-            Text(
-                stringResource(R.string.looking_for_transmitters),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else if (stableDevices.isEmpty()) {
-            Text(
-                stringResource(R.string.ottai_ble_scan_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         } else {
-            Column {
-                stableDevices.forEach { stats ->
-                    val device = stats.candidate
-                    val selected = selectedAddress.equals(device.address, ignoreCase = true)
-                    val labelRes = when {
-                        device.isLikelyOttai -> R.string.ottai_ble_scan_likely
-                        device.isPossibleCgm -> R.string.ottai_ble_scan_possible
-                        else -> R.string.ottai_ble_scan_unknown
+            // Sensors the app already owns come first: they are the ones a user is looking for,
+            // and the scan structurally cannot return them.
+            if (knownSensors.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.ottai_ble_scan_registered_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Column {
+                    knownSensors.forEach { known ->
+                        val record = known.record
+                        val selected = selectedAddress.equals(record.address, ignoreCase = true)
+                        val stateRes = if (known.connected) {
+                            R.string.ottai_ble_scan_connected
+                        } else {
+                            R.string.ottai_ble_scan_registered
+                        }
+                        ListItem(
+                            headlineContent = {
+                                Text(record.displayName.ifBlank { record.sensorId })
+                            },
+                            supportingContent = {
+                                Text("${stringResource(stateRes)} · ${record.address}")
+                            },
+                            leadingContent = {
+                                Icon(
+                                    Icons.Default.Bluetooth,
+                                    contentDescription = null,
+                                    tint = if (selected || known.connected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            },
+                            modifier = Modifier.clickable { onAddressSelected(record.address) },
+                        )
+                        HorizontalDivider()
                     }
-                    ListItem(
-                        headlineContent = {
-                            Text(device.displayName.ifBlank { stringResource(R.string.unknown) })
-                        },
-                        supportingContent = {
-                            Text(
-                                "${stringResource(labelRes)} · ${device.address}",
-                            )
-                        },
-                        leadingContent = {
-                            Icon(
-                                Icons.Default.Bluetooth,
-                                contentDescription = null,
-                                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        trailingContent = {
-                            Text(
-                                "${device.rssi} dBm",
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        },
-                        modifier = Modifier.clickable { onAddressSelected(device.address) },
-                    )
-                    HorizontalDivider()
                 }
             }
-        }
 
-        if (registeredElsewhere.isNotEmpty()) {
-            Text(
-                stringResource(R.string.ottai_ble_scan_registered_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Column {
-                registeredElsewhere.forEach { record ->
-                    val selected = selectedAddress.equals(record.address, ignoreCase = true)
-                    ListItem(
-                        headlineContent = {
-                            Text(record.displayName.ifBlank { record.sensorId })
-                        },
-                        supportingContent = {
-                            Text("${stringResource(R.string.ottai_ble_scan_registered)} · ${record.address}")
-                        },
-                        leadingContent = {
-                            Icon(
-                                Icons.Default.Bluetooth,
-                                contentDescription = null,
-                                tint = if (selected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        },
-                        modifier = Modifier.clickable { onAddressSelected(record.address) },
-                    )
-                    HorizontalDivider()
+            if (stableDevices.isNotEmpty()) {
+                Column {
+                    stableDevices.forEach { stats ->
+                        OttaiScanResultRow(
+                            stats = stats,
+                            weak = false,
+                            selected = selectedAddress.equals(stats.candidate.address, ignoreCase = true),
+                            onClick = { onAddressSelected(stats.candidate.address) },
+                        )
+                    }
                 }
+            }
+
+            if (weakDevices.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.ottai_ble_scan_weak_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Column {
+                    weakDevices.forEach { stats ->
+                        OttaiScanResultRow(
+                            stats = stats,
+                            weak = true,
+                            selected = selectedAddress.equals(stats.candidate.address, ignoreCase = true),
+                            onClick = { onAddressSelected(stats.candidate.address) },
+                        )
+                    }
+                }
+            }
+
+            if (stableDevices.isEmpty() && weakDevices.isEmpty()) {
+                Text(
+                    stringResource(
+                        if (scanActive) R.string.looking_for_transmitters else R.string.ottai_ble_scan_empty,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
+}
+
+@Composable
+private fun OttaiScanResultRow(
+    stats: OttaiScanStats,
+    weak: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val device = stats.candidate
+    val labelRes = when {
+        weak -> R.string.ottai_ble_scan_weak
+        device.isLikelyOttai -> R.string.ottai_ble_scan_likely
+        device.isPossibleCgm -> R.string.ottai_ble_scan_possible
+        else -> R.string.ottai_ble_scan_unknown
+    }
+    ListItem(
+        headlineContent = {
+            Text(device.displayName.ifBlank { stringResource(R.string.unknown) })
+        },
+        supportingContent = {
+            Text("${stringResource(labelRes)} · ${device.address}")
+        },
+        leadingContent = {
+            Icon(
+                Icons.Default.Bluetooth,
+                contentDescription = null,
+                tint = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        },
+        trailingContent = {
+            Text("${device.rssi} dBm", style = MaterialTheme.typography.labelMedium)
+        },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
+    HorizontalDivider()
+}
+
+/**
+ * Addresses the system currently holds a GATT link to. A connected peripheral stops advertising,
+ * so this — not the scan — is the only truthful answer to "where is my added sensor".
+ */
+@SuppressLint("MissingPermission")
+private fun connectedBleAddresses(context: Context): Set<String> {
+    if (!hasBleScanPermissions(context)) return emptySet()
+    return runCatching {
+        val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        manager?.getConnectedDevices(BluetoothProfile.GATT)
+            ?.mapNotNull { it.address?.uppercase() }
+            ?.toSet()
+            .orEmpty()
+    }.getOrDefault(emptySet())
 }
 
 private fun mergeOttaiServiceSummary(previous: String?, current: String): String =
@@ -1699,7 +1815,7 @@ private fun LaunchedScreenComplete(onComplete: () -> Unit) {
 @Composable
 private fun OttaiInlineQrScannerCard(
     modifier: Modifier = Modifier,
-    onScanResult: (String) -> Unit,
+    onScanResult: (String) -> Boolean,
 ) {
     InlineQrScannerCard(
         modifier = modifier,

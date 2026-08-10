@@ -1,6 +1,7 @@
 package tk.glucodata.logic
 
 import tk.glucodata.GlucosePoint as NativeGlucosePoint
+import tk.glucodata.GlucoseValuePlausibility
 import tk.glucodata.ui.GlucosePoint
 import tk.glucodata.ui.util.GlucoseFormatter
 import kotlin.math.abs
@@ -156,11 +157,28 @@ object TrendEngine {
         if (history.size < 2) return TrendResult(TrendState.Flat, 0f, 0f, 0f, 0f)
 
         // Ensure history is Descending (Newest First) for the default logic
-        val newestFirst = if (history.first().timestamp < history.last().timestamp) {
+        val ordered = if (history.first().timestamp < history.last().timestamp) {
             history.reversed()
         } else {
             history
         }
+
+        fun pointValue(p: GlucosePoint): Float = if (useRaw && p.rawValue > 0) p.rawValue else p.value
+
+        // A minute the sensor produced no reading for still occupies a slot in native
+        // storage: savepollallIDsonly() in SensorGlucoseData.hpp fills skipped minutes with a
+        // ScanData that carries a timestamp and no glucose, and getGlucoseHistory() hands
+        // those to the UI as a value of 0 — the "--" rows in the readings list.
+        //
+        // A gap is not a measurement. Left in, one such slot inside the window is read as a
+        // plunge to 0 mg/dL and back: the artifact guard below truncates the velocity window
+        // at it, and the polynomial fit charges the whole excursion to the sensor, which is
+        // how a clean Libre reported a noise of several thousand right after an NFC scan
+        // (issue #166). Drop everything that is not a reading before measuring anything.
+        val newestFirst = ordered.filter {
+            GlucoseValuePlausibility.isPlausibleDisplayValue(pointValue(it), isMmol)
+        }
+        if (newestFirst.size < 2) return TrendResult(TrendState.Flat, 0f, 0f, 0f, 0f)
 
         // Window scaled to the sensor's cadence so the slope carries the same
         // confidence on every sensor — see [trendWindowMillis].
@@ -173,8 +191,6 @@ object TrendEngine {
 
         // Use explicit flag
         val conversionFactor = if (isMmol) GlucoseFormatter.MGDL_PER_MMOL else 1.0f
-
-        fun pointValue(p: GlucosePoint): Float = if (useRaw && p.rawValue > 0) p.rawValue else p.value
 
         // Collect values for noise calculation (in NATIVE units - no conversion!)
         val rawValueList = mutableListOf<Float>()
@@ -243,9 +259,22 @@ object TrendEngine {
         // - Curves (Turns/Humps) -> Parabola fits well -> Low Noise
         // - Jitter/Wobble -> Poor fit -> High Noise
         
-        val noiseLevel2: Float = if (rawValueList.size >= 4) { // Need at least 4 points for Variance (N > Order+1)
+        val spanMillis = newestTs - validPoints.last().timestamp
+        val noiseLevel2: Float = if (rawValueList.size >= 4 && spanMillis > 0L) { // Need at least 4 points for Variance (N > Order+1)
             val n = rawValueList.size
-            val x = FloatArray(n) { it.toFloat() }
+            // x is elapsed time, not the sample index. A quadratic fit is invariant under an
+            // affine change of x, so for evenly spaced readings the two axes describe the same
+            // parabola and report the same residuals — the number the signal-quality chip
+            // shows for a normal stream does not move, and its thresholds keep meaning what
+            // they meant. The span is normalised onto the old 0..n-1 range purely to leave the
+            // Cramer determinants as well conditioned as they were.
+            //
+            // The two axes part company exactly where the index is a lie: an NFC scan's
+            // 15-minute history points sitting in the same window as the 1-minute Bluetooth
+            // stream are not equally spaced, and on an index axis their ordinary curvature
+            // reads as jitter.
+            val xScale = (n - 1).toFloat() / spanMillis
+            val x = FloatArray(n) { (validPoints[it].timestamp - newestTs) * xScale }
             val y = FloatArray(n) { rawValueList[it] * conversionFactor }
             
             // Calculate Sums

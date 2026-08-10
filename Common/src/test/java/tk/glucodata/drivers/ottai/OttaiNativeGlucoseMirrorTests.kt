@@ -49,6 +49,74 @@ class OttaiNativeGlucoseMirrorTests {
         assertTrue(wakes.isEmpty())
     }
 
+    @Test
+    fun historyBatchIsMirroredAndWakesNightscoutOncePerBatch() {
+        val written = mutableListOf<NativeWrite>()
+        val wakes = mutableListOf<Pair<String, Long>>()
+        val mirror = OttaiNativeGlucoseMirror(
+            writeNative = { timestampSec, glucose, temperature, sensorId ->
+                written += NativeWrite(timestampSec, glucose, temperature, sensorId)
+                true
+            },
+            wakeNightscout = { source, timestampMs -> wakes += source to timestampMs },
+        )
+
+        val stored = mirror.mirrorHistory(
+            sensorId = "AABBCCDDEEFF",
+            timestampsMs = longArrayOf(60_000L, 120_000L, 180_000L),
+            glucoseMgdl = floatArrayOf(100f, 110f, 126f),
+            temperaturesC = floatArrayOf(32f, 32.5f, 33f),
+        )
+
+        assertEquals(3, stored)
+        assertEquals(listOf(60L, 120L, 180L), written.map { it.timestampSec })
+        assertEquals(12.6f, written.last().glucose, 0.0001f)
+        // One wake for the batch, anchored on the newest row: waking per row is what made an
+        // earlier attempt at history mirroring resend continuously.
+        assertEquals(listOf("ottai-history" to 180_000L), wakes)
+    }
+
+    @Test
+    fun historyBatchThatStoresNothingDoesNotWakeNightscout() {
+        val wakes = mutableListOf<Pair<String, Long>>()
+        val mirror = OttaiNativeGlucoseMirror(
+            writeNative = { _, _, _, _ -> false },
+            wakeNightscout = { source, timestampMs -> wakes += source to timestampMs },
+        )
+
+        val stored = mirror.mirrorHistory(
+            sensorId = "AABBCCDDEEFF",
+            timestampsMs = longArrayOf(60_000L, 120_000L),
+            glucoseMgdl = floatArrayOf(100f, 110f),
+            temperaturesC = floatArrayOf(32f, 32f),
+        )
+
+        assertEquals(0, stored)
+        assertTrue(wakes.isEmpty())
+    }
+
+    @Test
+    fun historyBatchSkipsRowsWithoutATimestamp() {
+        val written = mutableListOf<NativeWrite>()
+        val mirror = OttaiNativeGlucoseMirror(
+            writeNative = { timestampSec, glucose, temperature, sensorId ->
+                written += NativeWrite(timestampSec, glucose, temperature, sensorId)
+                true
+            },
+            wakeNightscout = { _, _ -> },
+        )
+
+        val stored = mirror.mirrorHistory(
+            sensorId = "AABBCCDDEEFF",
+            timestampsMs = longArrayOf(0L, 120_000L),
+            glucoseMgdl = floatArrayOf(100f, 110f),
+            temperaturesC = floatArrayOf(32f, 32f),
+        )
+
+        assertEquals(1, stored)
+        assertEquals(listOf(120L), written.map { it.timestampSec })
+    }
+
     private data class NativeWrite(
         val timestampSec: Long,
         val glucose: Float,

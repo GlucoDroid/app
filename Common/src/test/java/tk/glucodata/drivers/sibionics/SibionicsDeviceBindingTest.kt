@@ -233,6 +233,66 @@ class SibionicsDeviceBindingTest {
     }
 
     @Test
+    fun manualSerialEntryIsHeldToTheSameGenerationRuleAsTheScanner() {
+        val singlePieceSerials = listOf("241247YEZ1450HAJ02", "WD9QAXGA52WS4V", "231108GEPD802JPP76")
+        val v120Serials = listOf("P2250683013AQT98", "XPT1EEX2NRU16U")
+
+        singlePieceSerials.forEach { serial ->
+            assertTrue(
+                serial,
+                SibionicsRegistry.isManualSerialForVariant(serial, SibionicsConstants.Variant.EU),
+            )
+            assertFalse(
+                serial,
+                SibionicsRegistry.isManualSerialForVariant(serial, SibionicsConstants.Variant.SIBIONICS2),
+            )
+        }
+        v120Serials.forEach { serial ->
+            assertTrue(
+                serial,
+                SibionicsRegistry.isManualSerialForVariant(serial, SibionicsConstants.Variant.SIBIONICS2),
+            )
+            listOf(
+                SibionicsConstants.Variant.EU,
+                SibionicsConstants.Variant.HEMATONIX,
+                SibionicsConstants.Variant.CHINESE,
+            ).forEach { variant ->
+                assertFalse(
+                    "$serial/${variant.id}",
+                    SibionicsRegistry.isManualSerialForVariant(serial, variant),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun manualSerialEntryStillRejectsCodesOfTheWrongLength() {
+        listOf(null, "", "P22506", "P2250683013AQT98P2250683013AQT98").forEach { serial ->
+            assertFalse(
+                serial.orEmpty(),
+                SibionicsRegistry.isManualSerialForVariant(serial, SibionicsConstants.Variant.SIBIONICS2),
+            )
+        }
+    }
+
+    @Test
+    fun scannedPayloadsReportWhichGenerationTheyBelongTo() {
+        assertEquals(
+            true,
+            SibionicsRegistry.qrPayloadIsV120Identity(
+                "0106972831641476112507301726072910LT46250683C21P2250683013AQT98",
+            ),
+        )
+        assertEquals(
+            false,
+            SibionicsRegistry.qrPayloadIsV120Identity(
+                "0106972831641803112412191725121810LT4F241247J21241247YEZ1450HAJ02",
+            ),
+        )
+        assertEquals(null, SibionicsRegistry.qrPayloadIsV120Identity("YAICOMVK1HE1F5EE"))
+    }
+
+    @Test
     fun bleOnlyIdentityRetainsTheFullAdvertisedName() {
         val identity = SibionicsRegistry.buildIdentity(
             rawInput = "HEMATONIX42",

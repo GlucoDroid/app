@@ -89,6 +89,11 @@ class SibionicsBleManager(
         private const val CHINESE_DATA_TIMEOUT_MS = 30_000L
         private const val HANDSHAKE_TIMEOUT_MS = 15_000L
         private const val BATTERY_READ_TIMEOUT_MS = 3_000L
+        // Upper bound on CONNECTION_PRIORITY_HIGH. The link is raised to a 7.5 ms interval
+        // on connect and only relaxed once a live sample lands, which a long history
+        // transfer defers indefinitely — the connection then dies at roughly nine seconds
+        // with status 147 every cycle, independent of how much work the app is doing.
+        private const val HIGH_PRIORITY_MAX_MS = 3_000L
         private const val BATTERY_STABILIZATION_INTERVAL_MS = 60_000L
         private const val BATTERY_PERIODIC_INTERVAL_MS = 6L * 60L * 60L * 1000L
         private const val STREAMING_TIMEOUT_MS = 180_000L
@@ -97,6 +102,10 @@ class SibionicsBleManager(
         private const val MAX_FUTURE_DRIFT_MS = 10L * 60L * 1000L
         private const val MIN_REASONABLE_TIME_MS = 946_684_800_000L
         private const val ALGORITHM_REBUILD_DEBOUNCE_MS = 600L
+        // While history is still arriving every batch invalidates the rebuild in flight,
+        // so a 600 ms debounce just restarts it for the length of the backfill. Wait for
+        // the burst to settle instead — nothing displays the result until it ends anyway.
+        private const val ALGORITHM_REBUILD_BACKFILL_DEBOUNCE_MS = 3_000L
         private const val LOCAL_REBUILD_FORMAT_VERSION = 6
         private const val POST_RESET_DISCARD_TIMEOUT_MS = 15_000L
         private const val RESET_COMFORT_RECHECK_MS = 15L * 60L * 1000L
@@ -155,10 +164,13 @@ class SibionicsBleManager(
     @Volatile private var sessionKey: ByteArray? = null
     @Volatile private var keyGroupIndex: Int = 0
     @Volatile private var authCandidateVariant: SibionicsConstants.Variant? = null
+    @Volatile private var authKeyHint: SibionicsConstants.Variant? = null
+    @Volatile private var connectionKeyGroups: List<SibionicsConstants.Variant> = emptyList()
     @Volatile private var pendingResetCommand: Boolean = false
     @Volatile private var discardNotificationsUntilResetDisconnect: Boolean = false
     @Volatile private var loggedDiscardedPostResetNotification: Boolean = false
     @Volatile private var connectionPrioritySettled: Boolean = false
+    @Volatile private var highPriorityCapArmed: Boolean = false
     @Volatile private var uiPaused: Boolean = false
     @Volatile private var pendingMatchedBleName: String = ""
     @Volatile private var autoResetDays: Int = 300
@@ -269,6 +281,7 @@ class SibionicsBleManager(
             mActiveDeviceAddress = it.address.ifBlank { null }
         }
         variant = SibionicsRegistry.loadVariant(context, SerialNumber)
+        authKeyHint = SibionicsRegistry.loadAuthKeyHint(context, SerialNumber)
         protocolMode = SibionicsConstants.initialProtocolMode(
             variant,
             SibionicsRegistry.loadProtocolMode(context, SerialNumber),
@@ -580,9 +593,10 @@ class SibionicsBleManager(
                 handler.removeCallbacks(connectCallbackTimeoutRunnable)
                 mBluetoothGatt = gatt
                 mActiveBluetoothDevice = gatt.device
-                keyGroupIndex = 0
-                authCandidateVariant = null
+                resetKeyGroupRotation()
                 connectionPrioritySettled = false
+                highPriorityCapArmed = false
+                handler.removeCallbacks(highPriorityCapRunnable)
                 gatt.device?.address?.let { setDeviceAddress(it) }
                 connectTime = System.currentTimeMillis()
                 phase = Phase.DISCOVERING
@@ -615,6 +629,7 @@ class SibionicsBleManager(
                 handler.removeCallbacks(authTimeoutRunnable)
                 handler.removeCallbacks(chineseProbeTimeoutRunnable)
                 handler.removeCallbacks(chineseDataTimeoutRunnable)
+                handler.removeCallbacks(highPriorityCapRunnable)
                 if (!stop && !uiPaused) {
                     if (!beginAdvertisementRecovery(
                             reason = "connect failed status=$status",
@@ -677,6 +692,10 @@ class SibionicsBleManager(
                 }
                 return
             }
+            // One read here, before any notification is flowing, and it completes cleanly —
+            // it was the stabilization retries fired into the history burst that collided, and
+            // those now wait for a live sample. Without this the card shows 0% until backfill
+            // ends, because the snapshot reports 0 rather than the -1 the UI treats as unknown.
             requestBatteryRead(BatteryReadPurpose.SETUP)
         }
     }
@@ -780,6 +799,19 @@ class SibionicsBleManager(
         }
         if (batteryReadPurpose != null) return false
         if (purpose != BatteryReadPurpose.SETUP && phase != Phase.STREAMING) return false
+        // A GATT connection carries one operation at a time. Reading the battery in the middle
+        // of a history burst leaves the read queued behind the notification stream until it
+        // times out, and the stabilization loop answers a timeout by asking again — three
+        // attempts landed inside the same second before the link dropped. Backfill owns the
+        // connection; battery is not urgent and waits for the stream to catch up.
+        if (purpose != BatteryReadPurpose.SETUP && lastLiveIndexSeen < 0) {
+            if (purpose == BatteryReadPurpose.STABILIZATION) {
+                scheduleBatteryStabilization()
+            } else {
+                schedulePeriodicBatteryRefresh(resetDelay = true)
+            }
+            return false
+        }
         batteryReadPurpose = purpose
         val started = runCatching { gatt.readCharacteristic(characteristic) }
             .onFailure { Log.stack(SibionicsConstants.TAG, "read standard battery level", it) }
@@ -942,14 +974,10 @@ class SibionicsBleManager(
 
     private fun confirmChineseVariant() {
         if (variant == SibionicsConstants.Variant.CHINESE) return
-        variant = SibionicsConstants.Variant.CHINESE
+        // Protocol-level evidence, not a key guess: only Chinese firmware speaks AA55.
         Applic.app?.let { context ->
-            record = SibionicsRegistry.confirmAuthenticatedVariant(
-                context,
-                SerialNumber,
-                SibionicsConstants.Variant.CHINESE,
-            ) ?: record
-        }
+            applyConfirmedVariant(context, SibionicsConstants.Variant.CHINESE)
+        } ?: run { variant = SibionicsConstants.Variant.CHINESE }
         synchronized(algorithmLock) {
             algorithm.configure(shortCode, sensitivity, variant, algorithmSelection)
         }
@@ -963,6 +991,7 @@ class SibionicsBleManager(
                 confirmProtocolMode(SibionicsConstants.ProtocolMode.V120)
                 handler.removeCallbacks(handshakeTimeoutRunnable)
                 phase = Phase.STREAMING
+                armHighPriorityCap()
                 updateV120HistoryProgress(result.entries)
                 processV120Entries(result.entries)
                 scheduleStreamingTimeout()
@@ -988,20 +1017,27 @@ class SibionicsBleManager(
                 clearV120StepTimeouts()
                 protocolMode = SibionicsConstants.ProtocolMode.V120
                 val authenticatedVariant = authCandidateVariant ?: variant
-                if (variant != authenticatedVariant) {
-                    Log.i(
-                        SibionicsConstants.TAG,
-                        "confirmed variant ${authenticatedVariant.id} (was ${variant.id}) serial=$SerialNumber",
-                    )
-                }
-                variant = authenticatedVariant
+                val attribution = SibionicsVariantAttribution.attribute(
+                    recordedVariant = variant,
+                    acceptedVariant = authenticatedVariant,
+                    attemptIndex = keyGroupIndex,
+                )
+                authKeyHint = attribution.keyHint
                 Applic.app?.let { context ->
                     SibionicsRegistry.saveProtocolMode(context, SerialNumber, protocolMode)
-                    record = SibionicsRegistry.confirmAuthenticatedVariant(
-                        context,
-                        SerialNumber,
-                        authenticatedVariant,
-                    ) ?: record
+                    SibionicsRegistry.saveAuthKeyHint(context, SerialNumber, attribution.keyHint)
+                    if (attribution.persistVariant) {
+                        applyConfirmedVariant(context, authenticatedVariant)
+                    } else if (authenticatedVariant != variant) {
+                        // Credited positionally after a retry, so this ACK may belong to the key
+                        // that timed out. Lead with it next connection and let a first-attempt
+                        // ACK decide the identity.
+                        Log.w(
+                            SibionicsConstants.TAG,
+                            "auth accepted as ${authenticatedVariant.id} on retry $keyGroupIndex; " +
+                                "keeping recorded variant ${variant.id} serial=$SerialNumber",
+                        )
+                    }
                 }
                 synchronized(algorithmLock) {
                     algorithm.configure(shortCode, sensitivity, variant, algorithmSelection)
@@ -1054,11 +1090,39 @@ class SibionicsBleManager(
         handler.removeCallbacks(chineseDataTimeoutRunnable)
         handler.removeCallbacks(authTimeoutRunnable)
         protocolMode = SibionicsConstants.ProtocolMode.V120
-        keyGroupIndex = 0
-        authCandidateVariant = null
+        resetKeyGroupRotation()
         Applic.app?.let { SibionicsRegistry.saveProtocolMode(it, SerialNumber, protocolMode) }
         Log.i(SibionicsConstants.TAG, "switching to V120: $reason")
         sendAuthPacket()
+    }
+
+    /**
+     * Adopt a variant proven by an unambiguous authentication. The reset window rides on the
+     * variant, so a sensor that was recorded as something else has to pick up its real one here
+     * rather than waiting for the next process start.
+     */
+    private fun applyConfirmedVariant(context: Context, confirmed: SibionicsConstants.Variant) {
+        val previous = variant
+        if (previous != confirmed) {
+            Log.i(
+                SibionicsConstants.TAG,
+                "confirmed variant ${confirmed.id} (was ${previous.id}) serial=$SerialNumber",
+            )
+        }
+        variant = confirmed
+        record = SibionicsRegistry.confirmAuthenticatedVariant(context, SerialNumber, confirmed) ?: record
+        if (previous == confirmed) return
+        automaticSensitivity = SibionicsSensitivity.sensitivityFor(shortCode, confirmed)
+        sensitivity = sensitivityOverride ?: automaticSensitivity
+        val normalizedDays = SibionicsResetPolicy.normalizedDays(
+            variant = confirmed,
+            persistedDays = SibionicsRegistry.loadAutoResetDays(context, SerialNumber),
+            hasPersistedSetting = SibionicsRegistry.hasAutoResetSetting(context, SerialNumber),
+        )
+        if (normalizedDays != autoResetDays) {
+            autoResetDays = normalizedDays
+            SibionicsRegistry.saveAutoResetDays(context, SerialNumber, normalizedDays)
+        }
     }
 
     private fun confirmProtocolMode(mode: SibionicsConstants.ProtocolMode) {
@@ -1092,7 +1156,7 @@ class SibionicsBleManager(
         val groups = keyGroups()
         keyGroupIndex++
         if (keyGroupIndex >= groups.size) {
-            keyGroupIndex = 0
+            resetKeyGroupRotation()
             phase = Phase.ERROR
             setStatus("Auth failed")
             Log.w(SibionicsConstants.TAG, "V120 auth failed: $reason")
@@ -1103,15 +1167,20 @@ class SibionicsBleManager(
         sendAuthPacket()
     }
 
-    private fun keyGroups(): List<SibionicsConstants.Variant> {
-        val preferred = variant
-        return listOf(
-            preferred,
-            SibionicsConstants.Variant.EU,
-            SibionicsConstants.Variant.HEMATONIX,
-            SibionicsConstants.Variant.SIBIONICS2,
-            SibionicsConstants.Variant.GS3,
-        ).distinctBy { it.appId + it.registrationKeyHex }
+    /**
+     * Frozen for the life of the connection: [keyGroupIndex] indexes into this list, so confirming
+     * a variant or moving the hint mid-connection must not renumber the groups underneath it.
+     */
+    private fun keyGroups(): List<SibionicsConstants.Variant> =
+        connectionKeyGroups.ifEmpty {
+            SibionicsVariantAttribution.keyOrder(variant, authKeyHint)
+                .also { connectionKeyGroups = it }
+        }
+
+    private fun resetKeyGroupRotation() {
+        keyGroupIndex = 0
+        authCandidateVariant = null
+        connectionKeyGroups = emptyList()
     }
 
     private fun sendChineseDataRequest(probing: Boolean) {
@@ -1404,8 +1473,13 @@ class SibionicsBleManager(
     ) {
         if (rebuildExecutor.isShutdown) return
         rebuildGeneration++
+        val effectiveDelayMs = if (lastLiveIndexSeen < 0 && phase == Phase.STREAMING) {
+            delayMs.coerceAtLeast(ALGORITHM_REBUILD_BACKFILL_DEBOUNCE_MS)
+        } else {
+            delayMs.coerceAtLeast(0L)
+        }
         handler.removeCallbacks(rebuildLaunchRunnable)
-        handler.postDelayed(rebuildLaunchRunnable, delayMs.coerceAtLeast(0L))
+        handler.postDelayed(rebuildLaunchRunnable, effectiveDelayMs)
         Log.i(SibionicsConstants.TAG, "algorithm rebuild scheduled: $reason generation=$rebuildGeneration")
     }
 
@@ -2368,7 +2442,21 @@ class SibionicsBleManager(
         handler.postDelayed(setupStageTimeoutRunnable, SETUP_STAGE_TIMEOUT_MS)
     }
 
+    /** Relax the link even when history keeps arriving and no live sample has landed yet. */
+    private fun armHighPriorityCap() {
+        if (connectionPrioritySettled || highPriorityCapArmed) return
+        highPriorityCapArmed = true
+        handler.postDelayed(highPriorityCapRunnable, HIGH_PRIORITY_MAX_MS)
+    }
+
+    private val highPriorityCapRunnable = Runnable {
+        if (!stop && !uiPaused && phase == Phase.STREAMING) {
+            settleConnectionPriority()
+        }
+    }
+
     private fun settleConnectionPriority() {
+        handler.removeCallbacks(highPriorityCapRunnable)
         if (connectionPrioritySettled) return
         connectionPrioritySettled = true
         val connectedGatt = mBluetoothGatt ?: return

@@ -709,12 +709,27 @@ public:
     // Legacy Sibionics reset cycles keep appending to the same poll store.
     // Managed Sibionics shells also need to reach their day-22 reset without
     // changing the native shell's lifecycle metadata.
+    const bool sibionics = (info && info->sibionics) || managedSibionics;
     const size_t defaultRecords =
-        ((info && info->sibionics) || managedSibionics)
-            ? static_cast<size_t>(maxminutes)
-            : static_cast<size_t>(std::max(maxstreampos(), 0));
+        sibionics ? static_cast<size_t>(maxminutes)
+                  : static_cast<size_t>(std::max(maxstreampos(), 0));
+    // A sensor that negotiates a life longer than its shell geometry — Ottai's
+    // 15-day rating extending to 28/30 — outgrows the poll map mid-wear:
+    // maxstreampos() stops at info->days (floor 15), so on day 15 lifeCount
+    // reaches pollStorageCapacity(), validPollIndex() starts refusing, and every
+    // live write is dropped without a trace. setSensorWearDays deliberately
+    // leaves info->days alone because an already-open mapping cannot move, so
+    // take the negotiated duration into account here instead: storage geometry
+    // is only ever recomputed in the constructor, where extending the file is
+    // safe and repairPollMetadata() preserves the records already written.
+    const size_t wearRecords =
+        (!sibionics && info && info->wearduration2)
+            ? (static_cast<size_t>(info->wearduration2) *
+               static_cast<size_t>(std::max(streamperhour(), 1))) /
+                  60u
+            : 0u;
     return static_cast<int32_t>(
-        std::min(std::max(defaultRecords, minimumRecords),
+        std::min(std::max({defaultRecords, wearRecords, minimumRecords}),
                  static_cast<size_t>(std::numeric_limits<int32_t>::max())));
   }
   size_t pollStorageCapacity() const {

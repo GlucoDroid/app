@@ -33,6 +33,7 @@ enum class JournalEntrySource(val storageValue: String) {
     MANUAL("manual"),
     HEALTH_CONNECT("health_connect"),
     METER("meter"),
+    PEN("pen"),
     AAPS("aaps"),
     NIGHTSCOUT("nightscout"),
     API("api");

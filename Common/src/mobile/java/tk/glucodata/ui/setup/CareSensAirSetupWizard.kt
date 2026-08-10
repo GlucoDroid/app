@@ -83,6 +83,7 @@ fun CareSensAirSetupWizard(
                         handledScan = true
                         onScanResult(raw)
                     }
+                    true
                 },
                 onManualFallback = launchFullscreenScan,
                 manualFallbackLabel = stringResource(R.string.scan_caresens_air)

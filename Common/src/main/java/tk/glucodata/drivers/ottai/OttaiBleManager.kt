@@ -30,6 +30,7 @@ import java.security.interfaces.ECPublicKey
 import java.util.UUID
 import kotlin.math.abs
 import tk.glucodata.Applic
+import tk.glucodata.HistoryRepositoryAccess
 import tk.glucodata.HistorySyncAccess
 import tk.glucodata.Log
 import tk.glucodata.logd
@@ -2705,11 +2706,23 @@ class OttaiBleManager(
 
     private fun rememberAcceptedReading(r: OttaiReading, mmol: Float, sampleMs: Long) {
         recentlyRejectedSamples.remove(r.record.dataNo)
+        noteContinuityEvaluated(r.record.dataNo, sampleMs)
+        // The excursion baseline only ever moves forward, for the same reason the adjacency
+        // anchor above does. History is accepted on this path too, and a backfill can be
+        // arbitrarily old: on 2026-08-07 a hole retry for [0,1) returned dataNo=0 — 7.70 mmol,
+        // raw 19091, the sensor's first minute two weeks earlier — which replaced a 5.00 mmol
+        // baseline. Every live sample after it then read as a 2.7 mmol one-minute excursion, and
+        // 20:02 through 20:04 was refused until the yield valve re-baselined the gate.
+        //
+        // Freezing the baseline costs history nothing: continuity-prev is already unreachable for
+        // an old record (its adjacency anchor cannot move back either), and the backward-looking
+        // checks — continuity-next and historyIsolatedSpikeReason — want a baseline that is
+        // NEWER than the record under test, which is exactly what this preserves.
+        if (lastAcceptedDataNo >= 0 && r.record.dataNo < lastAcceptedDataNo) return
         lastAcceptedDataNo = r.record.dataNo
         lastAcceptedSampleMs = sampleMs
         lastAcceptedMmol = mmol
         lastAcceptedRawCurrent = r.record.rawCurrent
-        noteContinuityEvaluated(r.record.dataNo, sampleMs)
         consecutiveContinuityRejects = 0
         Applic.app?.let {
             OttaiRegistry.saveContinuityBaseline(it, SerialNumber.orEmpty(), r.record.dataNo, sampleMs, mmol, r.record.rawCurrent)
@@ -2886,10 +2899,35 @@ class OttaiBleManager(
             // Ottai rawCurrent is an electrode/current diagnostic, not raw glucose mg/dL.
             val rawValues = FloatArray(toPersist.size) { 0f }
             HistorySyncAccess.storeSensorHistoryBatchAsync(id, timestamps, values, rawValues)
+            mirrorHistoryIntoNative(id, toPersist)
         }
         if (live) readings.lastOrNull { it.publishCurrent }?.let {
             mirrorLiveReadingIntoNative(id, it)
         }
+    }
+
+    /**
+     * Room is not enough: Nightscout and the rest of the exchange paths read the native poll
+     * stream, so backfill that only lands in Room is invisible to them. Every other managed
+     * driver mirrors its batch; Ottai did not, which is why a sensor's stored history never
+     * reached Nightscout no matter how long it had been running.
+     */
+    private fun mirrorHistoryIntoNative(id: String, readings: List<EmittedReading>) {
+        if (readings.isEmpty()) return
+        runCatching {
+            ensureNativePresenceShell("history-mirror")
+            val stored = nativeGlucoseMirror.mirrorHistory(
+                id,
+                LongArray(readings.size) { readings[it].sampleMs },
+                FloatArray(readings.size) { readings[it].mgdl },
+                FloatArray(readings.size) { readings[it].temperatureC },
+            )
+            if (stored > 0) {
+                applyActivatedWearToNative(id)
+                Natives.wakebackup()
+                Log.i(TAG, "mirrored $stored/${readings.size} history readings into native")
+            }
+        }.onFailure { Log.stack(TAG, "mirrorHistoryIntoNative", it) }
     }
 
     private fun mirrorLiveReadingIntoNative(
@@ -2907,8 +2945,59 @@ class OttaiBleManager(
             if (stored) {
                 applyActivatedWearToNative(id)
                 Natives.wakebackup()
+                // The shell is sized and the start is known by the time a live write lands, so
+                // this is the first safe moment to close whatever native is missing.
+                handler.post { reconcileNativeFromRoom(id) }
             }
         }.onFailure { Log.stack(TAG, "mirrorLiveReadingIntoNative", it) }
+    }
+
+    // Once per sensor per process. See reconcileNativeFromRoom.
+    @Volatile private var nativeReconciledFor: String? = null
+
+    /**
+     * Fill native poll storage from Room.
+     *
+     * Room is the authoritative local store and native polls are the transport cache the
+     * exchange paths read, so anything Room holds and native does not is invisible to
+     * Nightscout. Re-reading it from the sensor cannot recover it either:
+     * [requestRoomBackfillAfterLive] diffs against Room, so a window Room already covers is
+     * reported complete and never requested. That is exactly the shape of a gap left by a
+     * stretch where the app was connected and storing to Room while native writes were being
+     * refused — nothing else will ever close it.
+     *
+     * Writes landing on a poll slot that already holds a value are no-ops that cannot move the
+     * Nightscout cursor (the cursor only rewinds on empty->filled), so a run with nothing
+     * missing costs some writes and produces no resend.
+     */
+    private fun reconcileNativeFromRoom(id: String) {
+        if (nativeReconciledFor == id) return
+        val startMs = nativePresenceStartTimeMs()
+        if (startMs <= 0L) return
+        nativeReconciledFor = id
+        runCatching {
+            val history = HistoryRepositoryAccess.getHistoryForSensor(id, startMs, false)
+            if (history == null) {
+                // "Could not ask" must not be recorded as "done" — retry on the next reading.
+                nativeReconciledFor = null
+                return@runCatching
+            }
+            val usable = history.filter {
+                it.timestamp > 0L && it.value.isFinite() && it.value > 0f
+            }
+            if (usable.isEmpty()) return@runCatching
+            ensureNativePresenceShell("room-reconcile")
+            val written = nativeGlucoseMirror.mirrorHistory(
+                id,
+                LongArray(usable.size) { usable[it].timestamp },
+                FloatArray(usable.size) { usable[it].value },
+                FloatArray(usable.size) { 0f },
+            )
+            Log.i(TAG, "reconciled native from Room for $id: wrote $written/${usable.size}")
+        }.onFailure {
+            nativeReconciledFor = null
+            Log.stack(TAG, "reconcileNativeFromRoom", it)
+        }
     }
 
     /** Keeps the per-sample skin temperature so the stats screen can chart it. */
@@ -3010,13 +3099,37 @@ class OttaiBleManager(
     private fun floorToRecordMinute(timestampMs: Long): Long =
         (timestampMs / RECORD_INTERVAL_MS) * RECORD_INTERVAL_MS
 
+    /**
+     * A shell created without a capacity floor is sized for the 15-day rating, and an Ottai
+     * routinely runs to 28-30. Past day 15 the native poll index leaves the mapping and every
+     * live write is refused, which silently cuts Nightscout off — the exact regression left
+     * behind when runtime stream resizing was removed. Ask for the extended lifetime up front;
+     * geometry may only be chosen at creation, so the [ensureSensorShell] fallback covers a
+     * shell that already exists at the smaller size (pollStorageSize picks the negotiated
+     * duration up on the next construction).
+     */
+    // This runs on every mirrored reading, so the capacity complaint below is reported once per
+    // sensor rather than once a minute.
+    @Volatile private var nativeCapacityCheckedFor: String? = null
+
     private fun ensureNativePresenceShell(reason: String) {
         val id = SerialNumber ?: return
         val startMs = nativePresenceStartTimeMs()
         if (id.isBlank() || startMs <= 0L) return
         runCatching {
-            Natives.ensureSensorShell(id, (startMs / 1000L).coerceAtLeast(1L))
+            val startSec = (startMs / 1000L).coerceAtLeast(1L)
+            val minimumRecords = OttaiConstants.EXTENDED_LIFETIME_DAYS * 24 * 60
+            if (Natives.ensureSensorShellWithCapacity(id, startSec, minimumRecords) == 0L) {
+                Natives.ensureSensorShell(id, startSec)
+            }
             applyActivatedWearToNative(id)
+            if (nativeCapacityCheckedFor != id) {
+                if (!Natives.hasSensorStreamCapacity(id, minimumRecords)) {
+                    Log.e(TAG, "native poll capacity below $minimumRecords for $id ($reason); " +
+                        "live readings past the mapped window will not reach Nightscout")
+                }
+                nativeCapacityCheckedFor = id
+            }
         }.onFailure { Log.stack(TAG, "ensureNativePresenceShell($reason)", it) }
     }
 
