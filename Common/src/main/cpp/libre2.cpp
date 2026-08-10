@@ -547,7 +547,11 @@ LOGGER("timeleft=%d\n",timeleft);
         int gid=gl.getId();
         decltype(auto) reshist=res->history();
 extern bool saveSputnik_PG2(const jniHistory &hist,time_t nutime,int nuid,const nfcdata  *nfcptr, SensorGlucoseData &save) ;
-        saveSputnik_PG2(reshist,newnu,gid, data, *hist); 
+        saveSputnik_PG2(reshist,newnu,gid, data, *hist);
+extern int saveScanTrend(const nfcdata *nfcptr,time_t nutime,int nuid, SensorGlucoseData &save) ;
+        /*The patch also holds the 16 one-minute samples before the scan; recover the ones
+          the BLE stream missed instead of leaving them in trends.dat.*/
+        saveScanTrend(data,newnu,gid, *hist);
         sensor *senso=sensors->getsensor(sensorindex);
         if(newnu<(nutime-60*3)) {
 //            lastscan=nullptr;

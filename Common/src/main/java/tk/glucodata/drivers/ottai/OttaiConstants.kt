@@ -49,7 +49,8 @@ object OttaiConstants {
 
     const val API_BASE = "https://api.ottai.com"          // CN app (phone/SMS account)
     const val API_BASE_GLOBAL = "https://seas.ottai.com"  // Ottai global app com.ottai.seas (username/password); same API, different host
-    const val API_BASE_SYAI = "https://ru.syai.com"       // syai (rebrand) global app; same API, different host
+    const val API_BASE_SYAI = "https://api.syai.com"      // Syai global mobile API
+    internal const val API_BASE_SYAI_LEGACY = "https://ru.syai.com"
     // Website account API (email login + registration). Same scheme/appName/SEED, different host.
     const val WEB_BASE_OTTAI = "https://www.ottai.com/api/cgm/web"
     const val WEB_BASE_SYAI = "https://www.syai.com/api/cgm/web"
@@ -232,6 +233,13 @@ object OttaiConstants {
      * after NFC wake. Only admit that address while an activation recovery scan is
      * already armed; the BLE manager still requires the sensor's auth signature before
      * persisting the candidate.
+     *
+     * [allowNameMatch] governs the name-only fallback, which exists solely for the
+     * address-changed case. It admits ANY advertisement whose name contains "ottai" —
+     * including a stranger's sensor in range — so callers must disable it once this
+     * sensor's own address is known to be stable (i.e. it is already activated).
+     * Otherwise the manager retargets its transport at every neighbouring Ottai in turn,
+     * each one failing the auth-signature check, and never reaches its own sensor.
      */
     fun shouldProbeActivationAdvertisement(
         discoveryPending: Boolean,
@@ -239,6 +247,7 @@ object OttaiConstants {
         expectedAddress: String?,
         advertisedName: String?,
         rejectedAddresses: Set<String> = emptySet(),
+        allowNameMatch: Boolean = true,
     ): Boolean {
         if (!discoveryPending) return false
         val scanned = normalizeBleAddress(scannedAddress, allowPlain = false) ?: return false
@@ -250,6 +259,7 @@ object OttaiConstants {
         }
         val expected = normalizeBleAddress(expectedAddress, allowPlain = false)
         if (expected?.equals(scanned, ignoreCase = true) == true) return true
+        if (!allowNameMatch) return false
         return advertisedName?.trim()?.contains("ottai", ignoreCase = true) == true
     }
 
@@ -269,6 +279,7 @@ object OttaiConstants {
     const val PREF_ACCESS_TOKEN = "ottai_access_token"
     const val PREF_GLUCOSE_SECRET = "ottai_glucose_secret_key"
     const val PREF_USER_ID = "ottai_user_id"
+    const val PREF_ACCOUNT_LOGIN = "ottai_account_login"  // login typed at sign-in (phone/email/username), display only
     const val PREF_API_BASE = "ottai_api_base"  // which backend the signed-in account is on (CN vs global)
     const val PREF_KEYA_PREFIX = "ottai_keya_"            // decrypted 6x16 hex (192)
     const val PREF_METHOD_PREFIX = "ottai_method_"        // decrypted method text
@@ -279,11 +290,16 @@ object OttaiConstants {
     // the first post-restart sample bypass the continuity gate.
     const val PREF_CONTINUITY_BASELINE_PREFIX = "ottai_continuity_baseline_"
     const val PREF_ACTIVE_EXPIRE_PREFIX = "ottai_active_expire_"  // activeExpireTime ms (maxActive duration)
+    // Actual maxActive duration (ms) the firmware ACCEPTED at activation — the real
+    // sensor lifetime. Persisted when the firmware ACKs the maxActive write, and/or
+    // recovered by reading b8fd9848 back off the sensor. Drives expected-end/remaining.
     const val PREF_ACCEPTED_MAX_ACTIVE_PREFIX = "ottai_accepted_max_active_"
     const val PREF_PREHEAT_PERIOD_PREFIX = "ottai_preheat_period_"
     const val PREF_RETAIN_TIME_PREFIX = "ottai_retain_time_"      // retainTime ms (destruction value)
     const val PREF_DEVICE_VERSION_PREFIX = "ottai_device_version_"
     const val PREF_LAST_DATA_NO_PREFIX = "ottai_last_datano_"
+    // Requested-but-undelivered history windows: "start:endExclusive:attempts" joined by ';'.
+    const val PREF_HISTORY_HOLES_PREFIX = "ottai_history_holes_"
     const val PREF_DEVICE_ID_PREFIX = "ottai_device_id_"
     const val PREF_ACTIVATION_ATTEMPTED_PREFIX = "ottai_act_tried_"  // one-shot auto-activate guard
     // "dataNo,sampleMs,tempC*10;" per accepted reading — feeds the stats temperature card.

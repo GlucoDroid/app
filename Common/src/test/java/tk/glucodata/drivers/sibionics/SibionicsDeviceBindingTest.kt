@@ -160,6 +160,40 @@ class SibionicsDeviceBindingTest {
     }
 
     @Test
+    fun acceptsObservedGs1QrPayloadsAcrossManagedVariants() {
+        val payloads = listOf(
+            "\u001D0106972831641803112412191725121810LT4F241247J\u001D21241247YEZ1450HAJ02",
+            "\u001D0106972831641476112412231725122210LT46241219C\u001D21WD9QAXGA52WS4V",
+            "\u001D0106972831640165112312091724120810LT41231108C\u001D21231108GEPD802JPP76",
+            "\u001D0106972831641476112512181727061710LT46251212C\u001D21XPT1EEX2NRU16U",
+        )
+
+        payloads.forEach { assertTrue(SibionicsRegistry.isSupportedQrPayload(it)) }
+        assertTrue(SibionicsRegistry.isSupportedQrPayload("]d2" + payloads.last().drop(1)))
+    }
+
+    @Test
+    fun rejectsTextAndMalformedGs1AsSensorQrPayloads() {
+        assertFalse(SibionicsRegistry.isSupportedQrPayload(null))
+        assertFalse(SibionicsRegistry.isSupportedQrPayload("YAICOMVK1HE1F5EE"))
+        assertFalse(
+            SibionicsRegistry.isSupportedQrPayload(
+                "https://example.invalid/0106972831641476112512181727061710LT46251212C21XPT1EEX2NRU16U",
+            ),
+        )
+        assertFalse(
+            SibionicsRegistry.isSupportedQrPayload(
+                "\u001D0106972831641475112512181727061710LT46251212C\u001D21XPT1EEX2NRU16U",
+            ),
+        )
+        assertFalse(
+            SibionicsRegistry.isSupportedQrPayload(
+                "\u001D0106972831641476112512181727061710LT46251212C\u001D21",
+            ),
+        )
+    }
+
+    @Test
     fun bleOnlyIdentityRetainsTheFullAdvertisedName() {
         val identity = SibionicsRegistry.buildIdentity(
             rawInput = "HEMATONIX42",

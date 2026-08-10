@@ -1013,12 +1013,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_button">Sign in</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Signed in</string>
+    <string name="ottai_account_id">Account: %1$s</string>
     <string name="ottai_sensor_mac_hint">Cloud device ID (12 hex or QR)</string>
     <string name="ottai_connect_saved">Connect</string>
     <string name="ottai_login_fail">Sign-in failed — check phone/code</string>
     <string name="ottai_connect_saved_fail">No account or saved materials for this cloud ID</string>
     <string name="ottai_status_needs_ble_address">Needs BLE address</string>
     <string name="ottai_status_warmup_provisional">Provisional warmup • %1$dm left</string>
+    <string name="ottai_status_loading_history">Loading history • %1$d%%</string>
     <string name="ottai_ble_scan_title">Nearby Ottai sensors</string>
     <string name="ottai_ble_scan_hint">Move the phone close to the sensor. Stable CGM advertisers appear here.</string>
     <string name="ottai_ble_scan_empty">No nearby Ottai sensor found. Move closer and scan again.</string>
@@ -1026,6 +1028,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_likely">Likely Ottai</string>
     <string name="ottai_ble_scan_possible">Possible CGM</string>
     <string name="ottai_ble_scan_unknown">Other CGM</string>
+    <string name="ottai_ble_scan_registered">Already added</string>
+    <string name="ottai_ble_scan_registered_hint">A sensor that is already connected stops advertising, so it cannot show up in the scan above.</string>
     <!-- Ottai wizard: entry / login modes / sensor list / advanced -->
     <string name="ottai_entry_import_title">Import credentials file</string>
     <string name="ottai_entry_import_desc">Use a saved .json — no account or network needed.</string>
@@ -1857,6 +1861,11 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_custom_range_hint">Tap a day, or a second day for a span.</string>
     <string name="stats_apply_range">Apply</string>
     <string name="stats_window_label">Window</string>
+    <string name="stats_pinned_add">Add</string>
+    <string name="stats_pinned_pick_title">Show on Dashboard</string>
+    <string name="stats_pinned_remove">Remove from Dashboard</string>
+    <string name="stats_pinned_remove_short">Remove</string>
+    <string name="stats_pinned_already">pinned</string>
     <string name="stats_window_today">Today</string>
     <string name="stats_window_3d">3D</string>
     <!-- Statistics: findings -->

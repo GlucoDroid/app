@@ -1918,12 +1918,14 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="ottai_login_button">Oturum aç</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Oturum açık</string>
+    <string name="ottai_account_id">Hesap: %1$s</string>
     <string name="ottai_sensor_mac_hint">Bulut cihaz kimliği (12 hex veya QR)</string>
     <string name="ottai_connect_saved">Bağlan</string>
     <string name="ottai_login_fail">Oturum açılamadı - telefonu/kodu kontrol edin</string>
     <string name="ottai_connect_saved_fail">Bu bulut kimliği için hesapta veya kayıtlı materyal yok</string>
     <string name="ottai_status_needs_ble_address">BLE adresi gerekli</string>
     <string name="ottai_status_warmup_provisional">Geçici ısınma • %1$d dk kaldı</string>
+    <string name="ottai_status_loading_history">Geçmiş yükleniyor • %1$d%%</string>
     <string name="ottai_ble_scan_title">Yakındaki Ottai sensörleri</string>
     <string name="ottai_ble_scan_hint">Telefonu sensöre yaklaştırın. Kararlı CGM yayınları burada görünür.</string>
     <string name="ottai_ble_scan_empty">Yakında Ottai sensörü bulunamadı. Yaklaşıp tekrar tarayın.</string>
@@ -1931,6 +1933,8 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="ottai_ble_scan_likely">Muhtemel Ottai</string>
     <string name="ottai_ble_scan_possible">Olası CGM</string>
     <string name="ottai_ble_scan_unknown">Diğer CGM</string>
+    <string name="ottai_ble_scan_registered">Zaten eklendi</string>
+    <string name="ottai_ble_scan_registered_hint">Bağlı bir sensör yayın yapmayı durdurur ve bu nedenle yukarıdaki listede görünmez.</string>
     <string name="ottai_account_hint">E-posta veya kullanıcı adı</string>
     <string name="ottai_account_note">E-postanız veya hesap kullanıcı adınızla giriş yapın.</string>
     <string name="ottai_code_sent_email">Kod %1$s adresine gönderildi</string>
@@ -2243,4 +2247,9 @@ Tamam\'a basmak bağlantı için QR kod görüntüleyecektir. QR kodu diğer tel
     <string name="stats_metric_streak">En iyi seri</string>
     <string name="stats_metric_streak_description">Aralıkta %%70 ve üzerinde geçen ardışık günlerin en uzun dizisi.</string>
     <string name="stats_metric_streak_meta">gün %%70+</string>
+    <string name="stats_pinned_add">Ekle</string>
+    <string name="stats_pinned_pick_title">Panoda göster</string>
+    <string name="stats_pinned_remove">Panodan kaldır</string>
+    <string name="stats_pinned_already">sabit</string>
+    <string name="stats_pinned_remove_short">Kaldır</string>
 </resources>

@@ -37,6 +37,44 @@ class OttaiLifetimeTests {
     }
 
     @Test
+    fun acceptedLifetimeIsCommittedOnlyAfterActivationStatusThree() {
+        val accepted = 28L * DAY_MS
+
+        assertEquals(
+            0L,
+            OttaiBleManager.acceptedMaxActiveToCommit(
+                commandStatus = -1,
+                activationCommandAcknowledged = false,
+                pendingDurationMs = accepted,
+            ),
+        )
+        assertEquals(
+            0L,
+            OttaiBleManager.acceptedMaxActiveToCommit(
+                commandStatus = 2,
+                activationCommandAcknowledged = true,
+                pendingDurationMs = accepted,
+            ),
+        )
+        assertEquals(
+            0L,
+            OttaiBleManager.acceptedMaxActiveToCommit(
+                commandStatus = 3,
+                activationCommandAcknowledged = false,
+                pendingDurationMs = accepted,
+            ),
+        )
+        assertEquals(
+            accepted,
+            OttaiBleManager.acceptedMaxActiveToCommit(
+                commandStatus = 3,
+                activationCommandAcknowledged = true,
+                pendingDurationMs = accepted,
+            ),
+        )
+    }
+
+    @Test
     fun expectedLifetimeUsesAcceptedMaxActive() {
         assertEquals(
             25L * DAY_MS,
@@ -172,6 +210,46 @@ class OttaiLifetimeTests {
                 expectedAddress = expected,
                 advertisedName = "Ottai",
                 rejectedAddresses = setOf(rotated.lowercase()),
+            ),
+        )
+    }
+
+    @Test
+    fun activationProbeIgnoresStrangersByNameWhenNameMatchDisabled() {
+        val ours = "B4:89:31:21:4A:D5"
+        val neighbour = "C0:9B:9E:60:07:37"
+
+        // An already-activated sensor keeps its address, so a neighbouring Ottai must not
+        // be probed just because its advertisement is called "Ottai" — that retargets the
+        // transport away from our own sensor for a device that can never authenticate.
+        assertFalse(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = neighbour,
+                expectedAddress = ours,
+                advertisedName = "Ottai CGM",
+                allowNameMatch = false,
+            ),
+        )
+        // Our own address still matches with the name fallback disabled.
+        assertTrue(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = ours,
+                expectedAddress = ours,
+                advertisedName = null,
+                allowNameMatch = false,
+            ),
+        )
+        // With the fallback enabled the same neighbour is admitted (fresh-activation case,
+        // where the sensor's address may legitimately have changed).
+        assertTrue(
+            OttaiConstants.shouldProbeActivationAdvertisement(
+                discoveryPending = true,
+                scannedAddress = neighbour,
+                expectedAddress = ours,
+                advertisedName = "Ottai CGM",
+                allowNameMatch = true,
             ),
         )
     }

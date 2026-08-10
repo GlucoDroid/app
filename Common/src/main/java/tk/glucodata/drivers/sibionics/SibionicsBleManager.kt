@@ -30,6 +30,7 @@ import tk.glucodata.UiRefreshBus
 import tk.glucodata.drivers.ManagedBluetoothSensorDriver
 import tk.glucodata.drivers.ManagedSensorCurrentSnapshot
 import tk.glucodata.drivers.ManagedSensorMaintenanceDriver
+import tk.glucodata.drivers.ManagedSensorRuntime
 import tk.glucodata.drivers.ManagedSensorUiFamily
 import tk.glucodata.drivers.ManagedSensorUiSnapshot
 import tk.glucodata.drivers.ManagedSensorViewModeStore
@@ -1782,6 +1783,9 @@ class SibionicsBleManager(
         }
         algorithmStateDirty = true
         Applic.app?.let { SibionicsRegistry.saveAlgorithmSelection(it, SerialNumber, selection) }
+        // The selection flips integratesUserCalibration(); drop the memoized value so manual
+        // calibration isn't double-applied (or silently skipped) until the next record write.
+        ManagedSensorRuntime.clearCaches()
         tk.glucodata.CalibrationAccess.notifyExternalCalibrationPipelineChanged()
         scheduleAlgorithmRebuild("algorithm selection ${selection.name}", delayMs = 0L)
         UiRefreshBus.requestStatusRefresh()

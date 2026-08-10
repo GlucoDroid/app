@@ -1936,12 +1936,14 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_login_button">Aanmelden</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Aangemeld</string>
+    <string name="ottai_account_id">Account: %1$s</string>
     <string name="ottai_sensor_mac_hint">Cloud-apparaat-ID (12 hex of QR)</string>
     <string name="ottai_connect_saved">Verbinden</string>
     <string name="ottai_login_fail">Aanmelden mislukt - controleer telefoon/code</string>
     <string name="ottai_connect_saved_fail">Geen account- of opgeslagen materialen voor deze cloud-ID</string>
     <string name="ottai_status_needs_ble_address">BLE-adres nodig</string>
     <string name="ottai_status_warmup_provisional">Voorlopige opwarming • nog %1$d min</string>
+    <string name="ottai_status_loading_history">Geschiedenis laden • %1$d%%</string>
     <string name="ottai_ble_scan_title">Ottai-sensoren in de buurt</string>
     <string name="ottai_ble_scan_hint">Houd de telefoon dicht bij de sensor. Stabiele CGM-zenders verschijnen hier.</string>
     <string name="ottai_ble_scan_empty">Geen Ottai-sensor in de buurt gevonden. Ga dichterbij en scan opnieuw.</string>
@@ -1949,6 +1951,8 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="ottai_ble_scan_likely">Waarschijnlijk Ottai</string>
     <string name="ottai_ble_scan_possible">Mogelijke CGM</string>
     <string name="ottai_ble_scan_unknown">Andere CGM</string>
+    <string name="ottai_ble_scan_registered">Al toegevoegd</string>
+    <string name="ottai_ble_scan_registered_hint">Een al verbonden sensor stopt met adverteren en verschijnt daarom niet in de lijst hierboven.</string>
     <string name="ottai_account_hint">E-mail of gebruikersnaam</string>
     <string name="ottai_account_note">Meld je aan met je e-mail of je gebruikersnaam.</string>
     <string name="ottai_code_sent_email">Code verzonden naar %1$s</string>
@@ -2261,4 +2265,9 @@ Als je op OK drukt, wordt er een verbinding gemaakt op deze telefoon en wordt er
     <string name="stats_metric_streak">Beste reeks</string>
     <string name="stats_metric_streak_description">Langste reeks opeenvolgende dagen met 70%% of meer in bereik.</string>
     <string name="stats_metric_streak_meta">dagen op 70%%+</string>
+    <string name="stats_pinned_add">Toevoegen</string>
+    <string name="stats_pinned_pick_title">Op Dashboard tonen</string>
+    <string name="stats_pinned_remove">Van Dashboard verwijderen</string>
+    <string name="stats_pinned_already">vastgezet</string>
+    <string name="stats_pinned_remove_short">Verwijderen</string>
 </resources>

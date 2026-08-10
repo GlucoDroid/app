@@ -544,7 +544,8 @@ private fun PreviewWindowNavigator(
                 var started = false
                 var lastTimestamp = 0L
                 var lastSensorSerial: String? = null
-                val gapThreshold = 15 * 60 * 1000L
+                val gapThreshold = ChartGap.THRESHOLD_MS
+                val previewRun = ChartLineRun()
                 for (index in startIdx until endExclusive) {
                     val value = activeValue(index)
                     if (!value.isFinite() || value < 0.1f) {
@@ -561,18 +562,25 @@ private fun PreviewWindowNavigator(
                         sensorSerial != lastSensorSerial
                     if (!started || (timestamp - lastTimestamp) > gapThreshold || sensorChanged) {
                         previewPath.moveTo(x, y)
+                        previewRun.begin(x, y)
                         started = true
                     } else {
                         previewPath.lineTo(x, y)
+                        previewRun.extend()
                     }
                     lastTimestamp = timestamp
                     lastSensorSerial = sensorSerial
                 }
+                previewRun.flush()
+                val previewStroke = 2.5.dp.toPx()
                 drawPath(
                     path = previewPath,
                     color = lineColor,
-                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    style = Stroke(width = previewStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
+                previewRun.isolatedPoints.forEach { point ->
+                    drawCircle(color = lineColor, radius = previewStroke / 2f, center = point)
+                }
 
                 val currentStart = currentCenterTime - currentVisibleDuration / 2
                 val currentEnd = currentCenterTime + currentVisibleDuration / 2
@@ -731,7 +739,9 @@ fun DashboardChartSection(
         }
     }
     val safeExpandedProgress = expandedProgress.coerceIn(0f, 1f)
-    val collapseVisualProgress = (((1f - safeExpandedProgress) - 0.06f) / 0.94f).coerceIn(0f, 1f)
+    // No dead zone: the 6% one meant the colour and the corner radius sat still while
+    // the card was already pulling in from the edges, so the shape led the paint.
+    val collapseVisualProgress = 1f - safeExpandedProgress
     val containerColor = androidx.compose.ui.graphics.lerp(
         MaterialTheme.colorScheme.background,
         MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -742,7 +752,12 @@ fun DashboardChartSection(
         modifier = modifier,
         shape = RoundedCornerShape(cornerRadius),
         color = containerColor,
-        tonalElevation = 2.dp * collapseVisualProgress,
+        // Deliberately no tonalElevation. Material's Surface only applies it when the
+        // colour is exactly colorScheme.surface, so with a lerped colour it switches on
+        // and off at whichever endpoint happens to match in the current scheme — a tint
+        // that pops at the end of the animation in some themes and never appears in
+        // others. surfaceContainerHigh is already the elevated tone, so the lerp alone
+        // carries the intent.
         shadowElevation = 0.dp
     ) {
         chartContent()
@@ -2467,7 +2482,7 @@ fun InteractiveGlucoseChart(
                 }
 
                 if (peerChartSeries.isNotEmpty()) {
-                    val peerGapThreshold = 900000L // 15 mins
+                    val peerGapThreshold = ChartGap.THRESHOLD_MS
                     val peerStroke = 2.dp.toPx()
                     fun drawPeerSeriesLine(
                         series: PeerSensorChartSeries,
@@ -2555,8 +2570,8 @@ fun InteractiveGlucoseChart(
 
                 // --- 3. DATA LINES (Unified & Optimized) ---
                 if (endIdx > startIdx) {
-                    val gapThreshold = 900000L // 15 mins
-                    
+                    val gapThreshold = ChartGap.THRESHOLD_MS
+
                     val hideRawSource = hideInitialWhenCalibrated && isRawModeChart
                     val hideAutoSource = hideInitialWhenCalibrated && !isRawModeChart
                     val drawRaw = !hideRawSource && (viewMode == 1 || viewMode == 2 || viewMode == 3)
@@ -2614,6 +2629,12 @@ fun InteractiveGlucoseChart(
                     var calLastTimestamp = 0L
                     var lastSensorSerial: String? = null
 
+                    // A run of a single point strokes as nothing; keep those visible as
+                    // dots so readings that stand alone between gaps are not lost.
+                    val rawRun = ChartLineRun()
+                    val autoRun = ChartLineRun()
+                    val calRun = ChartLineRun()
+
                     // Optimization: Pre-calculate scaling factors to avoid repeated division in valToY/timeToDataX
                     val timeScale = dataWidth / animDur
                     val yScale = if (cYRange < 0.001f) 0f else chartHeight / cYRange
@@ -2665,9 +2686,11 @@ fun InteractiveGlucoseChart(
                                     
                                     if (rawFirst) {
                                         reusableRawPath.moveTo(px, py)
+                                        rawRun.begin(px, py)
                                         rawFirst = false
                                     } else {
                                         reusableRawPath.lineTo(px, py)
+                                        rawRun.extend()
                                     }
                                     rawLastX = px
                                     rawLastY = py
@@ -2702,9 +2725,11 @@ fun InteractiveGlucoseChart(
                                     
                                     if (autoFirst) {
                                         reusableAutoPath.moveTo(px, py)
+                                        autoRun.begin(px, py)
                                         autoFirst = false
                                     } else {
                                         reusableAutoPath.lineTo(px, py)
+                                        autoRun.extend()
                                     }
                                     autoLastX = px
                                     autoLastY = py
@@ -2744,9 +2769,11 @@ fun InteractiveGlucoseChart(
                                     
                                     if (calFirst) {
                                         reusablePath.moveTo(px, py)
+                                        calRun.begin(px, py)
                                         calFirst = false
                                     } else {
                                         reusablePath.lineTo(px, py)
+                                        calRun.extend()
                                     }
                                     calLastX = px
                                     calLastY = py
@@ -2758,8 +2785,20 @@ fun InteractiveGlucoseChart(
                         lastSensorSerial = renderPoint.sensorSerial
                     }
 
+                    rawRun.flush()
+                    autoRun.flush()
+                    calRun.flush()
+
                     // --- DRAW PATHS ---
                     // Using Gradient Brush for primary/active lines for smooth transition
+
+                    fun drawIsolated(run: ChartLineRun, color: Color, strokeWidth: Float) {
+                        if (run.isolatedPoints.isEmpty()) return
+                        val radius = strokeWidth / 2f
+                        run.isolatedPoints.forEach { point ->
+                            drawCircle(color = color, radius = radius, center = point)
+                        }
+                    }
 
                     if (drawRaw) {
                         if (doTintRaw) {
@@ -2767,6 +2806,7 @@ fun InteractiveGlucoseChart(
                         } else {
                             drawPath(reusableRawPath, rawColor, style = Stroke(width = rawStrokeWidth, cap = strokeCap, join = strokeJoin))
                         }
+                        drawIsolated(rawRun, rawColor, rawStrokeWidth)
                     }
                     if (drawAuto) {
                         if (doTintAuto) {
@@ -2774,6 +2814,7 @@ fun InteractiveGlucoseChart(
                         } else {
                             drawPath(reusableAutoPath, autoColor, style = Stroke(width = autoStrokeWidth, cap = strokeCap, join = strokeJoin))
                         }
+                        drawIsolated(autoRun, autoColor, autoStrokeWidth)
                     }
                     if (hasCalibration) {
                         if (doTintCal) {
@@ -2781,6 +2822,7 @@ fun InteractiveGlucoseChart(
                         } else {
                             drawPath(reusablePath, primaryColor, style = Stroke(width = calStrokeWidth, cap = strokeCap, join = strokeJoin))
                         }
+                        drawIsolated(calRun, primaryColor, calStrokeWidth)
                     }
                 }
 

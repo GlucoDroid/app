@@ -1896,12 +1896,14 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_login_button">Se connecter</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Connecté</string>
+    <string name="ottai_account_id">Compte : %1$s</string>
     <string name="ottai_sensor_mac_hint">ID cloud du dispositif (12 hex ou QR)</string>
     <string name="ottai_connect_saved">Connecter</string>
     <string name="ottai_login_fail">Connexion échouée - vérifiez le téléphone/code</string>
     <string name="ottai_connect_saved_fail">Aucune donnée de compte ou enregistrée pour cet ID cloud</string>
     <string name="ottai_status_needs_ble_address">Adresse BLE requise</string>
     <string name="ottai_status_warmup_provisional">Préchauffage provisoire • %1$d min restantes</string>
+    <string name="ottai_status_loading_history">Chargement de l’historique • %1$d%%</string>
     <string name="ottai_ble_scan_title">Capteurs Ottai à proximité</string>
     <string name="ottai_ble_scan_hint">Rapprochez le téléphone du capteur. Les émetteurs CGM stables apparaissent ici.</string>
     <string name="ottai_ble_scan_empty">Aucun capteur Ottai à proximité. Rapprochez-vous et relancez le scan.</string>
@@ -1909,6 +1911,8 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="ottai_ble_scan_likely">Probable Ottai</string>
     <string name="ottai_ble_scan_possible">CGM possible</string>
     <string name="ottai_ble_scan_unknown">Autre CGM</string>
+    <string name="ottai_ble_scan_registered">Déjà ajouté</string>
+    <string name="ottai_ble_scan_registered_hint">Un capteur déjà connecté cesse d’émettre des annonces et n’apparaît donc pas dans la liste ci-dessus.</string>
     <string name="ottai_account_hint">E-mail ou nom d’utilisateur</string>
     <string name="ottai_account_note">Connectez-vous avec votre e-mail ou votre nom d’utilisateur.</string>
     <string name="ottai_code_sent_email">Code envoyé à %1$s</string>
@@ -2221,4 +2225,9 @@ Pressing OK will generate a connection on this phone and display a QR code that 
     <string name="stats_metric_streak">Meilleure série</string>
     <string name="stats_metric_streak_description">Plus longue suite de jours consécutifs à 70%% ou plus dans la cible.</string>
     <string name="stats_metric_streak_meta">jours à 70%%+</string>
+    <string name="stats_pinned_add">Ajouter</string>
+    <string name="stats_pinned_pick_title">Afficher sur le Tableau de bord</string>
+    <string name="stats_pinned_remove">Retirer du Tableau de bord</string>
+    <string name="stats_pinned_already">épinglé</string>
+    <string name="stats_pinned_remove_short">Retirer</string>
 </resources>

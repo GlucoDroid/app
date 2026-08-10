@@ -5,6 +5,8 @@ package tk.glucodata.ui
 import android.app.Activity
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -741,7 +743,14 @@ fun MainApp(themeMode: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
                 NavHost(
                     navController = navController,
                     startDestination = "dashboard",
-                    modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding)
+                    modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
+                    // No transition between rail destinations. This was never asked for —
+                    // it is NavHost's own 700 ms default, which portrait overrides with a
+                    // fast fade and landscape had simply been left on.
+                    enterTransition = { EnterTransition.None },
+                    exitTransition = { ExitTransition.None },
+                    popEnterTransition = { EnterTransition.None },
+                    popExitTransition = { ExitTransition.None }
                 ) {
                     composable("dashboard") {
                         DashboardRoute(

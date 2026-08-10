@@ -1925,12 +1925,14 @@
     <string name="ottai_login_button">Zaloguj</string>
     <string name="ottai_login_request_suffix">\nreq=...%1$s</string>
     <string name="ottai_already_signed_in">Zalogowano</string>
+    <string name="ottai_account_id">Konto: %1$s</string>
     <string name="ottai_sensor_mac_hint">ID urządzenia w chmurze (12 znaków hex lub QR)</string>
     <string name="ottai_connect_saved">Połącz</string>
     <string name="ottai_login_fail">Logowanie nieudane - sprawdź telefon/kod</string>
     <string name="ottai_connect_saved_fail">Brak materiałów z konta lub zapisanych dla tego ID w chmurze</string>
     <string name="ottai_status_needs_ble_address">Wymagany adres BLE</string>
     <string name="ottai_status_warmup_provisional">Tymczasowe rozgrzewanie • pozostało %1$d min</string>
+    <string name="ottai_status_loading_history">Wczytywanie historii • %1$d%%</string>
     <string name="ottai_ble_scan_title">Pobliskie sensory Ottai</string>
     <string name="ottai_ble_scan_hint">Przysuń telefon do sensora. Stabilne nadajniki CGM pojawią się tutaj.</string>
     <string name="ottai_ble_scan_empty">Nie znaleziono pobliskiego sensora Ottai. Podejdź bliżej i skanuj ponownie.</string>
@@ -1938,6 +1940,8 @@
     <string name="ottai_ble_scan_likely">Prawdopodobnie Ottai</string>
     <string name="ottai_ble_scan_possible">Możliwy CGM</string>
     <string name="ottai_ble_scan_unknown">Inny CGM</string>
+    <string name="ottai_ble_scan_registered">Już dodano</string>
+    <string name="ottai_ble_scan_registered_hint">Połączony czujnik przestaje się rozgłaszać, dlatego nie pojawi się na powyższej liście.</string>
     <string name="ottai_account_hint">E-mail lub nazwa użytkownika</string>
     <string name="ottai_account_note">Zaloguj się e-mailem lub nazwą użytkownika konta.</string>
     <string name="ottai_code_sent_email">Kod wysłano na %1$s</string>
@@ -2250,4 +2254,9 @@
     <string name="stats_metric_streak">Najlepsza seria</string>
     <string name="stats_metric_streak_description">Najdłuższa seria kolejnych dni z 70%% lub więcej w zakresie.</string>
     <string name="stats_metric_streak_meta">dni po 70%%+</string>
+    <string name="stats_pinned_add">Dodaj</string>
+    <string name="stats_pinned_pick_title">Pokaż na Pulpicie</string>
+    <string name="stats_pinned_remove">Usuń z Pulpitu</string>
+    <string name="stats_pinned_already">przypięte</string>
+    <string name="stats_pinned_remove_short">Usuń</string>
 </resources>

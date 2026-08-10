@@ -4,8 +4,11 @@
 // recovered: header set + MD5 signature seed from NetManager (1.1.0 decompile).
 // The account/token is app-agnostic, so a phone-number SMS login works here.
 //
-// Geoblock: every request carries forwarded-IP headers set to a China IP so the
-// server's IP geolocation returns chinaFlag=1 (no VPN, no official app).
+// Geoblock: only CN-backend (api.ottai.com) requests carry forwarded-IP headers set to a China IP
+// (that backend is geoblocked to China). GLOBAL (seas.ottai.com) / SYAI (api.syai.com) requests send
+// NO forwarded headers — a forged CN IP there looks cross-region and the backend rejects the token
+// (AuthFailed_TokenInvalid / accountLogin biz=Error). See headers(). CONFIRMED on-device: a RU user on
+// GLOBAL failed until a VPN masked the real IP; the official global app sends no such headers and works.
 //
 // SECURITY: the signature SEED and all returned secrets (accessToken,
 // glucoseSecretKey, keyA, method, coefficient) are credentials/IP. Never log them.
@@ -85,9 +88,14 @@ object OttaiCloudClient {
     private fun sign(deviceId: String, ts: Long, vararg args: String): String =
         md5Hex(APP_NAME + "$APP_NAME:a:$deviceId" + ts + args.joinToString("") + SEED)
 
-    private fun headers(ctx: Context, ts: Long): MutableMap<String, String> {
+    private fun headers(
+        ctx: Context,
+        ts: Long,
+        apiBase: String,
+        authorizationOverride: String? = null,
+    ): MutableMap<String, String> {
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
-        val token = OttaiRegistry.loadAccessToken(ctx)
+        val token = authorizationOverride ?: OttaiRegistry.loadAccessToken(ctx)
         val offsetSec = TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000
         val h = mutableMapOf(
             "appName" to APP_NAME,
@@ -102,12 +110,19 @@ object OttaiCloudClient {
             "timestamp" to ts.toString(),
             "country" to "zh_CN",
             "deviceId" to "$APP_NAME:a:$deviceId",
-            // geoblock bypass — CN source IP via forwarded-for headers
-            "X-Forwarded-For" to OttaiConstants.CN_FORWARD_IP,
-            "X-Real-IP" to OttaiConstants.CN_FORWARD_IP,
-            "CF-Connecting-IP" to OttaiConstants.CN_FORWARD_IP,
-            "True-Client-IP" to OttaiConstants.CN_FORWARD_IP,
         )
+        // Geoblock bypass — forge a CN source IP ONLY for the CN backend (api.ottai.com), which is
+        // geoblocked to China and REQUIRES a CN IP. The GLOBAL (seas.ottai.com) and SYAI (api.syai.com)
+        // backends serve non-China users; forging a CN IP there makes the request look cross-region and
+        // the backend rejects the session (AuthFailed_TokenInvalid, accountLogin biz=Error). The official
+        // global app sends no forwarded headers and works from any region, so we mirror that here.
+        // (Web-API calls already omit these — see webHeaders.)
+        if (apiBase == OttaiConstants.API_BASE) {
+            h["X-Forwarded-For"] = OttaiConstants.CN_FORWARD_IP
+            h["X-Real-IP"] = OttaiConstants.CN_FORWARD_IP
+            h["CF-Connecting-IP"] = OttaiConstants.CN_FORWARD_IP
+            h["True-Client-IP"] = OttaiConstants.CN_FORWARD_IP
+        }
         if (token.isNotBlank()) h["Authorization"] = token
         return h
     }
@@ -120,11 +135,19 @@ object OttaiCloudClient {
     private fun base(ctx: Context): String = OttaiRegistry.loadApiBase(ctx)
 
     /** GET /user/apiToken — sig over (ts). Returns the apiToken or null. */
-    fun getApiToken(ctx: Context, apiBase: String = base(ctx)): String? {
+    fun getApiToken(
+        ctx: Context,
+        apiBase: String = base(ctx),
+        authorizationOverride: String? = null,
+    ): String? {
         val ts = now()
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val sig = sign(deviceId, ts)
-        val resp = httpGet(apiBase + OttaiConstants.EP_API_TOKEN, mapOf("signature" to sig), headers(ctx, ts))
+        val resp = httpGet(
+            apiBase + OttaiConstants.EP_API_TOKEN,
+            mapOf("signature" to sig),
+            headers(ctx, ts, apiBase, authorizationOverride),
+        )
         return resp?.optStringDeep("data")
     }
 
@@ -144,7 +167,7 @@ object OttaiCloudClient {
             put("smsType", 1)
             put("signature", sign(deviceId, ts, ph, apiToken))
         }
-        val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_SMS_CODE, body.toString(), headers(ctx, ts))
+        val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_SMS_CODE, body.toString(), headers(ctx, ts, OttaiConstants.API_BASE))
         return resp?.optStringDeep("data")
     }
 
@@ -160,7 +183,7 @@ object OttaiCloudClient {
             put("requestId", requestId)
             put("signature", sign(deviceId, ts, requestId, ph, code))
         }
-        val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_SMS_LOGIN, body.toString(), headers(ctx, ts)) ?: return null
+        val resp = httpPostJson(OttaiConstants.API_BASE + OttaiConstants.EP_SMS_LOGIN, body.toString(), headers(ctx, ts, OttaiConstants.API_BASE)) ?: return null
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val result = LoginResult(
             userId = data.optString("userId").orEmptyIfNull(),
@@ -189,16 +212,18 @@ object OttaiCloudClient {
         account: String,
         password: String,
         base: String = OttaiConstants.API_BASE_GLOBAL,
+        authorizationOverride: String? = null,
     ): LoginResult? {
         val acct = account.trim()
         if (acct.isBlank() || password.isBlank()) { lastError = "account/password required"; return null }
-        // Username + password login on a GLOBAL backend (seas.ottai.com / ru.syai.com) — same
+        // Username + password login on a GLOBAL backend (seas.ottai.com / api.syai.com) — same
         // API + signature scheme, different host. The server keys on the account USERNAME, which
         // is a server-assigned RANDOM string (verified: NOT derived from the email), so the email
         // cannot be used here — email sign-in goes through the web API (see mailLogin). Password
         // is PLAINTEXT; sig arg-order = sign(apiToken, account, password). SINGLE attempt only —
         // a wrong password is a real failed-login attempt, so do NOT retry variants (lockout).
-        val apiToken = getApiToken(ctx, base) ?: run { lastError = "apiToken failed"; return null }
+        val apiToken = getApiToken(ctx, base, authorizationOverride)
+            ?: run { lastError = "apiToken failed"; return null }
         val ts = now()
         val deviceId = OttaiRegistry.loadOrCreateDeviceId(ctx)
         val body = JSONObject().apply {
@@ -209,7 +234,11 @@ object OttaiCloudClient {
             put("apiToken", apiToken)
             put("signature", sign(deviceId, ts, apiToken, acct, password))
         }
-        val resp = httpPostJson(base + OttaiConstants.EP_ACCOUNT_LOGIN, body.toString(), headers(ctx, ts)) ?: return null
+        val resp = httpPostJson(
+            base + OttaiConstants.EP_ACCOUNT_LOGIN,
+            body.toString(),
+            headers(ctx, ts, base, authorizationOverride),
+        ) ?: return null
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val result = LoginResult(
             userId = data.optString("userId").orEmptyIfNull(),
@@ -221,7 +250,7 @@ object OttaiCloudClient {
             OttaiRegistry.saveAccessToken(ctx, result.accessToken)
             OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
             OttaiRegistry.saveUserId(ctx, result.userId)
-            Log.i(TAG, "passwordLogin ok")
+            Log.i(TAG, "${if (base == OttaiConstants.API_BASE_SYAI) "Syai mobile" else "password"} login ok")
             return result
         }
         return null
@@ -231,11 +260,12 @@ object OttaiCloudClient {
     fun logout(ctx: Context) {
         runCatching {
             val ts = now()
-            httpPostJson(base(ctx) + OttaiConstants.EP_LOGOUT, "{}", headers(ctx, ts))
+            httpPostJson(base(ctx) + OttaiConstants.EP_LOGOUT, "{}", headers(ctx, ts, base(ctx)))
         }
         OttaiRegistry.saveAccessToken(ctx, null)
         OttaiRegistry.saveGlucoseSecretKey(ctx, null)
         OttaiRegistry.saveUserId(ctx, null)
+        OttaiRegistry.saveAccountLogin(ctx, null)
         OttaiRegistry.saveApiBase(ctx, OttaiConstants.API_BASE)  // reset to CN default
     }
 
@@ -247,7 +277,7 @@ object OttaiCloudClient {
         val resp = httpGet(
             base(ctx) + OttaiConstants.EP_VALIDATE_BY_MAC,
             mapOf("mac" to canonical, "signature" to sig),
-            headers(ctx, ts),
+            headers(ctx, ts, base(ctx)),
         ) ?: return null
         return parseDeviceResp(resp)
     }
@@ -268,7 +298,7 @@ object OttaiCloudClient {
             put("userId", userId)
             put("newBindType", 2)
         }
-        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_BIND, body.toString(), headers(ctx, ts)) ?: return null
+        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_BIND, body.toString(), headers(ctx, ts, base(ctx))) ?: return null
         return parseDeviceResp(resp)
     }
 
@@ -298,7 +328,7 @@ object OttaiCloudClient {
             put("deviceType", "cgm")
             put("unbindType", 0)
         }
-        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_UNBIND, body.toString(), headers(ctx, ts)) ?: return false
+        val resp = httpPostJson(base(ctx) + OttaiConstants.EP_UNBIND, body.toString(), headers(ctx, ts, base(ctx))) ?: return false
         val bizCode = resp.opt("code")?.toString().orEmpty()
         return bizCode.isBlank() || bizCode == "200" || bizCode.equals("OK", ignoreCase = true)
     }
@@ -309,7 +339,7 @@ object OttaiCloudClient {
         val resp = httpGet(
             base(ctx) + OttaiConstants.EP_GET_BIND_DEVICE,
             emptyMap(),
-            headers(ctx, ts),
+            headers(ctx, ts, base(ctx)),
         ) ?: return null
         return parseDeviceResp(resp)
     }
@@ -337,7 +367,7 @@ object OttaiCloudClient {
         val resp = httpGet(
             base(ctx) + OttaiConstants.EP_DEVICE_LIST,
             mapOf("pageSize" to pageSize.toString(), "pageNumber" to pageNumber.toString()),
-            headers(ctx, ts),
+            headers(ctx, ts, base(ctx)),
         ) ?: return emptyList()
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return emptyList()
         val items = data.optJSONArray("items")
@@ -436,7 +466,7 @@ object OttaiCloudClient {
     private const val WEB_AES_KEY = "miH5ngQ7z4NZU3JgZFq87Gg6v1Y7YJm9"  // web __ENV NEXT_PUBLIC_AES_KEY (AES-256)
     private const val WEB_FINGERPRINT = "0123456789abcdef0123456789abcdef01234567"  // opaque client fp (not validated)
 
-    // syai (syai.com / ru.syai.com) is a different, older web profile that shares ONLY the SEED and
+    // Syai is a different web profile that shares only the seed and
     // AES key with Ottai. appName=cgm, US/Americas/Android/v5, no deviceId header; login uses
     // /user/mail/login (not thirdLoginByPassword). Verified against a real syai.com login capture.
     private const val WEB_APP_SYAI = "cgm"
@@ -527,8 +557,8 @@ object OttaiCloudClient {
      *    encrypted "username" field). sig = md5(appName+deviceId+ts+apiToken+identifier+password+SEED) —
      *    deviceId BEFORE ts. (A wrong order here returns the MISLEADING "User_FAILED_RETRY_TIMES".)
      *  - syai: `/user/mail/login` with a plaintext "email" field + encryptInfo={email,password};
-     *    sig = md5(appName+ts+apiToken+email+password+SEED) (no deviceId). Returns a JWT used as a
-     *    bearer token; glucoseSecretKey is fetched separately via getUser (see persistWebLogin).
+     *    sig = md5(appName+ts+apiToken+email+password+SEED) (no deviceId). Its JWT is upgraded to
+     *    a mobile session below; only that session contains the sensor-material decryption root.
      */
     fun mailLogin(ctx: Context, email: String, password: String, webBase: String = WEB_BASE): LoginResult? {
         val em = email.trim()
@@ -555,21 +585,36 @@ object OttaiCloudClient {
                 }
             }
         } ?: return null
-        // The web/email login token has NO device scope — the mobile deviceBind/list (+ validate/
-        // bind) reject it with AuthFailed_TokenInvalid. Upgrade to a mobile accountLogin token:
-        // getUser exposes the account's server-assigned random username, then accountLogin(username,
-        // password) yields a token the mobile CGM API accepts. (Verified end-to-end: a web-only
-        // token fails every device endpoint; the chained mobile token lists devices.)
         val mobileBase = webBaseToMobile(webBase)
         val webToken = (resp.optJSONObject("data") ?: resp.optJSONObject("result"))
             ?.optString("accessToken").orEmptyIfNull()
         if (webToken.isNotBlank()) {
-            val userName = webGetUser(webBase, webToken)?.optString("userName")?.takeIf { it.isNotBlank() }
+            // Syai's web profile omits both userName and glucoseSecretKey. Its mobile profile
+            // accepts the web JWT and exposes the server-assigned userName; accountLogin with
+            // that name then returns the mobile token and decrypt root required by device data.
+            val profile = if (isSyai(webBase)) {
+                mobileGetUser(ctx, mobileBase, webToken)
+            } else {
+                webGetUser(webBase, webToken)
+            }
+            val userName = profile?.optString("userName").orEmptyIfNull().takeIf { it.isNotBlank() }
             if (userName != null) {
-                passwordLogin(ctx, userName, password, mobileBase)?.takeIf { it.ok }?.let { return it }
+                passwordLogin(
+                    ctx,
+                    userName,
+                    password,
+                    mobileBase,
+                    authorizationOverride = webToken,
+                )?.takeIf { it.ok }?.let { return it }
             }
         }
-        // Fallback: persist the web token (authenticated, but the device list may not work).
+        // A Syai web JWT can validate a device but carries no material-decryption root. Persisting
+        // it would make sign-in look successful while every fresh sensor fails material loading.
+        if (isSyai(webBase)) {
+            if (lastError.isBlank()) lastError = "Syai mobile login upgrade failed"
+            return null
+        }
+        // Fallback for an Ottai web account whose profile does not expose a mobile username.
         return persistWebLogin(ctx, resp, mobileBase, webBase)
     }
 
@@ -647,7 +692,7 @@ object OttaiCloudClient {
     }
 
     /** Map a web API host to the matching mobile CGM API base for subsequent validate/list calls. */
-    private fun webBaseToMobile(webBase: String): String =
+    internal fun webBaseToMobile(webBase: String): String =
         if (webBase.contains("syai")) OttaiConstants.API_BASE_SYAI else OttaiConstants.API_BASE_GLOBAL
 
     /** Store accessToken/userId/glucoseSecretKey from a web login/signup; CGM ops use the region's mobile API. */
@@ -655,7 +700,7 @@ object OttaiCloudClient {
         val data = resp.optJSONObject("data") ?: resp.optJSONObject("result") ?: return null
         val accessToken = data.optString("accessToken").orEmptyIfNull()
         var glucoseSecretKey = data.optString("glucoseSecretKey").orEmptyIfNull()
-        // syai's /user/mail/login returns only the JWT; glucoseSecretKey is exposed via getUser instead.
+        // Some account APIs return only the JWT; try their profile before accepting a partial login.
         if (accessToken.isNotBlank() && glucoseSecretKey.isBlank()) {
             glucoseSecretKey = webGetUser(webBase, accessToken)?.optString("glucoseSecretKey").orEmptyIfNull()
         }
@@ -669,7 +714,7 @@ object OttaiCloudClient {
             OttaiRegistry.saveAccessToken(ctx, result.accessToken)
             if (result.glucoseSecretKey.isNotBlank()) OttaiRegistry.saveGlucoseSecretKey(ctx, result.glucoseSecretKey)
             OttaiRegistry.saveUserId(ctx, result.userId)
-            Log.i(TAG, "web login ok")
+            Log.i(TAG, "${if (isSyai(webBase)) "Syai" else "Ottai"} web login ok")
         }
         return result
     }
@@ -677,10 +722,26 @@ object OttaiCloudClient {
     /** GET /user/getUser (JWT bearer) → the user data object (glucoseSecretKey, userName, email, …). */
     private fun webGetUser(webBase: String, accessToken: String): JSONObject? {
         val ts = now()
-        val headers = webHeaders(webBase, ts) + ("Authorization" to "Bearer $accessToken")
+        val headers = webGetUserHeaders(webBase, ts, accessToken)
         val resp = httpGet("$webBase/user/getUser", emptyMap(), headers) ?: return null
         return resp.optJSONObject("data") ?: resp.optJSONObject("result")
     }
+
+    /** Mobile GET /user/getUser using a just-issued web JWT, before it is persisted. */
+    private fun mobileGetUser(ctx: Context, mobileBase: String, accessToken: String): JSONObject? {
+        val ts = now()
+        val resp = httpGet(
+            mobileBase + OttaiConstants.EP_GET_USER,
+            emptyMap(),
+            headers(ctx, ts, mobileBase, accessToken),
+        ) ?: return null
+        return resp.optJSONObject("data") ?: resp.optJSONObject("result")
+    }
+
+    internal fun webGetUserHeaders(webBase: String, ts: Long, accessToken: String): Map<String, String> =
+        webHeaders(webBase, ts) +
+            (if (isSyai(webBase)) mapOf("deviceId" to WEB_DEVICE_ID) else emptyMap()) +
+            ("Authorization" to "Bearer $accessToken")
 
     private fun httpGet(base: String, query: Map<String, String>, headers: Map<String, String>): JSONObject? {
         val qs = query.entries.joinToString("&") {

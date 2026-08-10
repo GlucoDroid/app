@@ -788,7 +788,8 @@ private fun buildCgmReadinessSnapshot(
     )
 }
 
-private fun hasActiveLibreSensor(): Boolean {
+/** True when at least one currently active sensor is a Libre 2 / Libre 3 family sensor. */
+internal fun hasActiveLibreSensor(): Boolean {
     return runCatching {
         Natives.activeSensors()
             ?.filterNotNull()
