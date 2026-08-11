@@ -27,6 +27,25 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
  * queries use that same sensor's Room history directly so the dashboard never switches to a
  * broad merged timeline just because older data is visible.
  */
+internal object DashboardHistoryWindowPolicy {
+    /**
+     * The dashboard's default query window is bounded (see
+     * [GlucoseRepository.getDashboardHistoryFlowRaw]) so a cold start never has to load and
+     * convert a sensor's entire lifetime of Room history before painting anything. If that
+     * bounded window is genuinely empty — an expired sensor with only older persisted data,
+     * offline backfill review — fall back to an older tail instead of leaving the dashboard
+     * stuck on the empty state.
+     */
+    fun shouldUseOldTailFallback(
+        recentPoints: List<GlucosePoint>,
+        latestTimestamp: Long,
+        startTime: Long
+    ): Boolean = recentPoints.isEmpty() && latestTimestamp > 0L && latestTimestamp < startTime
+
+    fun fallbackStartTime(latestTimestamp: Long, fallbackWindowMs: Long): Long =
+        (latestTimestamp - fallbackWindowMs).coerceAtLeast(0L)
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class GlucoseRepository {
     
@@ -320,8 +339,20 @@ class GlucoseRepository {
      * Dashboard history follows the selected/current sensor directly. This keeps
      * the dashboard out of the all-sensor merged timeline while still allowing
      * date-picker/pan browsing across the full persisted history for that sensor.
+     *
+     * [startTime] is a bounded recent window (see
+     * [tk.glucodata.ui.viewmodel.DashboardViewModel.DASHBOARD_HISTORY_WINDOW_MS]), not 0 —
+     * querying from the epoch every cold start forces Room to load and convert a sensor's
+     * entire lifetime of history before the dashboard can show anything, which is what caused
+     * the multi-second blank-screen regression this window guards against (see history around
+     * commit 0fb5a2d1d, which removed it). If the window is empty but the sensor does have
+     * older persisted data, [fallbackWindowMs] anchors the chart to that older tail instead of
+     * showing a permanently empty state.
      */
-    fun getDashboardHistoryFlowRaw(startTime: Long): Flow<List<GlucosePoint>> {
+    fun getDashboardHistoryFlowRaw(
+        startTime: Long,
+        fallbackWindowMs: Long
+    ): Flow<List<GlucosePoint>> {
         return _currentSerial.flatMapLatest { serial ->
             val preferredSerial = resolveDisplayPreferredSerial(serial)
             channelFlow {
@@ -333,8 +364,36 @@ class GlucoseRepository {
                 launch {
                     historyRepository.ensureBackfilled(preferredSerial, startTime)
                 }
-                observeDisplayHistory(preferredSerial, startTime).collect { points ->
-                    send(points)
+
+                observeDisplayHistory(preferredSerial, startTime).collectLatest { recentPoints ->
+                    if (recentPoints.isNotEmpty()) {
+                        send(recentPoints)
+                        return@collectLatest
+                    }
+
+                    val latestTimestamp = historyRepository.getLatestTimestampForSensor(preferredSerial)
+                    if (!DashboardHistoryWindowPolicy.shouldUseOldTailFallback(
+                            recentPoints = recentPoints,
+                            latestTimestamp = latestTimestamp,
+                            startTime = startTime
+                        )
+                    ) {
+                        send(recentPoints)
+                        return@collectLatest
+                    }
+
+                    val fallbackStartTime = DashboardHistoryWindowPolicy.fallbackStartTime(
+                        latestTimestamp = latestTimestamp,
+                        fallbackWindowMs = fallbackWindowMs
+                    )
+                    BatteryTrace.bump(
+                        key = "dashboard.history.old_tail",
+                        logEvery = 20L,
+                        detail = "serial=$preferredSerial latest=$latestTimestamp start=$fallbackStartTime"
+                    )
+                    observeDisplayHistory(preferredSerial, fallbackStartTime).collect { fallbackPoints ->
+                        send(fallbackPoints)
+                    }
                 }
             }
         }
