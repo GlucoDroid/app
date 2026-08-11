@@ -29,7 +29,7 @@ Never push directly to `origin/glucodroid`. All fixes and features go through a 
 Every release follows these steps in order — do not skip any:
 
 1. Bump `versionName` / `versionCode` in `Common/build.gradle` defaultConfig.
-2. Build: `./gradlew assembleMobileLibre3SiDexNogoogleRelease -Pno_x86 -Pno_x86_64`.
+2. Build: `./gradlew assembleMobileRelease`.
 3. Copy APK to `~/Downloads/glucodroid.apk` (exact filename — never rename).
 4. Commit the version bump + any other release-blocker fixes on the feature branch.
 5. Open and merge the PR into `glucodroid` (squash, delete branch).
@@ -59,18 +59,26 @@ The file must always be named exactly `glucodroid.apk` — nothing else, ever.
 Build command:
 
 ```
-./gradlew assembleMobileLibre3SiDexNogoogleRelease -Pno_x86 -Pno_x86_64
+./gradlew assembleMobileRelease
 ```
 
-The APK will be under `Common/build/outputs/apk/`.
+The APK will be under `Common/build/outputs/apk/mobile/release/`.
 
-Use the `nogoogle` flavour (not `google`): it sets minSdk 23 (raised from 21
-in 1.0.0-Alpha due to work-runtime-ktx dependency), omits the
-`requireWatch` manifest flag, and is the correct variant for F-Droid and
-other non-Play-Store distribution channels.
+Flavours collapsed to a single `wearos` dimension (`mobile` / `wear`) during
+the 1.0.9→1.1.0 upstream rebase — the old `libreVersion` / `SiBionics` /
+`DexCom` / `google` / `nogoogle` flavour dimensions are gone; every sensor
+backend and Play Services are now compiled into every build unconditionally.
+Use the `mobile` flavour for the phone APK (`wear` is the Wear OS
+companion). minSdk is 26 for both flavours.
 
-Use the `release` build type (not `releaser`): `releaser` only differs by
-appending "R" to the version name and passing a no-op `-DAPPSUFFIX` flag —
-`release` is the clean production build.
+Build types are `release` (clean production build, minified + shrunk),
+`releasedub`/`releasedub2` (upstream's parallel-install debug variants,
+suffixed `.dub`/`.dub2`), and `debug`. There is no `releaser` type — use
+`release`.
+
+There are no ABI-trimming Gradle properties anymore (the old `-Pno_x86
+-Pno_x86_64` flags read by a since-removed flavour catalog) — a release
+build now always compiles native code for all 5 ABIs, so expect longer
+build times (~10-15 min) than older instructions implied.
 
 If the build cache returns a stale APK (wrong package name or version), run `./gradlew clean` first.
