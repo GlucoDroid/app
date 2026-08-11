@@ -135,6 +135,10 @@ class DashboardViewModel(
         const val TARGET_RANGE_DEFAULTS_MIGRATION_KEY = "target_range_defaults_v2"
         const val UI_RECOVERY_SYNC_MIN_INTERVAL_MS = 30_000L
         const val DASHBOARD_HISTORY_COALESCE_MS = 300L
+        // Bounded recent window for the dashboard's own current-sensor history query. Cold
+        // start must not load/convert a sensor's entire lifetime of Room history before the
+        // dashboard can show anything — see GlucoseRepository.getDashboardHistoryFlowRaw.
+        const val DASHBOARD_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val DASHBOARD_PEER_HISTORY_WINDOW_MS = 72L * 60L * 60L * 1000L
         const val JOURNAL_DOSE_CALCULATOR_KEY = "dashboard_journal_dose_calculator_enabled"
         const val JOURNAL_NAVIGATION_TAB_KEY = "dashboard_journal_navigation_tab_enabled"
@@ -878,12 +882,12 @@ class DashboardViewModel(
     private fun startHistoryCollectionForMode(mode: CollectionMode) {
         val recoveryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> 0L
+            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
             CollectionMode.FULL_HISTORY -> 0L
         }
         val queryStartTimeMs = when (mode) {
             CollectionMode.INACTIVE -> return
-            CollectionMode.DASHBOARD -> 0L
+            CollectionMode.DASHBOARD -> System.currentTimeMillis() - DASHBOARD_HISTORY_WINDOW_MS
             CollectionMode.FULL_HISTORY -> 0L
         }
         activeHistoryStartTimeMs = recoveryStartTimeMs
@@ -921,7 +925,10 @@ class DashboardViewModel(
             var lastRecoveryRequestSerial: String? = null
             var hasSeenHistoryEmission = false
             val rawHistoryFlow = when (mode) {
-                CollectionMode.DASHBOARD -> glucoseRepository.getDashboardHistoryFlowRaw(startTime = queryStartTimeMs)
+                CollectionMode.DASHBOARD -> glucoseRepository.getDashboardHistoryFlowRaw(
+                    startTime = queryStartTimeMs,
+                    fallbackWindowMs = DASHBOARD_HISTORY_WINDOW_MS
+                )
                 CollectionMode.FULL_HISTORY -> glucoseRepository.getHistoryFlowRaw(queryStartTimeMs)
                 CollectionMode.INACTIVE -> return@launch
             }
