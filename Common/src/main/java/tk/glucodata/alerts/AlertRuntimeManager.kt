@@ -226,7 +226,7 @@ object AlertRuntimeManager {
         val configs = standardGlucoseAlertTypes.associateWith { AlertRepository.loadConfig(it) }
         val activeConditions = resolveActiveStandardGlucoseAlerts(glucoseValue, rate, configs)
         val activeTypes = activeConditions.keys
-        rearmExpiredDismissalsLocked(activeTypes)
+        val rearmedTypes = rearmExpiredDismissalsLocked(activeTypes)
         val transition = standardEpisodes.update(activeTypes)
 
         transition.cleared.forEach { type ->
@@ -259,6 +259,13 @@ object AlertRuntimeManager {
         val triggered = triggerAlert(type, condition.glucoseValue, rate, message)
         if (triggered) {
             standardEpisodes.clearPending(type)
+        } else if (type in rearmedTypes) {
+            // The ceiling released this episode's dismissal on this very tick, and delivery
+            // still failed. The released record was the only thing that could re-arm the
+            // episode again, so put it back and let the ceiling run a second time rather
+            // than leave a still-active low with nothing left to wake it.
+            AlertStateTracker.restoreDismissalAfterFailedDelivery(type)
+            standardEpisodes.markPendingDelivery(type)
         } else if (AlertStateTracker.isWaitingForRearmCooldown(type)) {
             // A threshold entry during the short rearm cooldown must remain eligible;
             // otherwise the alert is lost until glucose first returns to normal.
@@ -278,13 +285,19 @@ object AlertRuntimeManager {
      * Runs before [AlertEpisodeState.update] so the restored pendingDelivery flag reaches
      * this tick's transition: update() keeps it for every type still active, whereas a
      * mark made afterwards would only be seen a tick later.
+     *
+     * @return the types re-armed on this tick, so a delivery that then fails can put their
+     * dismissal back rather than spend it for nothing.
      */
-    private fun rearmExpiredDismissalsLocked(activeTypes: Set<AlertType>) {
+    private fun rearmExpiredDismissalsLocked(activeTypes: Set<AlertType>): Set<AlertType> {
+        val rearmed = mutableSetOf<AlertType>()
         dismissRearmCeilingMs.forEach { (type, ceilingMs) ->
             if (type !in activeTypes) return@forEach
             if (!AlertStateTracker.consumeExpiredDismissal(type, ceilingMs)) return@forEach
             standardEpisodes.markPendingDelivery(type)
+            rearmed.add(type)
         }
+        return rearmed
     }
 
     private fun updateSustainedLowTimersLocked(

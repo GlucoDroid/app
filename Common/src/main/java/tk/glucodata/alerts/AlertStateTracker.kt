@@ -128,6 +128,23 @@ object AlertStateTracker {
         return true
     }
 
+    /**
+     * Put back a dismissal that [consumeExpiredDismissal] released for an alert which then
+     * failed to deliver.
+     *
+     * Consuming the record is what lets the re-armed episode fire, but it also spends the
+     * only thing that can re-arm it again: on a failed delivery the episode is left with no
+     * dismissal record and no cooldown, so it would fall silent for good — the open-ended
+     * silence the ceiling exists to prevent. Restarting the ceiling from now costs one more
+     * ceiling of delay in a case that should not happen, instead of costing every future
+     * alert of the episode.
+     */
+    @Synchronized
+    fun restoreDismissalAfterFailedDelivery(type: AlertType) {
+        dismissals.dismiss(type, System.currentTimeMillis())
+        Log.i(LOG_ID, "Restored dismissal of ${type.name}: rearmed alert did not deliver")
+    }
+
     @Synchronized
     fun consumeManualTestAction(type: AlertType): Boolean {
         return manualTests.consumeAction(type)
