@@ -40,6 +40,16 @@ object AlertRuntimeManager {
     private val risingDeltaState = DeltaAlarmState(falling = false)
     private val calibrationReadingBarrier = ReadingTimestampBarrier()
 
+    // Dismiss ("Stop") suppresses a threshold episode until glucose recovers, which for a
+    // value that just sits below the low threshold is never. These ceilings bound that: a
+    // still-active low episode re-arms once its ceiling passes, so one tap on the alarm
+    // screen cannot leave a sustained low unalarmed for hours. Only the low types get one —
+    // silence on a high is uncomfortable, silence on a low is dangerous.
+    private val dismissRearmCeilingMs = mapOf(
+        AlertType.VERY_LOW to 15L * 60_000L,
+        AlertType.LOW to 30L * 60_000L
+    )
+
     private val standardGlucoseAlertTypes = listOf(
         AlertType.VERY_LOW,
         AlertType.LOW,
@@ -216,6 +226,7 @@ object AlertRuntimeManager {
         val configs = standardGlucoseAlertTypes.associateWith { AlertRepository.loadConfig(it) }
         val activeConditions = resolveActiveStandardGlucoseAlerts(glucoseValue, rate, configs)
         val activeTypes = activeConditions.keys
+        rearmExpiredDismissalsLocked(activeTypes)
         val transition = standardEpisodes.update(activeTypes)
 
         transition.cleared.forEach { type ->
@@ -259,6 +270,21 @@ object AlertRuntimeManager {
             standardGlucoseAlertHandled = true,
             standardGlucoseAlertStarted = triggered
         )
+    }
+
+    /**
+     * Re-arm low episodes whose dismissal has outlived its ceiling.
+     *
+     * Runs before [AlertEpisodeState.update] so the restored pendingDelivery flag reaches
+     * this tick's transition: update() keeps it for every type still active, whereas a
+     * mark made afterwards would only be seen a tick later.
+     */
+    private fun rearmExpiredDismissalsLocked(activeTypes: Set<AlertType>) {
+        dismissRearmCeilingMs.forEach { (type, ceilingMs) ->
+            if (type !in activeTypes) return@forEach
+            if (!AlertStateTracker.consumeExpiredDismissal(type, ceilingMs)) return@forEach
+            standardEpisodes.markPendingDelivery(type)
+        }
     }
 
     private fun updateSustainedLowTimersLocked(

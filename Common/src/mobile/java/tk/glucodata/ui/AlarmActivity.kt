@@ -85,6 +85,7 @@ class AlarmActivity : ComponentActivity() {
                 severity = model.severity,
                 trendResult = model.trendResult,
                 timeText = model.timeText,
+                snoozeMinutes = model.snoozeMinutes,
                 onSnooze = {
                     Notify.cancelQueuedAlarmActivityLaunch(
                         Notify.resolveAlertKind(model.alertType?.id ?: -1),
