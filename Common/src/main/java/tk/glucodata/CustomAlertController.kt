@@ -21,4 +21,7 @@ interface CustomAlertController {
     )
 
     fun dismissAlert(alertId: String)
+
+    /** Silence [alertId] for [snoozeMinutes], after which it may fire again on its own. */
+    fun snoozeAlert(alertId: String, snoozeMinutes: Int)
 }

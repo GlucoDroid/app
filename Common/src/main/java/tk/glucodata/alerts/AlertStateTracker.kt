@@ -20,8 +20,9 @@ object AlertStateTracker {
     private val cooldownUntilTime = mutableMapOf<AlertType, Long>()
     
     // User explicitly dismissed this alert for the current episode.
-    // It stays suppressed until the condition clears and resetState() is called.
-    private val dismissedAlerts = mutableSetOf<AlertType>()
+    // It stays suppressed until the condition clears and resetState() is called, or
+    // until consumeExpiredDismissal() releases it for a type that must not stay silent.
+    private val dismissals = EpisodeDismissalState<AlertType>()
 
     // Manual tests use the real delivery surface, but must never acknowledge,
     // snooze, or cool down the corresponding production alert episode.
@@ -54,7 +55,7 @@ object AlertStateTracker {
             return false
         }
 
-        if (dismissedAlerts.contains(type)) {
+        if (dismissals.isDismissed(type)) {
             Log.i(LOG_ID, "${type.name}: Suppressed by episode dismissal")
             return false
         }
@@ -86,7 +87,7 @@ object AlertStateTracker {
         if (manualTests.isActive(type)) {
             return false
         }
-        dismissedAlerts.remove(type)
+        dismissals.clear(type)
         lastTriggerTime[type] = System.currentTimeMillis()
         cooldownUntilTime[type] = lastTriggerTime.getValue(type) + DEFAULT_REARM_COOLDOWN_MS
         SmsWatchdog.onAlertFired(type.id)
@@ -98,10 +99,50 @@ object AlertStateTracker {
         if (manualTests.consumeAction(type)) {
             return false
         }
-        dismissedAlerts.add(type)
+        dismissals.dismiss(type, System.currentTimeMillis())
         SmsWatchdog.onAlertAcknowledged(type.id)
         Log.i(LOG_ID, "Dismissed ${type.name} for current episode")
         return true
+    }
+
+    /**
+     * Release an episode dismissal that has been held longer than [ceilingMs].
+     *
+     * A dismissal normally lasts until the condition clears. For a glucose value that
+     * simply stays past its threshold that never happens, so a single tap can silence
+     * the alert indefinitely — the failure mode behind a low that ran for over an hour
+     * with no second alarm. Callers that cannot afford open-ended silence pass a
+     * ceiling; once it passes the episode is re-armed exactly as if it had never fired,
+     * so the next evaluation treats it as a first trigger.
+     *
+     * @return true on the single call that releases the dismissal.
+     */
+    @Synchronized
+    fun consumeExpiredDismissal(type: AlertType, ceilingMs: Long): Boolean {
+        if (!dismissals.consumeExpired(type, ceilingMs, System.currentTimeMillis())) {
+            return false
+        }
+        Log.i(LOG_ID, "Dismissal of ${type.name} expired after ${ceilingMs}ms; rearming")
+        lastTriggerTime.remove(type)
+        cooldownUntilTime.remove(type)
+        return true
+    }
+
+    /**
+     * Put back a dismissal that [consumeExpiredDismissal] released for an alert which then
+     * failed to deliver.
+     *
+     * Consuming the record is what lets the re-armed episode fire, but it also spends the
+     * only thing that can re-arm it again: on a failed delivery the episode is left with no
+     * dismissal record and no cooldown, so it would fall silent for good — the open-ended
+     * silence the ceiling exists to prevent. Restarting the ceiling from now costs one more
+     * ceiling of delay in a case that should not happen, instead of costing every future
+     * alert of the episode.
+     */
+    @Synchronized
+    fun restoreDismissalAfterFailedDelivery(type: AlertType) {
+        dismissals.dismiss(type, System.currentTimeMillis())
+        Log.i(LOG_ID, "Restored dismissal of ${type.name}: rearmed alert did not deliver")
     }
 
     @Synchronized
@@ -111,7 +152,7 @@ object AlertStateTracker {
 
     @Synchronized
     fun isWaitingForRearmCooldown(type: AlertType): Boolean {
-        return type !in dismissedAlerts &&
+        return !dismissals.isDismissed(type) &&
             (cooldownUntilTime[type] ?: 0L) > System.currentTimeMillis()
     }
 
@@ -130,15 +171,55 @@ object AlertStateTracker {
     fun resetState(type: AlertType) {
         if (
             lastTriggerTime.containsKey(type) ||
-            dismissedAlerts.contains(type) ||
+            dismissals.isDismissed(type) ||
             manualTests.isPending(type)
         ) {
             Log.i(LOG_ID, "Resetting state for ${type.name}")
         }
         lastTriggerTime.remove(type)
-        dismissedAlerts.remove(type)
+        dismissals.clear(type)
         manualTests.clearPending(type)
         SmsWatchdog.onAlertResolved(type.id)
+    }
+}
+
+/**
+ * Episode dismissals, each remembered with the moment it was made.
+ *
+ * The timestamp exists so a dismissal can be given a ceiling: see
+ * [AlertStateTracker.consumeExpiredDismissal]. Without one, a dismissal lasts until the
+ * condition clears, which a persistent condition never does.
+ */
+internal class EpisodeDismissalState<T> {
+    private val dismissedAtMs = mutableMapOf<T, Long>()
+
+    fun dismiss(key: T, nowMs: Long) {
+        dismissedAtMs[key] = nowMs
+    }
+
+    fun isDismissed(key: T): Boolean = key in dismissedAtMs
+
+    fun clear(key: T) {
+        dismissedAtMs.remove(key)
+    }
+
+    /**
+     * @return true on the single call where [key] has been dismissed for at least
+     * [ceilingMs]; the dismissal is dropped at that point. A ceiling of zero or less
+     * means "no ceiling" and never expires.
+     */
+    fun consumeExpired(key: T, ceilingMs: Long, nowMs: Long): Boolean {
+        if (ceilingMs <= 0L) return false
+        val dismissedAt = dismissedAtMs[key] ?: return false
+        if (dismissedAt > nowMs) {
+            // Clock moved backwards. Re-baseline rather than wait it out, so the ceiling
+            // stays reachable instead of the dismissal becoming permanent.
+            dismissedAtMs[key] = nowMs
+            return false
+        }
+        if (nowMs - dismissedAt < ceilingMs) return false
+        dismissedAtMs.remove(key)
+        return true
     }
 }
 

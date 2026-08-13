@@ -70,12 +70,24 @@ object CustomAlertAccess {
     }
 
     /**
-     * Wear alarm actions. The controller interface only exposes dismissal, so
-     * snooze stops the current alarm and relies on the engine's own re-trigger
-     * spacing; a per-alert timed snooze needs a controller-level API first.
+     * Wear alarm actions. Snooze used to be an alias for [dismissAlert], which
+     * ignored [snoozeMinutes] and silenced the alert until its condition cleared
+     * rather than for the requested time; the engine's own timed snooze is now
+     * reachable through the controller.
+     *
+     * @return whether the engine actually handled the snooze.
      */
     @JvmStatic
-    fun snoozeAlert(alertId: String, snoozeMinutes: Int): Boolean = dismissAlert(alertId)
+    fun snoozeAlert(alertId: String, snoozeMinutes: Int): Boolean {
+        val target = controller
+        if (target == null) {
+            warnMissing("snoozeAlert")
+            return false
+        }
+        return runCatching { target.snoozeAlert(alertId, snoozeMinutes); true }
+            .onFailure { Log.stack(LOG_ID, "snoozeAlert", it) }
+            .getOrDefault(false)
+    }
 
     @JvmStatic
     fun ignoreAlert(alertId: String): Boolean = dismissAlert(alertId)

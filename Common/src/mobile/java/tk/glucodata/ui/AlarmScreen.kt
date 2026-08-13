@@ -98,6 +98,7 @@ fun AlarmScreen(
     severity: AlarmSeverity,
     trendResult: TrendEngine.TrendResult,
     timeText: String,
+    snoozeMinutes: Int,
     onSnooze: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -113,6 +114,7 @@ fun AlarmScreen(
             trend = trend,
             trendResult = trendResult,
             typographyChoice = typographyChoice,
+            snoozeMinutes = snoozeMinutes,
             onSnooze = onSnooze,
             onDismiss = onDismiss
         )
@@ -127,6 +129,7 @@ private fun PixelAlarmContent(
     trend: Trend,
     trendResult: TrendEngine.TrendResult,
     typographyChoice: AlarmTypographyChoice,
+    snoozeMinutes: Int,
     onSnooze: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -226,6 +229,7 @@ private fun PixelAlarmContent(
             ) {
                 ActionDock(
                     compact = compact,
+                    snoozeMinutes = snoozeMinutes,
                     onSnooze = onSnooze,
                     onDismiss = onDismiss,
                     modifier = Modifier.padding(bottom = if (compact) 16.dp else 24.dp)
@@ -394,6 +398,7 @@ private fun HeroBlock(
 @Composable
 private fun ActionDock(
     compact: Boolean,
+    snoozeMinutes: Int,
     onSnooze: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -410,29 +415,29 @@ private fun ActionDock(
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+            // Snooze is full width, like Stop. As a small right-aligned chip it read as the
+            // minor option next to a large primary button, so a half-awake tap landed on
+            // Stop — which suppresses the episode until glucose recovers, not for a set
+            // time. Naming the duration here makes the difference between the two explicit.
+            FilledTonalButton(
+                onClick = onSnooze,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (compact) 68.dp else 74.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             ) {
-                FilledTonalButton(
-                    onClick = onSnooze,
-                    modifier = Modifier
-                        .fillMaxWidth(if (compact) 0.42f else 0.36f)
-                        .height(if (compact) 58.dp else 62.dp),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-                    contentPadding = PaddingValues(horizontal = 24.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                Text(
+                    text = stringResource(R.string.snooze) + " " +
+                        stringResource(R.string.minutes_short_format, snoozeMinutes),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Medium
                     )
-                ) {
-                    Text(
-                        text = stringResource(R.string.snooze),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Medium
-                        )
-                    )
-                }
+                )
             }
 
             Button(
