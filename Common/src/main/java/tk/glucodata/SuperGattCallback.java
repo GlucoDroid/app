@@ -347,8 +347,21 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             glucosealarms = new tk.glucodata.GlucoseAlarms(Applic.app);
         if (!DontTalk) {
             Talker.getvalues();
-            if (Talker.shouldtalk())
-                newtalker(null);
+            // Only (re)create the shared Talker/TextToSpeech if none exists yet.
+            // This watchdog fires roughly every glucosetimeout while a sensor/data
+            // loss condition persists (potentially dozens of times per hour), and
+            // unconditionally recreating the engine here was destroying+rebuilding
+            // the SAME talker instance the normal periodic announcer speaks through
+            // — silencing announcements for the whole outage and sometimes leaving
+            // the engine mid-reinit exactly when data resumed. See handoff notes:
+            // ~/Downloads/GD--HANDOFF-tts-blackouts.md (Hypothesis B).
+            if (Talker.shouldtalk()) {
+                if (!Talker.istalking()) {
+                    newtalker(null);
+                } else if (doLog) {
+                    Log.i(LOG_ID, "initAlarmTalk: talker already active, skipping recreate");
+                }
+            }
         }
     }
 
@@ -357,6 +370,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
     static void newtalker(Context context) {
         if (!DontTalk) {
+            if (doLog) {
+                Log.i(LOG_ID, "newtalker: " + (talker != null ? "destroying existing talker and recreating" : "creating talker"));
+            }
             if (talker != null)
                 talker.destruct();
             talker = new Talker(context);
@@ -620,11 +636,18 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         UiRefreshBus.requestDataRefresh();
 
         if (!DontTalk) {
+            if (doLog) {
+                Log.i(LOG_ID, "periodic-speak-gate dotalk=" + dotalk
+                        + " alarmSpeechStarted=" + alarmSpeechStarted
+                        + " talker=" + (talker != null));
+            }
             if (dotalk && !alarmSpeechStarted) {
                 long readingAgeMs = System.currentTimeMillis() - timmsec;
                 if (readingAgeMs > Notify.glucosetimeout) {
                     if (AlertRepository.INSTANCE.loadConfig(AlertType.MISSED_READING).getEnabled()) {
                         talker.selspeak(Applic.app.getString(R.string.tts_missed_readings));
+                    } else if (doLog) {
+                        Log.i(LOG_ID, "periodic-speak-gate SKIPPED: missed-reading alert disabled");
                     }
                 } else {
                     // Speak the calibrated display value (same source as the display,
@@ -633,6 +656,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                             CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
                     talker.selspeak(speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
                 }
+            } else if (doLog) {
+                Log.i(LOG_ID, "periodic-speak-gate SKIPPED: dotalk=" + dotalk
+                        + " alarmSpeechStarted=" + alarmSpeechStarted);
             }
         }
         if (isWearable) {

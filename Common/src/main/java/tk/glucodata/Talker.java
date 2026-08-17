@@ -577,9 +577,19 @@ volatile static long nexttime=0L;
 void selspeak(String message) {
     if(!DontTalk) {
         var now=System.currentTimeMillis();
-        if(now>nexttime && SpeakSchedule.INSTANCE.isWithinSchedule(Applic.app)) {
+        final boolean intervalElapsed = now>nexttime;
+        final boolean withinSchedule = SpeakSchedule.INSTANCE.isWithinSchedule(Applic.app);
+        if(doLog) {
+            Log.i(LOG_ID, "selspeak intervalElapsed=" + intervalElapsed
+                    + " (now=" + now + " nexttime=" + nexttime + " cursep=" + cursep + ")"
+                    + " withinSchedule=" + withinSchedule);
+            }
+        if(intervalElapsed && withinSchedule) {
             nexttime=now+cursep;
             speak(message);
+            }
+        else if(doLog) {
+            Log.i(LOG_ID, "selspeak SKIPPED message=\"" + message + "\"");
             }
           }
     }
