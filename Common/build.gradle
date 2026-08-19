@@ -65,8 +65,8 @@ android {
     //    buildConfigField 'int', 'noZXing', '1'
         //compileSdk 36
         applicationId "cloud.glucodroid"
-        versionCode 84003
-        versionName '0.4.0.3-alpha'
+        versionCode 84004
+        versionName '0.4.0.4-alpha-diag'
 //    multiDexEnabled true
         // Was the `google` product flavour. Play Services is now unconditional, so
         // the dimension only made every variant name one word longer.
