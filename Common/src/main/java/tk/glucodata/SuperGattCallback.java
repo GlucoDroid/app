@@ -39,8 +39,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import tk.glucodata.alerts.AlertConfig;
-import tk.glucodata.alerts.AlertRepository;
-import tk.glucodata.alerts.AlertType;
 import tk.glucodata.drivers.ManagedBluetoothSensorDriver;
 
 import static android.bluetooth.BluetoothDevice.BOND_BONDED;
@@ -658,20 +656,30 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                     }
                     newtalker(null);
                 }
-                long readingAgeMs = System.currentTimeMillis() - timmsec;
-                if (readingAgeMs > Notify.glucosetimeout) {
-                    if (AlertRepository.INSTANCE.loadConfig(AlertType.MISSED_READING).getEnabled()) {
-                        talker.selspeak(Applic.app.getString(R.string.tts_missed_readings));
-                    } else if (doLog) {
-                        Log.i(LOG_ID, "periodic-speak-gate SKIPPED: missed-reading alert disabled");
-                    }
-                } else {
-                    // Speak the calibrated display value (same source as the display,
-                    // notifications, and alarm speech) rather than the raw native value.
-                    final CurrentDisplaySource.Snapshot speakcurrent =
-                            CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
-                    talker.selspeak(speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
-                }
+                // Always offer the currently valid reading to Talker.selspeak() - do NOT
+                // gate this on reading age. Talker.selspeak() itself synchronously decides,
+                // per call, whether intervalElapsed && withinSchedule justify actually
+                // speaking (see the "selspeak intervalElapsed=... withinSchedule=..." log),
+                // so this call site doesn't need to guess ahead of time.
+                //
+                // A prior version returned here to a MISSED_READING alert instead of
+                // speaking once the reading was older than Notify.glucosetimeout (330s).
+                // Since the user-configured voice-separation interval (cursep) is commonly
+                // longer than that freshness window, and MISSED_READING is commonly
+                // disabled, that path silently dropped the announcement for good: once a
+                // reading crossed 330s old, selspeak() was never called again for it, even
+                // after cursep elapsed. Confirmed via trace: "periodic-speak-gate SKIPPED:
+                // missed-reading alert disabled" recurring every following minute with no
+                // further "Talker selspeak" line for that reading. The genuine
+                // missed-reading alert (true sensor dropout, not just an unlucky race
+                // between 330s and cursep) already has its own watchdog in
+                // AlertRuntimeManager, independent of this per-reading callback.
+                //
+                // Speak the calibrated display value (same source as the display,
+                // notifications, and alarm speech) rather than the raw native value.
+                final CurrentDisplaySource.Snapshot speakcurrent =
+                        CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
+                talker.selspeak(speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
             } else if (doLog) {
                 Log.i(LOG_ID, "periodic-speak-gate SKIPPED: dotalk=" + dotalk
                         + " alarmSpeechStarted=" + alarmSpeechStarted);
