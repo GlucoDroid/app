@@ -356,7 +356,12 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             // the engine mid-reinit exactly when data resumed. See handoff notes:
             // ~/Downloads/GD--HANDOFF-tts-blackouts.md (Hypothesis B).
             if (Talker.shouldtalk()) {
-                if (!Talker.istalking()) {
+                // istalking() alone only proves the object reference is non-null; it says
+                // nothing about whether the underlying TextToSpeech is actually bound. A
+                // talker that has racked up repeated real speak failures (see
+                // Talker.needsReinit()) is just as dead as a null one and needs the same
+                // recreate — confirmed root cause of the 2026-08-21..25 multi-day blackout.
+                if (!Talker.istalking() || talker.needsReinit()) {
                     newtalker(null);
                 } else if (doLog) {
                     Log.i(LOG_ID, "initAlarmTalk: talker already active, skipping recreate");
@@ -642,6 +647,17 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                         + " talker=" + (talker != null));
             }
             if (dotalk && !alarmSpeechStarted) {
+                // Heal a talker that's non-null but actually dead (e.g. the shared
+                // TextToSpeech got unbound by a com.google.android.tts update and never
+                // reconnected) right here, on the normal announce cadence, instead of
+                // waiting on the much rarer LossOfSensorAlarm watchdog in initAlarmTalk()
+                // to notice. See needsReinit() for how this is detected.
+                if (talker != null && talker.needsReinit()) {
+                    if (doLog) {
+                        Log.i(LOG_ID, "periodic-speak-gate: talker needsReinit, recreating");
+                    }
+                    newtalker(null);
+                }
                 long readingAgeMs = System.currentTimeMillis() - timmsec;
                 if (readingAgeMs > Notify.glucosetimeout) {
                     if (AlertRepository.INSTANCE.loadConfig(AlertType.MISSED_READING).getEnabled()) {

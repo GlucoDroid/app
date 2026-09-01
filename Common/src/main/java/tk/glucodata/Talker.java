@@ -540,10 +540,12 @@ public void speak(String message) {
                     ? engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, message)
                     : engine.speak(message, TextToSpeech.QUEUE_FLUSH, null);
             if (speakResult == TextToSpeech.SUCCESS) {
+                consecutiveSpeakFailures = 0;
                 if(doLog) {Log.i(LOG_ID,"success speak "+message);}
                 }
              else {
-                Log.e(LOG_ID,"failed speak "+message);
+                consecutiveSpeakFailures++;
+                Log.e(LOG_ID,"failed speak "+message+" consecutiveFailures="+consecutiveSpeakFailures);
                 if (ttsWakeLock != null && ttsWakeLock.isHeld()) ttsWakeLock.release();
                 }
             }
@@ -574,6 +576,26 @@ if(!DontTalk) {
          }
     }
 volatile static long nexttime=0L;
+
+// Tracks real engine health, as opposed to istalking() which only checks that
+// SuperGattCallback.talker is non-null. A talker object surviving a TTS-service
+// disconnect (e.g. com.google.android.tts auto-updating overnight, which unbinds
+// the TextToSpeech connection permanently until reconstructed) still passes
+// istalking(), so the LossOfSensorAlarm watchdog's recreate-on-loss guard
+// (SuperGattCallback.initAlarmTalk) never fired to heal it — confirmed in
+// trace_speak.log/logcat_speak.txt 2026-08-21..25: "TextToSpeech: Disconnected
+// from TTS engine" once at 01:25 after a com.google.android.tts package REPLACE,
+// then 172 consecutive "failed speak"/"not bound to TTS engine" results with
+// zero recovery over 4+ days. speak() increments this on any non-SUCCESS
+// result and resets it on success; needsReinit() lets callers force a recreate
+// once a real, repeated failure is observed, rather than churning on every
+// watchdog tick (that was the prior, now-fixed, bug).
+private volatile int consecutiveSpeakFailures = 0;
+private static final int REINIT_FAILURE_THRESHOLD = 2;
+boolean needsReinit() {
+    return consecutiveSpeakFailures >= REINIT_FAILURE_THRESHOLD;
+}
+
 void selspeak(String message) {
     if(!DontTalk) {
         var now=System.currentTimeMillis();
