@@ -39,8 +39,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import tk.glucodata.alerts.AlertConfig;
-import tk.glucodata.alerts.AlertRepository;
-import tk.glucodata.alerts.AlertType;
 import tk.glucodata.drivers.ManagedBluetoothSensorDriver;
 
 import static android.bluetooth.BluetoothDevice.BOND_BONDED;
@@ -347,8 +345,32 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             glucosealarms = new tk.glucodata.GlucoseAlarms(Applic.app);
         if (!DontTalk) {
             Talker.getvalues();
-            if (Talker.shouldtalk())
-                newtalker(null);
+            // Only (re)create the shared Talker/TextToSpeech if none exists yet.
+            // This watchdog fires roughly every glucosetimeout while a sensor/data
+            // loss condition persists (potentially dozens of times per hour), and
+            // unconditionally recreating the engine here was destroying+rebuilding
+            // the SAME talker instance the normal periodic announcer speaks through
+            // — silencing announcements for the whole outage and sometimes leaving
+            // the engine mid-reinit exactly when data resumed. See handoff notes:
+            // ~/Downloads/GD--HANDOFF-tts-blackouts.md (Hypothesis B).
+            if (Talker.shouldtalk()) {
+                // istalking() alone only proves the object reference is non-null; it says
+                // nothing about whether the underlying TextToSpeech is actually bound. A
+                // talker that has racked up repeated real speak failures (see
+                // Talker.needsReinit()) is just as dead as a null one and needs the same
+                // recreate — confirmed root cause of the 2026-08-21..25 multi-day blackout.
+                //
+                // `talker` is a plain (non-volatile, unsynchronized) static field that
+                // endtalk() can null from another thread at any time — read it into a
+                // local once so the null-check and the needsReinit() call see the same
+                // reference, instead of two separate reads racing a concurrent endtalk().
+                final Talker currentTalker = talker;
+                if (currentTalker == null || currentTalker.needsReinit()) {
+                    newtalker(null);
+                } else if (doLog) {
+                    Log.i(LOG_ID, "initAlarmTalk: talker already active, skipping recreate");
+                }
+            }
         }
     }
 
@@ -357,6 +379,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
     static void newtalker(Context context) {
         if (!DontTalk) {
+            if (doLog) {
+                Log.i(LOG_ID, "newtalker: " + (talker != null ? "destroying existing talker and recreating" : "creating talker"));
+            }
             if (talker != null)
                 talker.destruct();
             talker = new Talker(context);
@@ -620,19 +645,71 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         UiRefreshBus.requestDataRefresh();
 
         if (!DontTalk) {
+            if (doLog) {
+                Log.i(LOG_ID, "periodic-speak-gate dotalk=" + dotalk
+                        + " alarmSpeechStarted=" + alarmSpeechStarted
+                        + " talker=" + (talker != null));
+            }
             if (dotalk && !alarmSpeechStarted) {
-                long readingAgeMs = System.currentTimeMillis() - timmsec;
-                if (readingAgeMs > Notify.glucosetimeout) {
-                    if (AlertRepository.INSTANCE.loadConfig(AlertType.MISSED_READING).getEnabled()) {
-                        talker.selspeak(Applic.app.getString(R.string.tts_missed_readings));
+                // Heal a talker that's non-null but actually dead (e.g. the shared
+                // TextToSpeech got unbound by a com.google.android.tts update and never
+                // reconnected) right here, on the normal announce cadence, instead of
+                // waiting on the much rarer LossOfSensorAlarm watchdog in initAlarmTalk()
+                // to notice. See needsReinit() for how this is detected.
+                //
+                // `talker` is a plain (non-volatile, unsynchronized) static field that
+                // endtalk() can null from another thread at any time — read it into a
+                // local once so the null-check and the needsReinit() call see the same
+                // reference, instead of two separate reads racing a concurrent endtalk().
+                final Talker currentTalker = talker;
+                final boolean justRecreated = currentTalker != null && currentTalker.needsReinit();
+                if (justRecreated) {
+                    if (doLog) {
+                        Log.i(LOG_ID, "periodic-speak-gate: talker needsReinit, recreating");
+                    }
+                    newtalker(null);
+                }
+                if (justRecreated) {
+                    // Skip speaking through the talker we just recreated above: its
+                    // TextToSpeech binds asynchronously (onInit), so speaking immediately
+                    // would very likely fail while it's still initializing, re-arming
+                    // consecutiveSpeakFailures and reintroducing the same recreate-churn
+                    // this fix is meant to eliminate. The next reading (normally ~1
+                    // minute later) will find a bound engine and speak normally.
+                    if (doLog) {
+                        Log.i(LOG_ID, "periodic-speak-gate: skipping speak this cycle, talker just recreated");
                     }
                 } else {
+                    // Always offer the currently valid reading to Talker.selspeak() - do
+                    // NOT gate this on reading age. Talker.selspeak() itself synchronously
+                    // decides, per call, whether intervalElapsed && withinSchedule justify
+                    // actually speaking (see the "selspeak intervalElapsed=...
+                    // withinSchedule=..." log), so this call site doesn't need to guess
+                    // ahead of time.
+                    //
+                    // A prior version returned here to a MISSED_READING alert instead of
+                    // speaking once the reading was older than Notify.glucosetimeout (330s).
+                    // Since the user-configured voice-separation interval (cursep) is
+                    // commonly longer than that freshness window, and MISSED_READING is
+                    // commonly disabled, that path silently dropped the announcement for
+                    // good: once a reading crossed 330s old, selspeak() was never called
+                    // again for it, even after cursep elapsed. Confirmed via trace:
+                    // "periodic-speak-gate SKIPPED: missed-reading alert disabled"
+                    // recurring every following minute with no further "Talker selspeak"
+                    // line for that reading. The genuine missed-reading alert (true sensor
+                    // dropout, not just an unlucky race between 330s and cursep) already
+                    // has its own watchdog in AlertRuntimeManager, independent of this
+                    // per-reading callback.
+                    //
                     // Speak the calibrated display value (same source as the display,
                     // notifications, and alarm speech) rather than the raw native value.
                     final CurrentDisplaySource.Snapshot speakcurrent =
                             CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
                     talker.selspeak(speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
                 }
+            } else if (doLog) {
+                Log.i(LOG_ID, "periodic-speak-gate SKIPPED: dotalk=" + dotalk
+                        + " alarmSpeechStarted=" + alarmSpeechStarted);
             }
         }
         if (isWearable) {
