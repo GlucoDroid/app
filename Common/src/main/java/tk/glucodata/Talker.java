@@ -550,6 +550,10 @@ public void speak(String message) {
                 }
             }
         catch(Throwable th) {
+            // A dead/unbound TTS engine can fail by throwing (e.g. a dead Binder)
+            // rather than returning a non-SUCCESS result code - count it the same
+            // way, or needsReinit() never trips for that failure mode.
+            consecutiveSpeakFailures++;
             if (ttsWakeLock != null && ttsWakeLock.isHeld()) ttsWakeLock.release();
             Log.stack(LOG_ID,"speak failed",th);
             }
