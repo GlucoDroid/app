@@ -28,16 +28,32 @@ import org.junit.Test
 class TalkerRateLimiterTests {
 
     // A pure reimplementation of the selspeak gate (no Android deps).
-    private class RateLimiter(private val separationMs: Long) {
+    private class RateLimiter(
+        private val separationMs: Long,
+        /** Whether the engine accepts utterances; false models a dead/unbound TextToSpeech. */
+        var speakSucceeds: Boolean = true
+    ) {
         var nexttime: Long = 0L
         var speakCount: Int = 0
+        /** Attempts handed to the engine, successful or not — what needsReinit() counts. */
+        var attemptCount: Int = 0
 
         fun selspeak(nowMs: Long) {
             if (nowMs > nexttime) {
                 nexttime = nowMs + separationMs
-                speakCount++
+                attemptCount++
+                if (speakSucceeds) {
+                    speakCount++
+                } else {
+                    nexttime = nowMs + minOf(separationMs, FAILED_SPEAK_RETRY_MS)
+                }
             }
         }
+    }
+
+    private companion object {
+        const val FAILED_SPEAK_RETRY_MS = 30_000L
+        const val REINIT_FAILURE_THRESHOLD = 2
     }
 
     @Test
@@ -107,6 +123,65 @@ class TalkerRateLimiterTests {
             "Expected <= 61 utterances per hour with 1-min separation, got ${limiter.speakCount}",
             limiter.speakCount <= 61
         )
+    }
+
+    // ---------- a refused utterance must not cost a whole separation interval ----------
+    // consecutiveSpeakFailures counts announcement *attempts*, and attempts only happen once
+    // per cursep, so charging a failed attempt the full interval made the time to notice a
+    // dead engine scale with a user setting. These pin the fix.
+
+    @Test
+    fun selspeak_failedSpeak_retriesOnNextReading_notAfterFullSeparation() {
+        val sep = 999_000L                          // the separation seen in the 09-02..09-08 traces
+        val limiter = RateLimiter(separationMs = sep, speakSucceeds = false)
+        // nexttime starts at 0 and the gate is now > nexttime, so start at 1ms, not 0.
+        limiter.selspeak(nowMs = 1L)
+        assertEquals("the attempt should have been made", 1, limiter.attemptCount)
+        // One reading later (readings arrive about every 60s) the gate must be open again.
+        limiter.selspeak(nowMs = 60_001L)
+        assertEquals("a refused utterance must not consume the interval", 2, limiter.attemptCount)
+    }
+
+    @Test
+    fun selspeak_deadEngine_reachesReinitThreshold_withinMinutesNotSeparations() {
+        val sep = 999_000L
+        val limiter = RateLimiter(separationMs = sep, speakSucceeds = false)
+        var t = 1L
+        // Readings every 60s; find when the failure count reaches the recreate threshold.
+        while (limiter.attemptCount < REINIT_FAILURE_THRESHOLD && t <= sep) {
+            limiter.selspeak(nowMs = t)
+            t += 60_000L
+        }
+        assertTrue(
+            "dead engine must be detectable well inside one separation interval, took ${t}ms",
+            limiter.attemptCount >= REINIT_FAILURE_THRESHOLD && t < sep
+        )
+    }
+
+    @Test
+    fun selspeak_successfulSpeak_stillChargesFullSeparation() {
+        // The retry path must not weaken normal throttling.
+        val sep = 999_000L
+        val limiter = RateLimiter(separationMs = sep, speakSucceeds = true)
+        limiter.selspeak(nowMs = 1L)                // speaks; nexttime becomes 1 + sep
+        limiter.selspeak(nowMs = 60_001L)
+        limiter.selspeak(nowMs = sep)
+        assertEquals("only the first call may speak inside one interval", 1, limiter.speakCount)
+        limiter.selspeak(nowMs = sep + 2)
+        assertEquals(2, limiter.speakCount)
+    }
+
+    @Test
+    fun selspeak_recoveryAfterFailure_resumesNormalCadence() {
+        val sep = 999_000L
+        val limiter = RateLimiter(separationMs = sep, speakSucceeds = false)
+        limiter.selspeak(nowMs = 1L)                // refused, so only ~30s is charged
+        assertEquals("nothing was spoken yet", 0, limiter.speakCount)
+        limiter.speakSucceeds = true
+        limiter.selspeak(nowMs = 60_001L)
+        assertEquals("the retry should have spoken", 1, limiter.speakCount)
+        limiter.selspeak(nowMs = 120_001L)
+        assertEquals("and then throttle normally again", 1, limiter.speakCount)
     }
 
     @Test

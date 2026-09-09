@@ -580,7 +580,14 @@ private static void ensureMinStreamVolume() {
     }
 }
 
-public void speak(String message) {
+/**
+ * Hand an utterance to the engine.
+ *
+ * @return true only when the engine accepted it. Callers that ration announcements must not
+ *         charge the user's separation interval for an utterance that never reached the
+ *         engine — see {@link #selspeak}.
+ */
+public boolean speak(String message) {
     if(!DontTalk) {
         try {
             ensureMinStreamVolume();
@@ -591,6 +598,7 @@ public void speak(String message) {
             if (speakResult == TextToSpeech.SUCCESS) {
                 consecutiveSpeakFailures = 0;
                 if(doLog) {Log.i(LOG_ID,"success speak "+message);}
+                return true;
                 }
              else {
                 consecutiveSpeakFailures++;
@@ -607,6 +615,7 @@ public void speak(String message) {
             Log.stack(LOG_ID,"speak failed",th);
             }
         }
+    return false;
     }
 static boolean notifyfocus=false;
 //private static final AudioAttributes notification_audio = (new AudioAttributes.Builder()) .setLegacyStreamType(TextToSpeech.Engine.DEFAULT_STREAM) .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH) .build(); 
@@ -645,6 +654,10 @@ volatile static long nexttime=0L;
 // watchdog tick (that was the prior, now-fixed, bug).
 private volatile int consecutiveSpeakFailures = 0;
 private static final int REINIT_FAILURE_THRESHOLD = 2;
+/** How long selspeak() defers after an utterance the engine would not take. Short enough that
+ *  the next reading retries, so a failed attempt costs one reading rather than one whole
+ *  user-configured separation interval. */
+private static final long FAILED_SPEAK_RETRY_MS = 30_000L;
 boolean needsReinit() {
     return consecutiveSpeakFailures >= REINIT_FAILURE_THRESHOLD;
 }
@@ -660,8 +673,21 @@ void selspeak(String message) {
                     + " withinSchedule=" + withinSchedule);
             }
         if(intervalElapsed && withinSchedule) {
+            // Claim the slot before speaking, so two readings arriving back to back cannot
+            // both announce — then hand nearly all of it back if the engine refused the
+            // utterance. Charging a failed attempt the full separation interval made the
+            // engine-health watchdog's detection latency scale with a user setting, which
+            // is backwards: consecutiveSpeakFailures counts announcement *attempts*, and
+            // attempts only happen once per cursep, so REINIT_FAILURE_THRESHOLD=2 meant a
+            // dead engine went unnoticed for 2 x cursep. At the 300s separation this app
+            // was usually run with that is 10 minutes; at the 999s in the 09-02..09-08
+            // traces it is 33 minutes, and every further failure cost another 16m39s of
+            // silence. Retrying on the next reading instead makes detection ~2 minutes
+            // regardless of how the user has set the interval.
             nexttime=now+cursep;
-            speak(message);
+            if(!speak(message)) {
+                nexttime=now+Math.min(cursep,FAILED_SPEAK_RETRY_MS);
+                }
             }
         else if(doLog) {
             Log.i(LOG_ID, "selspeak SKIPPED message=\"" + message + "\"");
