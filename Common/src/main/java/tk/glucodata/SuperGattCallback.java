@@ -375,7 +375,95 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
     }
 
     static Talker talker;
-    static boolean dotalk = false;
+
+    /**
+     * Master "speak glucose readings" switch, mirroring the persisted (per alarm profile)
+     * {@code voiceactive} setting.
+     *
+     * <p>Never assign this field directly — go through {@link #setDotalk} so every transition
+     * is logged together with the code path that caused it. A silent flip of this flag is
+     * invisible in normal use: nothing in the app indicates that spoken readings are off, and
+     * the only trace of it was a once-a-minute "periodic-speak-gate SKIPPED: dotalk=false" line
+     * logged at the same level as everything else. That is how the 2026-09-04 15:37 ..
+     * 2026-09-06 14:40 blackout (47h of total speech silence, ended only by a force-stop) went
+     * unnoticed, and why pinning the cause afterwards needed the whole trace rather than one
+     * line. See also {@link #warnIfSpeechDisabled}.
+     */
+    static volatile boolean dotalk = false;
+
+    /** Wall-clock ms at which speaking was last observed to be off, or 0 while it is on. */
+    private static volatile long dotalkDisabledSince = 0L;
+    /** Wall-clock ms of the last {@link #warnIfSpeechDisabled} line, to keep it to once an hour. */
+    private static volatile long lastDotalkDisabledWarn = 0L;
+    private static final long DOTALK_DISABLED_WARN_INTERVAL = 60L * 60L * 1000L;
+
+    /**
+     * Set the master speech switch, logging the transition and what caused it.
+     *
+     * @param value  the new value
+     * @param reason short tag naming the deciding code path, e.g. "compose-settings-save",
+     *               "getvalues/reload-from-store", "endtalk", "legacy-dialog-save"
+     */
+    static void setDotalk(boolean value, String reason) {
+        if (dotalk == value) {
+            return;
+        }
+        dotalk = value;
+        final long now = System.currentTimeMillis();
+        if (value) {
+            dotalkDisabledSince = 0L;
+            lastDotalkDisabledWarn = 0L;
+        } else {
+            dotalkDisabledSince = now;
+            lastDotalkDisabledWarn = now;
+        }
+        // Log.e rather than Log.i on purpose: Log.e is the one level that still reaches
+        // logcat when in-app tracing (doLog) is off, and these transitions are rare — a
+        // handful across a week — so this cannot become noise. It is the single line that
+        // answers "when, and because of what, did spoken readings stop?".
+        Log.e(LOG_ID, "dotalk " + (!value) + " -> " + value + " reason=" + reason
+                + " persisted voiceactive=" + persistedVoiceActive());
+    }
+
+    private static String persistedVoiceActive() {
+        try {
+            return Boolean.toString(Natives.getVoiceActive());
+        } catch (Throwable th) {
+            return "unavailable";
+        }
+    }
+
+    /**
+     * Escalate prolonged speech silence, at most once an hour, so a disabled "Speak glucose"
+     * switch surfaces within a day instead of hiding behind per-minute SKIPPED lines.
+     *
+     * <p>Called from the periodic announce gate rather than from {@link #setDotalk} because the
+     * flag can also start out false at process launch (persisted off), in which case there is no
+     * transition to observe at all — the 2026-09-06 restart came up that way.
+     */
+    private static void warnIfSpeechDisabled() {
+        if (dotalk) {
+            return;
+        }
+        final long now = System.currentTimeMillis();
+        if (dotalkDisabledSince == 0L) {
+            // Process came up with speaking already off; treat now as the earliest we can vouch for.
+            dotalkDisabledSince = now;
+            lastDotalkDisabledWarn = now;
+            return;
+        }
+        if (now - lastDotalkDisabledWarn < DOTALK_DISABLED_WARN_INTERVAL) {
+            return;
+        }
+        lastDotalkDisabledWarn = now;
+        final long offMinutes = (now - dotalkDisabledSince) / 60000L;
+        Log.e(LOG_ID, "spoken glucose readings have been OFF for at least "
+                + (offMinutes / 60L) + "h" + (offMinutes % 60L) + "m (observed off since "
+                + java.text.DateFormat.getDateTimeInstance()
+                        .format(new java.util.Date(dotalkDisabledSince))
+                + ") — the 'Speak glucose' setting is off; persisted voiceactive="
+                + persistedVoiceActive());
+    }
 
     static void newtalker(Context context) {
         if (!DontTalk) {
@@ -390,7 +478,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
     static void endtalk() {
         if (!DontTalk) {
-            dotalk = false;
+            setDotalk(false, "endtalk");
             if (talker != null) {
                 talker.destruct();
                 talker = null;
@@ -707,9 +795,15 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                             CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
                     talker.selspeak(speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
                 }
-            } else if (doLog) {
-                Log.i(LOG_ID, "periodic-speak-gate SKIPPED: dotalk=" + dotalk
-                        + " alarmSpeechStarted=" + alarmSpeechStarted);
+            } else {
+                // Outside the doLog guard: this is the one diagnostic that must still fire
+                // when in-app tracing is off, since that is exactly the configuration in
+                // which a silently disabled "Speak glucose" switch leaves no evidence at all.
+                warnIfSpeechDisabled();
+                if (doLog) {
+                    Log.i(LOG_ID, "periodic-speak-gate SKIPPED: dotalk=" + dotalk
+                            + " alarmSpeechStarted=" + alarmSpeechStarted);
+                }
             }
         }
         if (isWearable) {

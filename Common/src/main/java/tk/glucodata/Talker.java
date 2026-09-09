@@ -97,17 +97,47 @@ static private Spinner spinner=null;
 //static final private int minandroid=24; //21
 static final private int minandroid=21; //21
 
+private static boolean warnedVoiceSpeedZero=false;
+
+/**
+ * Reload the voice settings from the native store into the static mirrors.
+ *
+ * <p>Note that this doubles as the resync point for {@link SuperGattCallback#dotalk}: whenever
+ * it runs, the live "speak glucose readings" switch is overwritten from storage. It is reached
+ * both from {@link SuperGattCallback#initAlarmTalk} (the periodic watchdog) and, less obviously,
+ * from the four public getters below — so merely rendering the TTS settings screen resyncs the
+ * flag. That side effect is deliberate but easy to miss, hence the transition logging in
+ * {@link SuperGattCallback#setDotalk}.
+ */
 static void getvalues() {
 if(!DontTalk) {
     float speed=getVoiceSpeed( );
     if(speed!=0.0f) {
+        warnedVoiceSpeedZero=false;
         voicepos=getVoiceTalker( );
         cursep=getVoiceSeparation( )*1000L;
         curspeed=speed;
         curpitch=getVoicePitch( );
-        SuperGattCallback.dotalk= Natives.getVoiceActive();
+        SuperGattCallback.setDotalk(Natives.getVoiceActive(),"getvalues/reload-from-store");
         }
+    else
+        reportVoiceSpeedZero();
         }
+    }
+
+/**
+ * A stored voice speed of 0 makes {@link #getvalues} a silent no-op, which also means the
+ * "Speak glucose" switch is never refreshed from storage — so a stale in-memory value can
+ * survive indefinitely while the watchdog appears to be resyncing it every tick. That
+ * indistinguishable no-op cost real time during the 2026-09-04 blackout analysis; say so once
+ * (and again after any successful reload) rather than every call.
+ */
+private static void reportVoiceSpeedZero() {
+    if(warnedVoiceSpeedZero)
+        return;
+    warnedVoiceSpeedZero=true;
+    Log.e(LOG_ID,"getvalues: stored voice speed is 0 — voice settings, including the "
+            +"'Speak glucose' switch, are NOT being reloaded from storage");
     }
 
 static final private ArrayList<Voice> voiceChoice=new ArrayList<>();
@@ -252,6 +282,15 @@ public static void ensureComposeTalker(Context context) {
 public static void applyComposeSettings(Context context, boolean speakGlucose, boolean touchTalk, boolean speakMessages, boolean speakAlarms, boolean mediaSound, boolean overrideSilent, float speed, float pitch, int separationSeconds, int selectedVoice) {
     if(DontTalk)
         return;
+    // Log the whole write before applying it. This is the only path by which the Compose
+    // settings screen persists voice settings, and it is where the 2026-09-04 blackout
+    // started: a single tap wrote speakGlucose=false and nothing recorded that it had
+    // happened. Log.e so it survives doLog=false; these writes are user-initiated and rare.
+    Log.e(LOG_ID,"applyComposeSettings: speakGlucose="+speakGlucose
+            +" touchTalk="+touchTalk+" speakMessages="+speakMessages
+            +" speakAlarms="+speakAlarms+" mediaSound="+mediaSound
+            +" overrideSilent="+overrideSilent+" speed="+speed+" pitch="+pitch
+            +" separationSeconds="+separationSeconds+" selectedVoice="+selectedVoice);
     curspeed=speed;
     curpitch=pitch;
     cursep=Math.max(1,separationSeconds)*1000L;
@@ -269,7 +308,7 @@ public static void applyComposeSettings(Context context, boolean speakGlucose, b
         }
     Notify.makenotification_audio();
 
-    SuperGattCallback.dotalk = speakGlucose;
+    SuperGattCallback.setDotalk(speakGlucose,"compose-settings-save");
     settouchtalk(touchTalk);
     Natives.setspeakmessages(speakMessages);
     Natives.setspeakalarms(speakAlarms);
@@ -927,9 +966,15 @@ private static View makeConfigView(MainActivity context, boolean overlayMode, Ru
     save.setOnClickListener(v->  {
         getvalues.run();
 
+        // Same rationale as applyComposeSettings: record the persisted write itself, not just
+        // its effect on the live flag, so a settings save is always attributable in a log.
+        Log.e(LOG_ID,"legacy config save: speakGlucose="+active.isChecked()
+                +" touchTalk="+touchtalk.isChecked()+" speakMessages="+speakmessages.isChecked()
+                +" speakAlarms="+speakalarms.isChecked()+" speed="+curspeed+" pitch="+curpitch
+                +" separationSeconds="+(cursep/1000L)+" selectedVoice="+voicepos);
         if(active.isChecked()||touchtalk.isChecked()||speakmessages.isChecked()||speakalarms.isChecked()) {
             SuperGattCallback.newtalker(context);
-            SuperGattCallback.dotalk = active.isChecked();
+            SuperGattCallback.setDotalk(active.isChecked(),"legacy-dialog-save");
             settouchtalk(touchtalk.isChecked());
             Natives.setspeakmessages(speakmessages.isChecked());
             Natives.setspeakalarms(speakalarms.isChecked());
