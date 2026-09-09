@@ -489,6 +489,70 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 + persistedVoiceActive());
     }
 
+    /** Guards the self-check's throttle timestamp. */
+    private static final Object speechSelfCheckLock = new Object();
+    /** {@link android.os.SystemClock#elapsedRealtime()} of the last self-check, 0 before the first. */
+    private static long lastSpeechSelfCheckMs = 0L;
+    private static final long SPEECH_SELF_CHECK_INTERVAL_MS = 15L * 60L * 1000L;
+
+    /**
+     * Periodic liveness check for the speech subsystem: reconcile the live state against what
+     * the user actually asked for, and repair it.
+     *
+     * <p>Until this existed, nothing did that on a schedule. {@link #initAlarmTalk} is the only
+     * other place that resyncs the voice settings and inspects engine health, and it runs solely
+     * off the sensor/data-loss watchdog — so it fires constantly during an outage and then not at
+     * all while everything looks fine. Measured over the 2026-09-02..09-08 trace: median gap
+     * between runs 1 minute, but the largest gaps were 15.3h, 10.9h and 10.5h. Every speech
+     * blackout investigated so far came down to a process-wide static drifting into a bad state
+     * with nothing to put it back — a shut-down engine, an engine churned by the watchdog, a
+     * {@code dotalk} that no longer matched storage — and in each case the repair already existed
+     * and simply was not being run.
+     *
+     * <p>Called from the per-reading announce path, so it has a dependable ~1 minute heartbeat
+     * while data flows; when data stops, the loss watchdog takes over and calls
+     * {@link #initAlarmTalk} instead. Between them the subsystem is never unattended.
+     *
+     * <p>Deliberately does NOT recreate a talker that is merely present: unconditional recreation
+     * here is precisely the bug fixed in 276b52f1d, where the watchdog tore the engine down under
+     * the announcer. Only a missing or demonstrably dead ({@link Talker#needsReinit()}) talker is
+     * replaced, at most once per interval.
+     */
+    static void speechSelfCheck() {
+        if (DontTalk) {
+            return;
+        }
+        final long now = android.os.SystemClock.elapsedRealtime();
+        synchronized (speechSelfCheckLock) {
+            // elapsedRealtime, not wall clock: a backwards clock correction must not be able to
+            // park this check until the clock catches up.
+            if (lastSpeechSelfCheckMs != 0L && now - lastSpeechSelfCheckMs < SPEECH_SELF_CHECK_INTERVAL_MS) {
+                return;
+            }
+            lastSpeechSelfCheckMs = now;
+        }
+        try {
+            // Re-read the persisted voice settings. setDotalk() logs it if the live flag had
+            // drifted from what is stored, which is the evidence that was missing when speech
+            // went silent for 47 hours over 2026-09-04..06.
+            Talker.getvalues();
+            if (!Talker.shouldtalk()) {
+                return;
+            }
+            final Talker current = talker;
+            if (current == null) {
+                Log.e(LOG_ID, "speech self-check: no talker while speech is enabled — creating");
+                newtalker(null);
+            } else if (current.needsReinit()) {
+                Log.e(LOG_ID, "speech self-check: talker has a dead engine — recreating");
+                newtalker(null);
+            }
+        } catch (Throwable th) {
+            // A self-check must never be able to take down the reading path it rides on.
+            Log.stack(LOG_ID, "speechSelfCheck", th);
+        }
+    }
+
     static void newtalker(Context context) {
         if (!DontTalk) {
             if (doLog) {
@@ -757,6 +821,10 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         UiRefreshBus.requestDataRefresh();
 
         if (!DontTalk) {
+            // Before the gate reads dotalk, give the subsystem its scheduled chance to
+            // reconcile that flag with storage and to repair a dead engine. Throttled to
+            // once per SPEECH_SELF_CHECK_INTERVAL_MS internally.
+            speechSelfCheck();
             if (doLog) {
                 Log.i(LOG_ID, "periodic-speak-gate dotalk=" + dotalk
                         + " alarmSpeechStarted=" + alarmSpeechStarted
@@ -815,9 +883,20 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                     //
                     // Speak the calibrated display value (same source as the display,
                     // notifications, and alarm speech) rather than the raw native value.
-                    final CurrentDisplaySource.Snapshot speakcurrent =
-                            CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
-                    talker.selspeak(speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
+                    //
+                    // Speak through the local read above, not the static: endtalk() nulls
+                    // `talker` from another thread after clearing dotalk, so this thread can
+                    // pass the dotalk check and then dereference a null field. Rare, but it
+                    // would throw on the BLE callback path.
+                    if (currentTalker == null) {
+                        Log.e(LOG_ID, "periodic-speak-gate: dotalk set but no talker — recreating");
+                        newtalker(null);
+                    } else {
+                        final CurrentDisplaySource.Snapshot speakcurrent =
+                                CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
+                        currentTalker.selspeak(
+                                speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
+                    }
                 }
             } else {
                 // Outside the doLog guard: this is the one diagnostic that must still fire
