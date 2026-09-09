@@ -391,6 +391,9 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
      */
     static volatile boolean dotalk = false;
 
+    /** Guards the flag and its two timestamps together, so a concurrent flip cannot leave the
+     * "off since" bookkeeping describing a state the flag is no longer in. */
+    private static final Object dotalkLock = new Object();
     /** Wall-clock ms at which speaking was last observed to be off, or 0 while it is on. */
     private static volatile long dotalkDisabledSince = 0L;
     /** Wall-clock ms of the last {@link #warnIfSpeechDisabled} line, to keep it to once an hour. */
@@ -405,24 +408,41 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
      *               "getvalues/reload-from-store", "endtalk", "legacy-dialog-save"
      */
     static void setDotalk(boolean value, String reason) {
-        if (dotalk == value) {
-            return;
-        }
-        dotalk = value;
-        final long now = System.currentTimeMillis();
-        if (value) {
-            dotalkDisabledSince = 0L;
-            lastDotalkDisabledWarn = 0L;
-        } else {
-            dotalkDisabledSince = now;
-            lastDotalkDisabledWarn = now;
+        final boolean previous;
+        synchronized (dotalkLock) {
+            if (dotalk == value) {
+                return;
+            }
+            previous = dotalk;
+            dotalk = value;
+            final long now = System.currentTimeMillis();
+            if (value) {
+                dotalkDisabledSince = 0L;
+                lastDotalkDisabledWarn = 0L;
+            } else {
+                dotalkDisabledSince = now;
+                lastDotalkDisabledWarn = now;
+            }
         }
         // Log.e rather than Log.i on purpose: Log.e is the one level that still reaches
         // logcat when in-app tracing (doLog) is off, and these transitions are rare — a
         // handful across a week — so this cannot become noise. It is the single line that
         // answers "when, and because of what, did spoken readings stop?".
-        Log.e(LOG_ID, "dotalk " + (!value) + " -> " + value + " reason=" + reason
+        Log.e(LOG_ID, "dotalk " + previous + " -> " + value + " reason=" + reason
                 + " persisted voiceactive=" + persistedVoiceActive());
+        if (!value) {
+            // Capture the call path for the one transition that silences the app.
+            // "reason" names the function that decided; it does not distinguish which
+            // UI interaction got there — and in the Compose settings screen every
+            // interaction routes through the same persist(), which rewrites all fields
+            // from the loaded ui state rather than just the one the user touched. So a
+            // toggle of the switch and an incidental save that merely carries a
+            // previously-loaded false are indistinguishable in the log today. That
+            // ambiguity is exactly what the 2026-09-04 analysis could not resolve, so
+            // record the stack: it is one line for a state change that happens a
+            // handful of times a week, and it names the caller outright.
+            Log.stack(LOG_ID, "dotalk disabled at", new Throwable("speech disabled"));
+        }
     }
 
     private static String persistedVoiceActive() {
@@ -442,25 +462,29 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
      * transition to observe at all — the 2026-09-06 restart came up that way.
      */
     private static void warnIfSpeechDisabled() {
-        if (dotalk) {
-            return;
-        }
         final long now = System.currentTimeMillis();
-        if (dotalkDisabledSince == 0L) {
-            // Process came up with speaking already off; treat now as the earliest we can vouch for.
-            dotalkDisabledSince = now;
+        final long offSince;
+        synchronized (dotalkLock) {
+            if (dotalk) {
+                return;
+            }
+            if (dotalkDisabledSince == 0L) {
+                // Process came up with speaking already off, so there was no transition to
+                // observe; treat now as the earliest moment we can vouch for.
+                dotalkDisabledSince = now;
+                lastDotalkDisabledWarn = now;
+                return;
+            }
+            if (now - lastDotalkDisabledWarn < DOTALK_DISABLED_WARN_INTERVAL) {
+                return;
+            }
             lastDotalkDisabledWarn = now;
-            return;
+            offSince = dotalkDisabledSince;
         }
-        if (now - lastDotalkDisabledWarn < DOTALK_DISABLED_WARN_INTERVAL) {
-            return;
-        }
-        lastDotalkDisabledWarn = now;
-        final long offMinutes = (now - dotalkDisabledSince) / 60000L;
+        final long offMinutes = (now - offSince) / 60000L;
         Log.e(LOG_ID, "spoken glucose readings have been OFF for at least "
                 + (offMinutes / 60L) + "h" + (offMinutes % 60L) + "m (observed off since "
-                + java.text.DateFormat.getDateTimeInstance()
-                        .format(new java.util.Date(dotalkDisabledSince))
+                + java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(offSince))
                 + ") — the 'Speak glucose' setting is off; persisted voiceactive="
                 + persistedVoiceActive());
     }

@@ -97,7 +97,7 @@ static private Spinner spinner=null;
 //static final private int minandroid=24; //21
 static final private int minandroid=21; //21
 
-private static boolean warnedVoiceSpeedZero=false;
+private static volatile boolean warnedVoiceSpeedZero=false;
 
 /**
  * Reload the voice settings from the native store into the static mirrors.
@@ -472,7 +472,17 @@ if(!DontTalk) {
                  }
            }
          else {
-             Log.e(LOG_ID,"status = TextToSpeech.ERROR ");
+             // A failed init is a dead engine that we already know about, so arm
+             // needsReinit() now instead of waiting for speak() to discover it.
+             // speak() does not check engineReady — it calls engine.speak() anyway,
+             // which returns ERROR — so the watchdog would eventually recreate this
+             // talker, but only after REINIT_FAILURE_THRESHOLD announcement cycles.
+             // selspeak() advances nexttime before calling speak(), so each of those
+             // wasted attempts costs a whole voice-separation interval: at the 999s
+             // separation seen in the 09-02..09-08 traces that is 33 minutes of
+             // avoidable silence after every failed init.
+             consecutiveSpeakFailures = REINIT_FAILURE_THRESHOLD;
+             Log.e(LOG_ID,"status = TextToSpeech.ERROR — marking talker for recreate");
              }
          {if(doLog) {Log.i(LOG_ID,"after onInit");};};
           }
