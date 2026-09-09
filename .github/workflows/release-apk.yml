@@ -1,0 +1,82 @@
+name: Build Release APK
+
+# Builds the signed phone APK on a runner and publishes it as a workflow
+# artifact named `glucodroid-apk`, containing `glucodroid.apk`.
+#
+# Signing needs no secrets: Common/everyone.keystore is committed and
+# Common/build.gradle falls back to it whenever the `thekeypassword` Gradle
+# property is absent, which it is on a runner.
+#
+# Download the result with:
+#   gh run download <run-id> -n glucodroid-apk -D ~/Downloads
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to build"
+        required: false
+        default: glucodroid
+
+env:
+  GRADLE_OPTS: -Xmx4g -XX:+HeapDumpOnOutOfMemoryError
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    name: assembleMobileRelease
+    runs-on: ubuntu-latest
+    # A release build compiles native code for all five ABIs; the flavour
+    # collapse in 1.1.0 removed the old ABI-trimming Gradle properties, so
+    # there is no shortening it.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          # libjuice is a submodule and the native build does not link without it.
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-release-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-release-
+            ${{ runner.os }}-gradle-
+
+      - name: Build release APK
+        run: ./gradlew :Common:assembleMobileRelease --no-daemon --stacktrace
+
+      - name: Stage APK under its required name
+        run: |
+          set -euo pipefail
+          apk=$(find Common/build/outputs/apk/mobile/release -name '*.apk' -print -quit)
+          if [ -z "$apk" ]; then
+            echo "::error::no APK produced under Common/build/outputs/apk/mobile/release"
+            exit 1
+          fi
+          # The project requires this exact filename, everywhere, always.
+          mkdir -p dist && cp "$apk" dist/glucodroid.apk
+          ls -l dist/glucodroid.apk
+
+      - name: Report identity of the build
+        run: |
+          set -euo pipefail
+          aapt=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -1)
+          "$aapt" dump badging dist/glucodroid.apk 2>/dev/null | head -3 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glucodroid-apk
+          path: dist/glucodroid.apk
+          retention-days: 14
+          if-no-files-found: error

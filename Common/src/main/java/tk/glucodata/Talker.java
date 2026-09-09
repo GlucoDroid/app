@@ -97,17 +97,47 @@ static private Spinner spinner=null;
 //static final private int minandroid=24; //21
 static final private int minandroid=21; //21
 
+private static volatile boolean warnedVoiceSpeedZero=false;
+
+/**
+ * Reload the voice settings from the native store into the static mirrors.
+ *
+ * <p>Note that this doubles as the resync point for {@link SuperGattCallback#dotalk}: whenever
+ * it runs, the live "speak glucose readings" switch is overwritten from storage. It is reached
+ * both from {@link SuperGattCallback#initAlarmTalk} (the periodic watchdog) and, less obviously,
+ * from the four public getters below — so merely rendering the TTS settings screen resyncs the
+ * flag. That side effect is deliberate but easy to miss, hence the transition logging in
+ * {@link SuperGattCallback#setDotalk}.
+ */
 static void getvalues() {
 if(!DontTalk) {
     float speed=getVoiceSpeed( );
     if(speed!=0.0f) {
+        warnedVoiceSpeedZero=false;
         voicepos=getVoiceTalker( );
         cursep=getVoiceSeparation( )*1000L;
         curspeed=speed;
         curpitch=getVoicePitch( );
-        SuperGattCallback.dotalk= Natives.getVoiceActive();
+        SuperGattCallback.setDotalk(Natives.getVoiceActive(),"getvalues/reload-from-store");
         }
+    else
+        reportVoiceSpeedZero();
         }
+    }
+
+/**
+ * A stored voice speed of 0 makes {@link #getvalues} a silent no-op, which also means the
+ * "Speak glucose" switch is never refreshed from storage — so a stale in-memory value can
+ * survive indefinitely while the watchdog appears to be resyncing it every tick. That
+ * indistinguishable no-op cost real time during the 2026-09-04 blackout analysis; say so once
+ * (and again after any successful reload) rather than every call.
+ */
+private static void reportVoiceSpeedZero() {
+    if(warnedVoiceSpeedZero)
+        return;
+    warnedVoiceSpeedZero=true;
+    Log.e(LOG_ID,"getvalues: stored voice speed is 0 — voice settings, including the "
+            +"'Speak glucose' switch, are NOT being reloaded from storage");
     }
 
 static final private ArrayList<Voice> voiceChoice=new ArrayList<>();
@@ -252,6 +282,15 @@ public static void ensureComposeTalker(Context context) {
 public static void applyComposeSettings(Context context, boolean speakGlucose, boolean touchTalk, boolean speakMessages, boolean speakAlarms, boolean mediaSound, boolean overrideSilent, float speed, float pitch, int separationSeconds, int selectedVoice) {
     if(DontTalk)
         return;
+    // Log the whole write before applying it. This is the only path by which the Compose
+    // settings screen persists voice settings, and it is where the 2026-09-04 blackout
+    // started: a single tap wrote speakGlucose=false and nothing recorded that it had
+    // happened. Log.e so it survives doLog=false; these writes are user-initiated and rare.
+    Log.e(LOG_ID,"applyComposeSettings: speakGlucose="+speakGlucose
+            +" touchTalk="+touchTalk+" speakMessages="+speakMessages
+            +" speakAlarms="+speakAlarms+" mediaSound="+mediaSound
+            +" overrideSilent="+overrideSilent+" speed="+speed+" pitch="+pitch
+            +" separationSeconds="+separationSeconds+" selectedVoice="+selectedVoice);
     curspeed=speed;
     curpitch=pitch;
     cursep=Math.max(1,separationSeconds)*1000L;
@@ -269,7 +308,7 @@ public static void applyComposeSettings(Context context, boolean speakGlucose, b
         }
     Notify.makenotification_audio();
 
-    SuperGattCallback.dotalk = speakGlucose;
+    SuperGattCallback.setDotalk(speakGlucose,"compose-settings-save");
     settouchtalk(touchTalk);
     Natives.setspeakmessages(speakMessages);
     Natives.setspeakalarms(speakAlarms);
@@ -433,7 +472,17 @@ if(!DontTalk) {
                  }
            }
          else {
-             Log.e(LOG_ID,"status = TextToSpeech.ERROR ");
+             // A failed init is a dead engine that we already know about, so arm
+             // needsReinit() now instead of waiting for speak() to discover it.
+             // speak() does not check engineReady — it calls engine.speak() anyway,
+             // which returns ERROR — so the watchdog would eventually recreate this
+             // talker, but only after REINIT_FAILURE_THRESHOLD announcement cycles.
+             // selspeak() advances nexttime before calling speak(), so each of those
+             // wasted attempts costs a whole voice-separation interval: at the 999s
+             // separation seen in the 09-02..09-08 traces that is 33 minutes of
+             // avoidable silence after every failed init.
+             consecutiveSpeakFailures = REINIT_FAILURE_THRESHOLD;
+             Log.e(LOG_ID,"status = TextToSpeech.ERROR — marking talker for recreate");
              }
          {if(doLog) {Log.i(LOG_ID,"after onInit");};};
           }
@@ -531,7 +580,14 @@ private static void ensureMinStreamVolume() {
     }
 }
 
-public void speak(String message) {
+/**
+ * Hand an utterance to the engine.
+ *
+ * @return true only when the engine accepted it. Callers that ration announcements must not
+ *         charge the user's separation interval for an utterance that never reached the
+ *         engine — see {@link #selspeak}.
+ */
+public boolean speak(String message) {
     if(!DontTalk) {
         try {
             ensureMinStreamVolume();
@@ -540,18 +596,26 @@ public void speak(String message) {
                     ? engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, message)
                     : engine.speak(message, TextToSpeech.QUEUE_FLUSH, null);
             if (speakResult == TextToSpeech.SUCCESS) {
+                consecutiveSpeakFailures = 0;
                 if(doLog) {Log.i(LOG_ID,"success speak "+message);}
+                return true;
                 }
              else {
-                Log.e(LOG_ID,"failed speak "+message);
+                consecutiveSpeakFailures++;
+                Log.e(LOG_ID,"failed speak "+message+" consecutiveFailures="+consecutiveSpeakFailures);
                 if (ttsWakeLock != null && ttsWakeLock.isHeld()) ttsWakeLock.release();
                 }
             }
         catch(Throwable th) {
+            // A dead/unbound TTS engine can fail by throwing (e.g. a dead Binder)
+            // rather than returning a non-SUCCESS result code - count it the same
+            // way, or needsReinit() never trips for that failure mode.
+            consecutiveSpeakFailures++;
             if (ttsWakeLock != null && ttsWakeLock.isHeld()) ttsWakeLock.release();
             Log.stack(LOG_ID,"speak failed",th);
             }
         }
+    return false;
     }
 static boolean notifyfocus=false;
 //private static final AudioAttributes notification_audio = (new AudioAttributes.Builder()) .setLegacyStreamType(TextToSpeech.Engine.DEFAULT_STREAM) .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH) .build(); 
@@ -574,12 +638,59 @@ if(!DontTalk) {
          }
     }
 volatile static long nexttime=0L;
+
+// Tracks real engine health, as opposed to istalking() which only checks that
+// SuperGattCallback.talker is non-null. A talker object surviving a TTS-service
+// disconnect (e.g. com.google.android.tts auto-updating overnight, which unbinds
+// the TextToSpeech connection permanently until reconstructed) still passes
+// istalking(), so the LossOfSensorAlarm watchdog's recreate-on-loss guard
+// (SuperGattCallback.initAlarmTalk) never fired to heal it — confirmed in
+// trace_speak.log/logcat_speak.txt 2026-08-21..25: "TextToSpeech: Disconnected
+// from TTS engine" once at 01:25 after a com.google.android.tts package REPLACE,
+// then 172 consecutive "failed speak"/"not bound to TTS engine" results with
+// zero recovery over 4+ days. speak() increments this on any non-SUCCESS
+// result and resets it on success; needsReinit() lets callers force a recreate
+// once a real, repeated failure is observed, rather than churning on every
+// watchdog tick (that was the prior, now-fixed, bug).
+private volatile int consecutiveSpeakFailures = 0;
+private static final int REINIT_FAILURE_THRESHOLD = 2;
+/** How long selspeak() defers after an utterance the engine would not take. Short enough that
+ *  the next reading retries, so a failed attempt costs one reading rather than one whole
+ *  user-configured separation interval. */
+private static final long FAILED_SPEAK_RETRY_MS = 30_000L;
+boolean needsReinit() {
+    return consecutiveSpeakFailures >= REINIT_FAILURE_THRESHOLD;
+}
+
 void selspeak(String message) {
     if(!DontTalk) {
         var now=System.currentTimeMillis();
-        if(now>nexttime && SpeakSchedule.INSTANCE.isWithinSchedule(Applic.app)) {
+        final boolean intervalElapsed = now>nexttime;
+        final boolean withinSchedule = SpeakSchedule.INSTANCE.isWithinSchedule(Applic.app);
+        if(doLog) {
+            Log.i(LOG_ID, "selspeak intervalElapsed=" + intervalElapsed
+                    + " (now=" + now + " nexttime=" + nexttime + " cursep=" + cursep + ")"
+                    + " withinSchedule=" + withinSchedule);
+            }
+        if(intervalElapsed && withinSchedule) {
+            // Claim the slot before speaking, so two readings arriving back to back cannot
+            // both announce — then hand nearly all of it back if the engine refused the
+            // utterance. Charging a failed attempt the full separation interval made the
+            // engine-health watchdog's detection latency scale with a user setting, which
+            // is backwards: consecutiveSpeakFailures counts announcement *attempts*, and
+            // attempts only happen once per cursep, so REINIT_FAILURE_THRESHOLD=2 meant a
+            // dead engine went unnoticed for 2 x cursep. At the 300s separation this app
+            // was usually run with that is 10 minutes; at the 999s in the 09-02..09-08
+            // traces it is 33 minutes, and every further failure cost another 16m39s of
+            // silence. Retrying on the next reading instead makes detection ~2 minutes
+            // regardless of how the user has set the interval.
             nexttime=now+cursep;
-            speak(message);
+            if(!speak(message)) {
+                nexttime=now+Math.min(cursep,FAILED_SPEAK_RETRY_MS);
+                }
+            }
+        else if(doLog) {
+            Log.i(LOG_ID, "selspeak SKIPPED message=\"" + message + "\"");
             }
           }
     }
@@ -891,9 +1002,15 @@ private static View makeConfigView(MainActivity context, boolean overlayMode, Ru
     save.setOnClickListener(v->  {
         getvalues.run();
 
+        // Same rationale as applyComposeSettings: record the persisted write itself, not just
+        // its effect on the live flag, so a settings save is always attributable in a log.
+        Log.e(LOG_ID,"legacy config save: speakGlucose="+active.isChecked()
+                +" touchTalk="+touchtalk.isChecked()+" speakMessages="+speakmessages.isChecked()
+                +" speakAlarms="+speakalarms.isChecked()+" speed="+curspeed+" pitch="+curpitch
+                +" separationSeconds="+(cursep/1000L)+" selectedVoice="+voicepos);
         if(active.isChecked()||touchtalk.isChecked()||speakmessages.isChecked()||speakalarms.isChecked()) {
             SuperGattCallback.newtalker(context);
-            SuperGattCallback.dotalk = active.isChecked();
+            SuperGattCallback.setDotalk(active.isChecked(),"legacy-dialog-save");
             settouchtalk(touchtalk.isChecked());
             Natives.setspeakmessages(speakmessages.isChecked());
             Natives.setspeakalarms(speakalarms.isChecked());

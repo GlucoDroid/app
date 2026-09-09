@@ -2,8 +2,10 @@ package tk.glucodata
 
 import android.content.Context
 import java.util.Calendar
+import tk.glucodata.Log.doLog
 
 object SpeakSchedule {
+    private const val LOG_ID = "SpeakSchedule"
     private const val PREFS = "tk.glucodata_preferences"
     private const val KEY_ENABLED = "voice_schedule_enabled"
     private const val KEY_START = "voice_schedule_start_minutes"
@@ -29,11 +31,27 @@ object SpeakSchedule {
         prefs(context).getInt(KEY_END, DEFAULT_END)
 
     fun setStartMinutes(context: Context, minutes: Int) {
-        prefs(context).edit().putInt(KEY_START, minutes.coerceIn(0, 1439)).apply()
+        val clamped = minutes.coerceIn(0, 1439)
+        if (doLog) {
+            val previous = getStartMinutes(context)
+            if (previous != clamped) {
+                Log.stack(LOG_ID, "setStartMinutes CHANGED ${formatMinutes(previous)} -> ${formatMinutes(clamped)}"
+                        + " (caller stack below)", Throwable())
+            }
+        }
+        prefs(context).edit().putInt(KEY_START, clamped).apply()
     }
 
     fun setEndMinutes(context: Context, minutes: Int) {
-        prefs(context).edit().putInt(KEY_END, minutes.coerceIn(0, 1440)).apply()
+        val clamped = minutes.coerceIn(0, 1440)
+        if (doLog) {
+            val previous = getEndMinutes(context)
+            if (previous != clamped) {
+                Log.stack(LOG_ID, "setEndMinutes CHANGED ${formatMinutes(previous)} -> ${formatMinutes(clamped)}"
+                        + " (caller stack below)", Throwable())
+            }
+        }
+        prefs(context).edit().putInt(KEY_END, clamped).apply()
     }
 
     fun isWithinSchedule(context: Context): Boolean {
@@ -42,9 +60,17 @@ object SpeakSchedule {
         val nowMinutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
         val start = getStartMinutes(context)
         val end = getEndMinutes(context)
-        if (start == end) return true // equal = all day, no restriction
-        return if (start < end) nowMinutes in start until end
-        else nowMinutes >= start || nowMinutes < end // spans midnight
+        val result = if (start == end) true // equal = all day, no restriction
+            else if (start < end) nowMinutes in start until end
+            else nowMinutes >= start || nowMinutes < end // spans midnight
+        if (doLog) {
+            Log.i(LOG_ID, "isWithinSchedule now=${formatMinutes(nowMinutes)}"
+                    + " storedStart=${formatMinutes(start)}(raw=$start)"
+                    + " storedEnd=${formatMinutes(end)}(raw=$end)"
+                    + " tz=${java.util.TimeZone.getDefault().id}"
+                    + " result=$result")
+        }
+        return result
     }
 
     fun formatMinutes(minutes: Int): String {

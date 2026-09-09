@@ -39,8 +39,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import tk.glucodata.alerts.AlertConfig;
-import tk.glucodata.alerts.AlertRepository;
-import tk.glucodata.alerts.AlertType;
 import tk.glucodata.drivers.ManagedBluetoothSensorDriver;
 
 import static android.bluetooth.BluetoothDevice.BOND_BONDED;
@@ -347,16 +345,219 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
             glucosealarms = new tk.glucodata.GlucoseAlarms(Applic.app);
         if (!DontTalk) {
             Talker.getvalues();
-            if (Talker.shouldtalk())
-                newtalker(null);
+            // Only (re)create the shared Talker/TextToSpeech if none exists yet.
+            // This watchdog fires roughly every glucosetimeout while a sensor/data
+            // loss condition persists (potentially dozens of times per hour), and
+            // unconditionally recreating the engine here was destroying+rebuilding
+            // the SAME talker instance the normal periodic announcer speaks through
+            // — silencing announcements for the whole outage and sometimes leaving
+            // the engine mid-reinit exactly when data resumed. See handoff notes:
+            // ~/Downloads/GD--HANDOFF-tts-blackouts.md (Hypothesis B).
+            if (Talker.shouldtalk()) {
+                // istalking() alone only proves the object reference is non-null; it says
+                // nothing about whether the underlying TextToSpeech is actually bound. A
+                // talker that has racked up repeated real speak failures (see
+                // Talker.needsReinit()) is just as dead as a null one and needs the same
+                // recreate — confirmed root cause of the 2026-08-21..25 multi-day blackout.
+                //
+                // `talker` is a plain (non-volatile, unsynchronized) static field that
+                // endtalk() can null from another thread at any time — read it into a
+                // local once so the null-check and the needsReinit() call see the same
+                // reference, instead of two separate reads racing a concurrent endtalk().
+                final Talker currentTalker = talker;
+                if (currentTalker == null || currentTalker.needsReinit()) {
+                    newtalker(null);
+                } else if (doLog) {
+                    Log.i(LOG_ID, "initAlarmTalk: talker already active, skipping recreate");
+                }
+            }
         }
     }
 
     static Talker talker;
-    static boolean dotalk = false;
+
+    /**
+     * Master "speak glucose readings" switch, mirroring the persisted (per alarm profile)
+     * {@code voiceactive} setting.
+     *
+     * <p>Never assign this field directly — go through {@link #setDotalk} so every transition
+     * is logged together with the code path that caused it. A silent flip of this flag is
+     * invisible in normal use: nothing in the app indicates that spoken readings are off, and
+     * the only trace of it was a once-a-minute "periodic-speak-gate SKIPPED: dotalk=false" line
+     * logged at the same level as everything else. That is how the 2026-09-04 15:37 ..
+     * 2026-09-06 14:40 blackout (47h of total speech silence, ended only by a force-stop) went
+     * unnoticed, and why pinning the cause afterwards needed the whole trace rather than one
+     * line. See also {@link #warnIfSpeechDisabled}.
+     */
+    static volatile boolean dotalk = false;
+
+    /** Guards the flag and its two timestamps together, so a concurrent flip cannot leave the
+     * "off since" bookkeeping describing a state the flag is no longer in. */
+    private static final Object dotalkLock = new Object();
+    /** Wall-clock ms at which speaking was last observed to be off, or 0 while it is on. */
+    private static volatile long dotalkDisabledSince = 0L;
+    /** Wall-clock ms of the last {@link #warnIfSpeechDisabled} line, to keep it to once an hour. */
+    private static volatile long lastDotalkDisabledWarn = 0L;
+    private static final long DOTALK_DISABLED_WARN_INTERVAL = 60L * 60L * 1000L;
+
+    /**
+     * Set the master speech switch, logging the transition and what caused it.
+     *
+     * @param value  the new value
+     * @param reason short tag naming the deciding code path, e.g. "compose-settings-save",
+     *               "getvalues/reload-from-store", "endtalk", "legacy-dialog-save"
+     */
+    static void setDotalk(boolean value, String reason) {
+        final boolean previous;
+        synchronized (dotalkLock) {
+            if (dotalk == value) {
+                return;
+            }
+            previous = dotalk;
+            dotalk = value;
+            final long now = System.currentTimeMillis();
+            if (value) {
+                dotalkDisabledSince = 0L;
+                lastDotalkDisabledWarn = 0L;
+            } else {
+                dotalkDisabledSince = now;
+                lastDotalkDisabledWarn = now;
+            }
+        }
+        // Log.e rather than Log.i on purpose: Log.e is the one level that still reaches
+        // logcat when in-app tracing (doLog) is off, and these transitions are rare — a
+        // handful across a week — so this cannot become noise. It is the single line that
+        // answers "when, and because of what, did spoken readings stop?".
+        Log.e(LOG_ID, "dotalk " + previous + " -> " + value + " reason=" + reason
+                + " persisted voiceactive=" + persistedVoiceActive());
+        if (!value) {
+            // Capture the call path for the one transition that silences the app.
+            // "reason" names the function that decided; it does not distinguish which
+            // UI interaction got there — and in the Compose settings screen every
+            // interaction routes through the same persist(), which rewrites all fields
+            // from the loaded ui state rather than just the one the user touched. So a
+            // toggle of the switch and an incidental save that merely carries a
+            // previously-loaded false are indistinguishable in the log today. That
+            // ambiguity is exactly what the 2026-09-04 analysis could not resolve, so
+            // record the stack: it is one line for a state change that happens a
+            // handful of times a week, and it names the caller outright.
+            Log.stack(LOG_ID, "dotalk disabled at", new Throwable("speech disabled"));
+        }
+    }
+
+    private static String persistedVoiceActive() {
+        try {
+            return Boolean.toString(Natives.getVoiceActive());
+        } catch (Throwable th) {
+            return "unavailable";
+        }
+    }
+
+    /**
+     * Escalate prolonged speech silence, at most once an hour, so a disabled "Speak glucose"
+     * switch surfaces within a day instead of hiding behind per-minute SKIPPED lines.
+     *
+     * <p>Called from the periodic announce gate rather than from {@link #setDotalk} because the
+     * flag can also start out false at process launch (persisted off), in which case there is no
+     * transition to observe at all — the 2026-09-06 restart came up that way.
+     */
+    private static void warnIfSpeechDisabled() {
+        final long now = System.currentTimeMillis();
+        final long offSince;
+        synchronized (dotalkLock) {
+            if (dotalk) {
+                return;
+            }
+            if (dotalkDisabledSince == 0L) {
+                // Process came up with speaking already off, so there was no transition to
+                // observe; treat now as the earliest moment we can vouch for.
+                dotalkDisabledSince = now;
+                lastDotalkDisabledWarn = now;
+                return;
+            }
+            if (now - lastDotalkDisabledWarn < DOTALK_DISABLED_WARN_INTERVAL) {
+                return;
+            }
+            lastDotalkDisabledWarn = now;
+            offSince = dotalkDisabledSince;
+        }
+        final long offMinutes = (now - offSince) / 60000L;
+        Log.e(LOG_ID, "spoken glucose readings have been OFF for at least "
+                + (offMinutes / 60L) + "h" + (offMinutes % 60L) + "m (observed off since "
+                + java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(offSince))
+                + ") — the 'Speak glucose' setting is off; persisted voiceactive="
+                + persistedVoiceActive());
+    }
+
+    /** Guards the self-check's throttle timestamp. */
+    private static final Object speechSelfCheckLock = new Object();
+    /** {@link android.os.SystemClock#elapsedRealtime()} of the last self-check, 0 before the first. */
+    private static long lastSpeechSelfCheckMs = 0L;
+    private static final long SPEECH_SELF_CHECK_INTERVAL_MS = 15L * 60L * 1000L;
+
+    /**
+     * Periodic liveness check for the speech subsystem: reconcile the live state against what
+     * the user actually asked for, and repair it.
+     *
+     * <p>Until this existed, nothing did that on a schedule. {@link #initAlarmTalk} is the only
+     * other place that resyncs the voice settings and inspects engine health, and it runs solely
+     * off the sensor/data-loss watchdog — so it fires constantly during an outage and then not at
+     * all while everything looks fine. Measured over the 2026-09-02..09-08 trace: median gap
+     * between runs 1 minute, but the largest gaps were 15.3h, 10.9h and 10.5h. Every speech
+     * blackout investigated so far came down to a process-wide static drifting into a bad state
+     * with nothing to put it back — a shut-down engine, an engine churned by the watchdog, a
+     * {@code dotalk} that no longer matched storage — and in each case the repair already existed
+     * and simply was not being run.
+     *
+     * <p>Called from the per-reading announce path, so it has a dependable ~1 minute heartbeat
+     * while data flows; when data stops, the loss watchdog takes over and calls
+     * {@link #initAlarmTalk} instead. Between them the subsystem is never unattended.
+     *
+     * <p>Deliberately does NOT recreate a talker that is merely present: unconditional recreation
+     * here is precisely the bug fixed in 276b52f1d, where the watchdog tore the engine down under
+     * the announcer. Only a missing or demonstrably dead ({@link Talker#needsReinit()}) talker is
+     * replaced, at most once per interval.
+     */
+    static void speechSelfCheck() {
+        if (DontTalk) {
+            return;
+        }
+        final long now = android.os.SystemClock.elapsedRealtime();
+        synchronized (speechSelfCheckLock) {
+            // elapsedRealtime, not wall clock: a backwards clock correction must not be able to
+            // park this check until the clock catches up.
+            if (lastSpeechSelfCheckMs != 0L && now - lastSpeechSelfCheckMs < SPEECH_SELF_CHECK_INTERVAL_MS) {
+                return;
+            }
+            lastSpeechSelfCheckMs = now;
+        }
+        try {
+            // Re-read the persisted voice settings. setDotalk() logs it if the live flag had
+            // drifted from what is stored, which is the evidence that was missing when speech
+            // went silent for 47 hours over 2026-09-04..06.
+            Talker.getvalues();
+            if (!Talker.shouldtalk()) {
+                return;
+            }
+            final Talker current = talker;
+            if (current == null) {
+                Log.e(LOG_ID, "speech self-check: no talker while speech is enabled — creating");
+                newtalker(null);
+            } else if (current.needsReinit()) {
+                Log.e(LOG_ID, "speech self-check: talker has a dead engine — recreating");
+                newtalker(null);
+            }
+        } catch (Throwable th) {
+            // A self-check must never be able to take down the reading path it rides on.
+            Log.stack(LOG_ID, "speechSelfCheck", th);
+        }
+    }
 
     static void newtalker(Context context) {
         if (!DontTalk) {
+            if (doLog) {
+                Log.i(LOG_ID, "newtalker: " + (talker != null ? "destroying existing talker and recreating" : "creating talker"));
+            }
             if (talker != null)
                 talker.destruct();
             talker = new Talker(context);
@@ -365,7 +566,7 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
 
     static void endtalk() {
         if (!DontTalk) {
-            dotalk = false;
+            setDotalk(false, "endtalk");
             if (talker != null) {
                 talker.destruct();
                 talker = null;
@@ -620,18 +821,91 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
         UiRefreshBus.requestDataRefresh();
 
         if (!DontTalk) {
+            // Before the gate reads dotalk, give the subsystem its scheduled chance to
+            // reconcile that flag with storage and to repair a dead engine. Throttled to
+            // once per SPEECH_SELF_CHECK_INTERVAL_MS internally.
+            speechSelfCheck();
+            if (doLog) {
+                Log.i(LOG_ID, "periodic-speak-gate dotalk=" + dotalk
+                        + " alarmSpeechStarted=" + alarmSpeechStarted
+                        + " talker=" + (talker != null));
+            }
             if (dotalk && !alarmSpeechStarted) {
-                long readingAgeMs = System.currentTimeMillis() - timmsec;
-                if (readingAgeMs > Notify.glucosetimeout) {
-                    if (AlertRepository.INSTANCE.loadConfig(AlertType.MISSED_READING).getEnabled()) {
-                        talker.selspeak(Applic.app.getString(R.string.tts_missed_readings));
+                // Heal a talker that's non-null but actually dead (e.g. the shared
+                // TextToSpeech got unbound by a com.google.android.tts update and never
+                // reconnected) right here, on the normal announce cadence, instead of
+                // waiting on the much rarer LossOfSensorAlarm watchdog in initAlarmTalk()
+                // to notice. See needsReinit() for how this is detected.
+                //
+                // `talker` is a plain (non-volatile, unsynchronized) static field that
+                // endtalk() can null from another thread at any time — read it into a
+                // local once so the null-check and the needsReinit() call see the same
+                // reference, instead of two separate reads racing a concurrent endtalk().
+                final Talker currentTalker = talker;
+                final boolean justRecreated = currentTalker != null && currentTalker.needsReinit();
+                if (justRecreated) {
+                    if (doLog) {
+                        Log.i(LOG_ID, "periodic-speak-gate: talker needsReinit, recreating");
+                    }
+                    newtalker(null);
+                }
+                if (justRecreated) {
+                    // Skip speaking through the talker we just recreated above: its
+                    // TextToSpeech binds asynchronously (onInit), so speaking immediately
+                    // would very likely fail while it's still initializing, re-arming
+                    // consecutiveSpeakFailures and reintroducing the same recreate-churn
+                    // this fix is meant to eliminate. The next reading (normally ~1
+                    // minute later) will find a bound engine and speak normally.
+                    if (doLog) {
+                        Log.i(LOG_ID, "periodic-speak-gate: skipping speak this cycle, talker just recreated");
                     }
                 } else {
+                    // Always offer the currently valid reading to Talker.selspeak() - do
+                    // NOT gate this on reading age. Talker.selspeak() itself synchronously
+                    // decides, per call, whether intervalElapsed && withinSchedule justify
+                    // actually speaking (see the "selspeak intervalElapsed=...
+                    // withinSchedule=..." log), so this call site doesn't need to guess
+                    // ahead of time.
+                    //
+                    // A prior version returned here to a MISSED_READING alert instead of
+                    // speaking once the reading was older than Notify.glucosetimeout (330s).
+                    // Since the user-configured voice-separation interval (cursep) is
+                    // commonly longer than that freshness window, and MISSED_READING is
+                    // commonly disabled, that path silently dropped the announcement for
+                    // good: once a reading crossed 330s old, selspeak() was never called
+                    // again for it, even after cursep elapsed. Confirmed via trace:
+                    // "periodic-speak-gate SKIPPED: missed-reading alert disabled"
+                    // recurring every following minute with no further "Talker selspeak"
+                    // line for that reading. The genuine missed-reading alert (true sensor
+                    // dropout, not just an unlucky race between 330s and cursep) already
+                    // has its own watchdog in AlertRuntimeManager, independent of this
+                    // per-reading callback.
+                    //
                     // Speak the calibrated display value (same source as the display,
                     // notifications, and alarm speech) rather than the raw native value.
-                    final CurrentDisplaySource.Snapshot speakcurrent =
-                            CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
-                    talker.selspeak(speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
+                    //
+                    // Speak through the local read above, not the static: endtalk() nulls
+                    // `talker` from another thread after clearing dotalk, so this thread can
+                    // pass the dotalk check and then dereference a null field. Rare, but it
+                    // would throw on the BLE callback path.
+                    if (currentTalker == null) {
+                        Log.e(LOG_ID, "periodic-speak-gate: dotalk set but no talker — recreating");
+                        newtalker(null);
+                    } else {
+                        final CurrentDisplaySource.Snapshot speakcurrent =
+                                CurrentDisplaySource.resolveCurrent(Notify.glucosetimeout);
+                        currentTalker.selspeak(
+                                speakcurrent != null ? speakcurrent.getSpeechPrimaryStr() : sglucose.value);
+                    }
+                }
+            } else {
+                // Outside the doLog guard: this is the one diagnostic that must still fire
+                // when in-app tracing is off, since that is exactly the configuration in
+                // which a silently disabled "Speak glucose" switch leaves no evidence at all.
+                warnIfSpeechDisabled();
+                if (doLog) {
+                    Log.i(LOG_ID, "periodic-speak-gate SKIPPED: dotalk=" + dotalk
+                            + " alarmSpeechStarted=" + alarmSpeechStarted);
                 }
             }
         }
