@@ -104,6 +104,13 @@ static final private int minandroid=21; //21
 
 private static volatile boolean warnedVoiceSpeedZero=false;
 
+/** Digits accepted in the voice-separation field, i.e. a ceiling of 9999s (2h46m39s). Public
+ *  because both settings surfaces -- this class's legacy dialog and TalkerSettingsScreen --
+ *  must cap identically; two literals in two files is exactly the drift that let them
+ *  disagree before. The native store is 15 bits (max 32767), so every value this admits
+ *  round-trips intact. */
+public static final int SEPARATION_MAX_DIGITS=4;
+
 /**
  * Reload the voice settings from the native store into the static mirrors.
  *
@@ -864,17 +871,16 @@ private static View makeConfigView(MainActivity context, boolean overlayMode, Ru
     separation.setMinEms(2);
     int sep=(int)(cursep/1000L);
     separation.setText(sep+"");
-    // Match the Compose settings screen, which caps typed input at 3 digits
-    // (TalkerSettingsScreen.kt: input.filter { it.isDigit() }.take(3)). The native store is
-    // a 15-bit field (settings.hpp: uint16_t voicesep : 15), so a 5-digit entry above 32767
-    // would truncate silently instead of being rejected.
+    // Match the Compose settings screen, which caps typed input at the same 4 digits
+    // (TalkerSettingsScreen.kt: input.filter { it.isDigit() }.take(4)). 9999s is 2h46m39s,
+    // comfortably inside the native store's 15-bit field (settings.hpp: uint16_t voicesep :
+    // 15, max 32767), so no entry this field accepts can silently truncate on the way down.
     //
     // Attached AFTER setText on purpose: InputFilters run on setText too, so installing this
-    // first would display a pre-existing >999 value (only reachable via this same dialog
-    // before the cap existed) as its first three digits — 1200 shown as "120", then saved as
-    // 120 on the next save. Filtering only subsequent edits shows the stored value honestly,
-    // exactly as the Compose screen does.
-    separation.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(3)});
+    // first would display a pre-existing longer value as its first four digits — 40000 shown
+    // as "4000", then saved as 4000 on the next save. Filtering only subsequent edits shows
+    // the stored value honestly, exactly as the Compose screen does.
+    separation.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(SEPARATION_MAX_DIGITS)});
     var seplabel=getlabel(context,context.getString(R.string.secondsbetween));
     float density=GlucoseCurve.metrics.density;
     int pad=(int)(density*3);
