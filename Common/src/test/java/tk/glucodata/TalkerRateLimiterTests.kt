@@ -25,7 +25,7 @@ class TalkerRateLimiterTests {
         var speakSucceeds: Boolean = true
     ) {
         var nexttime: Long = 0L
-        var lastSpokenAt: Long = 0L
+        var lastClaimAt: Long = 0L
         var speakCount: Int = 0
         /** Attempts handed to the engine, successful or not — what needsReinit() counts. */
         var attemptCount: Int = 0
@@ -33,10 +33,10 @@ class TalkerRateLimiterTests {
         fun selspeak(nowMs: Long) {
             if (nowMs > nexttime) {
                 nexttime = AnnounceSlot.nextSlotAfterAttempt(nowMs, separationMs, true)
+                lastClaimAt = nowMs
                 attemptCount++
                 if (speakSucceeds) {
                     speakCount++
-                    lastSpokenAt = nowMs
                 } else {
                     nexttime = AnnounceSlot.nextSlotAfterAttempt(nowMs, separationMs, false)
                 }
@@ -48,7 +48,7 @@ class TalkerRateLimiterTests {
             val previous = separationMs
             separationMs = newSeparationMs
             if (newSeparationMs < previous) {
-                nexttime = AnnounceSlot.nextSlotAfterSeparationChange(nexttime, lastSpokenAt, newSeparationMs)
+                nexttime = AnnounceSlot.nextSlotAfterSeparationChange(nexttime, lastClaimAt, newSeparationMs)
             }
         }
     }

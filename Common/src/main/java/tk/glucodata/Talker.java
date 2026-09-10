@@ -702,8 +702,14 @@ boolean needsReinit() {
     return consecutiveSpeakFailures >= REINIT_FAILURE_THRESHOLD;
 }
 
-/** Wall-clock ms of the last routine announcement the engine accepted, 0 before the first. */
-volatile static long lastSpokenAt=0L;
+/** Guards the announcement slot: nexttime, lastClaimAt and the cursep a claim is computed from
+ *  move together. selspeak() runs on the BLE callback thread and setSeparationMs() on the UI
+ *  thread; unsynchronized, a lowered separation could either be computed from a stale claim (one
+ *  early repeat) or be overwritten by a claim still using the old separation (the full old wait). */
+private static final Object slotLock=new Object();
+/** Wall-clock ms of the last slot selspeak() claimed, 0 before the first. Set atomically with
+ *  nexttime, which the time an utterance was accepted cannot be. */
+private static long lastClaimAt=0L;
 
 /**
  * Apply a user-chosen separation. The slot selspeak() already claimed was computed from the old
@@ -711,12 +717,16 @@ volatile static long lastSpokenAt=0L;
  * dropping 9999s to 60s meant up to 2h46m of silence before the new setting was observable.
  */
 static void setSeparationMs(long separationMs) {
-    final long previous=cursep;
-    cursep=separationMs;
-    if(separationMs<previous) {
-        nexttime=AnnounceSlot.nextSlotAfterSeparationChange(nexttime,lastSpokenAt,separationMs);
-        if(doLog) {Log.i(LOG_ID,"separation "+previous+" -> "+separationMs+"ms, nexttime="+nexttime);}
+    final long previous;
+    final long next;
+    synchronized(slotLock) {
+        previous=cursep;
+        cursep=separationMs;
+        if(separationMs<previous)
+            nexttime=AnnounceSlot.nextSlotAfterSeparationChange(nexttime,lastClaimAt,separationMs);
+        next=nexttime;
         }
+    if(doLog&&separationMs!=previous) {Log.i(LOG_ID,"separation "+previous+" -> "+separationMs+"ms, nexttime="+next);}
     }
 
 void selspeak(String message) {
@@ -741,12 +751,24 @@ void selspeak(String message) {
             // traces it is 33 minutes, and every further failure cost another 16m39s of
             // silence. Retrying on the next reading instead makes detection ~2 minutes
             // regardless of how the user has set the interval.
-            nexttime=AnnounceSlot.nextSlotAfterAttempt(now,cursep,true);
-            if(speak(message)) {
-                lastSpokenAt=now;
+            //
+            // The claim re-checks the gate under slotLock (see there); speak() itself runs
+            // outside it, since a TTS binder call must not stall a settings save.
+            final long sep;
+            synchronized(slotLock) {
+                if(now<=nexttime)
+                    return; // a concurrent reading claimed this slot first
+                sep=cursep;
+                nexttime=AnnounceSlot.nextSlotAfterAttempt(now,sep,true);
+                lastClaimAt=now;
                 }
-            else {
-                nexttime=AnnounceSlot.nextSlotAfterAttempt(now,cursep,false);
+            if(!speak(message)) {
+                final long retry=AnnounceSlot.nextSlotAfterAttempt(now,sep,false);
+                synchronized(slotLock) {
+                    // min, not assign: a separation change since the claim may already have
+                    // pulled the slot in further.
+                    nexttime=Math.min(nexttime,retry);
+                    }
                 }
             }
         else if(doLog) {

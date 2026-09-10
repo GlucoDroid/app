@@ -17,10 +17,10 @@ object AnnounceSlot {
         now + if (accepted) separationMs else minOf(separationMs, FAILED_SPEAK_RETRY_MS)
 
     /** Where a pending slot moves to when the separation becomes [separationMs]: never later
-     *  than the new separation after the last accepted announcement. Only ever shortens -- a
-     *  longer separation takes effect from the next announcement, so a raise cannot push out a
+     *  than the new separation after the last claimed slot. Only ever shortens -- a longer
+     *  separation takes effect from the next announcement, so a raise cannot push out a
      *  pending retry. */
     @JvmStatic
-    fun nextSlotAfterSeparationChange(nexttime: Long, lastSpokenAt: Long, separationMs: Long): Long =
-        if (lastSpokenAt <= 0L) nexttime else minOf(nexttime, lastSpokenAt + separationMs)
+    fun nextSlotAfterSeparationChange(nexttime: Long, lastClaimAt: Long, separationMs: Long): Long =
+        if (lastClaimAt <= 0L) nexttime else minOf(nexttime, lastClaimAt + separationMs)
 }
