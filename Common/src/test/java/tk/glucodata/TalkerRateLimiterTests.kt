@@ -12,48 +12,83 @@ import org.junit.Test
  * milliseconds.  On a 5-minute separation setting that means at most 12 TTS
  * utterances per hour — firing faster would be a battery regression.
  *
- * Production code (simplified for testing):
- *
- *   static long nexttime = 0L;
- *   void selspeak(String message) {
- *       var now = System.currentTimeMillis();
- *       if (now > nexttime && SpeakSchedule.isWithinSchedule(app)) {
- *           nexttime = now + cursep;
- *           speak(message);
- *       }
- *   }
- *
- * We test the gate logic without Android context by reimplementing it here.
+ * The gate itself (now > nexttime && withinSchedule) needs Android, so it is modelled here;
+ * the slot arithmetic is the production code, AnnounceSlot.nextSlotAfterAttempt() and
+ * AnnounceSlot.nextSlotAfterSeparationChange(), so these tests cannot drift from what ships.
  */
 class TalkerRateLimiterTests {
 
-    // A pure reimplementation of the selspeak gate (no Android deps).
+    // The selspeak gate, driving the production slot arithmetic (no Android deps).
     private class RateLimiter(
-        private val separationMs: Long,
+        var separationMs: Long,
         /** Whether the engine accepts utterances; false models a dead/unbound TextToSpeech. */
         var speakSucceeds: Boolean = true
     ) {
         var nexttime: Long = 0L
+        var lastSpokenAt: Long = 0L
         var speakCount: Int = 0
         /** Attempts handed to the engine, successful or not — what needsReinit() counts. */
         var attemptCount: Int = 0
 
         fun selspeak(nowMs: Long) {
             if (nowMs > nexttime) {
-                nexttime = nowMs + separationMs
+                nexttime = AnnounceSlot.nextSlotAfterAttempt(nowMs, separationMs, true)
                 attemptCount++
                 if (speakSucceeds) {
                     speakCount++
+                    lastSpokenAt = nowMs
                 } else {
-                    nexttime = nowMs + minOf(separationMs, FAILED_SPEAK_RETRY_MS)
+                    nexttime = AnnounceSlot.nextSlotAfterAttempt(nowMs, separationMs, false)
                 }
+            }
+        }
+
+        /** Mirrors Talker.setSeparationMs(). */
+        fun changeSeparation(newSeparationMs: Long) {
+            val previous = separationMs
+            separationMs = newSeparationMs
+            if (newSeparationMs < previous) {
+                nexttime = AnnounceSlot.nextSlotAfterSeparationChange(nexttime, lastSpokenAt, newSeparationMs)
             }
         }
     }
 
     private companion object {
-        const val FAILED_SPEAK_RETRY_MS = 30_000L
         const val REINIT_FAILURE_THRESHOLD = 2
+    }
+
+    // ---------- a changed separation must apply to the slot already claimed ----------
+
+    @Test
+    fun separationLowered_takesEffectFromLastAnnouncement_notAfterOldInterval() {
+        val limiter = RateLimiter(separationMs = 9_999_000L)
+        limiter.selspeak(nowMs = 1L)                // speaks; old slot is 2h46m away
+        limiter.changeSeparation(60_000L)
+        limiter.selspeak(nowMs = 60_002L)           // one reading later
+        assertEquals("a lowered separation must not wait out the old interval", 2, limiter.speakCount)
+    }
+
+    @Test
+    fun separationRaised_doesNotExtendPendingSlot() {
+        val limiter = RateLimiter(separationMs = 60_000L)
+        limiter.selspeak(nowMs = 1L)
+        limiter.changeSeparation(999_000L)
+        limiter.selspeak(nowMs = 60_002L)
+        assertEquals("the old, shorter slot still stands", 2, limiter.speakCount)
+        limiter.selspeak(nowMs = 120_002L)
+        assertEquals("and the new separation applies from then on", 2, limiter.speakCount)
+    }
+
+    @Test
+    fun separationLowered_beforeAnySpeech_leavesSlotAlone() {
+        assertEquals(0L, AnnounceSlot.nextSlotAfterSeparationChange(0L, 0L, 60_000L))
+        assertEquals(25_000L, AnnounceSlot.nextSlotAfterSeparationChange(25_000L, 0L, 1_000L))
+    }
+
+    @Test
+    fun separationLowered_neverDelaysAPendingRetry() {
+        // A refused utterance left a 30s retry pending; lowering must not push it out.
+        assertEquals(130_000L, AnnounceSlot.nextSlotAfterSeparationChange(130_000L, 50_000L, 600_000L))
     }
 
     @Test
