@@ -305,7 +305,7 @@ public static void applyComposeSettings(Context context, boolean speakGlucose, b
             +" separationSeconds="+separationSeconds+" selectedVoice="+selectedVoice);
     curspeed=speed;
     curpitch=pitch;
-    cursep=Math.max(1,separationSeconds)*1000L;
+    setSeparationMs(Math.max(1,separationSeconds)*1000L);
     if(selectedVoice>=0)
         voicepos=selectedVoice;
 
@@ -698,13 +698,36 @@ volatile static long nexttime=0L;
 // watchdog tick (that was the prior, now-fixed, bug).
 private volatile int consecutiveSpeakFailures = 0;
 private static final int REINIT_FAILURE_THRESHOLD = 2;
-/** How long selspeak() defers after an utterance the engine would not take. Short enough that
- *  the next reading retries, so a failed attempt costs one reading rather than one whole
- *  user-configured separation interval. */
-private static final long FAILED_SPEAK_RETRY_MS = 30_000L;
 boolean needsReinit() {
     return consecutiveSpeakFailures >= REINIT_FAILURE_THRESHOLD;
 }
+
+/** Guards the announcement slot: nexttime, lastClaimAt and the cursep a claim is computed from
+ *  move together. selspeak() runs on the BLE callback thread and setSeparationMs() on the UI
+ *  thread; unsynchronized, a lowered separation could either be computed from a stale claim (one
+ *  early repeat) or be overwritten by a claim still using the old separation (the full old wait). */
+private static final Object slotLock=new Object();
+/** Wall-clock ms of the last slot selspeak() claimed, 0 before the first. Set atomically with
+ *  nexttime, which the time an utterance was accepted cannot be. */
+private static long lastClaimAt=0L;
+
+/**
+ * Apply a user-chosen separation. The slot selspeak() already claimed was computed from the old
+ * value, so without this a lowered separation only took effect after one more full old interval:
+ * dropping 9999s to 60s meant up to 2h46m of silence before the new setting was observable.
+ */
+static void setSeparationMs(long separationMs) {
+    final long previous;
+    final long next;
+    synchronized(slotLock) {
+        previous=cursep;
+        cursep=separationMs;
+        if(separationMs<previous)
+            nexttime=AnnounceSlot.nextSlotAfterSeparationChange(nexttime,lastClaimAt,separationMs);
+        next=nexttime;
+        }
+    if(doLog&&separationMs!=previous) {Log.i(LOG_ID,"separation "+previous+" -> "+separationMs+"ms, nexttime="+next);}
+    }
 
 void selspeak(String message) {
     if(!DontTalk) {
@@ -728,9 +751,22 @@ void selspeak(String message) {
             // traces it is 33 minutes, and every further failure cost another 16m39s of
             // silence. Retrying on the next reading instead makes detection ~2 minutes
             // regardless of how the user has set the interval.
-            nexttime=now+cursep;
+            //
+            // The claim re-checks the gate under slotLock (see there); speak() itself runs
+            // outside it, since a TTS binder call must not stall a settings save.
+            final long sep;
+            synchronized(slotLock) {
+                if(now<=nexttime)
+                    return; // a concurrent reading claimed this slot first
+                sep=cursep;
+                nexttime=AnnounceSlot.nextSlotAfterAttempt(now,sep,true);
+                lastClaimAt=now;
+                }
             if(!speak(message)) {
-                nexttime=now+Math.min(cursep,FAILED_SPEAK_RETRY_MS);
+                final long retry=AnnounceSlot.nextSlotAfterAttempt(now,sep,false);
+                synchronized(slotLock) {
+                    nexttime=AnnounceSlot.slotAfterRefusal(nexttime,lastClaimAt,now,retry);
+                    }
                 }
             }
         else if(doLog) {
@@ -1036,7 +1072,7 @@ private static View makeConfigView(MainActivity context, boolean overlayMode, Ru
                   }
              var str = separation.getText().toString();
             if(str != null) {
-                cursep = Integer.parseInt(str)*1000L;
+                setSeparationMs(Math.max(1,Integer.parseInt(str))*1000L);
                 }
             var speedstr=((EditText)speeds[1]).getText().toString();
             if(speedstr != null) {
