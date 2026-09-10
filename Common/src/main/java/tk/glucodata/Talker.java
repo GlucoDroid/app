@@ -765,9 +765,7 @@ void selspeak(String message) {
             if(!speak(message)) {
                 final long retry=AnnounceSlot.nextSlotAfterAttempt(now,sep,false);
                 synchronized(slotLock) {
-                    // min, not assign: a separation change since the claim may already have
-                    // pulled the slot in further.
-                    nexttime=Math.min(nexttime,retry);
+                    nexttime=AnnounceSlot.slotAfterRefusal(nexttime,lastClaimAt,now,retry);
                     }
                 }
             }

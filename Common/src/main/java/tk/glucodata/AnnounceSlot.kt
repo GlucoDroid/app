@@ -16,6 +16,14 @@ object AnnounceSlot {
     fun nextSlotAfterAttempt(now: Long, separationMs: Long, accepted: Boolean): Long =
         now + if (accepted) separationMs else minOf(separationMs, FAILED_SPEAK_RETRY_MS)
 
+    /** The slot after the utterance claimed at [claimAt] was refused. Only that claim's own slot
+     *  is handed back: if a later reading has claimed since (a slow speak() outliving a short
+     *  separation), the refusal is stale and must not shorten the newer slot. Otherwise min, not
+     *  assign, since a separation change after the claim may already have pulled the slot in. */
+    @JvmStatic
+    fun slotAfterRefusal(nexttime: Long, lastClaimAt: Long, claimAt: Long, retryAt: Long): Long =
+        if (lastClaimAt != claimAt) nexttime else minOf(nexttime, retryAt)
+
     /** Where a pending slot moves to when the separation becomes [separationMs]: never later
      *  than the new separation after the last claimed slot. Only ever shortens -- a longer
      *  separation takes effect from the next announcement, so a raise cannot push out a

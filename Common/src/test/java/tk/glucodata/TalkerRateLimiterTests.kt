@@ -86,6 +86,18 @@ class TalkerRateLimiterTests {
     }
 
     @Test
+    fun staleRefusal_doesNotShortenANewerClaim() {
+        // Claim at 1_000 (sep 1s) is still in speak() when a reading claims again at 2_500,
+        // setting nexttime to 3_500. The first call's refusal then arrives: it must not apply.
+        assertEquals(3_500L, AnnounceSlot.slotAfterRefusal(3_500L, 2_500L, 1_000L, 2_000L))
+    }
+
+    @Test
+    fun ownRefusal_handsBackItsSlot() {
+        assertEquals(31_000L, AnnounceSlot.slotAfterRefusal(1_000_000L, 1_000L, 1_000L, 31_000L))
+    }
+
+    @Test
     fun separationLowered_neverDelaysAPendingRetry() {
         // A refused utterance left a 30s retry pending; lowering must not push it out.
         assertEquals(130_000L, AnnounceSlot.nextSlotAfterSeparationChange(130_000L, 50_000L, 600_000L))
