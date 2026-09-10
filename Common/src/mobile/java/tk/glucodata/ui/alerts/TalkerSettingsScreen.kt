@@ -377,7 +377,10 @@ fun TalkerSettingsScreen(navController: NavController) {
                     iconTint = MaterialTheme.colorScheme.primary,
                     position = CardPosition.TOP,
                     onValueChange = { input ->
-                        val digitsOnly = input.filter { it.isDigit() }.take(3)
+                        // Shared ceiling with the legacy dialog's LengthFilter: 4 digits, so
+                        // 9999s (2h46m39s). Still well inside the native 15-bit store (max
+                        // 32767), so nothing typed here truncates on the way down.
+                        val digitsOnly = input.filter { it.isDigit() }.take(Talker.SEPARATION_MAX_DIGITS)
                         separationText = digitsOnly
                         val parsed = digitsOnly.toIntOrNull()
                         if (parsed != null && parsed > 0) {

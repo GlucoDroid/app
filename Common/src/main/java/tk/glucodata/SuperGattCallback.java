@@ -844,21 +844,17 @@ public abstract class SuperGattCallback extends BluetoothGattCallback {
                 final Talker currentTalker = talker;
                 final boolean justRecreated = currentTalker != null && currentTalker.needsReinit();
                 if (justRecreated) {
+                    // Recreate, then skip speaking this cycle: the replacement's TextToSpeech
+                    // binds asynchronously (onInit), so speaking immediately would very likely
+                    // fail while it is still initializing, re-arming consecutiveSpeakFailures
+                    // and reintroducing the same recreate-churn this is meant to eliminate.
+                    // The next reading (normally ~1 minute later) finds a bound engine and
+                    // speaks normally.
                     if (doLog) {
-                        Log.i(LOG_ID, "periodic-speak-gate: talker needsReinit, recreating");
+                        Log.i(LOG_ID, "periodic-speak-gate: talker needsReinit, recreating"
+                                + " and skipping speak this cycle");
                     }
                     newtalker(null);
-                }
-                if (justRecreated) {
-                    // Skip speaking through the talker we just recreated above: its
-                    // TextToSpeech binds asynchronously (onInit), so speaking immediately
-                    // would very likely fail while it's still initializing, re-arming
-                    // consecutiveSpeakFailures and reintroducing the same recreate-churn
-                    // this fix is meant to eliminate. The next reading (normally ~1
-                    // minute later) will find a bound engine and speak normally.
-                    if (doLog) {
-                        Log.i(LOG_ID, "periodic-speak-gate: skipping speak this cycle, talker just recreated");
-                    }
                 } else {
                     // Always offer the currently valid reading to Talker.selspeak() - do
                     // NOT gate this on reading age. Talker.selspeak() itself synchronously

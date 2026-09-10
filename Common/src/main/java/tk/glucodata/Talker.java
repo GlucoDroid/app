@@ -90,7 +90,12 @@ static public final String LOG_ID="Talker";
 
 static    private float curpitch=1.0f;
 static  private float curspeed=1.0f;
-static private    long   cursep=50*1000L;
+// volatile: written on the UI thread by applyComposeSettings()/the legacy dialog save,
+// read on the BLE callback thread by selspeak(). A non-volatile long has neither atomicity
+// (JLS 17.7) nor visibility, so a settings change could go unseen by the announcer until
+// speechSelfCheck() next rewrote it from storage. nexttime was made volatile for the same
+// reason in c6e75a691; this field was overlooked.
+static private volatile long cursep=50*1000L;
 static private int voicepos=-1;
 static private String playstring=null;
 static private Spinner spinner=null;
@@ -98,6 +103,13 @@ static private Spinner spinner=null;
 static final private int minandroid=21; //21
 
 private static volatile boolean warnedVoiceSpeedZero=false;
+
+/** Digits accepted in the voice-separation field, i.e. a ceiling of 9999s (2h46m39s). Public
+ *  because both settings surfaces -- this class's legacy dialog and TalkerSettingsScreen --
+ *  must cap identically; two literals in two files is exactly the drift that let them
+ *  disagree before. The native store is 15 bits (max 32767), so every value this admits
+ *  round-trips intact. */
+public static final int SEPARATION_MAX_DIGITS=4;
 
 /**
  * Reload the voice settings from the native store into the static mirrors.
@@ -621,21 +633,53 @@ static boolean notifyfocus=false;
 //private static final AudioAttributes notification_audio = (new AudioAttributes.Builder()) .setLegacyStreamType(TextToSpeech.Engine.DEFAULT_STREAM) .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH) .build(); 
 //private static final AudioAttributes notification_audio =(android.os.Build.VERSION.SDK_INT >= 21)?new AudioAttributes.Builder().setUsage(isWearable? USAGE_ASSISTANCE_SONIFICATION:USAGE_NOTIFICATION ) .build():null;
 //private static final AudioAttributes notification_audio = notification_audio;
-public void speak(String message, AudioAttributes attr) {
-if(!DontTalk) {
-    if(android.os.Build.VERSION.SDK_INT >= minandroid) {
-        if(attr!=notification_audio) {
-            engine.setAudioAttributes(attr);
-           }
-           }
-    
-//    engine.speak(message, TextToSpeech.QUEUE_FLUSH, null);
-    speak(message);
-    if(android.os.Build.VERSION.SDK_INT >= minandroid) {
-        if(attr!=notification_audio)
-            engine.setAudioAttributes(notification_audio);
+/**
+ * Speak with a one-shot audio-attribute override, restoring {@link Notify#notification_audio}
+ * afterwards. This is the overload the alarm path uses.
+ *
+ * <p>Reads {@code engine} into a local: {@link #destruct} nulls it from another thread, so the
+ * two setAudioAttributes() calls that bracket the utterance could each dereference null while
+ * an alarm was being announced. The single-argument {@link #speak(String)} already swallows
+ * that via its own try/catch; this overload did not, so the throw escaped onto the caller's
+ * thread — for {@link Notify} that is a scheduler thread mid-alarm.
+ *
+ * @return true only when the engine accepted the utterance, i.e. when an
+ *         {@link UtteranceProgressListener} callback is guaranteed to follow. Callers that
+ *         took transient audio focus before calling must release it themselves on false:
+ *         nothing was queued, so no onDone/onError will ever arrive to do it for them.
+ */
+public boolean speak(String message, AudioAttributes attr) {
+    if(DontTalk)
+        return false;
+    final TextToSpeech gine=engine;
+    if(gine==null) {
+        Log.e(LOG_ID,"speak(message,attr): engine already shut down, dropping \""+message+"\"");
+        return false;
+        }
+    final boolean override=android.os.Build.VERSION.SDK_INT >= minandroid && attr!=notification_audio;
+    boolean spoken=false;
+    try {
+        if(override) {
+            gine.setAudioAttributes(attr);
+            }
+        spoken=speak(message);
+        }
+    catch(Throwable th) {
+        Log.stack(LOG_ID,"speak(message,attr)",th);
+        }
+    finally {
+        // Restore in a finally: leaving the override in place would apply the alarm's
+        // attributes to every subsequent routine announcement.
+        if(override) {
+            try {
+                gine.setAudioAttributes(notification_audio);
+                }
+            catch(Throwable th) {
+                Log.stack(LOG_ID,"speak(message,attr) restore",th);
+                }
+            }
          }
-         }
+    return spoken;
     }
 volatile static long nexttime=0L;
 
@@ -827,6 +871,16 @@ private static View makeConfigView(MainActivity context, boolean overlayMode, Ru
     separation.setMinEms(2);
     int sep=(int)(cursep/1000L);
     separation.setText(sep+"");
+    // Match the Compose settings screen, which caps typed input at the same 4 digits
+    // (TalkerSettingsScreen.kt: input.filter { it.isDigit() }.take(4)). 9999s is 2h46m39s,
+    // comfortably inside the native store's 15-bit field (settings.hpp: uint16_t voicesep :
+    // 15, max 32767), so no entry this field accepts can silently truncate on the way down.
+    //
+    // Attached AFTER setText on purpose: InputFilters run on setText too, so installing this
+    // first would display a pre-existing longer value as its first four digits — 40000 shown
+    // as "4000", then saved as 4000 on the next save. Filtering only subsequent edits shows
+    // the stored value honestly, exactly as the Compose screen does.
+    separation.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(SEPARATION_MAX_DIGITS)});
     var seplabel=getlabel(context,context.getString(R.string.secondsbetween));
     float density=GlucoseCurve.metrics.density;
     int pad=(int)(density*3);
