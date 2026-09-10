@@ -635,20 +635,27 @@ static boolean notifyfocus=false;
  * an alarm was being announced. The single-argument {@link #speak(String)} already swallows
  * that via its own try/catch; this overload did not, so the throw escaped onto the caller's
  * thread — for {@link Notify} that is a scheduler thread mid-alarm.
+ *
+ * @return true only when the engine accepted the utterance, i.e. when an
+ *         {@link UtteranceProgressListener} callback is guaranteed to follow. Callers that
+ *         took transient audio focus before calling must release it themselves on false:
+ *         nothing was queued, so no onDone/onError will ever arrive to do it for them.
  */
-public void speak(String message, AudioAttributes attr) {
-if(!DontTalk) {
+public boolean speak(String message, AudioAttributes attr) {
+    if(DontTalk)
+        return false;
     final TextToSpeech gine=engine;
     if(gine==null) {
         Log.e(LOG_ID,"speak(message,attr): engine already shut down, dropping \""+message+"\"");
-        return;
+        return false;
         }
     final boolean override=android.os.Build.VERSION.SDK_INT >= minandroid && attr!=notification_audio;
+    boolean spoken=false;
     try {
         if(override) {
             gine.setAudioAttributes(attr);
             }
-        speak(message);
+        spoken=speak(message);
         }
     catch(Throwable th) {
         Log.stack(LOG_ID,"speak(message,attr)",th);
@@ -665,7 +672,7 @@ if(!DontTalk) {
                 }
             }
          }
-         }
+    return spoken;
     }
 volatile static long nexttime=0L;
 

@@ -1996,8 +1996,14 @@ public class Notify {
                                             doTurnFocusoff();
                                             return;
                                         }
-                                        delayedTalker.speak(current.getSpeechPrimaryStr(),
-                                                disturb ? ScanNfcV.audioattributes : notification_audio);
+                                        // Release focus if the engine refused the utterance
+                                        // too: a false return means nothing was queued, so no
+                                        // onDone/onError will arrive to release it for us.
+                                        if (!delayedTalker.speak(current.getSpeechPrimaryStr(),
+                                                disturb ? ScanNfcV.audioattributes : notification_audio)) {
+                                            Log.e(LOG_ID, "alarm speech: engine refused utterance");
+                                            doTurnFocusoff();
+                                        }
                                     },
                                     300, TimeUnit.MILLISECONDS);
                         } else
