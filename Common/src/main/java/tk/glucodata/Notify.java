@@ -1893,8 +1893,13 @@ public class Notify {
         if (!DontTalk) {
             if (glucosealarm && Natives.speakalarms()) {
                 final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
-                if (current != null) {
-                    SuperGattCallback.talker.speak(current.getSpeechPrimaryStr(),
+                // Read the static into a local before dereferencing it: endtalk() nulls
+                // SuperGattCallback.talker from another thread, and it is null until the
+                // first newtalker(). Same guard the announce gate and initAlarmTalk() already
+                // use; the alarm path was the one deref left unprotected.
+                final Talker alarmTalker = SuperGattCallback.talker;
+                if (current != null && alarmTalker != null) {
+                    alarmTalker.speak(current.getSpeechPrimaryStr(),
                             disturb ? ScanNfcV.audioattributes : notification_audio);
                 }
             }
@@ -1978,8 +1983,22 @@ public class Notify {
                         final CurrentDisplaySource.Snapshot current = resolveNotificationCurrentSnapshot();
                         if (current != null) {
                             Applic.scheduler.schedule(
-                                    () -> SuperGattCallback.talker.speak(current.getSpeechPrimaryStr(),
-                                            disturb ? ScanNfcV.audioattributes : notification_audio),
+                                    () -> {
+                                        // Resolve the talker inside the lambda, not at schedule
+                                        // time, so it is the one that exists when the utterance
+                                        // is actually made — and null-check it: endtalk() has
+                                        // this whole 300ms delay in which to null the field,
+                                        // which would have thrown on the scheduler thread
+                                        // mid-alarm.
+                                        final Talker delayedTalker = SuperGattCallback.talker;
+                                        if (delayedTalker == null) {
+                                            Log.e(LOG_ID, "alarm speech: no talker, dropping utterance");
+                                            doTurnFocusoff();
+                                            return;
+                                        }
+                                        delayedTalker.speak(current.getSpeechPrimaryStr(),
+                                                disturb ? ScanNfcV.audioattributes : notification_audio);
+                                    },
                                     300, TimeUnit.MILLISECONDS);
                         } else
                             doTurnFocusoff();
