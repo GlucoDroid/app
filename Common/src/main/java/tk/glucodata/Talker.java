@@ -604,7 +604,10 @@ private static void logAudioState(String callSite, int stream, AudioManager am, 
         final int max = am.getStreamMaxVolume(stream);
         final boolean muted = android.os.Build.VERSION.SDK_INT >= 23 && am.isStreamMute(stream);
         final int ringerMode = am.getRingerMode();
-        final var nm = Notify.notificationManager;
+        // Fetch our own handle rather than Notify.notificationManager - that field is
+        // per-instance (set up alongside a specific notification, not a singleton), so it
+        // is not reliably populated at arbitrary announcement time.
+        final var nm = (android.app.NotificationManager) Applic.app.getSystemService(Context.NOTIFICATION_SERVICE);
         final int filter = (nm != null && android.os.Build.VERSION.SDK_INT >= 23)
                 ? nm.getCurrentInterruptionFilter() : -1;
         Log.i(LOG_ID, "audioState[" + callSite + "] stream=" + streamName(stream)
