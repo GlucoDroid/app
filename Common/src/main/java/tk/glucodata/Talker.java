@@ -571,9 +571,15 @@ private static final float MIN_TTS_VOLUME_FRACTION = 0.25f;
 
 private static int usageToStreamType(int usage) {
     switch (usage) {
-        case AudioAttributes.USAGE_ALARM:  return AudioManager.STREAM_ALARM;
-        case AudioAttributes.USAGE_MEDIA:  return AudioManager.STREAM_MUSIC;
-        default:                           return AudioManager.STREAM_NOTIFICATION;
+        case AudioAttributes.USAGE_ALARM: return AudioManager.STREAM_ALARM;
+        case AudioAttributes.USAGE_MEDIA: return AudioManager.STREAM_MUSIC;
+        // Wear speech is spoken with USAGE_ASSISTANCE_SONIFICATION (see the isWearable
+        // branch below setting Natives.setSoundType()). Android's own AudioAttributes ->
+        // legacy-stream mapping routes that usage to STREAM_SYSTEM, not STREAM_NOTIFICATION
+        // - falling through to the notification case guarded/logged the wrong stream on
+        // Wear (greptile #79 review).
+        case USAGE_ASSISTANCE_SONIFICATION: return AudioManager.STREAM_SYSTEM;
+        default:                            return AudioManager.STREAM_NOTIFICATION;
     }
 }
 
@@ -582,6 +588,7 @@ private static String streamName(int stream) {
         case AudioManager.STREAM_ALARM:        return "ALARM";
         case AudioManager.STREAM_MUSIC:        return "MUSIC";
         case AudioManager.STREAM_NOTIFICATION: return "NOTIFICATION";
+        case AudioManager.STREAM_SYSTEM:       return "SYSTEM";
         default:                               return "stream" + stream;
     }
 }
