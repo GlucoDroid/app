@@ -577,14 +577,67 @@ private static int usageToStreamType(int usage) {
     }
 }
 
-private static void ensureMinStreamVolume() {
+private static String streamName(int stream) {
+    switch (stream) {
+        case AudioManager.STREAM_ALARM:        return "ALARM";
+        case AudioManager.STREAM_MUSIC:        return "MUSIC";
+        case AudioManager.STREAM_NOTIFICATION: return "NOTIFICATION";
+        default:                               return "stream" + stream;
+    }
+}
+
+/**
+ * Logs everything downstream of the TTS engine that can make an accepted, completed
+ * utterance inaudible without the engine ever reporting a failure: the target stream's
+ * current/max volume, whether that stream is muted by policy (which {@link
+ * AudioManager#getStreamVolume} does not reflect - a stream muted by ringer mode or DND can
+ * still read a normal volume index), the device ringer mode and notification interruption
+ * filter (DND), and whether {@link #ensureMinStreamVolume} judged a bump necessary.
+ *
+ * <p>Filed as https://github.com/GlucoDroid/app/issues/78: two capture windows showed a
+ * perfect success/onStart/onDone record from the engine while Rob heard nothing, and none of
+ * this state was ever logged to tell the two situations apart.
+ */
+private static void logAudioState(String callSite, int stream, AudioManager am, boolean bumped) {
+    try {
+        final int vol = am.getStreamVolume(stream);
+        final int max = am.getStreamMaxVolume(stream);
+        final boolean muted = android.os.Build.VERSION.SDK_INT >= 23 && am.isStreamMute(stream);
+        final int ringerMode = am.getRingerMode();
+        final var nm = Notify.notificationManager;
+        final int filter = (nm != null && android.os.Build.VERSION.SDK_INT >= 23)
+                ? nm.getCurrentInterruptionFilter() : -1;
+        Log.i(LOG_ID, "audioState[" + callSite + "] stream=" + streamName(stream)
+                + " volume=" + vol + "/" + max
+                + " muted=" + muted
+                + " ringerMode=" + ringerMode
+                + " interruptionFilter=" + filter
+                + " bumpedToMin=" + bumped);
+    } catch (Throwable th) {
+        Log.stack(LOG_ID, "logAudioState", th);
+    }
+}
+
+/**
+ * @param usage the {@code AudioAttributes.USAGE_*} the utterance is actually being spoken
+ *              with. Must NOT be assumed to be {@link Natives#getSoundType()}: {@link
+ *              #speak(String, AudioAttributes)} speaks with a one-shot override (e.g. the
+ *              Test button's {@link #mediaAudio}), and checking the persisted type there
+ *              would guard the wrong stream — bumping the alarm stream's volume while
+ *              silently playing on the music stream, or vice versa.
+ */
+private static void ensureMinStreamVolume(int usage) {
     try {
         AudioManager am = (AudioManager) Applic.app.getSystemService(Context.AUDIO_SERVICE);
         if (am == null) return;
-        final int stream = usageToStreamType(Natives.getSoundType());
+        final int stream = usageToStreamType(usage);
         final int maxVol = am.getStreamMaxVolume(stream);
         final int minVol = Math.max(1, Math.round(maxVol * MIN_TTS_VOLUME_FRACTION));
-        if (am.getStreamVolume(stream) < minVol) {
+        final boolean bump = am.getStreamVolume(stream) < minVol;
+        // Log before the bump: the whole point is to see the volume as it actually was
+        // going into this announcement, not the value we just forced it to.
+        logAudioState("speak", stream, am, bump);
+        if (bump) {
             am.setStreamVolume(stream, minVol, 0);
         }
     } catch (Throwable th) {
@@ -600,9 +653,18 @@ private static void ensureMinStreamVolume() {
  *         engine — see {@link #selspeak}.
  */
 public boolean speak(String message) {
+    return speak(message, Natives.getSoundType());
+    }
+
+/**
+ * @param usage the {@code AudioAttributes.USAGE_*} this utterance is actually being spoken
+ *              with — see {@link #ensureMinStreamVolume(int)} for why this must not be
+ *              re-derived from {@link Natives#getSoundType()} when a caller has overridden it.
+ */
+private boolean speak(String message, int usage) {
     if(!DontTalk) {
         try {
-            ensureMinStreamVolume();
+            ensureMinStreamVolume(usage);
             if (ttsWakeLock != null && !ttsWakeLock.isHeld()) ttsWakeLock.acquire(15_000L);
             int speakResult = (android.os.Build.VERSION.SDK_INT >= 21)
                     ? engine.speak(message, TextToSpeech.QUEUE_FLUSH, null, message)
@@ -662,7 +724,10 @@ public boolean speak(String message, AudioAttributes attr) {
         if(override) {
             gine.setAudioAttributes(attr);
             }
-        spoken=speak(message);
+        // Guard the stream this call is actually about to use, not the persisted
+        // Natives.getSoundType() - see ensureMinStreamVolume(int)'s javadoc. attr can be
+        // null on the pre-Lollipop path where override is always false.
+        spoken=speak(message, attr!=null ? attr.getUsage() : Natives.getSoundType());
         }
     catch(Throwable th) {
         Log.stack(LOG_ID,"speak(message,attr)",th);
